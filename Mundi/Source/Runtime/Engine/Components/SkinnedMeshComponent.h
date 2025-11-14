@@ -43,14 +43,12 @@ public:
     USkeletalMesh* GetSkeletalMesh() const { return SkeletalMesh; }
 
 protected:
-	void MarkAsSkinningDirty();
-    void PerformSkinning();
     /**
      * @brief 자식에게서 원본 메시를 받아 CPU 스키닝을 수행
      * @param InSkinningMatrices 스키닝 매트릭스
      */
     void UpdateSkinningMatrices(const TArray<FMatrix>& InSkinningMatrices, const TArray<FMatrix>& InSkinningNormalMatrices);
-    
+
 
     /**
      * @brief CPU 스키닝 최종 결과물. 렌더러가 이 데이터를 사용합니다.
@@ -62,6 +60,7 @@ protected:
     TArray<FNormalVertex> NormalSkinnedVertices;
 
 private:
+    void PerformSkinning();
     FVector SkinVertexPosition(const FSkinnedVertex& InVertex) const;
     FVector SkinVertexNormal(const FSkinnedVertex& InVertex) const;
     FVector4 SkinVertexTangent(const FSkinnedVertex& InVertex) const;

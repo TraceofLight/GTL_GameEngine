@@ -377,6 +377,19 @@ void UConsoleWidget::ExecCommand(const char* command_line)
 		UStatsOverlayD2D::Get().SetShowGPU(false);
 		AddLog("STAT: OFF");
 	}
+	else if (Stricmp(command_line, "SKINNING") == 0)
+	{
+		AddLog("SKINNING CPU");
+		AddLog("SKINNING GPU");
+	}
+	else if (Stricmp(command_line, "SKINNING GPU") == 0)
+	{
+		GWorld->GetRenderSettings().SetSkinningMode(ESkinningMode::GPU);
+	}
+	else if (Stricmp(command_line, "SKINNING CPU") == 0)
+	{
+		GWorld->GetRenderSettings().SetSkinningMode(ESkinningMode::CPU);
+	}
 	else
 	{
 		AddLog("Unknown command: '%s'", command_line);
