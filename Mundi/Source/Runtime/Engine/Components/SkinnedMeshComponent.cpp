@@ -49,13 +49,10 @@ void USkinnedMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMes
 
 	bool bIsGPUSkinning = View->RenderSettings->GetSkinningMode() == ESkinningMode::GPU;
 
-	if (bSkinningMatricesDirty)
+	if (!bIsGPUSkinning && bSkinningMatricesDirty)
 	{
-   		if (!bIsGPUSkinning)
-   		{
-   			PerformSkinning();
-   	  		SkeletalMesh->UpdateVertexBuffer(SkinnedVertices, VertexBuffer);
-   		}
+		PerformSkinning();
+		SkeletalMesh->UpdateVertexBuffer(SkinnedVertices, VertexBuffer);
 		bSkinningMatricesDirty = false;
 	}
 
