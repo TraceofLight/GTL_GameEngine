@@ -1933,45 +1933,20 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		}
 
 		// ===== 스키닝 모드 =====
+		bool bIsGpuSkinning = (RenderSettings.GetSkinningMode() == ESkinningMode::GPU);
+		if (ImGui::Checkbox("##GPUSkinning", &bIsGpuSkinning))
+		{
+			// 체크박스 상태에 따라 스키닝 모드 변경
+			ESkinningMode newMode = bIsGpuSkinning ? ESkinningMode::GPU : ESkinningMode::CPU;
+			RenderSettings.SetSkinningMode(newMode);
+		}
+		ImGui::SameLine();
 		if (IconSkinning && IconSkinning->GetShaderResourceView())
 		{
-		   ImGui::Image((void*)IconSkinning->GetShaderResourceView(), IconSize);
-		   ImGui::SameLine(0, 4);
+			ImGui::Image((void*)IconSkinning->GetShaderResourceView(), IconSize);
+			ImGui::SameLine(0, 4);
 		}
-
-		// 스키닝 모드 서브메뉴
-		if (ImGui::BeginMenu(" 스키닝 모드"))
-		{
-			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "메쉬 스키닝 방식");
-			ImGui::Separator();
-
-			// RenderSettings에서 현재 값 가져오기 (가정)
-			ESkinningMode currentMode = RenderSettings.GetSkinningMode();
-			int modeInt = static_cast<int>(currentMode);
-			const int oldModeInt = modeInt; // 변경 감지용
-
-			// 라디오 버튼 (GPU)
-			ImGui::RadioButton(" GPU 스키닝", &modeInt, static_cast<int>(ESkinningMode::GPU));
-			if (ImGui::IsItemHovered())
-			{
-				ImGui::SetTooltip("GPU에서 정점 스키닝을 수행합니다. (권장, 성능 향상)");
-			}
-
-			// 라디오 버튼 (CPU)
-			ImGui::RadioButton(" CPU 스키닝", &modeInt, static_cast<int>(ESkinningMode::CPU));
-			if (ImGui::IsItemHovered())
-			{
-				ImGui::SetTooltip("CPU에서 정점 스키닝을 수행합니다. (디버깅 또는 폴백용)");
-			}
-
-			// 값이 변경되었다면 RenderSettings 업데이트 (가정)
-			if (modeInt != oldModeInt)
-			{
-				RenderSettings.SetSkinningMode(static_cast<ESkinningMode>(modeInt));
-			}
-
-			ImGui::EndMenu();
-		}
+		ImGui::Text(" GPU 스키닝");
 		if (ImGui::IsItemHovered())
 		{
 			ImGui::SetTooltip("CPU 또는 GPU 스키닝 방식을 선택합니다.");
