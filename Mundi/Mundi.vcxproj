@@ -379,6 +379,8 @@
     <ClCompile Include="Source\Runtime\Core\Object\FireballActor.cpp" />
     <ClCompile Include="Source\Runtime\Core\Object\Object.cpp" />
     <ClCompile Include="Source\Runtime\Core\Object\ObjectFactory.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Animation\Private\AnimInstance.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Animation\Private\AnimSequenceBase.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Audio\Sound.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Collision\AABB.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Collision\BoundingSphere.cpp" />
@@ -619,6 +621,9 @@
     <ClInclude Include="Source\Runtime\Core\Object\ObjectFactory.h" />
     <ClInclude Include="Source\Runtime\Core\Object\ObjectMacros.h" />
     <ClInclude Include="Source\Runtime\Core\Object\Property.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\Public\AnimInstance.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\Public\AnimSequenceBase.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\Public\AnimTypes.h" />
     <ClInclude Include="Source\Runtime\Engine\Audio\Sound.h" />
     <ClInclude Include="Source\Runtime\Engine\Collision\AABB.h" />
     <ClInclude Include="Source\Runtime\Engine\Collision\BoundingSphere.h" />
