@@ -2,79 +2,59 @@
 #include "SkinnedMeshComponent.h"
 #include "USkeletalMeshComponent.generated.h"
 
+class UAnimInstance;
+struct FAnimNotifyEvent;
+
+/**
+ * @brief 스켈레탈 메시 컴포넌트
+ * @details Animation 가능한 스켈레탈 메시를 렌더링하는 컴포넌트
+ *
+ * @param AnimInstance 현재 Animation 인스턴스
+ * @param CurrentLocalSpacePose 각 뼈의 부모 기준 로컬 트랜스폼 배열
+ * @param CurrentComponentSpacePose 컴포넌트 기준 월드 트랜스폼 배열
+ * @param TempFinalSkinningMatrices 최종 스키닝 행렬 (임시 계산용)
+ * @param TempFinalSkinningNormalMatrices 최종 노말 스키닝 행렬 (CPU 스키닝용)
+ * @param TestTime 테스트용 시간 누적
+ * @param bIsInitialized 테스트용 초기화 플래그
+ * @param TestBoneBasePose 테스트용 기본 본 포즈
+ */
 UCLASS(DisplayName="스켈레탈 메시 컴포넌트", Description="스켈레탈 메시를 렌더링하는 컴포넌트입니다")
 class USkeletalMeshComponent : public USkinnedMeshComponent
 {
+	GENERATED_REFLECTION_BODY()
+
 public:
-    GENERATED_REFLECTION_BODY()
-    
-    USkeletalMeshComponent();
-    ~USkeletalMeshComponent() override = default;
+	USkeletalMeshComponent();
+	~USkeletalMeshComponent() override = default;
 
-    void TickComponent(float DeltaTime) override;
-    void SetSkeletalMesh(const FString& PathFileName) override;
+	// Functions
+	void TickComponent(float DeltaTime) override;
+	void SetSkeletalMesh(const FString& PathFileName) override;
+	void HandleAnimNotify(const FAnimNotifyEvent& Notify);
 
-// Editor Section
-public:
-    /**
-     * @brief 특정 뼈의 부모 기준 로컬 트랜스폼을 설정
-     * @param BoneIndex 수정할 뼈의 인덱스
-     * @param NewLocalTransform 새로운 부모 기준 로컬 FTransform
-     */
-    void SetBoneLocalTransform(int32 BoneIndex, const FTransform& NewLocalTransform);
+	// Getters
+	UAnimInstance* GetAnimInstance() const { return AnimInstance; }
+	FTransform GetBoneLocalTransform(int32 BoneIndex) const;
+	FTransform GetBoneWorldTransform(int32 BoneIndex);
 
-    void SetBoneWorldTransform(int32 BoneIndex, const FTransform& NewWorldTransform);
-    
-    /**
-     * @brief 특정 뼈의 현재 로컬 트랜스폼을 반환
-     */
-    FTransform GetBoneLocalTransform(int32 BoneIndex) const;
-    
-    /**
-     * @brief 기즈모를 렌더링하기 위해 특정 뼈의 월드 트랜스폼을 계산
-     */
-    FTransform GetBoneWorldTransform(int32 BoneIndex);
+	// Setters
+	void SetAnimInstance(UAnimInstance* InAnimInstance);
+	void SetBoneLocalTransform(int32 BoneIndex, const FTransform& NewLocalTransform);
+	void SetBoneWorldTransform(int32 BoneIndex, const FTransform& NewWorldTransform);
 
 protected:
-    /**
-     * @brief CurrentLocalSpacePose의 변경사항을 ComponentSpace -> FinalMatrices 계산까지 모두 수행
-     */
-    void ForceRecomputePose();
+	UAnimInstance* AnimInstance;
+	TArray<FTransform> CurrentLocalSpacePose;
+	TArray<FTransform> CurrentComponentSpacePose;
+	TArray<FMatrix> TempFinalSkinningMatrices;
+	TArray<FMatrix> TempFinalSkinningNormalMatrices;
 
-    /**
-     * @brief CurrentLocalSpacePose를 기반으로 CurrentComponentSpacePose 채우기
-     */
-    void UpdateComponentSpaceTransforms();
+	void ForceRecomputePose();
+	void UpdateComponentSpaceTransforms();
+	void UpdateFinalSkinningMatrices();
 
-    /**
-     * @brief CurrentComponentSpacePose를 기반으로 TempFinalSkinningMatrices 채우기
-     */
-    void UpdateFinalSkinningMatrices();
-
-protected:
-    /**
-     * @brief 각 뼈의 부모 기준 로컬 트랜스폼
-     */
-    TArray<FTransform> CurrentLocalSpacePose;
-
-    /**
-     * @brief LocalSpacePose로부터 계산된 컴포넌트 기준 트랜스폼
-     */
-    TArray<FTransform> CurrentComponentSpacePose;
-
-    /**
-     * @brief 부모에게 보낼 최종 스키닝 행렬 (임시 계산용)
-     */
-    TArray<FMatrix> TempFinalSkinningMatrices;
-    /**
-     * @brief CPU 스키닝에 전달할 최종 노말 스키닝 행렬
-     */
-    TArray<FMatrix> TempFinalSkinningNormalMatrices;
-
-
-// FOR TEST!!!
 private:
-    float TestTime = 0;
-    bool bIsInitialized = false;
-    FTransform TestBoneBasePose;
+	float TestTime;
+	bool bIsInitialized;
+	FTransform TestBoneBasePose;
 };

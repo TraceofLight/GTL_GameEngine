@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Object.h"
 #include "SceneComponent.h"
@@ -11,7 +11,6 @@
 UCLASS(DisplayName="테스트 자동 바인딩 컴포넌트", Description="자동 바인딩 테스트용 컴포넌트입니다")
 class UTestAutoBindComponent : public USceneComponent
 {
-
 	GENERATED_REFLECTION_BODY()
 
 public:

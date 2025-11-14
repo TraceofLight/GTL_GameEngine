@@ -1,16 +1,51 @@
 ﻿#include "pch.h"
 #include "SkeletalMeshComponent.h"
+#include "Source/Runtime/Engine/Animation/Public/AnimInstance.h"
 
 USkeletalMeshComponent::USkeletalMeshComponent()
+    : AnimInstance(nullptr)
+    , TestTime(0.0f)
+    , bIsInitialized(false)
 {
     // 테스트용 기본 메시 설정
     SetSkeletalMesh(GDataDir + "/Test.fbx");
 }
 
+/**
+ * @brief Animation 인스턴스 설정
+ */
+void USkeletalMeshComponent::SetAnimInstance(UAnimInstance* InAnimInstance)
+{
+    AnimInstance = InAnimInstance;
+    if (AnimInstance)
+    {
+        AnimInstance->Initialize(this);
+    }
+}
+
+/**
+ * @brief Animation Notify 처리 (AnimInstance에서 호출)
+ * @param Notify 트리거된 Notify 이벤트
+ */
+void USkeletalMeshComponent::HandleAnimNotify(const FAnimNotifyEvent& Notify)
+{
+    // 소유 액터에게 Notify 전달
+    AActor* OwnerActor = GetOwner();
+    if (OwnerActor)
+    {
+        OwnerActor->HandleAnimNotify(Notify);
+    }
+}
 
 void USkeletalMeshComponent::TickComponent(float DeltaTime)
 {
     Super::TickComponent(DeltaTime);
+
+    // Animation 인스턴스 업데이트
+    if (AnimInstance)
+    {
+        AnimInstance->UpdateAnimation(DeltaTime);
+    }
     //// FOR TEST ////
     if (!SkeletalMesh) { return; } // 부모의 SkeletalMesh 확인
 
@@ -86,6 +121,11 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
     }
 }
 
+/**
+ * @brief 특정 뼈의 부모 기준 로컬 트랜스폼을 설정
+ * @param BoneIndex 수정할 뼈의 인덱스
+ * @param NewLocalTransform 새로운 부모 기준 로컬 FTransform
+ */
 void USkeletalMeshComponent::SetBoneLocalTransform(int32 BoneIndex, const FTransform& NewLocalTransform)
 {
     if (CurrentLocalSpacePose.Num() > BoneIndex)
@@ -108,7 +148,9 @@ void USkeletalMeshComponent::SetBoneWorldTransform(int32 BoneIndex, const FTrans
     SetBoneLocalTransform(BoneIndex, DesiredLocal);
 }
 
-
+/**
+ * @brief 특정 뼈의 현재 로컬 트랜스폼을 반환
+ */
 FTransform USkeletalMeshComponent::GetBoneLocalTransform(int32 BoneIndex) const
 {
     if (CurrentLocalSpacePose.Num() > BoneIndex)
@@ -118,6 +160,9 @@ FTransform USkeletalMeshComponent::GetBoneLocalTransform(int32 BoneIndex) const
     return FTransform();
 }
 
+/**
+ * @brief 기즈모를 렌더링하기 위해 특정 뼈의 월드 트랜스폼을 계산
+ */
 FTransform USkeletalMeshComponent::GetBoneWorldTransform(int32 BoneIndex)
 {
     if (CurrentLocalSpacePose.Num() > BoneIndex && BoneIndex >= 0)
@@ -128,6 +173,9 @@ FTransform USkeletalMeshComponent::GetBoneWorldTransform(int32 BoneIndex)
     return GetWorldTransform(); // 실패 시 컴포넌트 위치 반환
 }
 
+/**
+ * @brief CurrentLocalSpacePose의 변경사항을 ComponentSpace -> FinalMatrices 계산까지 모두 수행
+ */
 void USkeletalMeshComponent::ForceRecomputePose()
 {
     if (!SkeletalMesh) { return; }
@@ -139,6 +187,9 @@ void USkeletalMeshComponent::ForceRecomputePose()
     UpdateSkinningMatrices(TempFinalSkinningMatrices, TempFinalSkinningNormalMatrices);
 }
 
+/**
+ * @brief CurrentLocalSpacePose를 기반으로 CurrentComponentSpacePose 채우기
+ */
 void USkeletalMeshComponent::UpdateComponentSpaceTransforms()
 {
     const FSkeleton& Skeleton = SkeletalMesh->GetSkeletalMeshData()->Skeleton;
@@ -161,6 +212,9 @@ void USkeletalMeshComponent::UpdateComponentSpaceTransforms()
     }
 }
 
+/**
+ * @brief CurrentComponentSpacePose를 기반으로 TempFinalSkinningMatrices 채우기
+ */
 void USkeletalMeshComponent::UpdateFinalSkinningMatrices()
 {
     const FSkeleton& Skeleton = SkeletalMesh->GetSkeletalMeshData()->Skeleton;
