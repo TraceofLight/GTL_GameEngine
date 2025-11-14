@@ -9,6 +9,9 @@
 // #define LIGHTING_MODEL_LAMBERT 1
 // #define LIGHTING_MODEL_PHONG 1
 
+// --- 스키닝 방식 선택 ---
+// #define GPU_SKINNING 1
+
 // --- Material 구조체 (OBJ 머티리얼 정보) ---
 // 주의: SPECULAR_COLOR 매크로에서 사용하므로 include 전에 정의 필요
 struct FMaterial
@@ -62,14 +65,9 @@ cbuffer PixelConstBuffer : register(b4)
     uint bHasNormalTexture;
 };
 
-cbuffer FLightShadowmBufferType : register(b5)
+cbuffer SkinningBuffer : register(b5)
 {
-    row_major float4x4 LightShadowView;
-    row_major float4x4 LightShadowViewUV;
-    row_major float4x4 LightShadowProj;
-    float ShadowBias;
-    float SlopeScaledBias;
-    float2 ShadowPadding;
+    row_major float4x4 SkinningMatrices[256];
 };
 
 // --- Material.SpecularColor 지원 매크로 ---
@@ -104,6 +102,10 @@ struct VS_INPUT
     float2 TexCoord : TEXCOORD0;
     float4 Tangent : TANGENT0;
     float4 Color : COLOR;
+#if GPU_SKINNING
+	uint4 BlendIndices : BLENDINDICES;
+	float4 BlendWeights : BLENDWEIGHTS;
+#endif
 };
 
 struct PS_INPUT
@@ -127,12 +129,33 @@ struct PS_OUTPUT
 //================================================================================================
 PS_INPUT mainVS(VS_INPUT Input)
 {
+#if GPU_SKINNING
+	float3 BlendPosition = float3(0, 0, 0);
+	float3 BlendNormal = float3(0, 0, 0);
+	float3 BlendTangent = float3(0, 0, 0);
+
+	for (int i = 0; i < 4; ++i)
+	{
+		uint Idx = Input.BlendIndices[i];
+		float Weight = Input.BlendWeights[i];
+
+		BlendPosition += mul(float4(Input.Position, 1.0f), SkinningMatrices[Idx]) * Weight;
+		// @TODO - InverseTranspose
+		BlendNormal += mul(Input.Normal, (float3x3) SkinningMatrices[Idx]) * Weight;
+		BlendTangent += mul(Input.Tangent.xyz, (float3x3) SkinningMatrices[Idx]) * Weight;
+	}
+
+	Input.Position = BlendPosition;
+	Input.Normal = normalize(BlendNormal);
+	Input.Tangent.xyz = normalize(BlendTangent);
+#endif
+
     PS_INPUT Out;
-    
+
     // 위치를 월드 공간으로 먼저 변환
     float4 worldPos = mul(float4(Input.Position, 1.0f), WorldMatrix);
     Out.WorldPos = worldPos.xyz;
-    
+
     // 뷰 공간으로 변환
     float4 viewPos = mul(worldPos, ViewMatrix);
 
@@ -232,7 +255,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
 {
     PS_OUTPUT Output;
     Output.UUID = UUID;
-    
+
     //CSM 구간 시각화
     float3 Color[2] =
     {
@@ -260,24 +283,24 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     //{
     //    uv += UVScrollSpeed * UVScrollTime;
     //}
-    
+
 
 #ifdef VIEWMODE_WORLD_NORMAL
     // World Normal 시각화: Normal 벡터를 색상으로 변환
     // Normal 범위: -1~1 → 색상 범위: 0~1
     float3 normalColor = Input.Normal * 0.5 + 0.5;
-    
+
     if(bHasNormalTexture)
     {
         normalColor = g_NormalTexColor.Sample(g_Sample2, uv);
         normalColor = normalColor * 2.0f - 1.0f;
         normalColor = normalize(mul(normalColor, Input.TBN));
     }
-    
+
     Output.Color = float4(normalColor, 1.0);
     return Output;
 #endif
-    
+
     // 텍스처 샘플링 (머트리얼 색상은 Gouraud는 VS에서 적용됨)
     float4 texColor = g_DiffuseTexColor.Sample(g_Sample, uv);
 
@@ -288,16 +311,16 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     // Gouraud Shading: 조명이 이미 버텍스 셸이더에서 계산됨 (그림자 제외)
     // Pixel Shader에서 그림자 팩터만 계산해서 곱함
     float4 finalPixel = Input.Color;
-    
+
     // 그림자 팩터 계산 (모든 라이트 통합)
     float shadowFactor = 1.0f;
-    
+
     // Directional Light 그림자
     if (DirectionalLight.bCastShadows)
     {
         shadowFactor *= CalculateSpotLightShadowFactor(Input.WorldPos, DirectionalLight.Cascades[0], g_ShadowAtlas2D, g_ShadowSample);
     }
-    
+
     // Point Light 그림자
     for (int i = 0; i < PointLightCount; i++)
     {
@@ -307,7 +330,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
                 Input.WorldPos, Input.Normal, g_PointLightList[i], 16, g_ShadowAtlasCube, g_ShadowSample);
         }
     }
-    
+
     // Spot Light 그림자
     for (int j = 0; j < SpotLightCount; j++)
     {
@@ -317,7 +340,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
                 Input.WorldPos, g_SpotLightList[j].ShadowData, g_ShadowAtlas2D, g_ShadowSample);
         }
     }
-    
+
     // 그림자 적용 (VS에서 계산된 조명)
     finalPixel.rgb *= shadowFactor;
 
@@ -496,8 +519,8 @@ PS_OUTPUT mainPS(PS_INPUT Input)
 
     // Directional light (diffuse + specular)
     float3 DirectionalLightColor = CalculateDirectionalLight(DirectionalLight, Input.WorldPos, ViewPos.xyz, normal, viewDir, baseColor, true, specPower, g_ShadowAtlas2D, g_ShadowSample);
-   
-    
+
+
     litColor += DirectionalLightColor;
 
     // 타일 기반 라이트 컬링 적용 (활성화된 경우)
@@ -537,7 +560,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
         {
             litColor += CalculatePointLight(g_PointLightList[i], Input.WorldPos, normal, viewDir, baseColor, true, specPower, g_ShadowAtlasCube, g_ShadowSample);
         }
-        
+
         [loop]
         for (int j = 0; j < SpotLightCount; j++)
         {
@@ -559,7 +582,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     {
         finalAlpha *= (1.0f - Material.Transparency);
     }
-    
+
     Output.Color = float4(litColor, finalAlpha);
     Output.Color.rgb = (1 - CascadeAreaDebugBlendValue) * Output.Color.rgb + CascadeAreaDebugBlendValue * CascadeAreaDebugColor;
     return Output;
@@ -591,7 +614,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     {
         finalPixel.a *= (1.0f - Material.Transparency);
     }
-    
+
     Output.Color = finalPixel;
     return Output;
 #endif

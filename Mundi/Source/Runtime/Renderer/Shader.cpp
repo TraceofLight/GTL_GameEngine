@@ -229,7 +229,10 @@ bool UShader::CompileVariantInternal(ID3D11Device* InDevice, const FString& InSh
 	bool bVsCompiled = false;
 	bool bPsCompiled = false;
 
-	// --- 3. 컴파일 결과를 OutVariant에 저장 ---
+	// 3. 핫 리로드용 매크로 저장
+	OutVariant.SourceMacros = InMacros;
+
+	// --- 4. 컴파일 결과를 OutVariant에 저장 ---
 	if (EndsWith(InShaderPath, "_VS.hlsl"))
 	{
 		bVsCompiled = CompileShaderInternal(WFilePath, "mainVS", "vs_5_0", CompileFlags, Defines.data(), &OutVariant.VSBlob);
@@ -266,9 +269,6 @@ bool UShader::CompileVariantInternal(ID3D11Device* InDevice, const FString& InSh
 			assert(SUCCEEDED(Hr));
 		}
 	}
-
-	// 4. 핫 리로드용 매크로 저장
-	OutVariant.SourceMacros = InMacros;
 
 	// 5. 컴파일 성공 여부 반환 (VS 또는 PS 둘 중 하나라도 성공 시)
 	return bVsCompiled || bPsCompiled;
@@ -312,7 +312,17 @@ ID3D11PixelShader* UShader::GetPixelShader(const TArray<FShaderMacro>& InMacros)
 
 void UShader::CreateInputLayout(ID3D11Device* Device, const FString& InShaderPath, FShaderVariant& InOutVariant)
 {
-	TArray<D3D11_INPUT_ELEMENT_DESC> descArray = UResourceManager::GetInstance().GetProperInputLayout(InShaderPath);
+	FString FinalKey = InShaderPath;
+
+	for (const FShaderMacro& Macro : InOutVariant.SourceMacros)
+	{
+		if (Macro.Name == "GPU_SKINNING" && Macro.Definition == "1")
+		{
+			FinalKey += "#GPU_SKINNING";
+		}
+	}
+
+	TArray<D3D11_INPUT_ELEMENT_DESC> descArray = UResourceManager::GetInstance().GetProperInputLayout(FinalKey);
 	const D3D11_INPUT_ELEMENT_DESC* layout = descArray.data();
 	uint32 layoutCount = static_cast<uint32>(descArray.size());
 

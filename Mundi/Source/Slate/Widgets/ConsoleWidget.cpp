@@ -52,6 +52,7 @@ void UConsoleWidget::Initialize()
 	HelpCommandList.Add("STAT NONE");
 	HelpCommandList.Add("STAT LIGHT");
 	HelpCommandList.Add("STAT SHADOW");
+	HelpCommandList.Add("STAT GPU");
 
 	// Add welcome messages
 	AddLog("=== Console Widget Initialized ===");
@@ -311,8 +312,10 @@ void UConsoleWidget::ExecCommand(const char* command_line)
 		AddLog("- STAT MEMORY");
 		AddLog("- STAT PICKING");
 		AddLog("- STAT DECAL");
-		AddLog("- STAT ALL");
 		AddLog("- STAT LIGHT");
+		AddLog("- STAT SHADOW");
+		AddLog("- STAT GPU");
+		AddLog("- STAT ALL");
 		AddLog("- STAT NONE");
 	}
 	else if (Stricmp(command_line, "STAT FPS") == 0)
@@ -340,6 +343,21 @@ void UConsoleWidget::ExecCommand(const char* command_line)
 		UStatsOverlayD2D::Get().ToggleTileCulling();
 		AddLog("STAT LIGHT TOGGLED");
 	}
+	else if (Stricmp(command_line, "STAT SHADOW") == 0)
+	{
+		UStatsOverlayD2D::Get().ToggleShadow();
+		AddLog("STAT SHADOW TOGGLED");
+	}
+	else if (Stricmp(command_line, "STAT GPU") == 0)
+	{
+		UStatsOverlayD2D::Get().ToggleGPU();
+		AddLog("STAT GPU TOGGLED");
+	}
+	else if (Stricmp(command_line, "STAT SKINNING") == 0)
+	{
+		UStatsOverlayD2D::Get().ToggleSkinning();
+		AddLog("STAT SKINNING TOGGLED");
+	}
 	else if (Stricmp(command_line, "STAT ALL") == 0)
 	{
 		UStatsOverlayD2D::Get().SetShowFPS(true);
@@ -347,6 +365,10 @@ void UConsoleWidget::ExecCommand(const char* command_line)
 		UStatsOverlayD2D::Get().SetShowPicking(true);
 		UStatsOverlayD2D::Get().SetShowDecal(true);
 		UStatsOverlayD2D::Get().SetShowTileCulling(true);
+		UStatsOverlayD2D::Get().SetShowLights(true);
+		UStatsOverlayD2D::Get().SetShowShadow(true);
+		UStatsOverlayD2D::Get().SetShowGPU(true);
+		UStatsOverlayD2D::Get().SetShowSkinning(true);
 		AddLog("STAT: ON");
 	}
 	else if (Stricmp(command_line, "STAT NONE") == 0)
@@ -356,7 +378,24 @@ void UConsoleWidget::ExecCommand(const char* command_line)
 		UStatsOverlayD2D::Get().SetShowPicking(false);
 		UStatsOverlayD2D::Get().SetShowDecal(false);
 		UStatsOverlayD2D::Get().SetShowTileCulling(false);
+		UStatsOverlayD2D::Get().SetShowLights(false);
+		UStatsOverlayD2D::Get().SetShowShadow(false);
+		UStatsOverlayD2D::Get().SetShowGPU(false);
+		UStatsOverlayD2D::Get().SetShowSkinning(false);
 		AddLog("STAT: OFF");
+	}
+	else if (Stricmp(command_line, "SKINNING") == 0)
+	{
+		AddLog("SKINNING CPU");
+		AddLog("SKINNING GPU");
+	}
+	else if (Stricmp(command_line, "SKINNING GPU") == 0)
+	{
+		GWorld->GetRenderSettings().SetSkinningMode(ESkinningMode::GPU);
+	}
+	else if (Stricmp(command_line, "SKINNING CPU") == 0)
+	{
+		GWorld->GetRenderSettings().SetSkinningMode(ESkinningMode::CPU);
 	}
 	else
 	{

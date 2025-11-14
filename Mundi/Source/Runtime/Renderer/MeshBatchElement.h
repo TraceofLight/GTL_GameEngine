@@ -62,6 +62,12 @@ struct FMeshBatchElement
 	// (기본값으로 흰색(1,1,1,1)을 설정하는 것이 일반적입니다.)
 	FLinearColor InstanceColor = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
+	/**
+	 * GPU 스키닝에 사용될 뼈(Bone) 트랜스폼 매트릭스 배열의 포인터입니다.
+	 * (CPU 스키닝의 경우 nullptr입니다.)
+	 */
+	const TArray<FMatrix>* SkinningMatrices = nullptr;
+
 	// --- 기본 생성자 ---
 	FMeshBatchElement() = default;
 

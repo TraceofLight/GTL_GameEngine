@@ -25,7 +25,7 @@ public:
     DECLARE_DELEGATE(OnComponentEndOverlap, UPrimitiveComponent*, UPrimitiveComponent*);
     DECLARE_DELEGATE(OnComponentHit, UPrimitiveComponent*, UPrimitiveComponent*);
 
-    AActor(); 
+    AActor();
 
 protected:
     ~AActor() override;
@@ -47,7 +47,7 @@ public:
     // 루트/컴포넌트
     void SetRootComponent(USceneComponent* InRoot);
     USceneComponent* GetRootComponent() const { return RootComponent; }
-   
+
     // 소유 컴포넌트(모든 타입)
     UActorComponent* AddNewComponent(UClass* ComponentClass, USceneComponent* ParentToAttach = nullptr);
     void AddOwnedComponent(UActorComponent* Component);
@@ -57,7 +57,7 @@ public:
     const TArray<USceneComponent*>& GetSceneComponents() const { return SceneComponents; }
     const TSet<UActorComponent*>& GetOwnedComponents() const { return OwnedComponents; }
     UActorComponent* GetComponent(UClass* ComponentClass);
-    
+
     // 컴포넌트 생성 (템플릿)
     template<typename T>
     T* CreateDefaultSubobject(const FName& SubobjectName)
@@ -88,7 +88,7 @@ public:
     FTransform GetActorTransform() const;
 
     void SetActorLocation(const FVector& NewLocation);
-    FVector GetActorLocation() const; 
+    FVector GetActorLocation() const;
 
     void SetActorRotation(const FVector& EulerDegree);
     void SetActorRotation(const FQuat& InQuat);
@@ -96,10 +96,10 @@ public:
 
     void SetActorScale(const FVector& NewScale);
     FVector GetActorScale() const;
-    
+
     void SetActorIsVisible(bool bIsActive);
     bool GetActorIsVisible();
-    
+
     void SetActorActive(bool bIsActive) { bActorIsActive = bIsActive; };
     bool IsActorActive() { return bActorIsActive; };
 
@@ -122,16 +122,19 @@ public:
     // 틱 플래그
     void SetTickInEditor(bool b) { bTickInEditor = b; }
     bool GetTickInEditor() const { return bTickInEditor; }
-    
+
     float GetCustomTimeDillation();
     void  SetCustomTimeDillation(float Duration, float Dillation);
+
+	// Animation Notify
+    virtual void HandleAnimNotify(const struct FAnimNotifyEvent& Notify);
 
     // 바운드 및 피킹
     virtual FAABB GetBounds() const { return FAABB(); }
     void SetIsPicked(bool picked) { bIsPicked = picked; }
     bool GetIsPicked() { return bIsPicked; }
-    void SetCulled(bool InCulled) 
-    { 
+    void SetCulled(bool InCulled)
+    {
         bIsCulled = InCulled;
         if (SceneComponents.empty())
         {
@@ -150,17 +153,17 @@ public:
 
     bool CanEverTick() const { return bCanEverTick; }
 	bool CanTickInEditor() const { return bTickInEditor; }
-    // ───── 충돌 관련 ─────────────────────────  
+    // ───── 충돌 관련 ─────────────────────────
     void OnBeginOverlap(UPrimitiveComponent* MyComp, UPrimitiveComponent* OtherComp);
     void OnEndOverlap(UPrimitiveComponent* MyComp, UPrimitiveComponent* OtherComp);
     void OnHit(UPrimitiveComponent* MyComp, UPrimitiveComponent* OtherComp);
-     
+
     bool IsOverlappingActor(const AActor* Other) const;
 
     // ───── 복사 관련 ────────────────────────────
     void DuplicateSubObjects() override;
     void PostDuplicate() override;
-    
+
 
     // Serialize
     void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;

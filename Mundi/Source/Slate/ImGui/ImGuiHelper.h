@@ -31,4 +31,5 @@ private:
 	void SetupCustomTheme();
 
 	bool bIsInitialized = false;
+	ID3D11DeviceContext* DeviceContext = nullptr;
 };

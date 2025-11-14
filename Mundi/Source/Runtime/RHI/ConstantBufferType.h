@@ -1,5 +1,5 @@
 ﻿#pragma once
-// b0 in VS    
+// b0 in VS
 #include "Color.h"
 #include "LightManager.h"
 
@@ -67,7 +67,7 @@ struct FogBufferType // b2
 struct alignas(16) FFadeInOutBufferType // b2
 {
     FLinearColor FadeColor = FLinearColor(0, 0, 0, 1);  //보통 (0, 0, 0, 1)
-    
+
     float Opacity = 0.0f;   // 0~1
     float Weight  = 1.0f;
     float _Pad[2] = {0,0};
@@ -77,12 +77,12 @@ static_assert(sizeof(FFadeInOutBufferType) % 16 == 0, "CB must be 16-byte aligne
 struct alignas(16) FVinetteBufferType // b2
 {
     FLinearColor Color;
-    
+
     float     Radius    = 0.35f;                        // 효과 시작 반경(0~1)
     float     Softness  = 0.25f;                        // 페더 폭(0~1)
     float     Intensity = 1.0f;                       // 컬러 블렌드 강도 (0~1)
     float     Roundness = 2.0f;                       // 1=마름모, 2= 원형, >1 더 네모에 가깝게
-    
+
     float     Weight    = 1.0f;
     float     _Pad0[3];
 };
@@ -135,7 +135,7 @@ struct FMaterialInPs
         IlluminationModel(MaterialInfo.IlluminationModel),
         TransmissionFilter(MaterialInfo.TransmissionFilter),
         dummy(0)
-    { 
+    {
 
     }
 };
@@ -210,13 +210,18 @@ struct FPointLightShadowBufferType
     FVector Padding;                // 16바이트 정렬
 };
 
+struct FSkinningBuffer
+{
+	FMatrix SkinningMatrices[256];
+};
+
 #define CONSTANT_BUFFER_INFO(TYPE, SLOT, VS, PS) \
 constexpr uint32 TYPE##Slot = SLOT;\
 constexpr bool TYPE##IsVS = VS;\
 constexpr bool TYPE##IsPS = PS;
 
 //매크로를 인자로 받고 그 매크로 함수에 버퍼 전달
-#define CONSTANT_BUFFER_LIST(MACRO) \
+#define CONSTANT_BUFFER_LIST_SMALL(MACRO) \
 MACRO(ModelBufferType)              \
 MACRO(DecalBufferType)              \
 MACRO(FireballBufferType)           \
@@ -235,6 +240,15 @@ MACRO(FViewportConstants)           \
 MACRO(FTileCullingBufferType)       \
 MACRO(FPointLightShadowBufferType)
 
+// 2. void*로만 전달해야 하는 큰 버퍼들
+#define CONSTANT_BUFFER_LIST_LARGE(MACRO) \
+MACRO(FSkinningBuffer)
+
+// 3. (생성/해제용) 전체 리스트
+#define CONSTANT_BUFFER_LIST(MACRO) \
+CONSTANT_BUFFER_LIST_SMALL(MACRO) \
+CONSTANT_BUFFER_LIST_LARGE(MACRO)
+
 // 16 바이트 패딩 어썰트
 #define STATIC_ASSERT_CBUFFER_ALIGNMENT(Type) \
     static_assert(sizeof(Type) % 16 == 0, "[ " #Type " ] Bad Size. Needs 16-Byte Padding.");
@@ -252,6 +266,7 @@ CONSTANT_BUFFER_INFO(FVinetteBufferType, 2, false, true)
 CONSTANT_BUFFER_INFO(FXAABufferType, 2, false, true)
 CONSTANT_BUFFER_INFO(ColorBufferType, 3, true, true)   // b3 color
 CONSTANT_BUFFER_INFO(FPixelConstBufferType, 4, true, true) // GOURAUD에도 사용되므로 VS도 true
+CONSTANT_BUFFER_INFO(FSkinningBuffer, 5, true, false) // b5, VS Only (GPU Skinning)
 CONSTANT_BUFFER_INFO(DecalBufferType, 6, true, true)
 CONSTANT_BUFFER_INFO(FireballBufferType, 6, false, true)
 CONSTANT_BUFFER_INFO(CameraBufferType, 7, true, true)  // b7, VS+PS (UberLit.hlsl과 일치)

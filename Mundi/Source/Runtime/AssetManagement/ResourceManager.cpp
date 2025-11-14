@@ -155,7 +155,7 @@ void UResourceManager::SetSkeletalMeshs()
 }
 
 void UResourceManager::SetAudioFiles()
-{ 
+{
     Sounds = GetAll<USound>();
 }
 
@@ -476,12 +476,16 @@ void UResourceManager::InitShaderILMap()
     layout.Add({ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 });
     layout.Add({ "TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 });
     layout.Add({ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0 });
-   
+
     ShaderToInputLayoutMap["Shaders/Effects/Decal.hlsl"] = layout;
 	ShaderToInputLayoutMap["Shaders/Materials/UberLit.hlsl"] = layout;
 	ShaderToInputLayoutMap["Shaders/Materials/Fireball.hlsl"] = layout; // Use same vertex format as UberLit
 	ShaderToInputLayoutMap["Shaders/Shadow/PointLightShadow.hlsl"] = layout;  // Shadow map rendering uses same vertex format
 	ShaderToInputLayoutMap["Shaders/Shadows/DepthOnly_VS.hlsl"] = layout;
+
+	layout.Add({ "BLENDINDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT, 0, 64, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+	layout.Add({ "BLENDWEIGHTS", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 80, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+	ShaderToInputLayoutMap["Shaders/Materials/UberLit.hlsl#GPU_SKINNING"] = layout;
     layout.clear();
 
     layout.Add({ "WORLDPOSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 });
@@ -499,7 +503,7 @@ void UResourceManager::InitShaderILMap()
                  D3D11_INPUT_PER_VERTEX_DATA, 0 });
     ShaderToInputLayoutMap["Shaders/UI/Billboard.hlsl"] = layout;
     layout.clear();
-    
+
 
     // ────────────────────────────────
     // Quad 렌더링을 쓰는 Shader들 (Position + UV)
@@ -511,7 +515,7 @@ void UResourceManager::InitShaderILMap()
     ShaderToInputLayoutMap["Shaders/PostProcess/HeightFog_PS.hlsl"] = layout;
     ShaderToInputLayoutMap["Shaders/Utility/SceneDepth_PS.hlsl"] = layout;
     layout.clear();
-    
+
     ShaderToInputLayoutMap["Shaders/Utility/FullScreenTriangle_VS.hlsl"] = {};  // FullScreenTriangle 는 InputLayout을 사용하지 않는다
 }
 
@@ -523,7 +527,7 @@ TArray<D3D11_INPUT_ELEMENT_DESC>& UResourceManager::GetProperInputLayout(const F
     {
         throw std::runtime_error("Proper input layout not found for " + InShaderName);
     }
-    
+
     return ShaderToInputLayoutMap[InShaderName];
 }
 
@@ -604,7 +608,7 @@ void UResourceManager::CheckAndReloadShaders(float DeltaTime)
             // Verify the reload actually created the expected shader stages
             bool bHasVertexShader = (Shader->GetVertexShader() != nullptr);
             bool bHasPixelShader = (Shader->GetPixelShader() != nullptr);
-            
+
             if ((bHadVertexShader && !bHasVertexShader) || (bHadPixelShader && !bHasPixelShader))
             {
                 UE_LOG("Shader Hot Reload Warning: Some stages failed for %s", Shader->GetFilePath().c_str());
@@ -639,7 +643,7 @@ UMaterial* UResourceManager::GetDefaultMaterial()
     return DefaultMaterialInstance;
 }
 
-// 여기서 텍스처 데이터 로드 및 
+// 여기서 텍스처 데이터 로드 및
 FTextureData* UResourceManager::CreateOrGetTextureData(const FWideString& FilePath)
 {
     auto it = TextureMap.find(FilePath);

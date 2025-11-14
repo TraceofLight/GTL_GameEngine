@@ -1,5 +1,7 @@
 ﻿#include "pch.h"
 #include "SceneRenderer.h"
+#include "GPUProfiler.h"
+#include "StatsOverlayD2D.h"
 
 // FSceneRenderer가 사용하는 모든 헤더 포함
 #include "World.h"
@@ -92,7 +94,7 @@ void FSceneRenderer::Render()
 	TIME_PROFILE(ShadowMapPass)
 	RenderShadowMaps();
 	TIME_PROFILE_END(ShadowMapPass)
-	
+
 	// ViewMode에 따라 렌더링 경로 결정
 	if (View->RenderSettings->GetViewMode() == EViewMode::VMI_Lit_Phong ||
 		View->RenderSettings->GetViewMode() == EViewMode::VMI_Lit_Gouraud ||
@@ -120,7 +122,7 @@ void FSceneRenderer::Render()
 	{
 		RenderSceneDepthPath();
 	}
-	
+
 	if (!World->bPie)
 	{
 		//그리드와 디버그용 Primitive는 Post Processing 적용하지 않음.
@@ -147,6 +149,8 @@ void FSceneRenderer::Render()
 
 void FSceneRenderer::RenderLitPath()
 {
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "RenderLitPath", OwnerRenderer->GetGPUTimer());
+
     RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTargetWithId);
 
 	// 이 뷰의 rect 영역에 대해 Scene Color를 클리어하여 불투명한 배경을 제공함
@@ -171,6 +175,8 @@ void FSceneRenderer::RenderLitPath()
 
 void FSceneRenderer::RenderWireframePath()
 {
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "WireframePath", OwnerRenderer->GetGPUTimer());
+
 	// 깊이 버퍼 초기화 후 ID만 그리기
 	RHIDevice->RSSetState(ERasterizerMode::Solid);
 	RHIDevice->OMSetRenderTargets(ERTVMode::SceneIdTarget);
@@ -188,6 +194,8 @@ void FSceneRenderer::RenderWireframePath()
 
 void FSceneRenderer::RenderSceneDepthPath()
 {
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "SceneDepthPath", OwnerRenderer->GetGPUTimer());
+
 	// ✅ 디버그: SceneRTV 전환 전 viewport 확인
 	D3D11_VIEWPORT vpBefore;
 	UINT numVP = 1;
@@ -238,6 +246,8 @@ void FSceneRenderer::RenderShadowMaps()
 {
     FLightManager* LightManager = World->GetLightManager();
 	if (!LightManager) return;
+
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "ShadowMaps", OwnerRenderer->GetGPUTimer());
 
 	// 2. 그림자 캐스터(Caster) 메시 수집
 	TArray<FMeshBatchElement> ShadowMeshBatches;
@@ -339,7 +349,7 @@ void FSceneRenderer::RenderShadowMaps()
 		{
 			ID3D11ShaderResourceView* NullSRV[2] = { nullptr, nullptr };
 			RHIDevice->GetDeviceContext()->PSSetShaderResources(9, 2, NullSRV);
-			
+
 			float ClearColor[] = {1.0f, 1.0f, 0.0f, 0.0f};
 			EShadowAATechnique ShadowAAType = World->GetRenderSettings().GetShadowAATechnique();
 			switch (ShadowAAType)
@@ -352,7 +362,7 @@ void FSceneRenderer::RenderShadowMaps()
 					RHIDevice->OMSetCustomRenderTargets(1, &VSMAtlasRTV2D, AtlasDSV2D);
 					RHIDevice->GetDeviceContext()->ClearRenderTargetView(VSMAtlasRTV2D, ClearColor);
 					break;
-				}				
+				}
 			default:
 				RHIDevice->OMSetCustomRenderTargets(0, nullptr, AtlasDSV2D);
 				break;
@@ -443,7 +453,7 @@ void FSceneRenderer::RenderShadowMaps()
 	//RHIDevice->RSSetViewport(); // 메인 뷰포트로 복구
 	// 4. 저장해둔 'OriginVP'로 뷰포트를 복구합니다. (이때는 주소(&)가 필요 없음)
 	RHIDevice->GetDeviceContext()->RSSetViewports(1, &OriginVP);
-	
+
 	// ViewProjBufferType 복구 (라이트 시점 Override 일 경우 마지막 라이트 시점으로 설정됨)
 	RHIDevice->SetAndUpdateConstantBuffer(ViewProjBufferType(OriginViewProjBuffer));
 }
@@ -467,7 +477,7 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 	// 2. 파이프라인 설정
 	RHIDevice->GetDeviceContext()->IASetInputLayout(ShaderVariant->InputLayout);
 	RHIDevice->GetDeviceContext()->VSSetShader(ShaderVariant->VertexShader, nullptr, 0);
-	
+
     EShadowAATechnique ShadowAAType = World->GetRenderSettings().GetShadowAATechnique();
 	switch (ShadowAAType)
 	{
@@ -480,7 +490,7 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 	default:
 		RHIDevice->GetDeviceContext()->PSSetShader(nullptr, nullptr, 0);
 		break;
-	}	
+	}
 
 	// 3. 라이트의 View-Projection 행렬을 메인 ViewProj 버퍼에 설정
 	FMatrix WorldLocation = {};
@@ -665,21 +675,14 @@ void FSceneRenderer::GatherVisibleProxies()
 					// 일반 컴포넌트
 					if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(PrimitiveComponent))
 					{
-						bool bShouldAdd = true;
-
 						// 메시 타입이 '스태틱 메시'인 경우에만 ShowFlag를 검사하여 추가 여부를 결정
 						if (MeshComponent->IsA(UStaticMeshComponent::StaticClass()))
 						{
-							bShouldAdd = bDrawStaticMeshes;
+							if (bDrawStaticMeshes) { Proxies.Meshes.Add(MeshComponent); }
 						}
-						else if (MeshComponent->IsA(USkinnedMeshComponent::StaticClass()))
+						else if (USkinnedMeshComponent* SkinnedMeshComponent = Cast<USkinnedMeshComponent>(MeshComponent))
 						{
-						    bShouldAdd = bDrawSkeletalMeshes;
-						}
-
-						if (bShouldAdd)
-						{
-							Proxies.Meshes.Add(MeshComponent);
+						    if (bDrawSkeletalMeshes) { Proxies.SkinnedMeshes.Add(SkinnedMeshComponent); }
 						}
 					}
 					else if (UBillboardComponent* BillboardComponent = Cast<UBillboardComponent>(PrimitiveComponent); BillboardComponent && bUseBillboard)
@@ -868,8 +871,15 @@ void FSceneRenderer::PerformFrustumCulling()
 
 void FSceneRenderer::RenderOpaquePass(EViewMode InRenderViewMode)
 {
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "OpaquePass", OwnerRenderer->GetGPUTimer());
+
 	// --- 1. 수집 (Collect) ---
 	MeshBatchElements.Empty();
+	SkinnedMeshBatchElements.Empty();
+	for (USkinnedMeshComponent* SkinnedMeshComponent : Proxies.SkinnedMeshes)
+	{
+		SkinnedMeshComponent->CollectMeshBatches(SkinnedMeshBatchElements, View);
+	}
 	for (UMeshComponent* MeshComponent : Proxies.Meshes)
 	{
 		MeshComponent->CollectMeshBatches(MeshBatchElements, View);
@@ -887,9 +897,14 @@ void FSceneRenderer::RenderOpaquePass(EViewMode InRenderViewMode)
 	}
 
 	// --- 2. 정렬 (Sort) ---
+	SkinnedMeshBatchElements.Sort();
 	MeshBatchElements.Sort();
 
 	// --- 3. 그리기 (Draw) ---
+	{
+		GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "SKINNING_GPU_TASK", OwnerRenderer->GetGPUTimer());
+		DrawMeshBatches(SkinnedMeshBatchElements, true);
+	}
 	DrawMeshBatches(MeshBatchElements, true);
 }
 
@@ -901,6 +916,8 @@ void FSceneRenderer::RenderDecalPass()
 	// WorldNormal 모드에서는 Decal 렌더링 스킵
 	if (View->RenderSettings->GetViewMode() == EViewMode::VMI_WorldNormal)
 		return;
+
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "DecalPass", OwnerRenderer->GetGPUTimer());
 
 	UWorldPartitionManager* Partition = World->GetPartitionManager();
 	if (!Partition)
@@ -952,7 +969,7 @@ void FSceneRenderer::RenderDecalPass()
 			// 기즈모에 데칼 입히면 안되므로 에디팅이 안되는 Component는 데칼 그리지 않음
 			if (!SMC || !SMC->IsEditable())
 				continue;
-			
+
 			AActor* Owner = SMC->GetOwner();
 			if (!Owner || !Owner->IsActorVisible())
 				continue;
@@ -1017,7 +1034,7 @@ void FSceneRenderer::RenderPostProcessingPasses()
 			PostProcessModifiers.Add(FogPostProc);
 		}
 	}
-	
+
 	PostProcessModifiers.Sort([](const FPostProcessModifier& LHS, const FPostProcessModifier& RHS)
 	{
 		if (LHS.Priority == RHS.Priority)
@@ -1032,16 +1049,28 @@ void FSceneRenderer::RenderPostProcessingPasses()
 		switch (Modifier.Type)
 		{
 		case EPostProcessEffectType::HeightFog:
-			HeightFogPass.Execute(Modifier, View, RHIDevice);
+			{
+				GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "HeightFog", OwnerRenderer->GetGPUTimer());
+				HeightFogPass.Execute(Modifier, View, RHIDevice);
+			}
 			break;
 		case EPostProcessEffectType::Fade:
-			FadeInOutPass.Execute(Modifier, View, RHIDevice);
+			{
+				GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "Fade", OwnerRenderer->GetGPUTimer());
+				FadeInOutPass.Execute(Modifier, View, RHIDevice);
+			}
 			break;
 		case EPostProcessEffectType::Vignette:
-			VignettePass.Execute(Modifier, View, RHIDevice);
+			{
+				GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "Vignette", OwnerRenderer->GetGPUTimer());
+				VignettePass.Execute(Modifier, View, RHIDevice);
+			}
 			break;
 		case EPostProcessEffectType::Gamma:
-			GammaPass.Execute(Modifier, View, RHIDevice);
+			{
+				GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "Gamma", OwnerRenderer->GetGPUTimer());
+				GammaPass.Execute(Modifier, View, RHIDevice);
+			}
 			break;
 		}
 	}
@@ -1159,6 +1188,8 @@ void FSceneRenderer::RenderTileCullingDebug()
 // 빌보드, 에디터 화살표 그리기 (상호 작용, 피킹 O)
 void FSceneRenderer::RenderEditorPrimitivesPass()
 {
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "EditorPrimitives", OwnerRenderer->GetGPUTimer());
+
 	RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTargetWithId);
 	for (UPrimitiveComponent* GizmoComp : Proxies.EditorPrimitives)
 	{
@@ -1170,6 +1201,8 @@ void FSceneRenderer::RenderEditorPrimitivesPass()
 // 경계, 외곽선 등 표시 (상호 작용, 피킹 X)
 void FSceneRenderer::RenderDebugPass()
 {
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "DebugPass", OwnerRenderer->GetGPUTimer());
+
 	RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTarget);
 
 	// 그리드 라인 수집
@@ -1177,7 +1210,7 @@ void FSceneRenderer::RenderDebugPass()
 	{
 		if (!LineComponent || LineComponent->IsAlwaysOnTop())
 			continue;
-		
+
         if (World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Grid))
 		{
 			LineComponent->CollectLineBatches(OwnerRenderer);
@@ -1191,7 +1224,7 @@ void FSceneRenderer::RenderDebugPass()
 	{
 		if (!LineComponent || !LineComponent->IsAlwaysOnTop())
 			continue;
-		
+
 		LineComponent->CollectLineBatches(OwnerRenderer);
 	}
 	OwnerRenderer->EndLineBatchAlwaysOnTop(FMatrix::Identity());
@@ -1225,6 +1258,8 @@ void FSceneRenderer::RenderDebugPass()
 
 void FSceneRenderer::RenderOverayEditorPrimitivesPass()
 {
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "OverlayPrimitives", OwnerRenderer->GetGPUTimer());
+
 	// 후처리된 최종 이미지 위에 원본 씬의 뎁스 버퍼를 사용하여 3D 오버레이를 렌더링합니다.
 	RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTargetWithId);
 
@@ -1372,7 +1407,7 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 					}
 				}
 			}
-			
+
 			// --- RHI 상태 업데이트 ---
 			// 1. 텍스처(SRV) 바인딩
 			ID3D11ShaderResourceView* Srvs[2] = { DiffuseTextureSRV, NormalTextureSRV };
@@ -1380,7 +1415,7 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 
 			// 2. 샘플러 바인딩
 			ID3D11SamplerState* Samplers[4] = { DefaultSampler, DefaultSampler, ShadowSampler, VSMSampler };
-			RHIDevice->GetDeviceContext()->PSSetSamplers(0, 4, Samplers);			
+			RHIDevice->GetDeviceContext()->PSSetSamplers(0, 4, Samplers);
 
 			// 3. 재질 CBuffer 바인딩
 			RHIDevice->SetAndUpdateConstantBuffer(PixelConst);
@@ -1417,7 +1452,22 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 		RHIDevice->SetAndUpdateConstantBuffer(ModelBufferType(Batch.WorldMatrix, Batch.WorldMatrix.InverseAffine().Transpose()));
 		RHIDevice->SetAndUpdateConstantBuffer(ColorBufferType(Batch.InstanceColor, Batch.ObjectID));
 
-		// 5. 드로우 콜 실행
+		if (Batch.SkinningMatrices)
+		{
+			TIME_PROFILE(SKINNING_CPU_TASK)
+
+			void* pMatrixData = (void*)Batch.SkinningMatrices->GetData();
+			size_t MatrixDataSize = Batch.SkinningMatrices->Num() * sizeof(FMatrix);
+
+			constexpr size_t MaxCBufferSize = sizeof(FSkinningBuffer); // 16384
+			if (MatrixDataSize > MaxCBufferSize)
+			{
+				MatrixDataSize = MaxCBufferSize;
+			}
+
+			RHIDevice->SetAndUpdateConstantBuffer_Pointer_FSkinningBuffer(pMatrixData, MatrixDataSize);
+		}
+
 		RHIDevice->GetDeviceContext()->DrawIndexed(Batch.IndexCount, Batch.StartIndex, Batch.BaseVertexIndex);
 	}
 

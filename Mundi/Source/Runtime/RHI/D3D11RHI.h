@@ -29,6 +29,23 @@ CreateConstantBuffer(&TYPE##Buffer, sizeof(TYPE));
 		ConstantBufferSetUpdate(TYPE##Buffer, Data, TYPE##Slot, TYPE##IsVS, TYPE##IsPS);	\
 	}
 
+#define DECLARE_UPDATE_CONSTANT_BUFFER_FUNC_POINTER(TYPE) \
+	void UpdateConstantBuffer_Pointer_##TYPE(void* pData, size_t DataSize) \
+	{ \
+		ConstantBufferUpdate(TYPE##Buffer, pData, DataSize); \
+	}
+
+#define DECLARE_SET_CONSTANT_BUFFER_FUNC_POINTER(TYPE) \
+	void SetConstantBuffer_Pointer_##TYPE(void* pData, size_t DataSize) \
+	{ \
+		ConstantBufferSet(TYPE##Buffer, TYPE##Slot, TYPE##IsVS, TYPE##IsPS); \
+	}
+
+#define DECLARE_SET_UPDATE_CONSTANT_BUFFER_FUNC_POINTER(TYPE) \
+	void SetAndUpdateConstantBuffer_Pointer_##TYPE(void* pData, size_t DataSize) \
+	{ \
+		ConstantBufferSetUpdate(TYPE##Buffer, pData, DataSize, TYPE##Slot, TYPE##IsVS, TYPE##IsPS); \
+	}
 
 struct FLinearColor;
 
@@ -75,20 +92,24 @@ public:
 
 	template<typename TVertex>
 	static HRESULT CreateVertexBuffer(ID3D11Device* device, const std::vector<FNormalVertex>& srcVertices, ID3D11Buffer** outBuffer);
-	
+
 	template<typename TVertex>
-	static HRESULT CreateVertexBuffer(ID3D11Device* device, const std::vector<FSkinnedVertex>& srcVertices, ID3D11Buffer** outBuffer);
+	static HRESULT CreateVertexBuffer(ID3D11Device* device, const std::vector<FSkinnedVertex>& srcVertices, ID3D11Buffer** outBuffer, bool bIsGPUSkinning);
 
 	static HRESULT CreateIndexBuffer(ID3D11Device* device, const FMeshData* meshData, ID3D11Buffer** outBuffer);
 
 	static HRESULT CreateIndexBuffer(ID3D11Device* device, const FStaticMesh* mesh, ID3D11Buffer** outBuffer);
-	
+
 	static HRESULT CreateIndexBuffer(ID3D11Device* Device, const FSkeletalMeshData* Mesh, ID3D11Buffer** OutBuffer);
 
-	CONSTANT_BUFFER_LIST(DECLARE_UPDATE_CONSTANT_BUFFER_FUNC)
-	CONSTANT_BUFFER_LIST(DECLARE_SET_CONSTANT_BUFFER_FUNC)
-	CONSTANT_BUFFER_LIST(DECLARE_SET_UPDATE_CONSTANT_BUFFER_FUNC)
-	
+	CONSTANT_BUFFER_LIST_SMALL(DECLARE_UPDATE_CONSTANT_BUFFER_FUNC)
+	CONSTANT_BUFFER_LIST_SMALL(DECLARE_SET_CONSTANT_BUFFER_FUNC)
+	CONSTANT_BUFFER_LIST_SMALL(DECLARE_SET_UPDATE_CONSTANT_BUFFER_FUNC)
+
+	CONSTANT_BUFFER_LIST_LARGE(DECLARE_UPDATE_CONSTANT_BUFFER_FUNC_POINTER)
+	CONSTANT_BUFFER_LIST_LARGE(DECLARE_SET_CONSTANT_BUFFER_FUNC_POINTER)
+	CONSTANT_BUFFER_LIST_LARGE(DECLARE_SET_UPDATE_CONSTANT_BUFFER_FUNC_POINTER)
+
 	template <typename TVertex>
 	void VertexBufferUpdate(ID3D11Buffer* VertexBuffer, const std::vector<TVertex>& Data)
 	{
@@ -112,16 +133,27 @@ public:
 		memcpy(MSR.pData, &Data, sizeof(T));
 		DeviceContext->Unmap(ConstantBuffer, 0);
 	}
+	void ConstantBufferUpdate(ID3D11Buffer* ConstantBuffer, void* pData, size_t DataSize)
+	{
+		D3D11_MAPPED_SUBRESOURCE MSR;
+		DeviceContext->Map(ConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MSR);
+		memcpy(MSR.pData, pData, DataSize); // pData 포인터에서 DataSize만큼 복사
+		DeviceContext->Unmap(ConstantBuffer, 0);
+	}
 	template <typename T>
 	void ConstantBufferSetUpdate(ID3D11Buffer* ConstantBuffer, T& Data, const uint32 Slot, const bool bIsVS, const bool bIsPS)
 	{
 		ConstantBufferUpdate(ConstantBuffer, Data);
 		ConstantBufferSet(ConstantBuffer, Slot, bIsVS, bIsPS);
-		
+	}
+	void ConstantBufferSetUpdate(ID3D11Buffer* ConstantBuffer, void* pData, size_t DataSize, const uint32 Slot, const bool bIsVS, const bool bIsPS)
+	{
+		ConstantBufferUpdate(ConstantBuffer, pData, DataSize); // void* 버전 호출
+		ConstantBufferSet(ConstantBuffer, Slot, bIsVS, bIsPS);
 	}
 	void ConstantBufferSet(ID3D11Buffer* ConstantBuffer, uint32 Slot, bool bIsVS, bool bIsPS);
     void UpdateUVScrollConstantBuffers(const FVector2D& Speed, float TimeSec);
-	
+
 	void IASetPrimitiveTopology();
 	void RSSetState(ERasterizerMode ViewMode);
 	void RSSetViewport();
@@ -387,30 +419,33 @@ inline HRESULT D3D11RHI::CreateVertexBuffer<FBillboardVertexInfo_GPU>(ID3D11Devi
 	return CreateVertexBufferImpl<FBillboardVertexInfo_GPU>(device, srcVertices, outBuffer, D3D11_USAGE_DYNAMIC, D3D11_CPU_ACCESS_WRITE);
 }
 
-template<>
-inline HRESULT D3D11RHI::CreateVertexBuffer<FVertexDynamic>(ID3D11Device* Device, const std::vector<FSkinnedVertex>& SrcVertices, ID3D11Buffer** OutBuffer)
+template<typename TVertex>
+inline HRESULT D3D11RHI::CreateVertexBuffer(ID3D11Device* Device, const std::vector<FSkinnedVertex>& SrcVertices, ID3D11Buffer** OutBuffer, bool bIsGPUSkinning)
 {
-	std::vector<FVertexDynamic> VertexArray;
+	std::vector<TVertex> VertexArray;
 	VertexArray.reserve(SrcVertices.size());
 
 	for (size_t Idx = 0; Idx < SrcVertices.size(); ++Idx)
 	{
-		const FSkinnedVertex& In = SrcVertices[Idx];
-		FVertexDynamic Vertex{};
-
-		Vertex.Position = In.Position;
-		Vertex.Normal = In.Normal;
-		Vertex.UV = In.UV;
-		Vertex.Tangent = In.Tangent;
-		Vertex.Color = In.Color;
+		TVertex Vertex{};
+		Vertex.FillFrom(SrcVertices[Idx]);
 		VertexArray.push_back(Vertex);
 	}
 
 	D3D11_BUFFER_DESC BufferDesc = {};
-	BufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	if (bIsGPUSkinning)
+	{
+		BufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		BufferDesc.CPUAccessFlags = 0;
+	}
+	else
+	{
+		BufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+		BufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	}
+
 	BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	BufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	BufferDesc.ByteWidth = static_cast<UINT>(sizeof(FVertexDynamic) * VertexArray.size());
+	BufferDesc.ByteWidth = static_cast<UINT>(sizeof(TVertex) * VertexArray.size());
 
 	D3D11_SUBRESOURCE_DATA InitData = {};
 	InitData.pSysMem = VertexArray.data();

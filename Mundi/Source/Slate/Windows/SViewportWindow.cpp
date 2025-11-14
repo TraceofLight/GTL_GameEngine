@@ -441,6 +441,9 @@ void SViewportWindow::LoadToolbarIcons(ID3D11Device* Device)
 	IconShadowAA = NewObject<UTexture>();
 	IconShadowAA->Load(GDataDir + "/Icon/Viewport_ShadowAA.png", Device);
 
+	IconSkinning = NewObject<UTexture>();
+	IconSkinning->Load(GDataDir + "/Icon/Viewport_Skinning.png", Device);
+
 	// 뷰포트 레이아웃 전환 아이콘 로드
 	IconSingleToMultiViewport = NewObject<UTexture>();
 	IconSingleToMultiViewport->Load(GDataDir + "/Icon/Viewport_SingleToMultiViewport.png", Device);
@@ -1403,6 +1406,7 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 				UStatsOverlayD2D::Get().SetShowTileCulling(false);
 				UStatsOverlayD2D::Get().SetShowLights(false);
 				UStatsOverlayD2D::Get().SetShowShadow(false);
+				UStatsOverlayD2D::Get().SetShowSkinning(false);
 			}
 
 			if (ImGui::IsItemHovered())
@@ -1489,7 +1493,17 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 			}
 			if (ImGui::IsItemHovered())
 			{
-				ImGui::SetTooltip("셉도우 맵 통계를 표시합니다. (셉도우 라이트 개수, 아틀라스 크기, 메모리 사용량)");
+				ImGui::SetTooltip("섀도우 맵 통계를 표시합니다. (섀도우 라이트 개수, 아틀라스 크기, 메모리 사용량)");
+			}
+
+			bool bSkinningStats = UStatsOverlayD2D::Get().IsSkinningVisible();
+			if (ImGui::Checkbox(" SKINNING", &bSkinningStats))
+			{
+				UStatsOverlayD2D::Get().ToggleSkinning();
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("스키닝 통계를 표시합니다.");
 			}
 
 			ImGui::EndMenu();
@@ -1611,7 +1625,7 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		{
 			ImGui::SetTooltip("빌보드 텍스트를 표시합니다.");
 		}
-		
+
 		// EditorIcon
 		bool bIcon = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_EditorIcon);
 		if (ImGui::Checkbox("##Icon", &bIcon))
@@ -1927,6 +1941,26 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		if (ImGui::IsItemHovered())
 		{
 			ImGui::SetTooltip("그림자 안티 에일리어싱 기술 설정");
+		}
+
+		// ===== 스키닝 모드 =====
+		bool bIsGpuSkinning = (RenderSettings.GetSkinningMode() == ESkinningMode::GPU);
+		if (ImGui::Checkbox("##GPUSkinning", &bIsGpuSkinning))
+		{
+			// 체크박스 상태에 따라 스키닝 모드 변경
+			ESkinningMode newMode = bIsGpuSkinning ? ESkinningMode::GPU : ESkinningMode::CPU;
+			RenderSettings.SetSkinningMode(newMode);
+		}
+		ImGui::SameLine();
+		if (IconSkinning && IconSkinning->GetShaderResourceView())
+		{
+			ImGui::Image((void*)IconSkinning->GetShaderResourceView(), IconSize);
+			ImGui::SameLine(0, 4);
+		}
+		ImGui::Text(" GPU 스키닝");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("CPU 또는 GPU 스키닝 방식을 선택합니다.");
 		}
 
 		ImGui::PopStyleColor(3);

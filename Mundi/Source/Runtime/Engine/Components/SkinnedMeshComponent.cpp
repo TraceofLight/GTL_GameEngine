@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "SkinnedMeshComponent.h"
 #include "MeshBatchElement.h"
+#include "PlatformTime.h"
 #include "SceneView.h"
 
 USkinnedMeshComponent::USkinnedMeshComponent() : SkeletalMesh(nullptr)
@@ -35,24 +36,28 @@ void USkinnedMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle
    {
       SetSkeletalMesh(SkeletalMesh->GetPathFileName());
    }
-   // @TODO - UStaticMeshComponent처럼 프로퍼티 기반 직렬화 로직 추가
 }
 
 void USkinnedMeshComponent::DuplicateSubObjects()
 {
    Super::DuplicateSubObjects();
-   SkeletalMesh->CreateVertexBuffer(&VertexBuffer);
+   SkeletalMesh->CreateVertexBufferForComp(&VertexBuffer);
 }
 
 void USkinnedMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
 {
     if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData()) { return; }
 
-   if (bSkinningMatricesDirty)
-   {
-      bSkinningMatricesDirty = false;
-      SkeletalMesh->UpdateVertexBuffer(SkinnedVertices, VertexBuffer);
-   }
+	bool bIsGPUSkinning = View->RenderSettings->GetSkinningMode() == ESkinningMode::GPU;
+
+	if (!bIsGPUSkinning && bSkinningMatricesDirty)
+	{
+		TIME_PROFILE(SKINNING_CPU_TASK)
+
+		PerformSkinning();
+		SkeletalMesh->UpdateVertexBuffer(SkinnedVertices, VertexBuffer);
+		bSkinningMatricesDirty = false;
+	}
 
     const TArray<FGroupInfo>& MeshGroupInfos = SkeletalMesh->GetMeshGroupInfo();
     auto DetermineMaterialAndShader = [&](uint32 SectionIndex) -> TPair<UMaterialInterface*, UShader*>
@@ -118,6 +123,13 @@ void USkinnedMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMes
        {
           ShaderMacros.Append(MaterialToUse->GetShaderMacros());
        }
+
+    	if (bIsGPUSkinning)
+    	{
+    		ShaderMacros.Append({{"GPU_SKINNING", "1"}});
+    		BatchElement.SkinningMatrices = &FinalSkinningMatrices;
+    	}
+
        FShaderVariant* ShaderVariant = ShaderToUse->GetOrCompileShaderVariant(ShaderMacros);
 
        if (ShaderVariant)
@@ -126,13 +138,13 @@ void USkinnedMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMes
           BatchElement.PixelShader = ShaderVariant->PixelShader;
           BatchElement.InputLayout = ShaderVariant->InputLayout;
        }
-       
+
        BatchElement.Material = MaterialToUse;
-       
-       BatchElement.VertexBuffer = VertexBuffer;
+
+       BatchElement.VertexBuffer = bIsGPUSkinning ? SkeletalMesh->GetVertexBuffer() : VertexBuffer;
        BatchElement.IndexBuffer = SkeletalMesh->GetIndexBuffer();
-       BatchElement.VertexStride = SkeletalMesh->GetVertexStride();
-       
+       BatchElement.VertexStride = bIsGPUSkinning ? SkeletalMesh->GetVertexStride() : sizeof(FVertexDynamic);
+
        BatchElement.IndexCount = IndexCount;
        BatchElement.StartIndex = StartIndex;
        BatchElement.BaseVertexIndex = 0;
@@ -204,15 +216,14 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
       VertexBuffer->Release();
       VertexBuffer = nullptr;
    }
-    
+
    if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshData())
    {
-      SkeletalMesh->CreateVertexBuffer(&VertexBuffer);
+      SkeletalMesh->CreateVertexBufferForComp(&VertexBuffer);
 
       const TArray<FMatrix> IdentityMatrices(SkeletalMesh->GetBoneCount(), FMatrix::Identity());
       UpdateSkinningMatrices(IdentityMatrices, IdentityMatrices);
-      PerformSkinning();
-      
+
       const TArray<FGroupInfo>& GroupInfos = SkeletalMesh->GetMeshGroupInfo();
        MaterialSlots.resize(GroupInfos.size());
        for (int i = 0; i < GroupInfos.size(); ++i)
@@ -226,15 +237,13 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
    {
       SkeletalMesh = nullptr;
       UpdateSkinningMatrices(TArray<FMatrix>(), TArray<FMatrix>());
-      PerformSkinning();
    }
 }
 
 void USkinnedMeshComponent::PerformSkinning()
 {
    if (!SkeletalMesh || FinalSkinningMatrices.IsEmpty()) { return; }
-   if (!bSkinningMatricesDirty) { return; }
-   
+
    const TArray<FSkinnedVertex>& SrcVertices = SkeletalMesh->GetSkeletalMeshData()->Vertices;
    const int32 NumVertices = SrcVertices.Num();
    SkinnedVertices.SetNum(NumVertices);
@@ -244,7 +253,7 @@ void USkinnedMeshComponent::PerformSkinning()
       const FSkinnedVertex& SrcVert = SrcVertices[Idx];
       FNormalVertex& DstVert = SkinnedVertices[Idx];
 
-      DstVert.pos = SkinVertexPosition(SrcVert); 
+      DstVert.pos = SkinVertexPosition(SrcVert);
       DstVert.normal = SkinVertexNormal(SrcVert);
       DstVert.Tangent = SkinVertexTangent(SrcVert);
       DstVert.tex = SrcVert.UV;

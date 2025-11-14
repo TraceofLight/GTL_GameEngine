@@ -42,6 +42,29 @@ void FVertexDynamic::FillFrom(const FNormalVertex& src)
     Normal = FVector{ src.normal.X, src.normal.Y, src.normal.Z };
 }
 
+void FVertexDynamic::FillFrom(const FSkinnedVertex& SkinnedVertex)
+{
+	Position = SkinnedVertex.Position;
+	Normal = SkinnedVertex.Normal;
+	UV = SkinnedVertex.UV;
+	Tangent = SkinnedVertex.Tangent;
+	Color = SkinnedVertex.Color;
+}
+
+void FSkinnedVertexDynamic::FillFrom(const FSkinnedVertex& SkinnedVertex)
+{
+	Position = SkinnedVertex.Position;
+	Normal = SkinnedVertex.Normal;
+	UV = SkinnedVertex.UV;
+	Tangent = SkinnedVertex.Tangent;
+	Color = SkinnedVertex.Color;
+	for (uint32 Idx = 0; Idx < 4; ++Idx)
+	{
+		BoneIndices[Idx] = SkinnedVertex.BoneIndices[Idx];
+		BoneWeights[Idx] = SkinnedVertex.BoneWeights[Idx];
+	}
+}
+
 void FBillboardVertexInfo_GPU::FillFrom(const FMeshData& mesh, size_t i)
 {
     Position[0] = mesh.Vertices[i].X;

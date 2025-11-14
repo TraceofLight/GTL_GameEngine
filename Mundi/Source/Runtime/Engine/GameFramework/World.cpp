@@ -49,7 +49,7 @@ UWorld::UWorld() : Partition(nullptr)  // Will be created in Initialize() based 
 
 	TimeStopDilation = 1.0;
 	TimeDilation = 1.0;
-	
+
 	TimeStopDuration = 0;
 	TimeDuration = 0;
 }
@@ -121,7 +121,7 @@ void UWorld::InitializeGizmo()
 	GizmoActor->SetWorld(this);
 	GizmoActor->RegisterAllComponents(this);
 	GizmoActor->SetActorTransform(FTransform(
-		FVector{ 0, 0, 0 }, 
+		FVector{ 0, 0, 0 },
 		FQuat::MakeFromEulerZYX(FVector{ 0, -90, 0 }),
 		FVector{ 1, 1, 1 }));
 
@@ -136,7 +136,7 @@ bool UWorld::TryLoadLastUsedLevel()
 	}
 
 	FWideString LastUsedLevelPath = UTF8ToWide(EditorINI["LastUsedLevel"]);
-	
+
 	// 로드 직전: Transform 위젯/선택 초기화
 	UUIManager::GetInstance().ClearTransformWidgetSelection();
 	GWorld->GetSelectionManager()->ClearSelection();
@@ -182,15 +182,15 @@ bool UWorld::LoadLevelFromFile(const FWideString& Path)
 
 // 함수 내부 코드 순서 유지 필요
 void UWorld::Tick(float DeltaSeconds)
-{	
-	// GameDelat: Unscaled * finalScale  
+{
+	// GameDelat: Unscaled * finalScale
 	float UnscaledDeltaSeconds = DeltaSeconds;
 
-	// Time Stop 
+	// Time Stop
 	if (TimeStopDuration > 0 || TimeDuration > 0)
 	{
 		// Stop
-		TimeStopDuration -= UnscaledDeltaSeconds; 
+		TimeStopDuration -= UnscaledDeltaSeconds;
 		if (TimeStopDuration <= 0)
 		{
 			TimeStopDuration = 0;
@@ -198,14 +198,14 @@ void UWorld::Tick(float DeltaSeconds)
 		}
 
 		// Slomo
-		TimeDuration -= UnscaledDeltaSeconds; 
+		TimeDuration -= UnscaledDeltaSeconds;
 
 		if (TimeDuration <= 0)
 		{
 			TimeDuration = 0;
 			TimeDilation = 1.0f;
-		} 
-	}  
+		}
+	}
 
     // Delta Time Update
     UnscaledDelta = UnscaledDeltaSeconds;
@@ -223,7 +223,7 @@ void UWorld::Tick(float DeltaSeconds)
 			FActorTimeState& State = Pair.second;
 
 			State.Durtaion -= GetDeltaTime(EDeltaTime::Unscaled);
-		
+
 			if (State.Durtaion <= 0.0f || !Key.IsValid())
 			{
 				/*if (AActor * Actor =  Key.Get())
@@ -232,14 +232,14 @@ void UWorld::Tick(float DeltaSeconds)
 				}*/
 				ToRemove.Add(Key);
 			}
-		} 
-		
+		}
+
         for (auto& Key : ToRemove)
         {
             ActorTimingMap.Remove(Key);
         }
-	} 
-	 
+	}
+
 	// 중복충돌 방지 pair clear
     FrameOverlapPairs.clear();
 
@@ -297,10 +297,10 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 	//ULevel* NewLevel = ULevelService::CreateNewLevel();
 	UWorld* PIEWorld = NewObject<UWorld>(); // 레벨도 새로 생성됨
 	PIEWorld->bPie = true;
-	
+
 	FWorldContext PIEWorldContext = FWorldContext(PIEWorld, EWorldType::Game);
 	GEngine.AddWorldContext(PIEWorldContext);
-	
+
 	const TArray<AActor*>& SourceActors = InEditorWorld->GetLevel()->GetActors();
 	for (AActor* SourceActor : SourceActors)
 	{
@@ -329,6 +329,8 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 
 		PIEWorld->AddActorToLevel(NewActor);
 	}
+
+	PIEWorld->RenderSettings = InEditorWorld->RenderSettings;
 
 	return PIEWorld;
 }
@@ -696,7 +698,7 @@ AActor* UWorld::SpawnPrefabActor(const FWideString& PrefabPath)
 				UE_LOG("[error] SpawnActor failed: ObjectFactory could not create an instance of");
 				return nullptr;
 			}
-			
+
 			// 데이터 불러오기
 			NewActor->Serialize(true, ActorDataJson);
 

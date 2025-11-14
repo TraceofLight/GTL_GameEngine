@@ -4,6 +4,7 @@
 #include "ImGui/imgui_impl_dx11.h"
 #include "ImGui/imgui_impl_win32.h"
 #include "Renderer.h"
+#include "GPUProfiler.h"
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, uint32 msg, WPARAM wParam, LPARAM lParam);
 
@@ -54,6 +55,8 @@ void UImGuiHelper::Initialize(HWND InWindowHandle, ID3D11Device* InDevice, ID3D1
 	{
 		return;
 	}
+
+	DeviceContext = InDeviceContext;
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -125,14 +128,18 @@ void UImGuiHelper::BeginFrame() const
  */
 void UImGuiHelper::EndFrame() const
 {
-	if (!bIsInitialized)
+	if (!bIsInitialized || !DeviceContext)
 	{
 		return;
 	}
 
 	// Render ImGui
 	ImGui::Render();
-	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+	{
+		GPU_EVENT(DeviceContext, "UI Render");
+		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+	}
 }
 
 /**

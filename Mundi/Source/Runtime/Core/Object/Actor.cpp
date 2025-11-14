@@ -11,8 +11,9 @@
 #include "World.h"
 #include "PrimitiveComponent.h"
 #include "GameObject.h"
+#include "Source/Runtime/Engine/Animation/Public/AnimTypes.h"
 
-	/*BEGIN_PROPERTIES(AActor)
+/*BEGIN_PROPERTIES(AActor)
 	ADD_PROPERTY(FName, ObjectName, "[액터]", true, "액터의 이름입니다")
 	ADD_PROPERTY(bool, bActorIsActive, "[액터]", true, "액터를 활성 여부를 설정합니다")
 	ADD_PROPERTY(bool, bActorHiddenInGame, "[액터]", true, "액터를 게임에서 숨깁니다")
@@ -36,7 +37,7 @@ void AActor::BeginPlay()
 	LuaGameObject = new FGameObject();
 	LuaGameObject ->SetOwner(this); /*순서 보장 필수!*/
 	LuaGameObject->UUID = this->UUID;
-	
+
 	// NOTE: 아직 InitializeComponent/BeginPlay 순서가 완벽히 보장되지 않음 (PIE 시작 순간에는 지연 생성 처리 필요)
 	// 컴포넌트들 Initialize/BeginPlay 순회
 	for (UActorComponent* Comp : OwnedComponents)
@@ -59,7 +60,7 @@ void AActor::Tick(float DeltaSeconds)
 {
 	// 에디터에서 틱 Off면 스킵
 	if (!bTickInEditor && World->bPie == false) return;
-	
+
 	for (UActorComponent* Comp : OwnedComponents)
 	{
 		if (Comp && Comp->IsComponentTickEnabled())
@@ -273,12 +274,12 @@ void AActor::DestroyAllComponents()
 	TArray<UActorComponent*> Temp;
 	Temp.reserve(OwnedComponents.size());
 
-	for (UActorComponent* C : OwnedComponents) 
+	for (UActorComponent* C : OwnedComponents)
 		Temp.push_back(C);
 
 	for (UActorComponent* C : Temp)
 	{
-		if (!C) 
+		if (!C)
 			continue;
 		C->DestroyComponent(); // 내부에서 등록 해제도 처리
 	}
@@ -324,7 +325,7 @@ void AActor::SetActorLocation(const FVector& NewLocation)
 		RootComponent->SetWorldLocation(NewLocation);
 		MarkPartitionDirty();
 	}
-} 
+}
 
 FVector AActor::GetActorLocation() const
 {
@@ -350,7 +351,7 @@ float AActor::GetCustomTimeDillation()
 
 	if (TimeState == nullptr) return 1.0f;
 
-	return CustomTimeDillation; 
+	return CustomTimeDillation;
 }
 
 void AActor::SetCustomTimeDillation(float Duration , float Dilation)
@@ -359,7 +360,7 @@ void AActor::SetCustomTimeDillation(float Duration , float Dilation)
 	CustomTimeDillation = FMath::Min( CustomTimeDillation, Dilation);
 
     if (!World) return;
-	
+
 	// World에서 Duration을 관리하고 있으므로 업데이트
     TWeakObjectPtr<AActor> Key(this);
     FActorTimeState* TimeState = World->ActorTimingMap.Find(Key);
@@ -514,7 +515,7 @@ void AActor::AddActorLocalLocation(const FVector& DeltaLocation)
 
 void AActor::SetActorHiddenInEditor(bool bNewHidden)
 {
-	bHiddenInEditor = bNewHidden; 
+	bHiddenInEditor = bNewHidden;
 	GWorld->GetLightManager()->SetDirtyFlag();
 }
 
@@ -553,7 +554,7 @@ void AActor::OnBeginOverlap(UPrimitiveComponent* MyComp, UPrimitiveComponent* Ot
 {
 	if (OtherComp->GetOwner()->Tag == "player")
 		UE_LOG("On Begin Overlap");
-	
+
 }
 
 void AActor::OnEndOverlap(UPrimitiveComponent* MyComp, UPrimitiveComponent* OtherComp)
@@ -565,7 +566,17 @@ void AActor::OnEndOverlap(UPrimitiveComponent* MyComp, UPrimitiveComponent* Othe
 void AActor::OnHit(UPrimitiveComponent* MyComp, UPrimitiveComponent* OtherComp)
 {
 	UE_LOG("On Hit");
-} 
+}
+
+/**
+ * @brief 애니메이션 Notify 처리
+ * @param Notify 트리거된 Notify 이벤트
+ */
+void AActor::HandleAnimNotify(const FAnimNotifyEvent& Notify)
+{
+	// 기본적으로는 로그 출력, 하위 클래스에서 오버라이드 가능
+	UE_LOG("AActor: AnimNotify triggered: Name: %s, Time: %.2f", Notify.NotifyName.ToString().c_str(), Notify.TriggerTime);
+}
 
 void AActor::DuplicateSubObjects()
 {
@@ -601,7 +612,7 @@ void AActor::DuplicateSubObjects()
 		// 컴포넌트를 깊은 복사합니다.
 		UActorComponent* NewComp = OriginalComp->Duplicate();
 		NewComp->SetOwner(this);
-		
+
 		// 매핑 테이블에 (원본 포인터, 새 포인터) 쌍을 기록합니다.
 		OldToNewComponentMap.insert({ OriginalComp, NewComp });
 
@@ -624,7 +635,7 @@ void AActor::DuplicateSubObjects()
 	}
 	else
 	{
-		// 원본 루트를 찾지 못하는 심각한 오류. 
+		// 원본 루트를 찾지 못하는 심각한 오류.
 		// 이 경우엔 첫 번째 씬 컴포넌트를 임시 루트로 삼거나 에러 처리.
 		RootComponent = nullptr;
 	}
@@ -681,7 +692,7 @@ void AActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 
 		uint32 RootUUID;
 		FJsonSerializer::ReadUint32(InOutHandle, "RootComponentId", RootUUID);
-	
+
 		JSON ComponentsJson;
 		if (FJsonSerializer::ReadArray(InOutHandle, "OwnedComponents", ComponentsJson))
 		{
@@ -689,16 +700,16 @@ void AActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 			for (uint32 i = 0; i < static_cast<uint32>(ComponentsJson.size()); ++i)
 			{
 				JSON ComponentJson = ComponentsJson.at(i);
-				
+
 				FString TypeString;
 				FJsonSerializer::ReadString(ComponentJson, "Type", TypeString);
-	
+
 				UClass* NewClass = UClass::FindClass(TypeString);
-	
+
 				UActorComponent* NewComponent = Cast<UActorComponent>(ObjectFactory::NewObject(NewClass));
-	
+
 				NewComponent->Serialize(bInIsLoading, ComponentJson);
-	
+
 				// RootComponent 설정
 				if (USceneComponent* NewSceneComponent = Cast<USceneComponent>(NewComponent))
 				{
@@ -708,11 +719,11 @@ void AActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 						SetRootComponent(NewSceneComponent);
 					}
 				}
-	
+
 				// OwnedComponents와 SceneComponents에 Component 추가
 				AddOwnedComponent(NewComponent);
 			}
-	
+
 			// 2) 컴포넌트 간 부모 자식 관계 설정
 			for (auto& Component : OwnedComponents)
 			{
@@ -726,7 +737,7 @@ void AActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 				{
 					USceneComponent** ParentP = SceneComp->GetSceneIdMap().Find(ParentId);
 					USceneComponent* Parent = *ParentP;
-	
+
 					SceneComp->SetupAttachment(Parent, EAttachmentRule::KeepRelative);
 				}
 			}
@@ -735,7 +746,7 @@ void AActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 	else if (RootComponent)
 	{
 		InOutHandle["RootComponentId"] = RootComponent->UUID;
-	
+
 		JSON Components = JSON::Make(JSON::Class::Array);
 		for (auto& Component : OwnedComponents)
 		{
@@ -745,11 +756,11 @@ void AActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 			{
 				continue;
 			}
-	
+
 			JSON ComponentJson;
-	
+
 			ComponentJson["Type"] = Component->GetClass()->Name;
-	
+
 			Component->Serialize(bInIsLoading, ComponentJson);
 			Components.append(ComponentJson);
 		}
