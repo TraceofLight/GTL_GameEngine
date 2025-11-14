@@ -100,7 +100,7 @@ private:
 
 	ID3D11Device* Device;
 	ID3D11DeviceContext* Context;
-	std::vector<FTimerQuery> Timers;
+	TArray<FTimerQuery> Timers;
 
 	ID3D11Query* FrameDisjointQuery;
 	bool bFrameActive;

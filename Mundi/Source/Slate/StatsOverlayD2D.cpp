@@ -10,6 +10,7 @@
 #include "Picking.h"
 #include "PlatformTime.h"
 #include "DecalStatManager.h"
+#include "GPUProfiler.h"
 #include "TileCullingStats.h"
 #include "LightStats.h"
 #include "ShadowStats.h"
@@ -98,7 +99,7 @@ static void DrawTextBlock(
 
 void UStatsOverlayD2D::Draw()
 {
-	if (!bInitialized || (!bShowFPS && !bShowMemory && !bShowPicking && !bShowDecal && !bShowTileCulling && !bShowLights && !bShowShadow) || !SwapChain)
+	if (!bInitialized || (!bShowFPS && !bShowMemory && !bShowPicking && !bShowDecal && !bShowTileCulling && !bShowLights && !bShowShadow && !bShowGPU) || !SwapChain)
 		return;
 
 	ID2D1Factory1* D2dFactory = nullptr;
@@ -373,7 +374,40 @@ void UStatsOverlayD2D::Draw()
 
 		NextY += shadowPanelHeight + Space;
 	}
-	
+
+	if (bShowGPU && GPUTimer)
+	{
+		wchar_t Buf[512];
+		swprintf_s(Buf,
+			L"=== GPU Timings ===\n"
+			L"RenderLitPath: %.3f ms\n"
+			L"ShadowMaps: %.3f ms\n"
+			L"OpaquePass: %.3f ms\n"
+			L"DecalPass: %.3f ms\n"
+			L"HeightFog: %.3f ms\n"
+			L"EditorPrimitives: %.3f ms\n"
+			L"DebugPass: %.3f ms\n"
+			L"OverlayPrimitives: %.3f ms",
+			GPUTimer->GetTime("RenderLitPath"),
+			GPUTimer->GetTime("ShadowMaps"),
+			GPUTimer->GetTime("OpaquePass"),
+			GPUTimer->GetTime("DecalPass"),
+			GPUTimer->GetTime("HeightFog"),
+			GPUTimer->GetTime("EditorPrimitives"),
+			GPUTimer->GetTime("DebugPass"),
+			GPUTimer->GetTime("OverlayPrimitives"));
+
+		constexpr float GPUPanelHeight = 200.0f;
+		D2D1_RECT_F Rect = D2D1::RectF(Margin, NextY, Margin + PanelWidth, NextY + GPUPanelHeight);
+
+		DrawTextBlock(
+			D2dCtx, Dwrite, Buf, Rect, 16.0f,
+			D2D1::ColorF(0, 0, 0, 0.6f),
+			D2D1::ColorF(D2D1::ColorF::Orange));
+
+		NextY += GPUPanelHeight + Space;
+	}
+
 	D2dCtx->EndDraw();
 	D2dCtx->SetTarget(nullptr);
 
@@ -457,4 +491,14 @@ void UStatsOverlayD2D::SetShowShadow(bool b)
 void UStatsOverlayD2D::ToggleShadow()
 {
 	bShowShadow = !bShowShadow;
+}
+
+void UStatsOverlayD2D::SetShowGPU(bool b)
+{
+	bShowGPU = b;
+}
+
+void UStatsOverlayD2D::ToggleGPU()
+{
+	bShowGPU = !bShowGPU;
 }

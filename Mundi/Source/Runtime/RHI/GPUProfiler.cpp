@@ -165,6 +165,11 @@ void FGPUTimer::EndTimer(const char* InName)
 
 float FGPUTimer::GetTime(const char* InName) const
 {
+	if (!InName)
+	{
+		return 0.0f;
+	}
+
 	for (const auto& Timer : Timers)
 	{
 		if (Timer.Name == InName)

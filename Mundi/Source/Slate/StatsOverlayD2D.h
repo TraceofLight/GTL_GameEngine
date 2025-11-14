@@ -3,6 +3,8 @@
 #include <d3d11.h>
 #include <dxgi.h>
 
+class FGPUTimer;
+
 class UStatsOverlayD2D
 {
 public:
@@ -19,6 +21,7 @@ public:
     void SetShowTileCulling(bool b);
     void SetShowLights(bool b);
     void SetShowShadow(bool b);
+    void SetShowGPU(bool b);
     void ToggleFPS();
     void ToggleMemory();
     void TogglePicking();
@@ -26,6 +29,7 @@ public:
     void ToggleTileCulling();
     void ToggleLights();
     void ToggleShadow();
+    void ToggleGPU();
     bool IsFPSVisible() const { return bShowFPS; }
     bool IsMemoryVisible() const { return bShowMemory; }
     bool IsPickingVisible() const { return bShowPicking; }
@@ -33,6 +37,9 @@ public:
     bool IsTileCullingVisible() const { return bShowTileCulling; }
     bool IsLightsVisible() const { return bShowLights; }
     bool IsShadowVisible() const { return bShowShadow; }
+    bool IsGPUVisible() const { return bShowGPU; }
+
+    void SetGPUTimer(FGPUTimer* InGPUTimer) { GPUTimer = InGPUTimer; }
 
 private:
     UStatsOverlayD2D() = default;
@@ -52,8 +59,11 @@ private:
     bool bShowTileCulling = false;
     bool bShowShadow = false;
     bool bShowLights = false;
+    bool bShowGPU = false;
 
     ID3D11Device* D3DDevice = nullptr;
     ID3D11DeviceContext* D3DContext = nullptr;
     IDXGISwapChain* SwapChain = nullptr;
+
+    FGPUTimer* GPUTimer = nullptr;
 };

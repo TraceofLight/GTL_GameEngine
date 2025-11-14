@@ -31,12 +31,16 @@
 #include "DecalStatManager.h"
 #include "SceneRenderer.h"
 #include "SceneView.h"
+#include "GPUProfiler.h"
+#include "StatsOverlayD2D.h"
 
 #include <Windows.h>
 #include "DirectionalLightComponent.h"
 URenderer::URenderer(D3D11RHI* InDevice) : RHIDevice(InDevice)
 {
 	InitializeLineBatch();
+	GPUTimer = new FGPUTimer(InDevice->GetDevice(), InDevice->GetDeviceContext());
+	UStatsOverlayD2D::Get().SetGPUTimer(GPUTimer);
 }
 
 URenderer::~URenderer()
@@ -45,10 +49,23 @@ URenderer::~URenderer()
 	{
 		delete LineBatchData;
 	}
+
+	if (GPUTimer)
+	{
+		UStatsOverlayD2D::Get().SetGPUTimer(nullptr);
+		delete GPUTimer;
+		GPUTimer = nullptr;
+	}
 }
 
 void URenderer::BeginFrame()
 {
+	// GPU 타이머 프레임 시작
+	if (GPUTimer)
+	{
+		GPUTimer->BeginFrame();
+	}
+
 	RHIDevice->IASetPrimitiveTopology();
 
 	RHIDevice->OMSetRenderTargets(ERTVMode::BackBufferWithDepth);
@@ -61,6 +78,12 @@ void URenderer::BeginFrame()
 
 void URenderer::EndFrame()
 {
+	// GPU 타이머 프레임 종료
+	if (GPUTimer)
+	{
+		GPUTimer->EndFrame();
+	}
+
 	RHIDevice->Present();
 }
 
