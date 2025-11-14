@@ -61,3 +61,102 @@ static void AddAlias(sol::table& T, const char* Alias, void(C::*Method)(P...))
 {
     AddMethod<C, P...>(T, Alias, Method);
 }
+
+// ===== 프로퍼티 자동 바인딩 헬퍼 =====
+
+// 멤버변수를 Lua 프로퍼티로 바인딩 (Read/Write)
+template<typename C, typename T>
+static void AddProperty(sol::table& Table, const char* Name, T C::*Member)
+{
+    // Create a property descriptor table
+    sol::state_view lua = Table.lua_state();
+    sol::table propDesc = lua.create_table();
+
+    propDesc.set_function("get", [Member](LuaComponentProxy& Proxy) -> T {
+        if (!Proxy.Instance || Proxy.Class != C::StaticClass()) return T{};
+        return static_cast<C*>(Proxy.Instance)->*Member;
+    });
+
+    propDesc.set_function("set", [Member](LuaComponentProxy& Proxy, T Value) {
+        if (!Proxy.Instance || Proxy.Class != C::StaticClass()) return;
+        static_cast<C*>(Proxy.Instance)->*Member = Value;
+    });
+
+    propDesc["is_property"] = true;
+    Table[Name] = propDesc;
+}
+
+// 읽기 전용 프로퍼티 (EditAnywhere가 false인 경우)
+template<typename C, typename T>
+static void AddReadOnlyProperty(sol::table& Table, const char* Name, T C::*Member)
+{
+    sol::state_view lua = Table.lua_state();
+    sol::table propDesc = lua.create_table();
+
+    propDesc.set_function("get", [Member](LuaComponentProxy& Proxy) -> T {
+        if (!Proxy.Instance || Proxy.Class != C::StaticClass()) return T{};
+        return static_cast<C*>(Proxy.Instance)->*Member;
+    });
+
+    propDesc["is_property"] = true;
+    propDesc["read_only"] = true;
+    Table[Name] = propDesc;
+}
+
+// 포인터 타입 프로퍼티 (UTexture*, UMaterial* 등)
+template<typename C, typename T>
+static void AddPropertyPtr(sol::table& Table, const char* Name, T* C::*Member)
+{
+    sol::state_view lua = Table.lua_state();
+    sol::table propDesc = lua.create_table();
+
+    propDesc.set_function("get", [Member](LuaComponentProxy& Proxy) -> T* {
+        if (!Proxy.Instance || Proxy.Class != C::StaticClass()) return nullptr;
+        return static_cast<C*>(Proxy.Instance)->*Member;
+    });
+
+    propDesc.set_function("set", [Member](LuaComponentProxy& Proxy, T* Value) {
+        if (!Proxy.Instance || Proxy.Class != C::StaticClass()) return;
+        static_cast<C*>(Proxy.Instance)->*Member = Value;
+    });
+
+    propDesc["is_property"] = true;
+    Table[Name] = propDesc;
+}
+
+// TArray<T*> 타입 프로퍼티 (TArray<UMaterial*>, TArray<USound*> 등)
+template<typename C, typename T>
+static void AddPropertyArrayPtr(sol::table& Table, const char* Name, TArray<T*> C::*Member)
+{
+    sol::state_view lua = Table.lua_state();
+    sol::table propDesc = lua.create_table();
+
+    propDesc.set_function("get", [Member](sol::this_state L, LuaComponentProxy& Proxy) -> sol::table {
+        sol::state_view lua(L);
+        sol::table result = lua.create_table();
+        if (!Proxy.Instance || Proxy.Class != C::StaticClass()) return result;
+
+        TArray<T*>& arr = static_cast<C*>(Proxy.Instance)->*Member;
+        for (size_t i = 0; i < arr.size(); ++i) {
+            result[i + 1] = arr[i];  // Lua는 1-based 인덱싱
+        }
+        return result;
+    });
+
+    propDesc.set_function("set", [Member](LuaComponentProxy& Proxy, sol::table luaTable) {
+        if (!Proxy.Instance || Proxy.Class != C::StaticClass()) return;
+
+        TArray<T*>& arr = static_cast<C*>(Proxy.Instance)->*Member;
+        arr.clear();
+
+        for (size_t i = 1; i <= luaTable.size(); ++i) {
+            sol::optional<T*> elem = luaTable[i];
+            if (elem) {
+                arr.push_back(*elem);
+            }
+        }
+    });
+
+    propDesc["is_property"] = true;
+    Table[Name] = propDesc;
+}

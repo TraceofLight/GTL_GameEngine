@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Object.h"
 #include "UActorComponent.generated.h"
 
@@ -81,17 +81,17 @@ protected:
     bool bIsEditable = true;    //UI에서 Edit이 가능한가
     bool bCanEverTick = false;   // 컴포넌트 설계상 틱 지원 여부
 
-    // 설정 가능한 데이터
-    UPROPERTY(EditAnywhere, Category = "렌더링")
-    bool bIsActive = true;       // 활성 상태(사용자 on/off), 물리 적용
-
-    UPROPERTY(EditAnywhere, Category="렌더링")
-    bool bHiddenInGame = false; // 게임에서 숨김 여부
-
-    UPROPERTY(EditAnywhere, Category = "렌더링")
-    bool bTickEnabled = true;   // 현재 틱 켜짐 여부
-
     // 저장되지 않는 실시간 상태 변수
     bool bRegistered = false;       // RegisterComponent가 호출됐는가
     bool bPendingDestroy = false;   // DestroyComponent 의도 플래그, NOTE: 현재 작동 안함
+public:
+	// 설정 가능한 데이터
+	UPROPERTY(EditAnywhere, Category = "렌더링")
+	bool bIsActive = true;       // 활성 상태(사용자 on/off), 물리 적용
+
+	UPROPERTY(EditAnywhere, Category = "렌더링")
+	bool bHiddenInGame = false; // 게임에서 숨김 여부
+
+	UPROPERTY(EditAnywhere, Category = "렌더링")
+	bool bTickEnabled = true;   // 현재 틱 켜짐 여부
 };
