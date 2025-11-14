@@ -40,6 +40,41 @@ struct FVertexSimple
     void FillFrom(const FNormalVertex& src);
 };
 
+/**
+* 스키닝용 정점 구조체
+*/
+struct FSkinnedVertex
+{
+	FVector Position{}; // 정점 위치
+	FVector Normal{}; // 법선 벡터
+	FVector2D UV{}; // 텍스처 좌표
+	FVector4 Tangent{}; // 탄젠트 (w는 binormal 방향)
+	FVector4 Color{}; // 정점 컬러
+	uint32 BoneIndices[4]{}; // 영향을 주는 본 인덱스 (최대 4개)
+	float BoneWeights[4]{}; // 각 본의 가중치 (합이 1.0)
+
+	friend FArchive& operator<<(FArchive& Ar, FSkinnedVertex& Vertex)
+	{
+		Ar << Vertex.Position;
+		Ar << Vertex.Normal;
+		Ar << Vertex.UV;
+		Ar << Vertex.Tangent;
+		Ar << Vertex.Color;
+
+		for (int i = 0; i < 4; ++i)
+		{
+			Ar << Vertex.BoneIndices[i];
+		}
+
+		for (int i = 0; i < 4; ++i)
+		{
+			Ar << Vertex.BoneWeights[i];
+		}
+
+		return Ar;
+	}
+};
+
 // 런타임 포맷 (FNormalVertex와 역할이 달라서 분리됨)
 struct FVertexDynamic
 {
@@ -51,41 +86,20 @@ struct FVertexDynamic
 
     void FillFrom(const FMeshData& mesh, size_t i);
     void FillFrom(const FNormalVertex& src);
+	void FillFrom(const FSkinnedVertex& SkinnedVertex);
 };
-
-/**
-* 스키닝용 정점 구조체
-*/
-struct FSkinnedVertex
+// 런타임 포맷
+struct FSkinnedVertexDynamic
 {
-    FVector Position{}; // 정점 위치
-    FVector Normal{}; // 법선 벡터
-    FVector2D UV{}; // 텍스처 좌표
-    FVector4 Tangent{}; // 탄젠트 (w는 binormal 방향)
-    FVector4 Color{}; // 정점 컬러
-    uint32 BoneIndices[4]{}; // 영향을 주는 본 인덱스 (최대 4개)
-    float BoneWeights[4]{}; // 각 본의 가중치 (합이 1.0)
+    FVector Position;
+    FVector Normal;
+    FVector2D UV;
+    FVector4 Tangent;
+    FVector4 Color;
+	uint32 BoneIndices[4]{};
+	float BoneWeights[4]{};
 
-    friend FArchive& operator<<(FArchive& Ar, FSkinnedVertex& Vertex)
-    {
-        Ar << Vertex.Position;
-        Ar << Vertex.Normal;
-        Ar << Vertex.UV;
-        Ar << Vertex.Tangent;
-        Ar << Vertex.Color;
-
-        for (int i = 0; i < 4; ++i)
-        {
-            Ar << Vertex.BoneIndices[i];
-        }
-
-        for (int i = 0; i < 4; ++i)
-        {
-            Ar << Vertex.BoneWeights[i];
-        }
-
-        return Ar;
-    }
+	void FillFrom(const FSkinnedVertex& SkinnedVertex);
 };
 
 // 같은 Position인데 Normal이나 UV가 다른 vertex가 존재할 수 있음, 그래서 SkinnedVertex를 키로 구별해야해서 hash함수 정의함
@@ -158,7 +172,7 @@ struct FBillboardVertexInfo_GPU
     float CharSize[2];
     float UVRect[4];
 
-    void FillFrom(const FMeshData& mesh, size_t i); 
+    void FillFrom(const FMeshData& mesh, size_t i);
     void FillFrom(const FNormalVertex& src);
 };
 
@@ -314,7 +328,7 @@ struct FSkeletalMeshData
 {
     FString PathFileName;
     FString CacheFilePath;
-    
+
     TArray<FSkinnedVertex> Vertices; // 정점 배열
     TArray<uint32> Indices; // 인덱스 배열
     FSkeleton Skeleton; // 스켈레톤 정보

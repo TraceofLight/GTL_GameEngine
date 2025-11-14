@@ -4,7 +4,7 @@
 USkeletalMeshComponent::USkeletalMeshComponent()
 {
     // 테스트용 기본 메시 설정
-    SetSkeletalMesh(GDataDir + "/Test.fbx"); 
+    SetSkeletalMesh(GDataDir + "/Test.fbx");
 }
 
 
@@ -16,7 +16,7 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
 
     // 1. 테스트할 뼈 인덱스 (모델에 따라 1, 5, 10 등 바꿔보세요)
     constexpr int32 TEST_BONE_INDEX = 2;
-    
+
     // 3. 테스트 시간 누적
     if (!bIsInitialized)
     {
@@ -34,7 +34,7 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
     // 5. [중요] 원본 T-Pose에 테스트 회전을 누적
     FTransform NewLocalPose = TestBoneBasePose;
     NewLocalPose.Rotation = TestRotation * TestBoneBasePose.Rotation;
-    
+
     // 6. [핵심] 기즈모가 하듯이, 뼈의 로컬 트랜스폼을 강제 설정
     // (이 함수는 내부적으로 ForceRecomputePose()를 호출함)
     SetBoneLocalTransform(TEST_BONE_INDEX, NewLocalPose);
@@ -71,10 +71,10 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
                 LocalBindMatrix = ThisBone.BindPose * ParentInverseBindPose;
             }
             // 계산된 로컬 행렬을 로컬 트랜스폼으로 변환
-            CurrentLocalSpacePose[i] = FTransform(LocalBindMatrix); 
+            CurrentLocalSpacePose[i] = FTransform(LocalBindMatrix);
         }
-        
-        ForceRecomputePose(); 
+
+        ForceRecomputePose();
     }
     else
     {
@@ -130,14 +130,13 @@ FTransform USkeletalMeshComponent::GetBoneWorldTransform(int32 BoneIndex)
 
 void USkeletalMeshComponent::ForceRecomputePose()
 {
-    if (!SkeletalMesh) { return; } 
+    if (!SkeletalMesh) { return; }
 
     // LocalSpace -> ComponentSpace 계산
     UpdateComponentSpaceTransforms();
     // ComponentSpace -> Final Skinning Matrices 계산
     UpdateFinalSkinningMatrices();
     UpdateSkinningMatrices(TempFinalSkinningMatrices, TempFinalSkinningNormalMatrices);
-    PerformSkinning();
 }
 
 void USkeletalMeshComponent::UpdateComponentSpaceTransforms()
@@ -171,7 +170,7 @@ void USkeletalMeshComponent::UpdateFinalSkinningMatrices()
     {
         const FMatrix& InvBindPose = Skeleton.Bones[BoneIndex].InverseBindPose;
         const FMatrix ComponentPoseMatrix = CurrentComponentSpacePose[BoneIndex].ToMatrix();
-        
+
         TempFinalSkinningMatrices[BoneIndex] = InvBindPose * ComponentPoseMatrix;
         TempFinalSkinningNormalMatrices[BoneIndex] = TempFinalSkinningMatrices[BoneIndex].Inverse().Transpose();
     }

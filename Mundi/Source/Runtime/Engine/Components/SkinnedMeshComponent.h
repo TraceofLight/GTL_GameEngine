@@ -17,11 +17,11 @@ public:
 
     void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
     void DuplicateSubObjects() override;
-    
+
 // Mesh Component Section
 public:
     void CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) override;
-    
+
     FAABB GetWorldAABB() const override;
     void OnTransformUpdated() override;
 
@@ -38,13 +38,14 @@ public:
     USkeletalMesh* GetSkeletalMesh() const { return SkeletalMesh; }
 
 protected:
+	void MarkAsSkinningDirty();
     void PerformSkinning();
     /**
      * @brief 자식에게서 원본 메시를 받아 CPU 스키닝을 수행
      * @param InSkinningMatrices 스키닝 매트릭스
      */
     void UpdateSkinningMatrices(const TArray<FMatrix>& InSkinningMatrices, const TArray<FMatrix>& InSkinningNormalMatrices);
-    
+
     UPROPERTY(EditAnywhere, Category = "Skeletal Mesh", Tooltip = "Skeletal mesh asset to render")
     USkeletalMesh* SkeletalMesh;
 
@@ -68,7 +69,7 @@ private:
     TArray<FMatrix> FinalSkinningMatrices;
     TArray<FMatrix> FinalSkinningNormalMatrices;
     bool bSkinningMatricesDirty = true;
-    
+
     /**
      * @brief CPU 스키닝에서 진행하기 때문에, Component별로 VertexBuffer를 가지고 스키닝 업데이트를 진행해야함
     */

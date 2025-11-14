@@ -190,6 +190,12 @@ enum class EShadowAATechnique : uint8
     VSM		// Variance Shadow Maps
 };
 
+enum class ESkinningMode : uint8
+{
+	GPU,
+	CPU,
+};
+
 // Bit flag operators for EEngineShowFlags
 inline EEngineShowFlags operator|(EEngineShowFlags a, EEngineShowFlags b)
 {
@@ -230,7 +236,7 @@ enum class EViewportType : uint8
     Orthographic_Top,     // 상단 직교 뷰
     Orthographic_Bottom,    // 하단 직교 뷰
     Orthographic_Front,   // 정면 직교 뷰
-    Orthographic_Left,     // 왼쪽면 직교 뷰 
+    Orthographic_Left,     // 왼쪽면 직교 뷰
     Orthographic_Right,   // 오른쪽면 직교 뷰
     Orthographic_Back     // 측면 직교 뷰
 };
@@ -249,5 +255,5 @@ enum class EWorldType : uint8
     Game,
 
     End,
-    PreviewMinimal, 
+    PreviewMinimal,
 };
