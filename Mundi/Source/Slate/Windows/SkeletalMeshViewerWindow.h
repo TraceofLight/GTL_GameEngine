@@ -73,4 +73,19 @@ private:
 
     // Animation 관련
     void UpdateBonesFromAnimation(ViewerState* State);
+
+    // Timeline 컨트롤 UI 렌더링
+    void RenderTimelineControls(ViewerState* State);
+
+    // Timeline 컨트롤 기능
+    void TimelineToFront(ViewerState* State);
+    void TimelineToPrevious(ViewerState* State);
+    void TimelineReverse(ViewerState* State);
+    void TimelineRecord(ViewerState* State);
+    void TimelinePlay(ViewerState* State);
+    void TimelineToNext(ViewerState* State);
+    void TimelineToEnd(ViewerState* State);
+
+    // Timeline 헬퍼: 프레임 변경 시 공통 갱신 로직
+    void RefreshAnimationFrame(ViewerState* State);
 };

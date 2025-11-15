@@ -1,5 +1,5 @@
 ﻿#include "pch.h"
-#include "SSkeletalMeshViewerWindow.h"
+#include "SkeletalMeshViewerWindow.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "Source/Runtime/Engine/SkeletalViewer/SkeletalViewerBootstrap.h"
@@ -15,6 +15,7 @@
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
+#include "Source/Runtime/InputCore/InputManager.h"
 #include <cmath> // for fmod
 
 SSkeletalMeshViewerWindow::SSkeletalMeshViewerWindow()
@@ -112,17 +113,26 @@ void SSkeletalMeshViewerWindow::OnRender()
         float totalWidth = contentAvail.x;
         float totalHeight = contentAvail.y;
 
-        float leftWidth = totalWidth * LeftPanelRatio;
+        // Animation 모드일 때는 좌측 패널 숨김
+        bool bShowLeftPanel = (ActiveState && ActiveState->ViewMode == EViewerMode::Skeletal);
+        float leftWidth = bShowLeftPanel ? (totalWidth * LeftPanelRatio) : 0.0f;
         float rightWidth = totalWidth * RightPanelRatio;
         float centerWidth = totalWidth - leftWidth - rightWidth;
+
+        // Animation 모드일 때는 Timeline을 하단에 전체 너비로 배치
+        bool bIsAnimationMode = (ActiveState && ActiveState->ViewMode == EViewerMode::Animation);
+        float timelineHeight = bIsAnimationMode ? 100.0f : 0.0f;
+        float mainAreaHeight = totalHeight - timelineHeight;
 
         // Remove spacing between panels
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
-        // Left panel - Asset Browser & Bone Hierarchy
-        ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
-        ImGui::BeginChild("LeftPanel", ImVec2(leftWidth, totalHeight), true, ImGuiWindowFlags_NoScrollbar);
-        ImGui::PopStyleVar();
+        // Left panel - Asset Browser & Bone Hierarchy (Skeletal 모드에서만 표시)
+        if (bShowLeftPanel)
+        {
+            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
+            ImGui::BeginChild("LeftPanel", ImVec2(leftWidth, mainAreaHeight), true, ImGuiWindowFlags_NoScrollbar);
+            ImGui::PopStyleVar();
 
         if (ActiveState)
         {
@@ -690,19 +700,16 @@ void SSkeletalMeshViewerWindow::OnRender()
             ImGui::End();
             return;
         }
-        ImGui::EndChild();
+            ImGui::EndChild();
 
-        ImGui::SameLine(0, 0); // No spacing between panels
+            ImGui::SameLine(0, 0); // No spacing between panels
+        }
 
         // Center panel (viewport area) — draw with border to see the viewport area
-        ImGui::BeginChild("SkeletalMeshViewport", ImVec2(centerWidth, totalHeight), true, ImGuiWindowFlags_NoScrollbar);
+        ImGui::BeginChild("SkeletalMeshViewport", ImVec2(centerWidth, mainAreaHeight), true, ImGuiWindowFlags_NoScrollbar);
 
-        // Viewport 영역 계산 (타임라인 공간 확보)
-        float timelineHeight = (ActiveState && ActiveState->ViewMode == EViewerMode::Animation) ? 100.0f : 0.0f;
-        float viewportHeight = totalHeight - timelineHeight - 20.0f;
-
-        // Viewport rendering area
-        ImGui::BeginChild("ViewportRenderArea", ImVec2(0, viewportHeight), false, ImGuiWindowFlags_NoScrollbar);
+        // Viewport rendering area (전체 높이 사용)
+        ImGui::BeginChild("ViewportRenderArea", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollbar);
         ImVec2 childPos = ImGui::GetWindowPos();
         ImVec2 childSize = ImGui::GetWindowSize();
         ImVec2 rectMin = childPos;
@@ -710,109 +717,13 @@ void SSkeletalMeshViewerWindow::OnRender()
         CenterRect.Left = rectMin.x; CenterRect.Top = rectMin.y; CenterRect.Right = rectMax.x; CenterRect.Bottom = rectMax.y; CenterRect.UpdateMinMax();
         ImGui::EndChild();
 
-        // Timeline controls (하단, Animation 모드일 때만 표시)
-        if (ActiveState && ActiveState->ViewMode == EViewerMode::Animation)
-        {
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
-
-            ImGui::BeginChild("TimelineArea", ImVec2(0, timelineHeight - 20), false);
-
-            // Playback Controls (좌측)
-            ImGui::BeginGroup();
-
-            // Play/Pause/Stop 버튼
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 4));
-
-            if (ImGui::Button(ActiveState->bIsPlaying ? "||" : "|>", ImVec2(40, 0)))
-            {
-                ActiveState->bIsPlaying = !ActiveState->bIsPlaying;
-            }
-            if (ImGui::IsItemHovered())
-            {
-                ImGui::SetTooltip(ActiveState->bIsPlaying ? "Pause" : "Play");
-            }
-
-            ImGui::SameLine();
-            if (ImGui::Button("[]", ImVec2(40, 0)))
-            {
-                ActiveState->bIsPlaying = false;
-                ActiveState->CurrentAnimationTime = 0.0f;
-                // 편집된 bone transform 캐시 클리어 (애니메이션 리셋)
-                ActiveState->EditedBoneTransforms.clear();
-            }
-            if (ImGui::IsItemHovered())
-            {
-                ImGui::SetTooltip("Stop");
-            }
-
-            ImGui::SameLine();
-            ImGui::Checkbox("Loop", &ActiveState->bLoopAnimation);
-
-            ImGui::PopStyleVar();
-
-            // Time display
-            float animLength = ActiveState->CurrentAnimation ? ActiveState->CurrentAnimation->GetPlayLength() : 1.0f;
-            int32 currentFrame = static_cast<int32>(ActiveState->CurrentAnimationTime * 30.0f);  // 30 FPS 가정
-            int32 totalFrames = static_cast<int32>(animLength * 30.0f);
-
-            ImGui::SameLine();
-            ImGui::Text("Frame: %d / %d", currentFrame, totalFrames);
-
-            ImGui::SameLine();
-            ImGui::Text("Time: %.2f / %.2f", ActiveState->CurrentAnimationTime, animLength);
-
-            ImGui::EndGroup();
-
-            ImGui::Spacing();
-
-            // Timeline Scrubber
-            ImGui::PushItemWidth(-1);
-
-            float scrubberValue = ActiveState->CurrentAnimationTime;
-            if (ImGui::SliderFloat("##Timeline", &scrubberValue, 0.0f, animLength, ""))
-            {
-                ActiveState->CurrentAnimationTime = scrubberValue;
-                if (ActiveState->CurrentAnimationTime < 0.0f)
-                {
-                    ActiveState->CurrentAnimationTime = 0.0f;
-                }
-                if (ActiveState->CurrentAnimationTime > animLength)
-                {
-                    ActiveState->CurrentAnimationTime = animLength;
-                }
-            }
-
-            ImGui::PopItemWidth();
-
-            // Frame markers (간단한 눈금)
-            ImDrawList* drawList = ImGui::GetWindowDrawList();
-            ImVec2 sliderMin = ImGui::GetItemRectMin();
-            ImVec2 sliderMax = ImGui::GetItemRectMax();
-
-            int32 numTicks = 10;
-            for (int32 i = 0; i <= numTicks; ++i)
-            {
-                float t = static_cast<float>(i) / numTicks;
-                float x = sliderMin.x + (sliderMax.x - sliderMin.x) * t;
-                drawList->AddLine(
-                    ImVec2(x, sliderMax.y + 2),
-                    ImVec2(x, sliderMax.y + 6),
-                    IM_COL32(150, 150, 150, 255)
-                );
-            }
-
-            ImGui::EndChild();
-        }
-
         ImGui::EndChild();
 
         ImGui::SameLine(0, 0); // No spacing between panels
 
         // Right panel - Bone Properties
         ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
-        ImGui::BeginChild("RightPanel", ImVec2(rightWidth, totalHeight), true);
+        ImGui::BeginChild("RightPanel", ImVec2(rightWidth, mainAreaHeight), true);
         ImGui::PopStyleVar();
 
         // View Mode Toggle Buttons (상단)
@@ -880,12 +791,14 @@ void SSkeletalMeshViewerWindow::OnRender()
         ImGui::PopStyleColor();
         ImGui::Spacing();
 
-        // === 선택된 본의 트랜스폼 편집 UI ===
-        if (ActiveState->SelectedBoneIndex >= 0 && ActiveState->CurrentMesh)
+        // === Skeletal Mode: Bone Transform 편집 ===
+        if (ActiveState->ViewMode == EViewerMode::Skeletal)
         {
-            const FSkeleton* Skeleton = ActiveState->CurrentMesh->GetSkeleton();
-            if (Skeleton && ActiveState->SelectedBoneIndex < Skeleton->Bones.size())
+            if (ActiveState->SelectedBoneIndex >= 0 && ActiveState->CurrentMesh)
             {
+                const FSkeleton* Skeleton = ActiveState->CurrentMesh->GetSkeleton();
+                if (Skeleton && ActiveState->SelectedBoneIndex < Skeleton->Bones.size())
+                {
                 const FBone& SelectedBone = Skeleton->Bones[ActiveState->SelectedBoneIndex];
 
                 // Selected bone header with icon-like prefix
@@ -985,129 +898,87 @@ void SSkeletalMeshViewerWindow::OnRender()
                     ApplyBoneTransform(ActiveState);
                     ActiveState->bBoneLinesDirty = true;
                 }
-            }
-        }
-        else
-        {
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-            ImGui::TextWrapped("Select a bone from the hierarchy to edit its transform properties.");
-            ImGui::PopStyleColor();
-        }
-
-        // Animation Section
-        ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.35f, 0.45f, 0.60f, 0.7f));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-        ImGui::Spacing();
-
-        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.25f, 0.35f, 0.50f, 0.8f));
-        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4);
-        ImGui::Indent(8.0f);
-        ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-        ImGui::Text("Animations");
-        ImGui::PopFont();
-        ImGui::Unindent(8.0f);
-        ImGui::PopStyleColor();
-
-        ImGui::Spacing();
-
-        if (ActiveState->CurrentMesh)
-        {
-            const TArray<UAnimSequence*>& Animations = ActiveState->CurrentMesh->GetAnimations();
-
-            if (Animations.Num() > 0)
-            {
-                // Animation List
-                ImGui::Text("Animation List:");
-                ImGui::BeginChild("AnimationList", ImVec2(0, 150), true);
-
-                for (int32 i = 0; i < Animations.Num(); ++i)
-                {
-                    UAnimSequence* Anim = Animations[i];
-                    if (!Anim) continue;
-
-                    UAnimDataModel* DataModel = Anim->GetDataModel();
-                    if (!DataModel) continue;
-
-                    bool bIsSelected = (ActiveState->SelectedAnimationIndex == i);
-                    char LabelBuffer[128];
-                    snprintf(LabelBuffer, sizeof(LabelBuffer), "Anim %d (%.1fs)", i, DataModel->GetPlayLength());
-                    FString Label = LabelBuffer;
-
-                    if (ImGui::Selectable(Label.c_str(), bIsSelected))
-                    {
-                        ActiveState->SelectedAnimationIndex = i;
-                        ActiveState->CurrentAnimation = Anim;
-                        ActiveState->CurrentAnimationTime = 0.0f;
-                        // 편집된 bone transform 캐시 클리어 (새로운 애니메이션으로 변경)
-                        ActiveState->EditedBoneTransforms.clear();
-                        // 자동 재생
-                        ActiveState->bIsPlaying = true;
-                    }
-                }
-
-                ImGui::EndChild();
-
-                // Playback Controls
-                if (ActiveState->CurrentAnimation)
-                {
-                    UAnimDataModel* DataModel = ActiveState->CurrentAnimation->GetDataModel();
-
-                    ImGui::Spacing();
-                    ImGui::Text("Playback:");
-
-                    // Play/Pause/Stop buttons
-                    if (ActiveState->bIsPlaying)
-                    {
-                        if (ImGui::Button("Pause", ImVec2(80, 25)))
-                        {
-                            ActiveState->bIsPlaying = false;
-                        }
-                    }
-                    else
-                    {
-                        if (ImGui::Button("Play", ImVec2(80, 25)))
-                        {
-                            ActiveState->bIsPlaying = true;
-                        }
-                    }
-
-                    ImGui::SameLine();
-                    if (ImGui::Button("Stop", ImVec2(80, 25)))
-                    {
-                        ActiveState->bIsPlaying = false;
-                        ActiveState->CurrentAnimationTime = 0.0f;
-                        // 편집된 bone transform 캐시 클리어 (애니메이션 리셋)
-                        ActiveState->EditedBoneTransforms.clear();
-                    }
-
-                    // Timeline Slider
-                    ImGui::Spacing();
-                    float MaxTime = DataModel->GetPlayLength();
-                    ImGui::Text("Time: %.2f / %.2f s", ActiveState->CurrentAnimationTime, MaxTime);
-                    ImGui::SliderFloat("##Timeline", &ActiveState->CurrentAnimationTime, 0.0f, MaxTime, "%.2f");
-
-                    // Playback Speed
-                    ImGui::Text("Speed:");
-                    ImGui::SliderFloat("##PlaybackSpeed", &ActiveState->PlaybackSpeed, 0.1f, 3.0f, "%.1fx");
-
-                    // Loop checkbox
-                    ImGui::Checkbox("Loop", &ActiveState->bLoopAnimation);
                 }
             }
             else
             {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-                ImGui::TextWrapped("No animations imported. Use the Animation Import section to import FBX animations.");
+                ImGui::TextWrapped("Select a bone from the hierarchy to edit its transform properties.");
                 ImGui::PopStyleColor();
             }
         }
+
+        // === Animation Mode: Animation 재생 컨트롤 ===
+        else if (ActiveState->ViewMode == EViewerMode::Animation)
+        {
+            ImGui::Text("Animation List:");
+            ImGui::Spacing();
+
+            if (ActiveState->CurrentMesh)
+            {
+                const TArray<UAnimSequence*>& Animations = ActiveState->CurrentMesh->GetAnimations();
+
+                if (Animations.Num() > 0)
+                {
+                    ImGui::BeginChild("AnimationList", ImVec2(0, 150), true);
+
+                    for (int32 i = 0; i < Animations.Num(); ++i)
+                    {
+                        UAnimSequence* Anim = Animations[i];
+                        if (!Anim) continue;
+
+                        UAnimDataModel* DataModel = Anim->GetDataModel();
+                        if (!DataModel) continue;
+
+                        bool bIsSelected = (ActiveState->SelectedAnimationIndex == i);
+                        char LabelBuffer[128];
+                        snprintf(LabelBuffer, sizeof(LabelBuffer), "Anim %d (%.1fs)", i, DataModel->GetPlayLength());
+                        FString Label = LabelBuffer;
+
+                        if (ImGui::Selectable(Label.c_str(), bIsSelected))
+                        {
+                            ActiveState->SelectedAnimationIndex = i;
+                            ActiveState->CurrentAnimation = Anim;
+                            ActiveState->CurrentAnimationTime = 0.0f;
+                            // 편집된 bone transform 캐시 클리어 (새로운 애니메이션으로 변경)
+                            ActiveState->EditedBoneTransforms.clear();
+                            // 자동 재생
+                            ActiveState->bIsPlaying = true;
+                        }
+                    }
+
+                    ImGui::EndChild();
+                }
+                else
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                    ImGui::TextWrapped("No animations imported. Use the Animation Import section to import FBX animations.");
+                    ImGui::PopStyleColor();
+                }
+            }
+        } // Animation Mode 끝
 
         ImGui::EndChild(); // RightPanel
 
         // Pop the ItemSpacing style
         ImGui::PopStyleVar();
+
+        // Timeline Area (하단, Animation 모드일 때만 전체 너비로 표시)
+        if (bIsAnimationMode && ActiveState->CurrentAnimation)
+        {
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
+            ImGui::BeginChild("TimelineArea", ImVec2(0, timelineHeight - 20), true);
+            ImGui::PopStyleVar();
+
+            // 타임라인 컨트롤 렌더링
+            RenderTimelineControls(ActiveState);
+
+            ImGui::EndChild();
+        }
     }
     ImGui::End();
 
@@ -1131,6 +1002,35 @@ void SSkeletalMeshViewerWindow::OnUpdate(float DeltaSeconds)
 {
     if (!ActiveState || !ActiveState->Viewport)
         return;
+
+    // Spacebar 입력 처리 (Animation 모드이고, Gizmo/BoneAnchor가 선택되지 않았을 때만)
+    UInputManager& InputMgr = UInputManager::GetInstance();
+    bool bIsGizmoSelected = false;
+    if (ActiveState->World && ActiveState->World->GetSelectionManager())
+    {
+        UActorComponent* SelectedComp = ActiveState->World->GetSelectionManager()->GetSelectedActorComponent();
+        // BoneAnchorComponent 또는 Gizmo 관련 컴포넌트가 선택되어 있으면 Spacebar 무시
+        bIsGizmoSelected = (SelectedComp != nullptr);
+    }
+
+    if (ActiveState->ViewMode == EViewerMode::Animation &&
+        ActiveState->CurrentAnimation &&
+        !InputMgr.GetIsGizmoDragging() &&
+        !bIsGizmoSelected &&
+        InputMgr.IsKeyPressed(VK_SPACE))
+    {
+        if (ActiveState->bIsPlaying)
+        {
+            // 재생 중이면 일시정지
+            ActiveState->bIsPlaying = false;
+        }
+        else
+        {
+            // 일시정지 중이면 재생 (정방향)
+            ActiveState->PlaybackSpeed = FMath::Abs(ActiveState->PlaybackSpeed);
+            ActiveState->bIsPlaying = true;
+        }
+    }
 
     // Tick the preview world so editor actors (e.g., gizmo) update visibility/state
     if (ActiveState->World)
@@ -1156,18 +1056,31 @@ void SSkeletalMeshViewerWindow::OnUpdate(float DeltaSeconds)
 
             float PlayLength = DataModel->GetPlayLength();
 
-            // 루프 처리
+            // 정방향 재생: 끝 도달 시 처리
             if (ActiveState->CurrentAnimationTime >= PlayLength)
             {
                 if (ActiveState->bLoopAnimation)
                 {
-                    // fmod는 double, fmodf는 float
                     ActiveState->CurrentAnimationTime = static_cast<float>(fmod(static_cast<double>(ActiveState->CurrentAnimationTime), static_cast<double>(PlayLength)));
                 }
                 else
                 {
                     ActiveState->CurrentAnimationTime = PlayLength;
-                    ActiveState->bIsPlaying = false; // 재생 중지
+                    ActiveState->bIsPlaying = false;
+                }
+            }
+            // 역방향 재생: 시작 이전 도달 시 처리
+            else if (ActiveState->CurrentAnimationTime < 0.0f)
+            {
+                if (ActiveState->bLoopAnimation)
+                {
+                    // 음수 시간을 PlayLength 기준으로 wrapping
+                    ActiveState->CurrentAnimationTime = PlayLength + static_cast<float>(fmod(static_cast<double>(ActiveState->CurrentAnimationTime), static_cast<double>(PlayLength)));
+                }
+                else
+                {
+                    ActiveState->CurrentAnimationTime = 0.0f;
+                    ActiveState->bIsPlaying = false;
                 }
             }
 
