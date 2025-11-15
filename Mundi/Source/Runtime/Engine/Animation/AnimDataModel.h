@@ -2,6 +2,8 @@
 #include "Object.h"
 #include "AnimationTypes.h"
 
+struct FSkeleton;
+
 /**
  * UAnimDataModel
  * 애니메이션의 실제 데이터를 저장하는 클래스
@@ -16,6 +18,7 @@ public:
 	virtual ~UAnimDataModel() override;
 
 	// 애니메이션 데이터
+	FSkeleton* Skeleton;                              // 이 애니메이션이 사용하는 스켈레톤
 	TArray<FBoneAnimationTrack> BoneAnimationTracks; // 본별 애니메이션 트랙
 	float PlayLength;                                 // 애니메이션 재생 시간 (초)
 	FFrameRate FrameRate;                            // 프레임레이트
@@ -23,6 +26,7 @@ public:
 	int32 NumberOfKeys;                              // 총 키프레임 수
 
 	// Getter 메서드
+	FSkeleton* GetSkeleton() const { return Skeleton; }
 	const TArray<FBoneAnimationTrack>& GetBoneAnimationTracks() const { return BoneAnimationTracks; }
 	float GetPlayLength() const { return PlayLength; }
 	FFrameRate GetFrameRate() const { return FrameRate; }

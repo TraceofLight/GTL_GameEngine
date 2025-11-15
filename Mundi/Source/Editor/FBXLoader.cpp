@@ -1478,6 +1478,7 @@ UAnimSequence* UFbxLoader::LoadFbxAnimation(const FString& FilePath, const FSkel
 	AnimSequence->SetDataModel(DataModel);
 
 	// 6. 메타데이터 설정 (원본 FPS 사용)
+	DataModel->Skeleton = const_cast<FSkeleton*>(&TargetSkeleton);  // Skeleton 레퍼런스 저장
 	DataModel->NumberOfFrames = NumberOfFrames;
 	DataModel->NumberOfKeys = NumberOfFrames;
 	DataModel->PlayLength = static_cast<float>(PlayLength);

@@ -3,6 +3,8 @@
 #include "USkeletalMeshComponent.generated.h"
 
 class UAnimInstance;
+class UAnimationStateMachine;
+class UAnimSequence;
 struct FAnimNotifyEvent;
 
 /**
@@ -42,8 +44,38 @@ public:
 	void SetBoneLocalTransform(int32 BoneIndex, const FTransform& NewLocalTransform);
 	void SetBoneWorldTransform(int32 BoneIndex, const FTransform& NewWorldTransform);
 
+	// ===== Phase 4: 애니메이션 편의 메서드 =====
+
+	/**
+	 * @brief 애니메이션 재생 (간편 메서드)
+	 *
+	 * AnimInstance를 자동 생성하고 애니메이션을 재생.
+	 *
+	 * @param AnimToPlay 재생할 애니메이션
+	 * @param bLooping 루프 재생 여부
+	 */
+	void PlayAnimation(UAnimSequence* AnimToPlay, bool bLooping = true);
+
+	/**
+	 * @brief 애니메이션 정지
+	 */
+	void StopAnimation();
+
+	/**
+	 * @brief State Machine 설정
+	 *
+	 * @param InStateMachine 설정할 State Machine
+	 */
+	void SetAnimationStateMachine(UAnimationStateMachine* InStateMachine);
+
+	/**
+	 * @brief State Machine 가져오기
+	 */
+	UAnimationStateMachine* GetAnimationStateMachine() const { return AnimStateMachine; }
+
 protected:
 	UAnimInstance* AnimInstance;
+	UAnimationStateMachine* AnimStateMachine;  // Phase 4: State Machine
 	TArray<FTransform> CurrentLocalSpacePose;
 	TArray<FTransform> CurrentComponentSpacePose;
 	TArray<FMatrix> TempFinalSkinningMatrices;

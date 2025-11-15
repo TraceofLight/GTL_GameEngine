@@ -1,9 +1,13 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "SkeletalMeshComponent.h"
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
+#include "Source/Runtime/Engine/Animation/AnimSingleNodeInstance.h"
+#include "Source/Runtime/Engine/Animation/AnimStateMachine.h"
+#include "Source/Runtime/Engine/Animation/AnimSequence.h"
 
 USkeletalMeshComponent::USkeletalMeshComponent()
     : AnimInstance(nullptr)
+    , AnimStateMachine(nullptr)
     , TestTime(0.0f)
     , bIsInitialized(false)
 {
@@ -40,6 +44,12 @@ void USkeletalMeshComponent::HandleAnimNotify(const FAnimNotifyEvent& Notify)
 void USkeletalMeshComponent::TickComponent(float DeltaTime)
 {
     Super::TickComponent(DeltaTime);
+
+    // Phase 4: State Machine 업데이트
+    if (AnimStateMachine)
+    {
+        AnimStateMachine->UpdateState(DeltaTime);
+    }
 
     // Animation 인스턴스 업데이트
     if (AnimInstance)
@@ -228,4 +238,48 @@ void USkeletalMeshComponent::UpdateFinalSkinningMatrices()
         TempFinalSkinningMatrices[BoneIndex] = InvBindPose * ComponentPoseMatrix;
         TempFinalSkinningNormalMatrices[BoneIndex] = TempFinalSkinningMatrices[BoneIndex].Inverse().Transpose();
     }
+}
+
+// ===== Phase 4: 애니메이션 편의 메서드 구현 =====
+
+/**
+ * @brief 애니메이션 재생 (간편 메서드)
+ */
+void USkeletalMeshComponent::PlayAnimation(UAnimSequence* AnimToPlay, bool bLooping)
+{
+    if (!AnimToPlay)
+    {
+        return;
+    }
+
+    // AnimSingleNodeInstance 생성 (없으면)
+    UAnimSingleNodeInstance* SingleNodeInstance = Cast<UAnimSingleNodeInstance>(AnimInstance);
+    if (!SingleNodeInstance)
+    {
+        SingleNodeInstance = NewObject<UAnimSingleNodeInstance>();
+        SetAnimInstance(SingleNodeInstance);
+    }
+
+    // 애니메이션 설정 및 재생
+    SingleNodeInstance->SetAnimationAsset(AnimToPlay);
+    SingleNodeInstance->Play(bLooping);
+}
+
+/**
+ * @brief 애니메이션 정지
+ */
+void USkeletalMeshComponent::StopAnimation()
+{
+    if (AnimInstance)
+    {
+        AnimInstance->StopAnimation();
+    }
+}
+
+/**
+ * @brief State Machine 설정
+ */
+void USkeletalMeshComponent::SetAnimationStateMachine(UAnimationStateMachine* InStateMachine)
+{
+    AnimStateMachine = InStateMachine;
 }

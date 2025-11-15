@@ -6,7 +6,9 @@
 #include "Character.h"
 #include "CharacterMovementComponent.h"
 #include "SceneComponent.h"
-#include "StaticMeshComponent.h"
+#include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
+#include "Source/Runtime/Engine/Animation/AnimStateMachine.h"
+#include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "InputComponent.h"
 #include "ObjectFactory.h"
 #include "GameModeBase.h"
@@ -24,11 +26,10 @@
 
 ACharacter::ACharacter()
 	: CharacterMovement(nullptr)
-	, MeshComponent(nullptr)
-	, StaticMeshComponent(nullptr)
+	, SkeletalMeshComponent(nullptr)
+	, AnimStateMachine(nullptr)
 	, bIsCrouched(false)
 	, CrouchedHeightRatio(0.5f)
-
 {
 	// CharacterMovementComponent 생성
 	CharacterMovement = CreateDefaultSubobject<UCharacterMovementComponent>("CharacterMovement");
@@ -37,23 +38,18 @@ ACharacter::ACharacter()
 		CharacterMovement->SetOwner(this);
 	}
 
-	// Mesh 컴포넌트 생성 (일단 빈 SceneComponent)
-	MeshComponent = CreateDefaultSubobject<USceneComponent>("MeshComponent");
-	if (MeshComponent)
+	// SkeletalMesh 컴포넌트 생성 (애니메이션 지원)
+	SkeletalMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>("SkeletalMesh");
+	if (SkeletalMeshComponent)
 	{
-		MeshComponent->SetOwner(this);
-		SetRootComponent(MeshComponent);
-	}
+		SkeletalMeshComponent->SetOwner(this);
+		SetRootComponent(SkeletalMeshComponent);
 
-	// StaticMesh 컴포넌트 생성 (시각적 표현용)
-	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>("StaticMesh");
-	if (StaticMeshComponent)
-	{
-		StaticMeshComponent->SetOwner(this);
-		StaticMeshComponent->SetupAttachment(MeshComponent);
-		UE_LOG("[Character] StaticMeshComponent created!");
+		// 테스트용 스켈레탈 메시 로드
+		SkeletalMeshComponent->SetSkeletalMesh(GDataDir + "/Test.fbx");
+
+		UE_LOG("[Character] SkeletalMeshComponent created!");
 	}
-	
 }
 
 ACharacter::~ACharacter()
@@ -67,6 +63,31 @@ ACharacter::~ACharacter()
 void ACharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// AnimationStateMachine 생성 및 초기화
+	if (SkeletalMeshComponent)
+	{
+		AnimStateMachine = NewObject<UAnimationStateMachine>();
+		if (AnimStateMachine)
+		{
+			// State Machine 초기화
+			AnimStateMachine->Initialize(this);
+
+			// TODO: 애니메이션 에셋 로드 및 등록
+			// UAnimSequence* IdleAnim = LoadAnimation(GDataDir + "/Idle.fbx");
+			// UAnimSequence* WalkAnim = LoadAnimation(GDataDir + "/Walk.fbx");
+			// UAnimSequence* RunAnim = LoadAnimation(GDataDir + "/Run.fbx");
+			//
+			// AnimStateMachine->RegisterStateAnimation(EAnimState::Idle, IdleAnim);
+			// AnimStateMachine->RegisterStateAnimation(EAnimState::Walk, WalkAnim);
+			// AnimStateMachine->RegisterStateAnimation(EAnimState::Run, RunAnim);
+
+			// SkeletalMeshComponent에 State Machine 설정
+			SkeletalMeshComponent->SetAnimationStateMachine(AnimStateMachine);
+
+			UE_LOG("[Character] AnimationStateMachine initialized!");
+		}
+	}
 }
 
 void ACharacter::Tick(float DeltaSeconds)

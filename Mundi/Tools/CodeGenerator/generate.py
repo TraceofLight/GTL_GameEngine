@@ -231,6 +231,9 @@ def main():
 
     print(f"\n Found {len(classes)} reflection class(es)\n")
 
+    # PropertyGenerator에 모든 클래스 정보 전달 (상속 체인 추적용)
+    prop_gen.set_all_classes(classes)
+
     # 각 클래스에 대해 .generated.h와 .generated.cpp 생성
     generated_files = []
     updated_count = 0

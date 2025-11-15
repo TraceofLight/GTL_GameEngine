@@ -9,7 +9,8 @@
 // 전방 선언
 class UCharacterMovementComponent;
 class USceneComponent;
-class UStaticMeshComponent;
+class USkeletalMeshComponent;
+class UAnimationStateMachine;
 
 /**
  * ACharacter
@@ -22,7 +23,7 @@ class UStaticMeshComponent;
  * - Jump(), Crouch() 등 기본 동작
  * - 이동 입력 처리
  */
-UCLASS(DisplayName = "ACharacter", Description = "이동 가능한 캐릭터 Pawn 클래스")
+UCLASS( DisplayName = "ACharacter", Description = "이동 가능한 캐릭터 Pawn 클래스")
 class ACharacter : public APawn
 {
 public:
@@ -40,11 +41,11 @@ public:
 	/** CharacterMovementComponent를 반환합니다 */
 	UCharacterMovementComponent* GetCharacterMovement() const { return CharacterMovement; }
 
-	/** Mesh 컴포넌트를 반환합니다 (나중에 SkeletalMesh로 교체 가능) */
-	USceneComponent* GetMesh() const { return MeshComponent; }
+	/** SkeletalMesh 컴포넌트를 반환합니다 */
+	USkeletalMeshComponent* GetMesh() const { return SkeletalMeshComponent; }
 
-	/** StaticMesh 컴포넌트를 반환합니다 */
-	UStaticMeshComponent* GetStaticMesh() const { return StaticMeshComponent; }
+	/** AnimationStateMachine을 반환합니다 */
+	UAnimationStateMachine* GetAnimationStateMachine() const { return AnimStateMachine; }
 
 	// ────────────────────────────────────────────────
 	// 이동 입력 처리 (APawn 오버라이드)
@@ -142,11 +143,11 @@ protected:
 	/** Character 이동 컴포넌트 */
 	UCharacterMovementComponent* CharacterMovement;
 
-	/** Mesh 컴포넌트 (나중에 SkeletalMeshComponent로 교체) */
-	USceneComponent* MeshComponent;
+	/** SkeletalMesh 컴포넌트 (애니메이션 지원) */
+	USkeletalMeshComponent* SkeletalMeshComponent;
 
-	/** StaticMesh 컴포넌트 (시각적 표현) */
-	UStaticMeshComponent* StaticMeshComponent;
+	/** Animation State Machine */
+	UAnimationStateMachine* AnimStateMachine;
 
 	/** 웅크리기 상태 */
 	bool bIsCrouched;

@@ -4,7 +4,8 @@
 IMPLEMENT_CLASS(UAnimDataModel)
 
 UAnimDataModel::UAnimDataModel()
-	: PlayLength(0.0f)
+	: Skeleton(nullptr)
+	, PlayLength(0.0f)
 	, NumberOfFrames(0)
 	, NumberOfKeys(0)
 {

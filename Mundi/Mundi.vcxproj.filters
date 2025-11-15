@@ -608,11 +608,6 @@
     <ClCompile Include="Generated\AGameStateBase.generated.cpp">
       <Filter>Generated</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Runtime\Engine\Animation\AnimationAsset.cpp" />
-    <ClCompile Include="Source\Runtime\Engine\Animation\AnimSequenceBase.cpp" />
-    <ClCompile Include="Source\Runtime\Engine\Animation\AnimSequence.cpp" />
-    <ClCompile Include="Source\Runtime\Engine\Animation\AnimDataModel.cpp" />
-    <ClCompile Include="Source\Runtime\Engine\Animation\AnimInstance.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\CharacterMovementComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\InputComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\Character.cpp" />
@@ -626,6 +621,27 @@
       <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClCompile>
     <ClCompile Include="Source\Runtime\Engine\Animation\PoseContext.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimSingleNodeInstance.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimationAsset.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimDataModel.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimInstance.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimSequence.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimSequenceBase.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimStateMachine.cpp">
       <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClCompile>
   </ItemGroup>
@@ -1282,12 +1298,6 @@
       <Filter>Generated</Filter>
     </ClInclude>
     <ClInclude Include="Source\Runtime\Core\Object\ObjectMacros.h" />
-    <ClInclude Include="Source\Runtime\Engine\Animation\AnimationTypes.h" />
-    <ClInclude Include="Source\Runtime\Engine\Animation\AnimationAsset.h" />
-    <ClInclude Include="Source\Runtime\Engine\Animation\AnimSequenceBase.h" />
-    <ClInclude Include="Source\Runtime\Engine\Animation\AnimSequence.h" />
-    <ClInclude Include="Source\Runtime\Engine\Animation\AnimDataModel.h" />
-    <ClInclude Include="Source\Runtime\Engine\Animation\AnimInstance.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\CharacterMovementComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\InputComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\TestAutoBindComponent.h" />
@@ -1328,6 +1338,30 @@
       <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClInclude>
     <ClInclude Include="Source\Runtime\Engine\Animation\PoseContext.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimSingleNodeInstance.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimationAsset.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimationTypes.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimDataModel.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimInstance.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimSequence.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimSequenceBase.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimStateMachine.h">
       <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClInclude>
   </ItemGroup>
