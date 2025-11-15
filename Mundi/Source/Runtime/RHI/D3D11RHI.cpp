@@ -88,7 +88,7 @@ void D3D11RHI::ClearAllBuffer()
     DeviceContext->ClearRenderTargetView(BackBufferRTV, ClearColor);
     DeviceContext->ClearRenderTargetView(GetCurrentTargetRTV(), ClearId);
     DeviceContext->ClearRenderTargetView(IdBufferRTV, ClearId);
-    
+
     ClearDepthBuffer(1.0f, 0);                 // 깊이값 초기화
 }
 
@@ -104,7 +104,7 @@ void D3D11RHI::CreateBlendState()
         return;
 
     D3D11_BLEND_DESC BlendDesc = {};
-    
+
     BlendDesc.IndependentBlendEnable = true;
 
     D3D11_RENDER_TARGET_BLEND_DESC& Rt0 = BlendDesc.RenderTarget[0];
@@ -532,6 +532,24 @@ void D3D11RHI::CreateDeviceAndSwapChain(HWND hWindow)
     // 생성된 스왑 체인의 정보 가져오기
     SwapChain->GetDesc(&swapchaindesc);
 
+    // D3D11 Debug Info Queue에서 Query 경고 필터링
+#ifdef _DEBUG
+    ID3D11InfoQueue* InfoQueue = nullptr;
+    if (SUCCEEDED(Device->QueryInterface(__uuidof(ID3D11InfoQueue), (void**)&InfoQueue)))
+    {
+        // QUERY_END_ABANDONING_PREVIOUS_RESULTS 경고 필터링
+        D3D11_MESSAGE_ID HideMessages[] =
+        {
+            D3D11_MESSAGE_ID_QUERY_END_ABANDONING_PREVIOUS_RESULTS,
+        };
+        D3D11_INFO_QUEUE_FILTER Filter = {};
+        Filter.DenyList.NumIDs = _countof(HideMessages);
+        Filter.DenyList.pIDList = HideMessages;
+        InfoQueue->AddStorageFilterEntries(&Filter);
+        InfoQueue->Release();
+    }
+#endif
+
     // 뷰포트 정보 설정
     ViewportInfo = { 0.0f, 0.0f, (float)swapchaindesc.BufferDesc.Width, (float)swapchaindesc.BufferDesc.Height, 0.0f, 1.0f };
 }
@@ -933,7 +951,7 @@ void D3D11RHI::ReleaseDeviceAndSwapChain()
     // 	DebugPointer->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
     // 	DebugPointer->Release();
     // }
-    
+
     if (Device)
     {
         Device->Release();
