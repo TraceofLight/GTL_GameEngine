@@ -1,62 +1,5 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
-  <ItemGroup>
-    <FxCompile Include="Shaders\Materials\Fireball.hlsl">
-      <Filter>Shaders\Materials</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Shadows\DepthOnly_PS.hlsl">
-      <Filter>Shaders\Shadows</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Common\LightingBuffers.hlsl">
-      <Filter>Shaders\Common</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Common\LightingCommon.hlsl">
-      <Filter>Shaders\Common</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Common\LightStructures.hlsl">
-      <Filter>Shaders\Common</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Materials\UberLit.hlsl">
-      <Filter>Shaders\Materials</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\PostProcess\HeightFog_PS.hlsl">
-      <Filter>Shaders\PostProcess</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\PostProcess\TileDebugVisualization_PS.hlsl">
-      <Filter>Shaders\PostProcess</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Shadows\DepthOnly_VS.hlsl">
-      <Filter>Shaders\Shadows</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\UI\Billboard.hlsl">
-      <Filter>Shaders\UI</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Effects\Decal.hlsl">
-      <Filter>Shaders\Effects</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\UI\Gizmo.hlsl">
-      <Filter>Shaders\UI</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Utility\Blit_PS.hlsl">
-      <Filter>Shaders\Utility</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Utility\FullScreenTriangle_VS.hlsl">
-      <Filter>Shaders\Utility</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\PostProcess\FXAA_PS.hlsl">
-      <Filter>Shaders\PostProcess</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\Utility\SceneDepth_PS.hlsl">
-      <Filter>Shaders\Utility</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\UI\ShaderLine.hlsl">
-      <Filter>Shaders\UI</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\UI\TextBillboard.hlsl">
-      <Filter>Shaders\UI</Filter>
-    </FxCompile>
-    <FxCompile Include="Shaders\PostProcess\GammaCorrection_PS.hlsl" />
-  </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="main.cpp" />
@@ -664,6 +607,26 @@
     </ClCompile>
     <ClCompile Include="Generated\AGameStateBase.generated.cpp">
       <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimationAsset.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimSequenceBase.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimSequence.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimDataModel.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimInstance.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Components\CharacterMovementComponent.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Components\InputComponent.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\GameFramework\Character.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\GameFramework\Controller.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\GameFramework\GameModeBase.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\GameFramework\GameStateBase.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\GameFramework\Pawn.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\GameFramework\PlayerController.cpp" />
+    <ClCompile Include="Source\Runtime\RHI\GPUProfiler.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimationRuntime.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\PoseContext.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1284,9 +1247,6 @@
     <ClInclude Include="Generated\USkinnedMeshComponent.generated.h">
       <Filter>Generated</Filter>
     </ClInclude>
-    <ClInclude Include="Generated\ASkinnedMeshActor.generated.h">
-      <Filter>Generated</Filter>
-    </ClInclude>
     <ClInclude Include="Generated\USkeletalMeshComponent.generated.h">
       <Filter>Generated</Filter>
     </ClInclude>
@@ -1320,6 +1280,55 @@
     </ClInclude>
     <ClInclude Include="Generated\AGameStateBase.generated.h">
       <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Core\Object\ObjectMacros.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimationTypes.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimationAsset.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimSequenceBase.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimSequence.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimDataModel.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimInstance.h" />
+    <ClInclude Include="Source\Runtime\Engine\Components\CharacterMovementComponent.h" />
+    <ClInclude Include="Source\Runtime\Engine\Components\InputComponent.h" />
+    <ClInclude Include="Source\Runtime\Engine\Components\TestAutoBindComponent.h" />
+    <ClInclude Include="Source\Runtime\Engine\GameFramework\Character.h" />
+    <ClInclude Include="Source\Runtime\Engine\GameFramework\Controller.h" />
+    <ClInclude Include="Source\Runtime\Engine\GameFramework\GameModeBase.h" />
+    <ClInclude Include="Source\Runtime\Engine\GameFramework\GameStateBase.h" />
+    <ClInclude Include="Source\Runtime\Engine\GameFramework\Pawn.h" />
+    <ClInclude Include="Source\Runtime\Engine\GameFramework\PlayerController.h" />
+    <ClInclude Include="Source\Runtime\RHI\GPUProfiler.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\Audio.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\BufferHelpers.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\CommonStates.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\DDSTextureLoader.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\DirectXHelpers.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\Effects.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\GamePad.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\GeometricPrimitive.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\GraphicsMemory.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\Keyboard.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\Model.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\Mouse.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\PostProcess.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\PrimitiveBatch.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\ScreenGrab.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\SimpleMath.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\SpriteBatch.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\SpriteFont.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\VertexTypes.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\WICTextureLoader.h" />
+    <ClInclude Include="ThirdParty\DirectXTK\include\XboxDDSTextureLoader.h" />
+    <ClInclude Include="ThirdParty\Lua\include\lauxlib.h" />
+    <ClInclude Include="ThirdParty\Lua\include\lua.h" />
+    <ClInclude Include="ThirdParty\Lua\include\lua.hpp" />
+    <ClInclude Include="ThirdParty\Lua\include\luaconf.h" />
+    <ClInclude Include="ThirdParty\Lua\include\lualib.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimationRuntime.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\PoseContext.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1463,6 +1472,9 @@
     </Filter>
     <Filter Include="Generated">
       <UniqueIdentifier>{01b0aa4d-539f-4b06-821e-02d582bc9577}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Runtime\Engine\Animation">
+      <UniqueIdentifier>{9312b707-891e-4398-94d4-907ef6e53ef2}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

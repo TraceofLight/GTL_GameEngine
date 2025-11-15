@@ -281,6 +281,16 @@ struct FSkeleton
     TArray<FBone> Bones; // 본 배열
     TMap <FString, int32> BoneNameToIndex; // 이름으로 본 검색
 
+    // ===== Phase 1.5: 캐시 데이터 추가 =====
+    TArray<FTransform> RefLocalPose;      // 로컬 스페이스 RefPose 캐시 (성능 최적화)
+    TArray<int32> ParentIndices;          // 부모 인덱스 배열 캐시 (캐시 친화적)
+    bool bCacheInitialized;               // 캐시 초기화 여부
+
+    FSkeleton()
+        : bCacheInitialized(false)
+    {
+    }
+
     // 스켈레톤 호환성 체크 (본 이름과 계층 구조가 동일한지 확인)
     bool IsCompatibleWith(const FSkeleton& Other) const
     {
@@ -331,6 +341,49 @@ struct FSkeleton
         }
 
         return true;
+    }
+
+    /**
+     * @brief 캐시 데이터 초기화 (FBX 로드 후 한 번만 호출)
+     *
+     * RefLocalPose와 ParentIndices를 미리 계산해서 캐시.
+     * 매 프레임 ResetToRefPose() 호출 시 성능 향상.
+     */
+    void InitializeCachedData()
+    {
+        const int32 NumBones = Bones.Num();
+
+        // 1. ParentIndices 캐시 생성
+        ParentIndices.SetNum(NumBones);
+        for (int32 i = 0; i < NumBones; ++i)
+        {
+            ParentIndices[i] = Bones[i].ParentIndex;
+        }
+
+        // 2. RefLocalPose 캐시 생성
+        RefLocalPose.SetNum(NumBones);
+        for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+        {
+            const FBone& ThisBone = Bones[BoneIndex];
+            const int32 ParentIndex = ThisBone.ParentIndex;
+
+            FMatrix LocalBindMatrix;
+
+            if (ParentIndex == -1) // 루트 본
+            {
+                LocalBindMatrix = ThisBone.BindPose;
+            }
+            else // 자식 본
+            {
+                const FMatrix& ParentInverseBindPose = Bones[ParentIndex].InverseBindPose;
+                LocalBindMatrix = ThisBone.BindPose * ParentInverseBindPose;
+            }
+
+            // 계산된 로컬 행렬을 FTransform으로 변환
+            RefLocalPose[BoneIndex] = FTransform(LocalBindMatrix);
+        }
+
+        bCacheInitialized = true;
     }
 
     friend FArchive& operator<<(FArchive& Ar, FSkeleton& Skeleton)
