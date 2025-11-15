@@ -1,5 +1,6 @@
 #pragma once
 #include "AnimationAsset.h"
+#include "AnimDataModel.h"
 
 class UAnimDataModel;
 struct FAnimNotifyEvent;
@@ -27,7 +28,7 @@ public:
 	void ClearNotifies();
 
 	// Getters
-	virtual float GetPlayLength() const { return SequenceLength; }
+	virtual float GetPlayLength() const { return DataModel ? DataModel->GetPlayLength() : 0.0f; }
 	bool IsLooping() const { return bLoop; }
 
 protected:

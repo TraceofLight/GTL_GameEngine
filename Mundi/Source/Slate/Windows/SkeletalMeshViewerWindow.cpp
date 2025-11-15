@@ -13,6 +13,8 @@
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
 #include "Source/Editor/FBXLoader.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
+#include "Source/Runtime/Engine/Animation/AnimInstance.h"
+#include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
 #include "Source/Runtime/InputCore/InputManager.h"
@@ -367,16 +369,39 @@ void SSkeletalMeshViewerWindow::OnRender()
                                     Component->SetSkeletalMesh(Mesh->GetFilePath());
                                     UE_LOG("Loaded SkeletalMesh: %s", Mesh->GetFilePath().c_str());
 
-                                    // 애니메이션 리스트도 업데이트 (첫 번째 애니메이션 자동 선택)
+                                    // 애니메이션 리스트도 업데이트 (첫 번째 애니메이션 자동 선택 및 재생)
                                     const TArray<UAnimSequence*>& Animations = Mesh->GetAnimations();
                                     if (Animations.Num() > 0)
                                     {
                                         ActiveState->SelectedAnimationIndex = 0;
                                         ActiveState->CurrentAnimation = Animations[0];
-                                        ActiveState->bIsPlaying = true;
                                         ActiveState->CurrentAnimationTime = 0.0f;
                                         // 편집된 bone transform 캐시 클리어 (새로운 메시/애니메이션 로드)
                                         ActiveState->EditedBoneTransforms.clear();
+
+                                        // AnimInstance 생성 또는 재사용 후 첫 번째 애니메이션 재생
+                                        UAnimInstance* AnimInst = Component->GetAnimInstance();
+                                        if (!AnimInst)
+                                        {
+                                            UE_LOG("[Animation] Creating new AnimInstance for auto-play");
+                                            AnimInst = NewObject<UAnimInstance>();
+                                            if (AnimInst)
+                                            {
+                                                Component->SetAnimInstance(AnimInst);
+                                            }
+                                            else
+                                            {
+                                                UE_LOG("[Animation] ERROR: Failed to create AnimInstance!");
+                                            }
+                                        }
+
+                                        if (AnimInst)
+                                        {
+                                            UE_LOG("[Animation] Auto-playing first animation (PlaybackSpeed: %.2f)", ActiveState->PlaybackSpeed);
+                                            AnimInst->PlayAnimation(Animations[0], ActiveState->PlaybackSpeed);
+                                            ActiveState->bIsPlaying = true;
+                                        }
+
                                         UE_LOG("Auto-selected first animation (%d total animations)", Animations.Num());
                                     }
                                     else
@@ -471,6 +496,9 @@ void SSkeletalMeshViewerWindow::OnRender()
 
                         if (AnimSequence)
                         {
+                            // ViewerState의 ImportedAnimSequences에 등록 (메모리 관리용)
+                            ActiveState->ImportedAnimSequences.Add(AnimSequence);
+
                             // 호환되는 모든 SkeletalMesh에 Animation 추가
                             int32 AddedCount = 0;
                             for (USkeletalMesh* Mesh : AllSkeletalMeshes)
@@ -542,6 +570,9 @@ void SSkeletalMeshViewerWindow::OnRender()
 
                             if (AnimSequence)
                             {
+                                // ViewerState의 ImportedAnimSequences에 등록 (메모리 관리용)
+                                ActiveState->ImportedAnimSequences.Add(AnimSequence);
+
                                 ActiveState->SelectedSkeletonMesh->AddAnimation(AnimSequence);
 
                                 UAnimDataModel* DataModel = AnimSequence->GetDataModel();
@@ -1214,6 +1245,36 @@ void SSkeletalMeshViewerWindow::OnRender()
                             ActiveState->CurrentAnimationTime = 0.0f;
                             ActiveState->EditedBoneTransforms.clear();
                             ActiveState->bIsPlaying = true;
+
+                            // AnimInstance 생성 또는 재사용
+                            if (ActiveState->PreviewActor && ActiveState->PreviewActor->GetSkeletalMeshComponent())
+                            {
+                                USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+                                UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+
+                                // AnimInstance가 없으면 새로 생성
+                                if (!AnimInst)
+                                {
+                                    UE_LOG("[Animation] Creating new AnimInstance for first animation");
+                                    AnimInst = NewObject<UAnimInstance>();
+                                    if (AnimInst)
+                                    {
+                                        SkelComp->SetAnimInstance(AnimInst);
+                                    }
+                                    else
+                                    {
+                                        UE_LOG("[Animation] ERROR: Failed to create AnimInstance!");
+                                    }
+                                }
+
+                                // AnimInstance에 애니메이션 재생
+                                if (AnimInst)
+                                {
+                                    UE_LOG("[Animation] Playing animation, PlaybackSpeed: %.2f", ActiveState->PlaybackSpeed);
+                                    AnimInst->PlayAnimation(Anim, ActiveState->PlaybackSpeed);
+                                    ActiveState->bIsPlaying = true;
+                                }
+                            }
                         }
                     }
 
@@ -1269,16 +1330,38 @@ void SSkeletalMeshViewerWindow::OnUpdate(float DeltaSeconds)
         !bIsGizmoSelected &&
         InputMgr.IsKeyPressed(VK_SPACE))
     {
-        if (ActiveState->bIsPlaying)
+        // AnimInstance를 통한 재생/일시정지 토글
+        if (ActiveState->PreviewActor && ActiveState->PreviewActor->GetSkeletalMeshComponent())
         {
-            // 재생 중이면 일시정지
-            ActiveState->bIsPlaying = false;
-        }
-        else
-        {
-            // 일시정지 중이면 재생 (정방향)
-            ActiveState->PlaybackSpeed = FMath::Abs(ActiveState->PlaybackSpeed);
-            ActiveState->bIsPlaying = true;
+            UAnimInstance* AnimInst = ActiveState->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+            if (AnimInst)
+            {
+                if (AnimInst->IsPlaying())
+                {
+                    // 재생 중이면 일시정지
+                    AnimInst->StopAnimation();
+                    ActiveState->bIsPlaying = false;
+                }
+                else
+                {
+                    // 일시정지 중이면 재생 (정방향, 일시정지 위치에서 시작)
+                    ActiveState->PlaybackSpeed = std::abs(ActiveState->PlaybackSpeed);
+                    AnimInst->SetPlayRate(ActiveState->PlaybackSpeed);
+
+                    // 현재 애니메이션이 설정되지 않았을 때만 PlayAnimation 호출
+                    if (AnimInst->GetCurrentAnimation() != ActiveState->CurrentAnimation)
+                    {
+                        AnimInst->PlayAnimation(ActiveState->CurrentAnimation, ActiveState->PlaybackSpeed);
+                    }
+                    else
+                    {
+                        // 같은 애니메이션이면 현재 위치에서 재생 재개
+                        AnimInst->ResumeAnimation();
+                    }
+
+                    ActiveState->bIsPlaying = true;
+                }
+            }
         }
     }
 
@@ -1295,48 +1378,39 @@ void SSkeletalMeshViewerWindow::OnUpdate(float DeltaSeconds)
         ActiveState->Client->Tick(DeltaSeconds);
     }
 
-    // Animation Update
-    if (ActiveState->bIsPlaying && ActiveState->CurrentAnimation)
+    // AnimInstance를 통한 애니메이션 재생 컨트롤
+    if (ActiveState->PreviewActor && ActiveState->PreviewActor->GetSkeletalMeshComponent())
     {
-        UAnimDataModel* DataModel = ActiveState->CurrentAnimation->GetDataModel();
-        if (DataModel)
+        USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+        UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+
+        if (AnimInst)
         {
-            // 시간 업데이트 (기즈모 드래그 중에도 계속 진행)
-            ActiveState->CurrentAnimationTime += DeltaSeconds * ActiveState->PlaybackSpeed;
+            // UI 상태를 AnimInstance와 동기화
+            ActiveState->bIsPlaying = AnimInst->IsPlaying();
+            ActiveState->CurrentAnimationTime = AnimInst->GetCurrentTime();
 
-            float PlayLength = DataModel->GetPlayLength();
-
-            // 정방향 재생: 끝 도달 시 처리
-            if (ActiveState->CurrentAnimationTime >= PlayLength)
+            // PlaybackSpeed가 변경되었으면 AnimInstance에 반영
+            if (std::abs(AnimInst->GetPlayRate() - ActiveState->PlaybackSpeed) > 0.001f)
             {
-                if (ActiveState->bLoopAnimation)
-                {
-                    ActiveState->CurrentAnimationTime = static_cast<float>(fmod(static_cast<double>(ActiveState->CurrentAnimationTime), static_cast<double>(PlayLength)));
-                }
-                else
-                {
-                    ActiveState->CurrentAnimationTime = PlayLength;
-                    ActiveState->bIsPlaying = false;
-                }
+                AnimInst->SetPlayRate(ActiveState->PlaybackSpeed);
             }
-            // 역방향 재생: 시작 이전 도달 시 처리
-            else if (ActiveState->CurrentAnimationTime < 0.0f)
-            {
-                if (ActiveState->bLoopAnimation)
-                {
-                    // 음수 시간을 PlayLength 기준으로 wrapping
-                    ActiveState->CurrentAnimationTime = PlayLength + static_cast<float>(fmod(static_cast<double>(ActiveState->CurrentAnimationTime), static_cast<double>(PlayLength)));
-                }
-                else
-                {
-                    ActiveState->CurrentAnimationTime = 0.0f;
-                    ActiveState->bIsPlaying = false;
-                }
-            }
-
-            // Bone Transform 업데이트 (드래그 중인 bone 제외하고 모두 업데이트)
-            UpdateBonesFromAnimation(ActiveState);
         }
+
+        // Animation 탭에서 재생 중일 때만 Component Tick 활성화
+        bool bShouldTick = (ActiveState->ViewMode == EViewerMode::Animation) && ActiveState->bIsPlaying;
+
+        static bool bPrevTickState = false;
+        if (bShouldTick != bPrevTickState)
+        {
+            UE_LOG("[Animation] Component Tick: %s (ViewMode=%d, bIsPlaying=%d)",
+                bShouldTick ? "ENABLED" : "DISABLED",
+                (int)ActiveState->ViewMode,
+                ActiveState->bIsPlaying);
+            bPrevTickState = bShouldTick;
+        }
+
+        SkelComp->SetTickEnabled(bShouldTick);
     }
 }
 
@@ -1628,66 +1702,3 @@ void SSkeletalMeshViewerWindow::ExpandToSelectedBone(ViewerState* State, int32 B
     }
 }
 
-void SSkeletalMeshViewerWindow::UpdateBonesFromAnimation(ViewerState* State)
-{
-    if (!State || !State->CurrentAnimation || !State->PreviewActor)
-        return;
-
-    UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
-    if (!DataModel)
-        return;
-
-    const FSkeleton* Skeleton = State->CurrentMesh->GetSkeleton();
-    if (!Skeleton)
-        return;
-
-    static bool bFirstUpdate = true;
-    int32 UpdatedBones = 0;
-
-    // 현재 시간에서 각 본의 Transform 샘플링
-    for (int32 BoneIndex = 0; BoneIndex < Skeleton->Bones.Num(); ++BoneIndex)
-    {
-        // 편집된 bone은 캐시에서 가져와서 오버라이드
-        if (State->EditedBoneTransforms.Contains(BoneIndex))
-        {
-            const FTransform& EditedTransform = State->EditedBoneTransforms[BoneIndex];
-            State->PreviewActor->GetSkeletalMeshComponent()->SetBoneLocalTransform(BoneIndex, EditedTransform);
-            ++UpdatedBones;
-            continue;
-        }
-
-        const FBone& Bone = Skeleton->Bones[BoneIndex];
-
-        FVector Position;
-        FQuat Rotation;
-        FVector Scale;
-
-        // Animation에서 본 Transform 가져오기
-        if (State->CurrentAnimation->GetBoneTransformAtTime(Bone.Name, State->CurrentAnimationTime, Position, Rotation, Scale))
-        {
-            // 첫 업데이트시 디버그 로그
-            if (bFirstUpdate && BoneIndex < 3)
-            {
-                UE_LOG("UpdateBonesFromAnimation: Bone[%d] '%s' - Pos(%.2f,%.2f,%.2f) Rot(%.2f,%.2f,%.2f,%.2f) Scale(%.2f,%.2f,%.2f)",
-                    BoneIndex, Bone.Name.c_str(),
-                    Position.X, Position.Y, Position.Z,
-                    Rotation.X, Rotation.Y, Rotation.Z, Rotation.W,
-                    Scale.X, Scale.Y, Scale.Z);
-            }
-
-            // SkeletalMeshComponent에 적용
-            FTransform BoneTransform(Position, Rotation, Scale);
-            State->PreviewActor->GetSkeletalMeshComponent()->SetBoneLocalTransform(BoneIndex, BoneTransform);
-            ++UpdatedBones;
-        }
-    }
-
-    if (bFirstUpdate)
-    {
-        UE_LOG("UpdateBonesFromAnimation: Updated %d / %d bones at time %.2f", UpdatedBones, Skeleton->Bones.Num(), State->CurrentAnimationTime);
-        bFirstUpdate = false;
-    }
-
-    // Bone lines dirty 플래그 설정 (본 위치가 변경되었으므로 라인 재구성 필요)
-    State->bBoneLinesDirty = true;
-}

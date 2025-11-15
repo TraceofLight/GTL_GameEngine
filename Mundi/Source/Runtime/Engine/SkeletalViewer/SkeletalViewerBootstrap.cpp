@@ -4,6 +4,7 @@
 #include "Source/Runtime/Engine/SkeletalViewer/ViewerState.h"
 #include "FViewport.h"
 #include "FSkeletalViewerViewportClient.h"
+#include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 
 ViewerState* SkeletalViewerBootstrap::CreateViewerState(const char* Name, UWorld* InWorld, ID3D11Device* InDevice)
@@ -20,7 +21,7 @@ ViewerState* SkeletalViewerBootstrap::CreateViewerState(const char* Name, UWorld
     State->World->GetRenderSettings().DisableShowFlag(EEngineShowFlags::SF_EditorIcon);
 
     State->World->GetGizmoActor()->SetSpace(EGizmoSpace::Local);
-    
+
     // Viewport + client per tab
     State->Viewport = new FViewport();
     // 프레임 마다 initial size가 바꿜 것이다
@@ -41,6 +42,11 @@ ViewerState* SkeletalViewerBootstrap::CreateViewerState(const char* Name, UWorld
     if (State->World)
     {
         ASkeletalMeshActor* Preview = State->World->SpawnActor<ASkeletalMeshActor>();
+        if (Preview)
+        {
+            // Enable tick in editor for preview world
+            Preview->SetTickInEditor(true);
+        }
         State->PreviewActor = Preview;
     }
 
@@ -50,6 +56,17 @@ ViewerState* SkeletalViewerBootstrap::CreateViewerState(const char* Name, UWorld
 void SkeletalViewerBootstrap::DestroyViewerState(ViewerState*& State)
 {
     if (!State) return;
+
+    // 이 Viewer에서 임포트한 AnimSequence들 삭제
+    for (UAnimSequence* AnimSeq : State->ImportedAnimSequences)
+    {
+        if (AnimSeq)
+        {
+            ObjectFactory::DeleteObject(AnimSeq);
+        }
+    }
+    State->ImportedAnimSequences.Empty();
+
     if (State->Viewport) { delete State->Viewport; State->Viewport = nullptr; }
     if (State->Client) { delete State->Client; State->Client = nullptr; }
     if (State->World) { ObjectFactory::DeleteObject(State->World); State->World = nullptr; }

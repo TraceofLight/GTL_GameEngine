@@ -6,6 +6,8 @@
 #include "ImGui/imgui.h"
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
+#include "Source/Runtime/Engine/Animation/AnimInstance.h"
+#include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 
 // Timeline 컨트롤 UI 렌더링
 void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
@@ -118,11 +120,20 @@ void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
 
     ImGui::SameLine();
 
-    // Play/Pause
+    // Play/Pause (AnimInstance 컨트롤)
     if (State->bIsPlaying)
     {
         if (IconPause && IconPause->GetShaderResourceView())
         {
+            if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+            {
+                UAnimInstance* AnimInst = State->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+                if (AnimInst)
+                {
+                    AnimInst->StopAnimation();
+                    State->bIsPlaying = false;
+                }
+            }
             if (ImGui::ImageButton("##Pause", IconPause->GetShaderResourceView(), ButtonSizeVec))
             {
                 State->bIsPlaying = false;
@@ -240,6 +251,29 @@ void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
 
     ImGui::SameLine();
 
+    // Timeline 슬라이더
+    ImGui::SetNextItemWidth(200.0f);
+    float PrevTime = State->CurrentAnimationTime;
+    if (ImGui::SliderFloat("##Timeline", &State->CurrentAnimationTime, 0.0f, MaxTime, "%.2fs"))
+    {
+        // 슬라이더가 변경되면 AnimInstance에 시간 설정
+        if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+        {
+            UAnimInstance* AnimInst = State->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+            if (AnimInst)
+            {
+                AnimInst->SetPosition(State->CurrentAnimationTime);
+            }
+        }
+    }
+
+    ImGui::SameLine();
+
+    // 시간 표시
+    ImGui::Text("%.2f / %.2f s", State->CurrentAnimationTime, MaxTime);
+
+    ImGui::SameLine();
+
     // 재생 속도
     ImGui::Text("Speed:");
     ImGui::SameLine();
@@ -263,7 +297,15 @@ void SSkeletalMeshViewerWindow::RefreshAnimationFrame(ViewerState* State)
     // 편집된 bone transform 캐시 초기화 (새 프레임의 애니메이션 포즈 적용)
     State->EditedBoneTransforms.clear();
 
-    UpdateBonesFromAnimation(State);
+    // AnimInstance를 통해 포즈 업데이트 (EvaluateAnimation이 자동 호출됨)
+    if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+    {
+        UAnimInstance* AnimInst = State->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+        if (AnimInst)
+        {
+            AnimInst->SetPosition(State->CurrentAnimationTime);
+        }
+    }
 
     // Bone Line 강제 갱신 (모든 본 업데이트)
     State->bBoneLinesDirty = true;
@@ -318,6 +360,31 @@ void SSkeletalMeshViewerWindow::TimelineReverse(ViewerState* State)
         return;
     }
 
+    // 역재생 (음수 속도) - AnimInstance를 통해 설정
+    State->PlaybackSpeed = -std::abs(State->PlaybackSpeed);
+
+    if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+    {
+        UAnimInstance* AnimInst = State->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+        if (AnimInst)
+        {
+            // 일시정지 위치에서 역재생 시작
+            AnimInst->SetPlayRate(State->PlaybackSpeed);
+
+            // 현재 애니메이션이 설정되지 않았을 때만 PlayAnimation 호출
+            if (AnimInst->GetCurrentAnimation() != State->CurrentAnimation)
+            {
+                AnimInst->PlayAnimation(State->CurrentAnimation, State->PlaybackSpeed);
+            }
+            else
+            {
+                // 같은 애니메이션이면 현재 위치에서 재생 재개
+                AnimInst->ResumeAnimation();
+            }
+
+            State->bIsPlaying = true;
+        }
+    }
     State->PlaybackSpeed = -FMath::Abs(State->PlaybackSpeed);
     State->bIsPlaying = true;
 }
@@ -334,6 +401,31 @@ void SSkeletalMeshViewerWindow::TimelinePlay(ViewerState* State)
         return;
     }
 
+    // 정방향 재생 - AnimInstance를 통해 설정
+    State->PlaybackSpeed = std::abs(State->PlaybackSpeed);
+
+    if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+    {
+        UAnimInstance* AnimInst = State->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+        if (AnimInst)
+        {
+            // 일시정지 위치에서 재생 시작
+            AnimInst->SetPlayRate(State->PlaybackSpeed);
+
+            // 현재 애니메이션이 설정되지 않았을 때만 PlayAnimation 호출
+            if (AnimInst->GetCurrentAnimation() != State->CurrentAnimation)
+            {
+                AnimInst->PlayAnimation(State->CurrentAnimation, State->PlaybackSpeed);
+            }
+            else
+            {
+                // 같은 애니메이션이면 현재 위치에서 재생 재개
+                AnimInst->ResumeAnimation();
+            }
+
+            State->bIsPlaying = true;
+        }
+    }
     State->PlaybackSpeed = FMath::Abs(State->PlaybackSpeed);
     State->bIsPlaying = true;
 }

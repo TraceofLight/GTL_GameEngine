@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -59,9 +59,9 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    </ImportGroup>
+  </ImportGroup>
   <ImportGroup Label="Shared">
-    </ImportGroup>
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -105,7 +105,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Generated;$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Scripting;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTex\;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTK;$(SolutionDir)Mundi\ThirdParty\Include\Lua;$(SolutionDir)Mundi\ThirdParty\Include\sol;$(SolutionDir)Mundi\ThirdParty\Include;$(SolutionDir)Mundi\ThirdParty\Include\FBX;</AdditionalIncludeDirectories>
-      <AdditionalOptions>/utf-8 /bigobj /MP %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /bigobj /MP /Gh %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -217,7 +217,7 @@
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    </ImportGroup>
+  </ImportGroup>
   <UsingTask TaskName="ConvertToBase64" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
     <ParameterGroup>
       <Input ParameterType="System.String" Required="true" />
@@ -373,6 +373,9 @@
     <ClCompile Include="Source\Runtime\Core\Memory\PlatformTime.cpp" />
     <ClCompile Include="Source\Runtime\Core\Misc\Color.cpp" />
     <ClCompile Include="Source\Runtime\Core\Misc\FName.cpp" />
+    <ClCompile Include="Source\Runtime\Core\Misc\MiniDump.cpp">
+      <AdditionalOptions>/utf-8 /bigobj /MP</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="Source\Runtime\Core\Misc\VertexData.cpp" />
     <ClCompile Include="Source\Runtime\Core\Object\Actor.cpp" />
     <ClCompile Include="Source\Runtime\Core\Object\ActorComponent.cpp" />
@@ -612,6 +615,7 @@
     <ClInclude Include="Source\Runtime\Core\Misc\Enums.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\Hash.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\JsonSerializer.h" />
+    <ClInclude Include="Source\Runtime\Core\Misc\MiniDump.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\Name.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\ObjectIterator.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\PathUtils.h" />

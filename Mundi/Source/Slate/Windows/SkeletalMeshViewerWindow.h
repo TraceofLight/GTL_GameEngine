@@ -90,9 +90,6 @@ private:
     void ApplyBoneTransform(ViewerState* State);
     void ExpandToSelectedBone(ViewerState* State, int32 BoneIndex);
 
-    // Animation 관련
-    void UpdateBonesFromAnimation(ViewerState* State);
-
     // Timeline 컨트롤 UI 렌더링
     void RenderTimelineControls(ViewerState* State);
     void RenderTimeline(ViewerState* State);

@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "SkeletalMeshActor.h"
 #include "World.h"
+#include "Source/Runtime/Engine/Animation/AnimInstance.h"
 
 ASkeletalMeshActor::ASkeletalMeshActor()
 {
@@ -10,6 +11,8 @@ ASkeletalMeshActor::ASkeletalMeshActor()
     // - 프리뷰 장면에서 메시를 표시하는 실제 렌더링 컴포넌트
     SkeletalMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>("SkeletalMeshComponent");
     RootComponent = SkeletalMeshComponent;
+
+    // AnimInstance는 애니메이션 탭에서 애니메이션을 선택할 때 생성됨
 }
 
 ASkeletalMeshActor::~ASkeletalMeshActor() = default;

@@ -31,13 +31,22 @@ public:
 	void TriggerAnimNotifies(float DeltaSeconds);
 	void PlayAnimation(UAnimSequenceBase* AnimSequence, float InPlayRate = 1.0f);
 	void StopAnimation();
+	void ResumeAnimation();  // Resume from current position
 	void SetPosition(float NewTime);
 
 	// Getters
 	float GetCurrentTime() const { return CurrentTime; }
 	bool IsPlaying() const { return bIsPlaying; }
+	float GetPlayRate() const { return PlayRate; }
 	UAnimSequenceBase* GetCurrentAnimation() const { return CurrentAnimation; }
 	USkeletalMeshComponent* GetOwnerComponent() const { return OwnerComponent; }
+
+	// Setters
+	void SetPlayRate(float InPlayRate) { PlayRate = InPlayRate; }
+
+protected:
+	// Pose Evaluation
+	void EvaluateAnimation();
 
 protected:
 	USkeletalMeshComponent* OwnerComponent;

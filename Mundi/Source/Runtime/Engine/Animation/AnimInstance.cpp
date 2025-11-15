@@ -2,7 +2,9 @@
 #include "AnimInstance.h"
 #include "SkeletalMeshComponent.h"
 #include "AnimSequenceBase.h"
+#include "AnimSequence.h"
 #include "AnimationTypes.h"
+#include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 
 IMPLEMENT_CLASS(UAnimInstance)
 
@@ -39,6 +41,13 @@ void UAnimInstance::UpdateAnimation(float DeltaSeconds)
 		return;
 	}
 
+	static int32 LogCounter = 0;
+	if (LogCounter++ % 60 == 0) // Log every 60 frames
+	{
+		UE_LOG("[AnimInstance] UpdateAnimation: DeltaTime=%.3f, CurrentTime=%.2f, PlayRate=%.2f",
+			DeltaSeconds, CurrentTime, PlayRate);
+	}
+
 	// 이전 시간 저장
 	PreviousTime = CurrentTime;
 
@@ -49,11 +58,16 @@ void UAnimInstance::UpdateAnimation(float DeltaSeconds)
 	float AnimLength = CurrentAnimation->GetPlayLength();
 	if (CurrentAnimation->IsLooping())
 	{
-		// 루프 Animation: 시간이 넘어가면 0으로 되돌림
+		// 루프 Animation: 시간이 범위를 벗어나면 순환
 		while (CurrentTime >= AnimLength)
 		{
 			CurrentTime -= AnimLength;
 			PreviousTime -= AnimLength;
+		}
+		while (CurrentTime < 0.0f)
+		{
+			CurrentTime += AnimLength;
+			PreviousTime += AnimLength;
 		}
 	}
 	else
@@ -64,10 +78,18 @@ void UAnimInstance::UpdateAnimation(float DeltaSeconds)
 			CurrentTime = AnimLength;
 			bIsPlaying = false;
 		}
+		else if (CurrentTime < 0.0f)
+		{
+			CurrentTime = 0.0f;
+			bIsPlaying = false;
+		}
 	}
 
 	// Notify Trigger
 	TriggerAnimNotifies(DeltaSeconds);
+
+	// Pose Evaluation (본 포즈 샘플링 및 적용)
+	EvaluateAnimation();
 }
 
 /**
@@ -119,6 +141,11 @@ void UAnimInstance::StopAnimation()
 	bIsPlaying = false;
 }
 
+void UAnimInstance::ResumeAnimation()
+{
+	bIsPlaying = true;
+}
+
 void UAnimInstance::SetPosition(float NewTime)
 {
 	PreviousTime = CurrentTime;
@@ -135,6 +162,9 @@ void UAnimInstance::SetPosition(float NewTime)
 		{
 			CurrentTime = AnimLength;
 		}
+
+		// 시간이 변경되었으므로 포즈도 갱신
+		EvaluateAnimation();
 	}
 }
 
@@ -149,4 +179,61 @@ void UAnimInstance::HandleNotify(const FAnimNotifyEvent& NotifyEvent)
 	{
 		OwnerComponent->HandleAnimNotify(NotifyEvent);
 	}
+}
+
+/**
+ * @brief 현재 애니메이션 시간에서 본 포즈를 샘플링하여 SkeletalMeshComponent에 적용
+ * @details 언리얼 표준 흐름: UpdateAnimation (시간 업데이트) -> EvaluateAnimation (포즈 샘플링)
+ */
+void UAnimInstance::EvaluateAnimation()
+{
+	if (!CurrentAnimation || !OwnerComponent)
+	{
+		return;
+	}
+
+	// UAnimSequence로 캐스팅 (실제 포즈 데이터를 가진 클래스)
+	UAnimSequence* AnimSequence = Cast<UAnimSequence>(CurrentAnimation);
+	if (!AnimSequence)
+	{
+		UE_LOG("[AnimInstance] EvaluateAnimation: CurrentAnimation is not UAnimSequence!");
+		return;
+	}
+
+	static int32 EvalLogCounter = 0;
+	if (EvalLogCounter++ % 60 == 0)
+	{
+		UE_LOG("[AnimInstance] EvaluateAnimation: Time=%.2f", CurrentTime);
+	}
+
+	// SkeletalMesh에서 Skeleton 정보 가져오기
+	USkeletalMesh* SkeletalMesh = OwnerComponent->GetSkeletalMesh();
+	if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
+	{
+		return;
+	}
+
+	const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
+	const int32 NumBones = Skeleton->Bones.Num();
+
+	// 각 본의 현재 시간에서의 Transform 샘플링 (배치 업데이트)
+	for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
+	{
+		const FBone& Bone = Skeleton->Bones[BoneIndex];
+
+		FVector Position;
+		FQuat Rotation;
+		FVector Scale;
+
+		// AnimSequence에서 본 Transform 샘플링
+		if (AnimSequence->GetBoneTransformAtTime(Bone.Name, CurrentTime, Position, Rotation, Scale))
+		{
+			// SkeletalMeshComponent에 직접 설정 (ForceRecomputePose 호출 안 함)
+			FTransform BoneTransform(Position, Rotation, Scale);
+			OwnerComponent->SetBoneLocalTransformDirect(BoneIndex, BoneTransform);
+		}
+	}
+
+	// 모든 본 업데이트 완료 후 한 번만 갱신
+	OwnerComponent->RefreshBoneTransforms();
 }

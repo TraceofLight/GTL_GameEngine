@@ -61,6 +61,9 @@ public:
     float PlaybackRangeStart = 0.0f;  // 재생 범위 시작 (초)
     float PlaybackRangeEnd = -1.0f;  // 재생 범위 끝 (초, -1=전체)
 
+    // 이 Viewer에서 임포트한 AnimSequence들 (메모리 관리용)
+    TArray<UAnimSequence*> ImportedAnimSequences;
+
     // View Mode
     EViewerMode ViewMode = EViewerMode::Skeletal;  // 기본값: Skeletal 모드
 };
