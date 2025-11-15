@@ -62,6 +62,25 @@ private:
     // Window open state
     bool bIsOpen = true;
 
+    // Timeline 아이콘
+    class UTexture* IconGoToFront = nullptr;
+    class UTexture* IconGoToFrontOff = nullptr;
+    class UTexture* IconStepBackwards = nullptr;
+    class UTexture* IconStepBackwardsOff = nullptr;
+    class UTexture* IconBackwards = nullptr;
+    class UTexture* IconBackwardsOff = nullptr;
+    class UTexture* IconRecord = nullptr;
+    class UTexture* IconPause = nullptr;
+    class UTexture* IconPauseOff = nullptr;
+    class UTexture* IconPlay = nullptr;
+    class UTexture* IconPlayOff = nullptr;
+    class UTexture* IconStepForward = nullptr;
+    class UTexture* IconStepForwardOff = nullptr;
+    class UTexture* IconGoToEnd = nullptr;
+    class UTexture* IconGoToEndOff = nullptr;
+    class UTexture* IconLoop = nullptr;
+    class UTexture* IconLoopOff = nullptr;
+
 public:
     bool IsOpen() const { return bIsOpen; }
     void Close() { bIsOpen = false; }

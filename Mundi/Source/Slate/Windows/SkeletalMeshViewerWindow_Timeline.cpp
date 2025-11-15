@@ -23,100 +23,215 @@ void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 4));
 
     // === 타임라인 컨트롤 버튼들 ===
-    float buttonSize = 24.0f;
+    float ButtonSize = 20.0f;
+    ImVec2 ButtonSizeVec(ButtonSize, ButtonSize);
 
     // ToFront |<<
-    if (ImGui::Button(reinterpret_cast<const char*>(u8"\u23EE"), ImVec2(buttonSize, buttonSize)))
+    if (IconGoToFront && IconGoToFront->GetShaderResourceView())
     {
-        TimelineToFront(State);
+        if (ImGui::ImageButton("##ToFront", IconGoToFront->GetShaderResourceView(), ButtonSizeVec))
+        {
+            TimelineToFront(State);
+        }
     }
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("To Front");
+    else
+    {
+        if (ImGui::Button("|<<", ButtonSizeVec))
+        {
+            TimelineToFront(State);
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("To Front");
+    }
 
     ImGui::SameLine();
 
     // ToPrevious |<
-    if (ImGui::Button(reinterpret_cast<const char*>(u8"\u23F4"), ImVec2(buttonSize, buttonSize)))
+    if (IconStepBackwards && IconStepBackwards->GetShaderResourceView())
     {
-        TimelineToPrevious(State);
+        if (ImGui::ImageButton("##StepBackwards", IconStepBackwards->GetShaderResourceView(), ButtonSizeVec))
+        {
+            TimelineToPrevious(State);
+        }
     }
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Previous Frame");
+    else
+    {
+        if (ImGui::Button("|<", ButtonSizeVec))
+        {
+            TimelineToPrevious(State);
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Previous Frame");
+    }
 
     ImGui::SameLine();
 
     // Reverse <<
-    if (ImGui::Button(reinterpret_cast<const char*>(u8"\u23EA"), ImVec2(buttonSize, buttonSize)))
+    if (IconBackwards && IconBackwards->GetShaderResourceView())
     {
-        TimelineReverse(State);
+        if (ImGui::ImageButton("##Backwards", IconBackwards->GetShaderResourceView(), ButtonSizeVec))
+        {
+            TimelineReverse(State);
+        }
     }
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Reverse");
+    else
+    {
+        if (ImGui::Button("<<", ButtonSizeVec))
+        {
+            TimelineReverse(State);
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Reverse");
+    }
 
     ImGui::SameLine();
 
-    // Record (빨간 동그라미) - TODO: 녹화 기능 구현 시 스타일 추가
-    if (ImGui::Button(reinterpret_cast<const char*>(u8"\u25CF"), ImVec2(buttonSize, buttonSize)))
+    // Record
+    if (IconRecord && IconRecord->GetShaderResourceView())
     {
-        TimelineRecord(State);
+        if (ImGui::ImageButton("##Record", IconRecord->GetShaderResourceView(), ButtonSizeVec))
+        {
+            TimelineRecord(State);
+        }
     }
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Record");
+    else
+    {
+        if (ImGui::Button("O", ButtonSizeVec))
+        {
+            TimelineRecord(State);
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Record");
+    }
 
     ImGui::SameLine();
 
     // Play/Pause
     if (State->bIsPlaying)
     {
-        if (ImGui::Button(reinterpret_cast<const char*>(u8"\u23F8"), ImVec2(buttonSize, buttonSize))) // Pause
+        if (IconPause && IconPause->GetShaderResourceView())
         {
-            State->bIsPlaying = false;
+            if (ImGui::ImageButton("##Pause", IconPause->GetShaderResourceView(), ButtonSizeVec))
+            {
+                State->bIsPlaying = false;
+            }
         }
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Pause");
+        else
+        {
+            if (ImGui::Button("||", ButtonSizeVec))
+            {
+                State->bIsPlaying = false;
+            }
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Pause");
+        }
     }
     else
     {
-        if (ImGui::Button(reinterpret_cast<const char*>(u8"\u25B6"), ImVec2(buttonSize, buttonSize))) // Play
+        if (IconPlay && IconPlay->GetShaderResourceView())
         {
-            TimelinePlay(State);
+            if (ImGui::ImageButton("##Play", IconPlay->GetShaderResourceView(), ButtonSizeVec))
+            {
+                TimelinePlay(State);
+            }
         }
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Play");
+        else
+        {
+            if (ImGui::Button(">", ButtonSizeVec))
+            {
+                TimelinePlay(State);
+            }
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Play");
+        }
     }
 
     ImGui::SameLine();
 
     // ToNext >|
-    if (ImGui::Button(reinterpret_cast<const char*>(u8"\u23F5"), ImVec2(buttonSize, buttonSize)))
+    if (IconStepForward && IconStepForward->GetShaderResourceView())
     {
-        TimelineToNext(State);
+        if (ImGui::ImageButton("##StepForward", IconStepForward->GetShaderResourceView(), ButtonSizeVec))
+        {
+            TimelineToNext(State);
+        }
     }
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Next Frame");
+    else
+    {
+        if (ImGui::Button(">|", ButtonSizeVec))
+        {
+            TimelineToNext(State);
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Next Frame");
+    }
 
     ImGui::SameLine();
 
     // ToEnd >>|
-    if (ImGui::Button(reinterpret_cast<const char*>(u8"\u23ED"), ImVec2(buttonSize, buttonSize)))
+    if (IconGoToEnd && IconGoToEnd->GetShaderResourceView())
     {
-        TimelineToEnd(State);
+        if (ImGui::ImageButton("##ToEnd", IconGoToEnd->GetShaderResourceView(), ButtonSizeVec))
+        {
+            TimelineToEnd(State);
+        }
     }
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("To End");
+    else
+    {
+        if (ImGui::Button(">>|", ButtonSizeVec))
+        {
+            TimelineToEnd(State);
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("To End");
+    }
 
     ImGui::SameLine();
 
     // Loop 토글
     bool bWasLooping = State->bLoopAnimation;
-    if (bWasLooping)
+    UTexture* LoopIcon = bWasLooping ? IconLoop : IconLoopOff;
+    if (LoopIcon && LoopIcon->GetShaderResourceView())
     {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2f, 0.5f, 0.9f, 1.0f));
+        if (ImGui::ImageButton("##Loop", LoopIcon->GetShaderResourceView(), ButtonSizeVec))
+        {
+            State->bLoopAnimation = !State->bLoopAnimation;
+        }
     }
-
-    if (ImGui::Button(reinterpret_cast<const char*>(u8"\u27F3"), ImVec2(buttonSize, buttonSize)))
+    else
     {
-        State->bLoopAnimation = !State->bLoopAnimation;
+        if (bWasLooping)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
+        }
+        if (ImGui::Button("Loop", ButtonSizeVec))
+        {
+            State->bLoopAnimation = !State->bLoopAnimation;
+        }
+        if (bWasLooping)
+        {
+            ImGui::PopStyleColor();
+        }
     }
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Loop");
-
-    if (bWasLooping)
+    if (ImGui::IsItemHovered())
     {
-        ImGui::PopStyleColor(3);
+        ImGui::SetTooltip("Loop");
     }
 
     ImGui::SameLine();
