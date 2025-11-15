@@ -1162,11 +1162,27 @@ void SSkeletalMeshViewerWindow::OpenNewTab(const char* Name)
 void SSkeletalMeshViewerWindow::CloseTab(int Index)
 {
     if (Index < 0 || Index >= Tabs.Num()) return;
+
+    // 마지막 탭이면 창 전체를 닫음
+    if (Tabs.Num() == 1)
+    {
+        bIsOpen = false;
+        return;
+    }
+
     ViewerState* State = Tabs[Index];
     SkeletalViewerBootstrap::DestroyViewerState(State);
     Tabs.RemoveAt(Index);
-    if (Tabs.Num() == 0) { ActiveTabIndex = -1; ActiveState = nullptr; }
-    else { ActiveTabIndex = std::min(Index, Tabs.Num() - 1); ActiveState = Tabs[ActiveTabIndex]; }
+    if (Tabs.Num() == 0)
+    {
+        ActiveTabIndex = -1;
+        ActiveState = nullptr;
+    }
+    else
+    {
+        ActiveTabIndex = std::min(Index, Tabs.Num() - 1);
+        ActiveState = Tabs[ActiveTabIndex];
+    }
 }
 
 void SSkeletalMeshViewerWindow::LoadSkeletalMesh(const FString& Path)
