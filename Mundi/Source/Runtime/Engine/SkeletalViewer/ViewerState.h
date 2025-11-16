@@ -54,6 +54,13 @@ public:
     bool bLoopAnimation = true;  // 루프 재생 여부
     float PlaybackSpeed = 1.0f;  // 재생 속도 배율
 
+    // 타임라인 뷰 관련
+    float TimelineZoom = 1.0f;  // 타임라인 줌 레벨 (1.0 = 기본)
+    float TimelineScroll = 0.0f;  // 타임라인 스크롤 오프셋 (초 단위)
+    bool bShowFrameNumbers = false;  // false=시간(초), true=프레임 번호
+    float PlaybackRangeStart = 0.0f;  // 재생 범위 시작 (초)
+    float PlaybackRangeEnd = -1.0f;  // 재생 범위 끝 (초, -1=전체)
+
     // 이 Viewer에서 임포트한 AnimSequence들 (메모리 관리용)
     TArray<UAnimSequence*> ImportedAnimSequences;
 

@@ -10,6 +10,12 @@ UAnimSequence::UAnimSequence()
 
 UAnimSequence::~UAnimSequence()
 {
+	// DataModel 삭제 (FBX 임포트 시 생성한 DataModel)
+	if (DataModel)
+	{
+		ObjectFactory::DeleteObject(DataModel);
+		DataModel = nullptr;
+	}
 }
 
 bool UAnimSequence::GetBoneTransformAtTime(const FString& BoneName, float Time, FVector& OutPosition, FQuat& OutRotation, FVector& OutScale) const

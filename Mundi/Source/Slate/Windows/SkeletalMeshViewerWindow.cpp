@@ -44,6 +44,25 @@ bool SSkeletalMeshViewerWindow::Initialize(float StartX, float StartY, float Wid
 
     SetRect(StartX, StartY, StartX + Width, StartY + Height);
 
+    // 타임라인 아이콘 로드
+    IconGoToFront = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_Front_24x.png");
+    IconGoToFrontOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_Front_24x_OFF.png");
+    IconStepBackwards = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Backwards_24x.png");
+    IconStepBackwardsOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Backwards_24x_OFF.png");
+    IconBackwards = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Backwards_24x.png");
+    IconBackwardsOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Backwards_24x_OFF.png");
+    IconRecord = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Record_24x.png");
+    IconPause = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Pause_24x.png");
+    IconPauseOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Pause_24x_OFF.png");
+    IconPlay = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Play_24x.png");
+    IconPlayOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Play_24x_OFF.png");
+    IconStepForward = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Forward_24x.png");
+    IconStepForwardOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Forward_24x_OFF.png");
+    IconGoToEnd = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_End_24x.png");
+    IconGoToEndOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_End_24x_OFF.png");
+    IconLoop = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Loop_24x.png");
+    IconLoopOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Loop_24x_OFF.png");
+
     // Create first tab/state
     OpenNewTab("Viewer 1");
     if (ActiveState && ActiveState->Viewport)
@@ -60,6 +79,13 @@ void SSkeletalMeshViewerWindow::OnRender()
     // If window is closed, don't render
     if (!bIsOpen)
     {
+        return;
+    }
+
+    // 탭이 없으면 렌더링하지 않음
+    if (Tabs.Num() == 0)
+    {
+        bIsOpen = false;
         return;
     }
 
@@ -82,6 +108,8 @@ void SSkeletalMeshViewerWindow::OnRender()
     {
         bViewerVisible = true;
         // Render tab bar and switch active state
+        int32 PreviousTabIndex = ActiveTabIndex;
+        bool bTabClosed = false;
         if (ImGui::BeginTabBar("SkeletalViewerTabs", ImGuiTabBarFlags_AutoSelectNewTabs | ImGuiTabBarFlags_Reorderable))
         {
             for (int i = 0; i < Tabs.Num(); ++i)
@@ -97,6 +125,7 @@ void SSkeletalMeshViewerWindow::OnRender()
                 if (!open)
                 {
                     CloseTab(i);
+                    bTabClosed = true;
                     break;
                 }
             }
@@ -106,6 +135,31 @@ void SSkeletalMeshViewerWindow::OnRender()
                 OpenNewTab(label);
             }
             ImGui::EndTabBar();
+        }
+
+        // 탭이 닫혔으면 즉시 종료 (댕글링 포인터 방지)
+        if (bTabClosed)
+        {
+            ImGui::End();
+            return;
+        }
+
+        // 탭 전환 시 애니메이션 자동 재생
+        if (ActiveState && PreviousTabIndex != ActiveTabIndex)
+        {
+            if (ActiveState->CurrentAnimation && ActiveState->PreviewActor)
+            {
+                USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+                if (SkelComp)
+                {
+                    UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+                    if (AnimInst && !ActiveState->bIsPlaying)
+                    {
+                        AnimInst->PlayAnimation(ActiveState->CurrentAnimation, ActiveState->PlaybackSpeed);
+                        ActiveState->bIsPlaying = true;
+                    }
+                }
+            }
         }
         ImVec2 pos = ImGui::GetWindowPos();
         ImVec2 size = ImGui::GetWindowSize();
@@ -121,9 +175,9 @@ void SSkeletalMeshViewerWindow::OnRender()
         float rightWidth = totalWidth * RightPanelRatio;
         float centerWidth = totalWidth - leftWidth - rightWidth;
 
-        // Animation 모드일 때는 Timeline을 하단에 전체 너비로 배치
+        // Animation 모드일 때는 Timeline을 하단에 배치 (전체 높이의 40% 할당)
         bool bIsAnimationMode = (ActiveState && ActiveState->ViewMode == EViewerMode::Animation);
-        float timelineHeight = bIsAnimationMode ? 100.0f : 0.0f;
+        float timelineHeight = bIsAnimationMode ? (totalHeight * 0.4f) : 0.0f; // 40% 할당
         float mainAreaHeight = totalHeight - timelineHeight;
 
         // Remove spacing between panels
@@ -816,6 +870,20 @@ void SSkeletalMeshViewerWindow::OnRender()
             if (ImGui::Button("Animation", ImVec2(buttonWidth, 0)))
             {
                 ActiveState->ViewMode = EViewerMode::Animation;
+
+                // Animation 모드 진입 시 첫 번째 애니메이션 자동 선택 및 재생
+                if (ActiveState->CurrentMesh && !ActiveState->CurrentAnimation)
+                {
+                    const TArray<UAnimSequence*>& Animations = ActiveState->CurrentMesh->GetAnimations();
+                    if (Animations.Num() > 0)
+                    {
+                        ActiveState->SelectedAnimationIndex = 0;
+                        ActiveState->CurrentAnimation = Animations[0];
+                        ActiveState->CurrentAnimationTime = 0.0f;
+                        ActiveState->EditedBoneTransforms.clear();
+                        ActiveState->bIsPlaying = true;
+                    }
+                }
             }
 
             if (bIsAnimationMode)
@@ -841,8 +909,213 @@ void SSkeletalMeshViewerWindow::OnRender()
         ImGui::PopStyleColor();
         ImGui::Spacing();
 
+        // === Animation Mode: Details Panel (Bone Transform) ===
+        if (ActiveState->ViewMode == EViewerMode::Animation)
+        {
+            if (ActiveState->SelectedBoneIndex >= 0 && ActiveState->CurrentMesh)
+            {
+                const FSkeleton* Skeleton = ActiveState->CurrentMesh->GetSkeleton();
+                if (Skeleton && ActiveState->SelectedBoneIndex < Skeleton->Bones.size())
+                {
+                    const FBone& SelectedBone = Skeleton->Bones[ActiveState->SelectedBoneIndex];
+
+                    // Bone Name
+                    ImGui::Text("Bone Name");
+                    ImGui::SameLine(100.0f);
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.90f, 0.95f, 1.00f, 1.0f));
+                    ImGui::Text("%s", SelectedBone.Name.c_str());
+                    ImGui::PopStyleColor();
+
+                    ImGui::Spacing();
+
+                    // Transforms 섹션
+                    if (ImGui::CollapsingHeader("Transforms", ImGuiTreeNodeFlags_DefaultOpen))
+                    {
+                        if (!ActiveState->bBoneRotationEditing)
+                        {
+                            UpdateBoneTransformFromSkeleton(ActiveState);
+                        }
+
+                        float labelWidth = 70.0f;
+                        float inputWidth = (rightWidth - labelWidth - 40.0f) / 3.0f;
+
+                        // === Bone (편집 가능) ===
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.85f, 0.9f, 1.0f));
+                        ImGui::Text("Bone");
+                        ImGui::PopStyleColor();
+                        ImGui::Spacing();
+
+                        // Location
+                        ImGui::Text("Location");
+                        ImGui::SameLine(labelWidth);
+                        ImGui::PushItemWidth(inputWidth);
+                        bool bLocationChanged = false;
+                        bLocationChanged |= ImGui::DragFloat("##BoneLocX", &ActiveState->EditBoneLocation.X, 0.1f, 0.0f, 0.0f, "%.2f");
+                        ImGui::SameLine();
+                        bLocationChanged |= ImGui::DragFloat("##BoneLocY", &ActiveState->EditBoneLocation.Y, 0.1f, 0.0f, 0.0f, "%.2f");
+                        ImGui::SameLine();
+                        bLocationChanged |= ImGui::DragFloat("##BoneLocZ", &ActiveState->EditBoneLocation.Z, 0.1f, 0.0f, 0.0f, "%.2f");
+                        ImGui::PopItemWidth();
+
+                        if (bLocationChanged)
+                        {
+                            ApplyBoneTransform(ActiveState);
+                            ActiveState->bBoneLinesDirty = true;
+                        }
+
+                        // Rotation
+                        ImGui::Text("Rotation");
+                        ImGui::SameLine(labelWidth);
+                        ImGui::PushItemWidth(inputWidth);
+                        bool bRotationChanged = false;
+
+                        if (ImGui::IsAnyItemActive())
+                        {
+                            ActiveState->bBoneRotationEditing = true;
+                        }
+
+                        bRotationChanged |= ImGui::DragFloat("##BoneRotX", &ActiveState->EditBoneRotation.X, 0.5f, -180.0f, 180.0f, "%.2f");
+                        ImGui::SameLine();
+                        bRotationChanged |= ImGui::DragFloat("##BoneRotY", &ActiveState->EditBoneRotation.Y, 0.5f, -180.0f, 180.0f, "%.2f");
+                        ImGui::SameLine();
+                        bRotationChanged |= ImGui::DragFloat("##BoneRotZ", &ActiveState->EditBoneRotation.Z, 0.5f, -180.0f, 180.0f, "%.2f");
+                        ImGui::PopItemWidth();
+
+                        if (!ImGui::IsAnyItemActive())
+                        {
+                            ActiveState->bBoneRotationEditing = false;
+                        }
+
+                        if (bRotationChanged)
+                        {
+                            ApplyBoneTransform(ActiveState);
+                            ActiveState->bBoneLinesDirty = true;
+                        }
+
+                        // Scale
+                        ImGui::Text("Scale");
+                        ImGui::SameLine(labelWidth);
+                        ImGui::PushItemWidth(inputWidth);
+                        bool bScaleChanged = false;
+                        bScaleChanged |= ImGui::DragFloat("##BoneScaleX", &ActiveState->EditBoneScale.X, 0.01f, 0.001f, 100.0f, "%.2f");
+                        ImGui::SameLine();
+                        bScaleChanged |= ImGui::DragFloat("##BoneScaleY", &ActiveState->EditBoneScale.Y, 0.01f, 0.001f, 100.0f, "%.2f");
+                        ImGui::SameLine();
+                        bScaleChanged |= ImGui::DragFloat("##BoneScaleZ", &ActiveState->EditBoneScale.Z, 0.01f, 0.001f, 100.0f, "%.2f");
+                        ImGui::PopItemWidth();
+
+                        if (bScaleChanged)
+                        {
+                            ApplyBoneTransform(ActiveState);
+                            ActiveState->bBoneLinesDirty = true;
+                        }
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        // === Reference (읽기 전용) ===
+                        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.6f);
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.75f, 0.8f, 1.0f));
+                        ImGui::Text("Reference");
+                        ImGui::PopStyleColor();
+                        ImGui::Spacing();
+
+                        float zeroVec[3] = {0.0f, 0.0f, 0.0f};
+                        float oneVec[3] = {1.0f, 1.0f, 1.0f};
+
+                        // Location
+                        ImGui::Text("Location");
+                        ImGui::SameLine(labelWidth);
+                        ImGui::PushItemWidth(inputWidth);
+                        ImGui::InputFloat("##RefLocX", &zeroVec[0], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##RefLocY", &zeroVec[1], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##RefLocZ", &zeroVec[2], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::PopItemWidth();
+
+                        // Rotation
+                        ImGui::Text("Rotation");
+                        ImGui::SameLine(labelWidth);
+                        ImGui::PushItemWidth(inputWidth);
+                        ImGui::InputFloat("##RefRotX", &zeroVec[0], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##RefRotY", &zeroVec[1], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##RefRotZ", &zeroVec[2], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::PopItemWidth();
+
+                        // Scale
+                        ImGui::Text("Scale");
+                        ImGui::SameLine(labelWidth);
+                        ImGui::PushItemWidth(inputWidth);
+                        ImGui::InputFloat("##RefScaleX", &oneVec[0], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##RefScaleY", &oneVec[1], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##RefScaleZ", &oneVec[2], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::PopItemWidth();
+
+                        ImGui::PopStyleVar();
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        // === Mesh Relative (읽기 전용) ===
+                        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.6f);
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.75f, 0.8f, 1.0f));
+                        ImGui::Text("Mesh Relative");
+                        ImGui::PopStyleColor();
+                        ImGui::Spacing();
+
+                        // Location
+                        ImGui::Text("Location");
+                        ImGui::SameLine(labelWidth);
+                        ImGui::PushItemWidth(inputWidth);
+                        ImGui::InputFloat("##MeshLocX", &zeroVec[0], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##MeshLocY", &zeroVec[1], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##MeshLocZ", &zeroVec[2], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::PopItemWidth();
+
+                        // Rotation
+                        ImGui::Text("Rotation");
+                        ImGui::SameLine(labelWidth);
+                        ImGui::PushItemWidth(inputWidth);
+                        ImGui::InputFloat("##MeshRotX", &zeroVec[0], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##MeshRotY", &zeroVec[1], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##MeshRotZ", &zeroVec[2], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::PopItemWidth();
+
+                        // Scale
+                        ImGui::Text("Scale");
+                        ImGui::SameLine(labelWidth);
+                        ImGui::PushItemWidth(inputWidth);
+                        ImGui::InputFloat("##MeshScaleX", &oneVec[0], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##MeshScaleY", &oneVec[1], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::SameLine();
+                        ImGui::InputFloat("##MeshScaleZ", &oneVec[2], 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_ReadOnly);
+                        ImGui::PopItemWidth();
+
+                        ImGui::PopStyleVar();
+                    }
+                }
+            }
+            else
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                ImGui::TextWrapped("Select a bone from the skeleton to edit its transform.");
+                ImGui::PopStyleColor();
+            }
+        }
         // === Skeletal Mode: Bone Transform 편집 ===
-        if (ActiveState->ViewMode == EViewerMode::Skeletal)
+        else if (ActiveState->ViewMode == EViewerMode::Skeletal)
         {
             if (ActiveState->SelectedBoneIndex >= 0 && ActiveState->CurrentMesh)
             {
@@ -958,10 +1231,47 @@ void SSkeletalMeshViewerWindow::OnRender()
             }
         }
 
-        // === Animation Mode: Animation 재생 컨트롤 ===
-        else if (ActiveState->ViewMode == EViewerMode::Animation)
+        ImGui::EndChild(); // RightPanel
+
+        // Pop the ItemSpacing style
+        ImGui::PopStyleVar();
+
+        // Timeline Area (하단, Animation 모드일 때만 표시)
+        if (bIsAnimationMode && ActiveState->CurrentAnimation)
         {
-            ImGui::Text("Animation List:");
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            // Timeline + Animation List 패널 분할
+            float bottomPanelWidth = totalWidth;
+            float animListWidth = rightWidth; // Animation List 가로를 Property 패널과 동일하게
+            float timelineWidth = bottomPanelWidth - animListWidth - 8.0f; // 여백 포함
+
+            // Timeline 패널 (왼쪽)
+            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
+            ImGui::BeginChild("TimelineArea", ImVec2(timelineWidth, timelineHeight - 20), true);
+            ImGui::PopStyleVar();
+
+            // 타임라인 컨트롤 렌더링
+            if (ActiveState)
+            {
+                RenderTimelineControls(ActiveState);
+            }
+
+            ImGui::EndChild();
+
+            // Animation List 패널 (오른쪽)
+            ImGui::SameLine();
+            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
+            ImGui::BeginChild("AnimationListBottom", ImVec2(animListWidth, timelineHeight - 20), true);
+            ImGui::PopStyleVar();
+
+            // Animation List 렌더링
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+            ImGui::Text("Animation List");
+            ImGui::PopStyleColor();
+            ImGui::Separator();
             ImGui::Spacing();
 
             if (ActiveState->CurrentMesh)
@@ -970,7 +1280,7 @@ void SSkeletalMeshViewerWindow::OnRender()
 
                 if (Animations.Num() > 0)
                 {
-                    ImGui::BeginChild("AnimationList", ImVec2(0, 150), true);
+                    ImGui::BeginChild("AnimListScroll", ImVec2(0, 0), false);
 
                     for (int32 i = 0; i < Animations.Num(); ++i)
                     {
@@ -990,8 +1300,8 @@ void SSkeletalMeshViewerWindow::OnRender()
                             ActiveState->SelectedAnimationIndex = i;
                             ActiveState->CurrentAnimation = Anim;
                             ActiveState->CurrentAnimationTime = 0.0f;
-                            // 편집된 bone transform 캐시 클리어 (새로운 애니메이션으로 변경)
                             ActiveState->EditedBoneTransforms.clear();
+                            ActiveState->bIsPlaying = true;
 
                             // AnimInstance 생성 또는 재사용
                             if (ActiveState->PreviewActor && ActiveState->PreviewActor->GetSkeletalMeshComponent())
@@ -1030,30 +1340,10 @@ void SSkeletalMeshViewerWindow::OnRender()
                 else
                 {
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-                    ImGui::TextWrapped("No animations imported. Use the Animation Import section to import FBX animations.");
+                    ImGui::TextWrapped("No animations imported.");
                     ImGui::PopStyleColor();
                 }
             }
-        } // Animation Mode 끝
-
-        ImGui::EndChild(); // RightPanel
-
-        // Pop the ItemSpacing style
-        ImGui::PopStyleVar();
-
-        // Timeline Area (하단, Animation 모드일 때만 전체 너비로 표시)
-        if (bIsAnimationMode && ActiveState->CurrentAnimation)
-        {
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
-
-            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
-            ImGui::BeginChild("TimelineArea", ImVec2(0, timelineHeight - 20), true);
-            ImGui::PopStyleVar();
-
-            // 타임라인 컨트롤 렌더링
-            RenderTimelineControls(ActiveState);
 
             ImGui::EndChild();
         }
@@ -1112,7 +1402,7 @@ void SSkeletalMeshViewerWindow::OnUpdate(float DeltaSeconds)
                 else
                 {
                     // 일시정지 중이면 재생 (정방향, 일시정지 위치에서 시작)
-                    ActiveState->PlaybackSpeed = std::abs(ActiveState->PlaybackSpeed);
+                    ActiveState->PlaybackSpeed = FMath::Abs(ActiveState->PlaybackSpeed);
                     AnimInst->SetPlayRate(ActiveState->PlaybackSpeed);
 
                     // 현재 애니메이션이 설정되지 않았을 때만 PlayAnimation 호출
@@ -1158,7 +1448,7 @@ void SSkeletalMeshViewerWindow::OnUpdate(float DeltaSeconds)
             ActiveState->CurrentAnimationTime = AnimInst->GetCurrentTime();
 
             // PlaybackSpeed가 변경되었으면 AnimInstance에 반영
-            if (std::abs(AnimInst->GetPlayRate() - ActiveState->PlaybackSpeed) > 0.001f)
+            if (FMath::Abs(AnimInst->GetPlayRate() - ActiveState->PlaybackSpeed) > 0.001f)
             {
                 AnimInst->SetPlayRate(ActiveState->PlaybackSpeed);
             }
@@ -1178,6 +1468,18 @@ void SSkeletalMeshViewerWindow::OnUpdate(float DeltaSeconds)
         }
 
         SkelComp->SetTickEnabled(bShouldTick);
+
+        // 애니메이션 업데이트 후, 에디터에서 편집된 본 트랜스폼 재적용
+        // (0c3c88a 커밋 이전에 UpdateBonesFromAnimation에서 수행하던 로직)
+        if (ActiveState->ViewMode == EViewerMode::Animation && !ActiveState->EditedBoneTransforms.empty())
+        {
+            for (const auto& Pair : ActiveState->EditedBoneTransforms)
+            {
+                int32 BoneIndex = Pair.first;
+                const FTransform& EditedTransform = Pair.second;
+                SkelComp->SetBoneLocalTransform(BoneIndex, EditedTransform);
+            }
+        }
     }
 }
 
@@ -1350,16 +1652,10 @@ void SSkeletalMeshViewerWindow::CloseTab(int Index)
 {
     if (Index < 0 || Index >= Tabs.Num()) return;
 
-    // 마지막 탭이면 창 전체를 닫음
-    if (Tabs.Num() == 1)
-    {
-        bIsOpen = false;
-        return;
-    }
-
-    ViewerState* State = Tabs[Index];
-    SkeletalViewerBootstrap::DestroyViewerState(State);
+    // ViewerState 해제
+    SkeletalViewerBootstrap::DestroyViewerState(Tabs[Index]);
     Tabs.RemoveAt(Index);
+
     if (Tabs.Num() == 0)
     {
         ActiveTabIndex = -1;
@@ -1403,6 +1699,18 @@ void SSkeletalMeshViewerWindow::LoadSkeletalMesh(const FString& Path)
         {
             LineComp->ClearLines();
             LineComp->SetLineVisible(ActiveState->bShowBones);
+        }
+
+        // 애니메이션이 있으면 자동으로 Animation 모드로 전환 및 첫 번째 애니메이션 재생
+        const TArray<UAnimSequence*>& Animations = Mesh->GetAnimations();
+        if (Animations.Num() > 0)
+        {
+            ActiveState->ViewMode = EViewerMode::Animation;
+            ActiveState->SelectedAnimationIndex = 0;
+            ActiveState->CurrentAnimation = Animations[0];
+            ActiveState->CurrentAnimationTime = 0.0f;
+            ActiveState->EditedBoneTransforms.clear();
+            ActiveState->bIsPlaying = true;
         }
 
         UE_LOG("SSkeletalMeshViewerWindow: Loaded skeletal mesh from %s", Path.c_str());
@@ -1456,4 +1764,3 @@ void SSkeletalMeshViewerWindow::ExpandToSelectedBone(ViewerState* State, int32 B
         CurrentIndex = Skeleton->Bones[CurrentIndex].ParentIndex;
     }
 }
-

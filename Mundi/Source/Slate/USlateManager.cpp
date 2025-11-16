@@ -178,7 +178,9 @@ void USlateManager::Initialize(ID3D11Device* InDevice, UWorld* InWorld, const FR
 void USlateManager::OpenSkeletalMeshViewer()
 {
     if (SkeletalViewerWindow)
+    {
         return;
+    }
 
     SkeletalViewerWindow = new SSkeletalMeshViewerWindow();
 
@@ -210,7 +212,12 @@ void USlateManager::OpenSkeletalMeshViewerWithFile(const char* FilePath)
 
 void USlateManager::CloseSkeletalMeshViewer()
 {
-    if (!SkeletalViewerWindow) return;
+    if (!SkeletalViewerWindow)
+    {
+        return;
+    }
+
+    // 완전히 삭제
     delete SkeletalViewerWindow;
     SkeletalViewerWindow = nullptr;
 }

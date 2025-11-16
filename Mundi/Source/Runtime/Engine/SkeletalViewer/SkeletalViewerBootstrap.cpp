@@ -6,6 +6,8 @@
 #include "FSkeletalViewerViewportClient.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
+#include "Source/Runtime/AssetManagement/ResourceManager.h"
+#include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 
 ViewerState* SkeletalViewerBootstrap::CreateViewerState(const char* Name, UWorld* InWorld, ID3D11Device* InDevice)
 {
@@ -57,11 +59,42 @@ void SkeletalViewerBootstrap::DestroyViewerState(ViewerState*& State)
 {
     if (!State) return;
 
-    // 이 Viewer에서 임포트한 AnimSequence들 삭제
+    // CurrentAnimation이 임포트한 애니메이션 중 하나인지 확인
+    bool bCurrentAnimIsImported = false;
+    for (UAnimSequence* AnimSeq : State->ImportedAnimSequences)
+    {
+        if (AnimSeq == State->CurrentAnimation)
+        {
+            bCurrentAnimIsImported = true;
+            break;
+        }
+    }
+
+    // 임포트한 애니메이션이면 포인터 무효화
+    if (bCurrentAnimIsImported)
+    {
+        State->CurrentAnimation = nullptr;
+        State->SelectedAnimationIndex = -1;
+    }
+
+    // 이 Viewer에서 임포트한 AnimSequence들만 삭제
+    // 먼저 모든 메시에서 해당 애니메이션 제거 (dangling pointer 방지)
     for (UAnimSequence* AnimSeq : State->ImportedAnimSequences)
     {
         if (AnimSeq)
         {
+            // ResourceManager의 모든 SkeletalMesh에서 이 애니메이션 제거
+            UResourceManager& ResourceManager = UResourceManager::GetInstance();
+            TArray<USkeletalMesh*> AllMeshes = ResourceManager.GetAll<USkeletalMesh>();
+            for (USkeletalMesh* Mesh : AllMeshes)
+            {
+                if (Mesh)
+                {
+                    Mesh->RemoveAnimation(AnimSeq);
+                }
+            }
+
+            // AnimSequence와 DataModel 삭제
             ObjectFactory::DeleteObject(AnimSeq);
         }
     }

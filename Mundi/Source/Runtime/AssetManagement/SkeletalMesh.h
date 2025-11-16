@@ -21,6 +21,14 @@ public:
     // Animation 관리
     void AddAnimation(UAnimSequence* Animation) { Animations.push_back(Animation); }
     const TArray<UAnimSequence*>& GetAnimations() const { return Animations; }
+    void RemoveAnimation(UAnimSequence* Animation)
+    {
+        auto It = std::find(Animations.begin(), Animations.end(), Animation);
+        if (It != Animations.end())
+        {
+            Animations.erase(It);
+        }
+    }
     void ClearAnimations() { Animations.clear(); }
     
     // ID3D11Buffer* GetVertexBuffer() const { return VertexBuffer; } // W10 CPU Skinning이라 Component가 VB 소유
