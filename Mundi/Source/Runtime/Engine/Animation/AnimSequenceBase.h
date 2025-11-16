@@ -19,7 +19,7 @@ public:
 
 	// 데이터 모델 접근
 	virtual UAnimDataModel* GetDataModel() const { return DataModel; }
-	virtual void SetDataModel(UAnimDataModel* InDataModel) { DataModel = InDataModel; }
+	virtual void SetDataModel(UAnimDataModel* InDataModel);
 
 	// Notify 관리
 	void SortNotifies();
@@ -29,7 +29,14 @@ public:
 
 	// Getters
 	virtual float GetPlayLength() const { return DataModel ? DataModel->GetPlayLength() : 0.0f; }
+	FString GetName() const { return Name; }
 	bool IsLooping() const { return bLoop; }
+
+	// Setters
+	void SetName(const FString& InName) { Name = InName; }
+	void SetLooping(bool bInLoop) { bLoop = bInLoop; }
+
+	FString Name;
 
 protected:
 	UAnimDataModel* DataModel;

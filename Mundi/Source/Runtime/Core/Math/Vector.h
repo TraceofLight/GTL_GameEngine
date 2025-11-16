@@ -685,6 +685,16 @@ struct FQuat
 	// 선언: 행렬 변환
 	FMatrix ToMatrix() const;
 
+	// 직렬화 연산자
+	friend FArchive& operator<<(FArchive& Ar, FQuat& Q)
+	{
+		Ar.Serialize(&Q.X, sizeof(float));
+		Ar.Serialize(&Q.Y, sizeof(float));
+		Ar.Serialize(&Q.Z, sizeof(float));
+		Ar.Serialize(&Q.W, sizeof(float));
+		return Ar;
+	}
+
 private:
 	// 보조 연산 (내부용)
 	FQuat operator+(const FQuat& Quat) const { return FQuat(X + Quat.X, Y + Quat.Y, Z + Quat.Z, W + Quat.W); }

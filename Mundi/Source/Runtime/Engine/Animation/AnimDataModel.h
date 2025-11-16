@@ -51,4 +51,43 @@ public:
 		}
 		return nullptr;
 	}
+
+	// Serialization
+	friend FArchive& operator<<(FArchive& Ar, UAnimDataModel& Model)
+	{
+		if (Ar.IsSaving())
+		{
+			// BoneAnimationTracks 배열 저장
+			uint32 TrackCount = static_cast<uint32>(Model.BoneAnimationTracks.Num());
+			Ar << TrackCount;
+			for (FBoneAnimationTrack& Track : Model.BoneAnimationTracks)
+			{
+				Ar << Track;
+			}
+
+			// 메타데이터 저장
+			Ar << Model.PlayLength;
+			Ar << Model.FrameRate;
+			Ar << Model.NumberOfFrames;
+			Ar << Model.NumberOfKeys;
+		}
+		else if (Ar.IsLoading())
+		{
+			// BoneAnimationTracks 배열 로드
+			uint32 TrackCount = 0;
+			Ar << TrackCount;
+			Model.BoneAnimationTracks.resize(TrackCount);
+			for (uint32 i = 0; i < TrackCount; ++i)
+			{
+				Ar << Model.BoneAnimationTracks[i];
+			}
+
+			// 메타데이터 로드
+			Ar << Model.PlayLength;
+			Ar << Model.FrameRate;
+			Ar << Model.NumberOfFrames;
+			Ar << Model.NumberOfKeys;
+		}
+		return Ar;
+	}
 };

@@ -97,15 +97,58 @@ struct FRawAnimSequenceTrack
 	{
 		if (Ar.IsSaving())
 		{
-			Serialization::WriteArray(Ar, Track.PosKeys);
-			Serialization::WriteArray(Ar, Track.RotKeys);
-			Serialization::WriteArray(Ar, Track.ScaleKeys);
+			// PosKeys 저장
+			uint32 PosKeyCount = static_cast<uint32>(Track.PosKeys.Num());
+			Ar << PosKeyCount;
+			for (FVector& Key : Track.PosKeys)
+			{
+				Ar << Key;
+			}
+
+			// RotKeys 저장
+			uint32 RotKeyCount = static_cast<uint32>(Track.RotKeys.Num());
+			Ar << RotKeyCount;
+			for (FQuat& Key : Track.RotKeys)
+			{
+				Ar << Key;
+			}
+
+			// ScaleKeys 저장
+			uint32 ScaleKeyCount = static_cast<uint32>(Track.ScaleKeys.Num());
+			Ar << ScaleKeyCount;
+			for (FVector& Key : Track.ScaleKeys)
+			{
+				Ar << Key;
+			}
 		}
 		else if (Ar.IsLoading())
 		{
-			Serialization::ReadArray(Ar, Track.PosKeys);
-			Serialization::ReadArray(Ar, Track.RotKeys);
-			Serialization::ReadArray(Ar, Track.ScaleKeys);
+			// PosKeys 로드
+			uint32 PosKeyCount = 0;
+			Ar << PosKeyCount;
+			Track.PosKeys.resize(PosKeyCount);
+			for (uint32 i = 0; i < PosKeyCount; ++i)
+			{
+				Ar << Track.PosKeys[i];
+			}
+
+			// RotKeys 로드
+			uint32 RotKeyCount = 0;
+			Ar << RotKeyCount;
+			Track.RotKeys.resize(RotKeyCount);
+			for (uint32 i = 0; i < RotKeyCount; ++i)
+			{
+				Ar << Track.RotKeys[i];
+			}
+
+			// ScaleKeys 로드
+			uint32 ScaleKeyCount = 0;
+			Ar << ScaleKeyCount;
+			Track.ScaleKeys.resize(ScaleKeyCount);
+			for (uint32 i = 0; i < ScaleKeyCount; ++i)
+			{
+				Ar << Track.ScaleKeys[i];
+			}
 		}
 		return Ar;
 	}

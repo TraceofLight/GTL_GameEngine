@@ -521,48 +521,57 @@ void SSkeletalMeshViewerWindow::OnRender()
 
                     if (CompatibleMesh)
                     {
-                        // 호환되는 Skeleton이 있음 - Animation만 추출
+                        // 호환되는 Skeleton이 있음 - 모든 AnimStack을 Animation으로 추출
                         const FSkeleton* TargetSkeleton = CompatibleMesh->GetSkeleton();
-                        UAnimSequence* AnimSequence = UFbxLoader::GetInstance().LoadFbxAnimation(
+                        TArray<UAnimSequence*> AnimSequences = UFbxLoader::GetInstance().LoadAllFbxAnimations(
                             AnimPath,
-                            *TargetSkeleton,
-                            ""
+                            *TargetSkeleton
                         );
 
-                        if (AnimSequence)
+                        if (AnimSequences.Num() > 0)
                         {
-                            // ViewerState의 ImportedAnimSequences에 등록 (메모리 관리용)
-                            ActiveState->ImportedAnimSequences.Add(AnimSequence);
+                            UE_LOG("========================================");
+                            UE_LOG("Animations Imported Successfully (With Skin - Animation Only)");
+                            UE_LOG("  File: %s", AnimPath.c_str());
+                            UE_LOG("  Total AnimStacks: %d", AnimSequences.Num());
+                            UE_LOG("========================================");
 
-                            // 호환되는 모든 SkeletalMesh에 Animation 추가
-                            int32 AddedCount = 0;
-                            for (USkeletalMesh* Mesh : AllSkeletalMeshes)
+                            for (UAnimSequence* AnimSequence : AnimSequences)
                             {
-                                const FSkeleton* ExistingSkeleton = Mesh->GetSkeleton();
-                                if (ExistingSkeleton && ExistingSkeleton->IsCompatibleWith(*FbxSkeleton))
+                                if (!AnimSequence)
+                                    continue;
+
+                                // ViewerState의 ImportedAnimSequences에 등록 (메모리 관리용)
+                                ActiveState->ImportedAnimSequences.Add(AnimSequence);
+
+                                // 호환되는 모든 SkeletalMesh에 Animation 추가
+                                int32 AddedCount = 0;
+                                for (USkeletalMesh* Mesh : AllSkeletalMeshes)
                                 {
-                                    Mesh->AddAnimation(AnimSequence);
-                                    UE_LOG("  [+] Added animation to mesh: %s", Mesh->GetFilePath().c_str());
-                                    AddedCount++;
+                                    const FSkeleton* ExistingSkeleton = Mesh->GetSkeleton();
+                                    if (ExistingSkeleton && ExistingSkeleton->IsCompatibleWith(*FbxSkeleton))
+                                    {
+                                        Mesh->AddAnimation(AnimSequence);
+                                        AddedCount++;
+                                    }
+                                }
+
+                                if (UAnimDataModel* DataModel = AnimSequence->GetDataModel())
+                                {
+                                    UE_LOG("  [AnimStack: %s]", AnimSequence->GetName().c_str());
+                                    UE_LOG("    Duration: %.2f seconds", DataModel->GetPlayLength());
+                                    UE_LOG("    Frame Rate: %d FPS", DataModel->GetFrameRate().Numerator);
+                                    UE_LOG("    Total Frames: %d", DataModel->GetNumberOfFrames());
+                                    UE_LOG("    Bone Tracks: %d", DataModel->GetBoneAnimationTracks().Num());
+                                    UE_LOG("    Applied to %d compatible SkeletalMesh(es)", AddedCount);
                                 }
                             }
 
-                            if (UAnimDataModel* DataModel = AnimSequence->GetDataModel())
-                            {
-                                UE_LOG("========================================");
-                                UE_LOG("Animation Imported Successfully (With Skin - Animation Only)");
-                                UE_LOG("  File: %s", AnimPath.c_str());
-                                UE_LOG("  Duration: %.2f seconds", DataModel->GetPlayLength());
-                                UE_LOG("  Frame Rate: %d FPS", DataModel->GetFrameRate().Numerator);
-                                UE_LOG("  Total Frames: %d", DataModel->GetNumberOfFrames());
-                                UE_LOG("  Bone Tracks: %d", DataModel->GetBoneAnimationTracks().Num());
-                                UE_LOG("  Applied to %d compatible SkeletalMesh(es)", AddedCount);
-                                UE_LOG("========================================");
-                            }
+                            UE_LOG("========================================");
                         }
                         else
                         {
-                            UE_LOG("ERROR: Failed to import animation: %s", AnimPath.c_str());
+                            UE_LOG("ERROR: Failed to import animations: %s", AnimPath.c_str());
                         }
                     }
                     else
@@ -597,37 +606,47 @@ void SSkeletalMeshViewerWindow::OnRender()
                         const FSkeleton* TargetSkeleton = ActiveState->SelectedSkeletonMesh->GetSkeleton();
                         if (TargetSkeleton)
                         {
-                            UAnimSequence* AnimSequence = UFbxLoader::GetInstance().LoadFbxAnimation(
+                            TArray<UAnimSequence*> AnimSequences = UFbxLoader::GetInstance().LoadAllFbxAnimations(
                                 AnimPath,
-                                *TargetSkeleton,
-                                ""
+                                *TargetSkeleton
                             );
 
-                            if (AnimSequence)
+                            if (AnimSequences.Num() > 0)
                             {
-                                // ViewerState의 ImportedAnimSequences에 등록 (메모리 관리용)
-                                ActiveState->ImportedAnimSequences.Add(AnimSequence);
+                                UE_LOG("========================================");
+                                UE_LOG("Animations Imported Successfully (Without Skin)");
+                                UE_LOG("  File: %s", AnimPath.c_str());
+                                UE_LOG("  Total AnimStacks: %d", AnimSequences.Num());
+                                UE_LOG("  Target Skeleton: %s", TargetSkeleton->Name.c_str());
+                                UE_LOG("========================================");
 
-                                ActiveState->SelectedSkeletonMesh->AddAnimation(AnimSequence);
-
-                                UAnimDataModel* DataModel = AnimSequence->GetDataModel();
-                                if (DataModel)
+                                for (UAnimSequence* AnimSequence : AnimSequences)
                                 {
-                                    UE_LOG("========================================");
-                                    UE_LOG("Animation Imported Successfully (Without Skin)");
-                                    UE_LOG("  File: %s", AnimPath.c_str());
-                                    UE_LOG("  Duration: %.2f seconds", DataModel->GetPlayLength());
-                                    UE_LOG("  Frame Rate: %d FPS", DataModel->GetFrameRate().Numerator);
-                                    UE_LOG("  Total Frames: %d", DataModel->GetNumberOfFrames());
-                                    UE_LOG("  Bone Tracks: %d", DataModel->GetBoneAnimationTracks().Num());
-                                    UE_LOG("  Target Skeleton: %s", TargetSkeleton->Name.c_str());
-                                    UE_LOG("  Total Animations on this mesh: %d", ActiveState->SelectedSkeletonMesh->GetAnimations().Num());
-                                    UE_LOG("========================================");
+                                    if (!AnimSequence)
+                                        continue;
+
+                                    // ViewerState의 ImportedAnimSequences에 등록 (메모리 관리용)
+                                    ActiveState->ImportedAnimSequences.Add(AnimSequence);
+
+                                    ActiveState->SelectedSkeletonMesh->AddAnimation(AnimSequence);
+
+                                    UAnimDataModel* DataModel = AnimSequence->GetDataModel();
+                                    if (DataModel)
+                                    {
+                                        UE_LOG("  [AnimStack: %s]", AnimSequence->GetName().c_str());
+                                        UE_LOG("    Duration: %.2f seconds", DataModel->GetPlayLength());
+                                        UE_LOG("    Frame Rate: %d FPS", DataModel->GetFrameRate().Numerator);
+                                        UE_LOG("    Total Frames: %d", DataModel->GetNumberOfFrames());
+                                        UE_LOG("    Bone Tracks: %d", DataModel->GetBoneAnimationTracks().Num());
+                                    }
                                 }
+
+                                UE_LOG("  Total Animations on this mesh: %d", ActiveState->SelectedSkeletonMesh->GetAnimations().Num());
+                                UE_LOG("========================================");
                             }
                             else
                             {
-                                UE_LOG("ERROR: Failed to import animation: %s", AnimPath.c_str());
+                                UE_LOG("ERROR: Failed to import animations: %s", AnimPath.c_str());
                             }
                         }
                     }

@@ -19,8 +19,11 @@ public:
 
 	FSkeletalMeshData* LoadFbxMeshAsset(const FString& FilePath);
 
-	// 애니메이션 임포트
-	UAnimSequence* LoadFbxAnimation(const FString& FilePath, const FSkeleton& TargetSkeleton, const FString& AnimStackName = "");
+	// 애니메이션 임포트 (단일 AnimStack)
+	// UAnimSequence* LoadFbxAnimation(const FString& FilePath, const FSkeleton& TargetSkeleton, const FString& AnimStackName = "");
+
+	// 모든 AnimStack 임포트 (각 스택을 개별 AnimSequence로 반환)
+	TArray<UAnimSequence*> LoadAllFbxAnimations(const FString& FilePath, const FSkeleton& TargetSkeleton);
 
 	// With Skin FBX에서 Skeleton 추출 (호환성 체크용)
 	FSkeleton* ExtractSkeletonFromFbx(const FString& FilePath);
