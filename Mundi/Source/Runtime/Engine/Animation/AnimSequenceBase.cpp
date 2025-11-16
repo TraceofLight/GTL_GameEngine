@@ -15,6 +15,27 @@ UAnimSequenceBase::UAnimSequenceBase()
 
 UAnimSequenceBase::~UAnimSequenceBase()
 {
+	// DataModel 정리 (메모리 누수 방지)
+	if (DataModel)
+	{
+		ObjectFactory::DeleteObject(DataModel);
+		DataModel = nullptr;
+	}
+}
+
+/**
+ * @brief 데이터 모델 설정 (기존 DataModel 삭제 후 새로운 것으로 교체)
+ */
+void UAnimSequenceBase::SetDataModel(UAnimDataModel* InDataModel)
+{
+	// 기존 DataModel 삭제 (메모리 누수 방지)
+	if (DataModel && DataModel != InDataModel)
+	{
+		ObjectFactory::DeleteObject(DataModel);
+		DataModel = nullptr;
+	}
+
+	DataModel = InDataModel;
 }
 
 /**
