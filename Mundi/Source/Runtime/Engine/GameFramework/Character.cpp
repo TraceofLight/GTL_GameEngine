@@ -10,6 +10,7 @@
 #include "Source/Runtime/Engine/Components/CameraComponent.h"
 #include "Source/Runtime/Engine/Animation/AnimStateMachine.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
+#include "Source/Runtime/Engine/Animation/AnimInstance.h"
 #include "Source/Editor/FBXLoader.h"
 #include "InputComponent.h"
 #include "ObjectFactory.h"
@@ -51,6 +52,15 @@ ACharacter::ACharacter()
 		// X Bot 스켈레탈 메시 로드
 		SkeletalMeshComponent->SetSkeletalMesh(GDataDir + "/X Bot.fbx");
 
+		// AnimInstance 생성 및 초기화
+		UAnimInstance* AnimInstance = NewObject<UAnimInstance>();
+		if (AnimInstance)
+		{
+			AnimInstance->Initialize(SkeletalMeshComponent);
+			SkeletalMeshComponent->SetAnimInstance(AnimInstance);
+			UE_LOG("[Character] AnimInstance created in constructor!");
+		}
+
 		UE_LOG("[Character] SkeletalMeshComponent created!");
 	}
 
@@ -85,63 +95,90 @@ void ACharacter::BeginPlay()
 	// AnimationStateMachine 생성 및 초기화
 	if (SkeletalMeshComponent && SkeletalMeshComponent->GetSkeletalMesh())
 	{
-		AnimStateMachine = NewObject<UAnimStateMachine>();
-		if (AnimStateMachine)
+		// 애니메이션 에셋 로드
+		USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMesh();
+		UE_LOG("[Character] SkeletalMesh: %p", SkeletalMesh);
+
+		if (SkeletalMesh)
 		{
-			// 애니메이션 에셋 로드
-			USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMesh();
-			UE_LOG("[Character] SkeletalMesh: %p", SkeletalMesh);
+			const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
+			UE_LOG("[Character] Skeleton: %p", Skeleton);
 
-			if (SkeletalMesh)
+			if (Skeleton)
 			{
-				const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
-				UE_LOG("[Character] Skeleton: %p", Skeleton);
+				UFbxLoader& FbxLoader = UFbxLoader::GetInstance();
 
-				if (Skeleton)
-				{
-					UFbxLoader& FbxLoader = UFbxLoader::GetInstance();
+				// 애니메이션 로드
+				UAnimSequence* IdleAnim = FbxLoader.LoadFbxAnimation(GDataDir + "/XBOT_Idle.fbx", *Skeleton);
+				UAnimSequence* WalkAnim = FbxLoader.LoadFbxAnimation(GDataDir + "/XBOT_Walking.fbx", *Skeleton);
+				UAnimSequence* RunAnim = FbxLoader.LoadFbxAnimation(GDataDir + "/XBOT_Slow Run.fbx", *Skeleton);
 
-					UAnimSequence* IdleAnim = FbxLoader.LoadFbxAnimation(GDataDir + "/XBOT_Idle.fbx", *Skeleton);
-					UAnimSequence* WalkAnim = FbxLoader.LoadFbxAnimation(GDataDir + "/XBOT_Walking.fbx", *Skeleton);
-					UAnimSequence* RunAnim = FbxLoader.LoadFbxAnimation(GDataDir + "/XBOT_Slow Run.fbx", *Skeleton);
-
-				// 애니메이션 등록
-				if (IdleAnim)
+				// ===== StateMachine 사용 =====
+				AnimStateMachine = NewObject<UAnimStateMachine>();
+				if (AnimStateMachine)
 				{
-					AnimStateMachine->RegisterStateAnimation(EAnimState::Idle, IdleAnim);
-					UE_LOG("[Character] Idle animation loaded!");
-				}
-				if (WalkAnim)
-				{
-					AnimStateMachine->RegisterStateAnimation(EAnimState::Walk, WalkAnim);
-					UE_LOG("[Character] Walk animation loaded!");
-				}
-				if (RunAnim)
-				{
-					AnimStateMachine->RegisterStateAnimation(EAnimState::Run, RunAnim);
-					UE_LOG("[Character] Run animation loaded!");
-				}
+					// 애니메이션 등록
+					if (IdleAnim)
+					{
+						AnimStateMachine->RegisterStateAnimation(EAnimState::Idle, IdleAnim);
+						UE_LOG("[Character] Idle animation loaded!");
+					}
+					if (WalkAnim)
+					{
+						AnimStateMachine->RegisterStateAnimation(EAnimState::Walk, WalkAnim);
+						UE_LOG("[Character] Walk animation loaded!");
+					}
+					if (RunAnim)
+					{
+						AnimStateMachine->RegisterStateAnimation(EAnimState::Run, RunAnim);
+						UE_LOG("[Character] Run animation loaded!");
+					}
 
 					// 전환 규칙 추가 (부드러운 전환)
 					AnimStateMachine->AddTransition(FAnimStateTransition(EAnimState::Idle, EAnimState::Walk, 0.2f));
 					AnimStateMachine->AddTransition(FAnimStateTransition(EAnimState::Walk, EAnimState::Idle, 0.2f));
 					AnimStateMachine->AddTransition(FAnimStateTransition(EAnimState::Walk, EAnimState::Run, 0.3f));
 					AnimStateMachine->AddTransition(FAnimStateTransition(EAnimState::Run, EAnimState::Walk, 0.3f));
+
+					// SkeletalMeshComponent에 State Machine 설정
+					SkeletalMeshComponent->SetAnimationStateMachine(AnimStateMachine);
+					UE_LOG("[Character] AnimationStateMachine initialized!");
 				}
-				else
+
+				// ===== BlendSpace2D 예제 (주석 처리 - 나중에 8방향 이동용) =====
+				/*
+				UBlendSpace2D* BlendSpace = NewObject<UBlendSpace2D>();
+				if (BlendSpace)
 				{
-					UE_LOG("[Character] ERROR: Skeleton is null!");
+					// 축 범위 설정
+					BlendSpace->XAxisMin = 0.0f;
+					BlendSpace->XAxisMax = 60.0f;  // 속도 범위
+					BlendSpace->YAxisMin = -180.0f;
+					BlendSpace->YAxisMax = 180.0f;   // 방향 범위
+					BlendSpace->XAxisName = "Speed";
+					BlendSpace->YAxisName = "Direction";
+
+					// 8방향 샘플 포인트 예제
+					// BlendSpace->AddSample(FVector2D(0.0f, 0.0f), IdleAnim);            // Idle
+					// BlendSpace->AddSample(FVector2D(30.0f, 0.0f), WalkForwardAnim);    // Walk Forward
+					// BlendSpace->AddSample(FVector2D(30.0f, 180.0f), WalkBackwardAnim); // Walk Backward
+					// BlendSpace->AddSample(FVector2D(30.0f, 90.0f), WalkRightAnim);     // Walk Right
+					// BlendSpace->AddSample(FVector2D(30.0f, -90.0f), WalkLeftAnim);     // Walk Left
+
+					// SkeletalMeshComponent에 BlendSpace2D 설정
+					SkeletalMeshComponent->SetBlendSpace2D(BlendSpace);
+					UE_LOG("[Character] BlendSpace2D initialized!");
 				}
+				*/
 			}
 			else
 			{
-				UE_LOG("[Character] ERROR: SkeletalMesh is null!");
+				UE_LOG("[Character] ERROR: Skeleton is null!");
 			}
-
-			// SkeletalMeshComponent에 State Machine 설정
-			SkeletalMeshComponent->SetAnimationStateMachine(AnimStateMachine);
-
-			UE_LOG("[Character] AnimationStateMachine initialized!");
+		}
+		else
+		{
+			UE_LOG("[Character] ERROR: SkeletalMesh is null!");
 		}
 	}
 }

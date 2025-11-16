@@ -658,6 +658,12 @@
     <ClCompile Include="Source\Runtime\Engine\Animation\AnimNode_StateMachine.cpp">
       <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\AnimNode_BlendSpace2D.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\BlendSpace2D.cpp">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -1389,6 +1395,12 @@
     <ClInclude Include="Source\Runtime\Core\Misc\MiniDump.h" />
     <ClInclude Include="Source\Slate\Windows\SkeletalMeshViewerWindow.h" />
     <ClInclude Include="Source\Runtime\Engine\Animation\AnimNode_StateMachine.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\AnimNode_BlendSpace2D.h">
+      <Filter>Source\Runtime\Engine\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\BlendSpace2D.h">
       <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClInclude>
   </ItemGroup>

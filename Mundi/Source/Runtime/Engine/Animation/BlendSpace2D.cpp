@@ -260,12 +260,12 @@ void UBlendSpace2D::CalculateBarycentricWeights(
 	FVector2D v1 = C - A;
 	FVector2D v2 = Point - A;
 
-	// 내적 계산
-	float d00 = v0.Dot(v0);
-	float d01 = v0.Dot(v1);
-	float d11 = v1.Dot(v1);
-	float d20 = v2.Dot(v0);
-	float d21 = v2.Dot(v1);
+	// 내적 계산 (FVector2D는 Dot 메서드가 없으므로 직접 계산)
+	float d00 = v0.X * v0.X + v0.Y * v0.Y;
+	float d01 = v0.X * v1.X + v0.Y * v1.Y;
+	float d11 = v1.X * v1.X + v1.Y * v1.Y;
+	float d20 = v2.X * v0.X + v2.Y * v0.Y;
+	float d21 = v2.X * v1.X + v2.Y * v1.Y;
 
 	float denom = d00 * d11 - d01 * d01;
 

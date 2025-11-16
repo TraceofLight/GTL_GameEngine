@@ -1,10 +1,12 @@
 #pragma once
 #include "Object.h"
 #include "AnimNode_StateMachine.h"
+#include "AnimNode_BlendSpace2D.h"
 
 class UAnimSequenceBase;
 class USkeletalMeshComponent;
 class UAnimStateMachine;
+class UBlendSpace2D;
 struct FAnimNotifyEvent;
 
 /**
@@ -60,6 +62,20 @@ public:
 	 */
 	FAnimNode_StateMachine* GetStateMachineNode() { return &StateMachineNode; }
 
+	// ===== Blend Space 2D =====
+
+	/**
+	 * @brief Blend Space 2D 애셋 설정
+	 *
+	 * @param InBlendSpace Blend Space 2D 애셋
+	 */
+	void SetBlendSpace2D(UBlendSpace2D* InBlendSpace);
+
+	/**
+	 * @brief Blend Space 2D 노드 가져오기
+	 */
+	FAnimNode_BlendSpace2D* GetBlendSpace2DNode() { return &BlendSpace2DNode; }
+
 protected:
 	// Pose Evaluation
 	void EvaluateAnimation();
@@ -72,8 +88,9 @@ protected:
 	float PlayRate;
 	bool bIsPlaying;
 
-	// ===== State Machine Node =====
+	// ===== Animation Nodes =====
 	FAnimNode_StateMachine StateMachineNode;
+	FAnimNode_BlendSpace2D BlendSpace2DNode;
 
 	virtual void HandleNotify(const FAnimNotifyEvent& NotifyEvent);
 };

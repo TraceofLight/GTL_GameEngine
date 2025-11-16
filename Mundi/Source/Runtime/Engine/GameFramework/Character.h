@@ -6,6 +6,7 @@
 
 #include "Pawn.h"
 #include "AnimStateMachine.h"
+#include "BlendSpace2D.h"
 #include "ACharacter.generated.h"
 
 

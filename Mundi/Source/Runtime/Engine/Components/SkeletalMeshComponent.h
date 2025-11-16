@@ -71,6 +71,7 @@ public:
 	 * @param InStateMachine 설정할 State Machine 애셋
 	 */
 	void SetAnimationStateMachine(UAnimStateMachine* InStateMachine);
+	void SetBlendSpace2D(class UBlendSpace2D* InBlendSpace);
 
 	// Batch Pose Update (AnimInstance에서 사용)
 	void SetBoneLocalTransformDirect(int32 BoneIndex, const FTransform& NewLocalTransform);

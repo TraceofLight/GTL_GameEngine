@@ -20,8 +20,8 @@ FAnimNode_StateMachine::FAnimNode_StateMachine()
 	, OwnerPawn(nullptr)
 	, OwnerCharacter(nullptr)
 	, MovementComponent(nullptr)
-	, WalkSpeed(200.0f)  // CharacterMovementComponent의 MaxWalkSpeed와 동일
-	, RunSpeed(400.0f)
+	, WalkSpeed(30.0f)  // Walk/Run 전환 속도 (MaxWalkSpeed 60의 절반)
+	, RunSpeed(60.0f)   // 최대 속도
 {
 }
 
