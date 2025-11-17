@@ -12,6 +12,7 @@ class SDetailsWindow;
 class UMainToolbarWidget;
 class UConsoleWindow; // 오버레이 콘솔 윈도우
 class UContentBrowserWindow;
+class SAnimStateMachineWindow;
 
 // 중앙 레이아웃/입력 라우팅/뷰포트 관리 매니저 (위젯 아님)
 class USlateManager : public UObject
@@ -84,6 +85,11 @@ public:
     void OpenBlendSpace2DEditor(UBlendSpace2D* BlendSpace = nullptr);
     void CloseBlendSpace2DEditor();
     bool IsBlendSpace2DEditorOpen() const { return BlendSpace2DEditorWindow != nullptr; }
+	// [Animation Graph]
+	void OpenAnimStateMachineWindow();
+	void OpenAnimStateMachineWindowWithFile(const char* FilePath);
+	void CloseAnimStateMachineWindow();
+	bool IsAnimStateMachineWindowOpen() const { return SkeletalViewerWindow != nullptr; }
 
 private:
     FRect Rect; // 이전엔 SWindow로부터 상속받던 영역 정보
@@ -129,6 +135,7 @@ private:
 
     // Detached skeletal mesh viewer window
     SSkeletalMeshViewerWindow* SkeletalViewerWindow = nullptr;
+    SAnimStateMachineWindow* AnimStateMachineWindow = nullptr;
 
     // Blend Space 2D Editor window
     SBlendSpace2DEditorWindow* BlendSpace2DEditorWindow = nullptr;

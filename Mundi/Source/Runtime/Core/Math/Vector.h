@@ -39,12 +39,12 @@ namespace FMath
 		return first;
 	}
 
-	template<typename T> 
+	template<typename T>
 	static T Sqrt(T A)
 	{
 		return std::sqrt(A);
-	} 
-	
+	}
+
 	template<typename T>
 	static T Min(T A, T B) { return std::min(A, B); }
 
@@ -61,6 +61,26 @@ namespace FMath
 	static T Lerp(T A, T B, float Alpha)
 	{
 		return A + (B - A) * Alpha;
+	}
+
+	/**
+	 * 0에 근접한지 확인
+	 * @param Value 확인할 값
+	 * @param ErrorTolerance 허용 오차
+	 */
+	template<typename T>
+	static bool IsNearlyZero(T Value, T ErrorTolerance = KINDA_SMALL_NUMBER)
+	{
+		return Abs(Value) <= ErrorTolerance;
+	}
+
+	/**
+	 * 두 값이 서로 거의 같은지 확인
+	 */
+	template<typename T>
+	static bool IsNearlyEqual(T A, T B, T ErrorTolerance = KINDA_SMALL_NUMBER)
+	{
+		return Abs(A - B) <= ErrorTolerance;
 	}
 }
 // 각도를 -180 ~ 180 범위로 정규화 (모듈러 연산)
@@ -313,7 +333,7 @@ struct FVector
     {
 		return FVector(0.0f, 0.0f, 0.0f);
     }
-        
+
 
 	static FVector One()
 	{
@@ -338,8 +358,8 @@ struct FVector
 		if (bFloor)
 		{
 			_X = GridSize.X != 0 ? floorf(X / GridSize.X) * GridSize.X : X;
-			_Y = GridSize.Y != 0 ? floorf(Y / GridSize.Y) * GridSize.Y : Y;			
-			_Z = GridSize.Z != 0 ? floorf(Z / GridSize.Z) * GridSize.Z : Z;			
+			_Y = GridSize.Y != 0 ? floorf(Y / GridSize.Y) * GridSize.Y : Y;
+			_Z = GridSize.Z != 0 ? floorf(Z / GridSize.Z) * GridSize.Z : Z;
 		}
 		else
 		{
@@ -408,7 +428,7 @@ struct alignas(16) FVector4
 	{
 		return FVector4(_mm_max_ps(this->SimdData, B.SimdData));
 	}
-	
+
 	/** FVector(Point)를 FVector4(Point, W=1)로 변환합니다. */
 	static FVector4 FromPoint(const FVector& P)
 	{
@@ -532,7 +552,7 @@ struct FQuat
 		Quat.Z = CR * CP * SY - SR * SP * CY;
 		Quat.W = CR * CP * CY + SR * SP * SY;
 
-		// (결과 쿼터니언은 이미 정규화되어 있으므로 GetNormalized()는 
+		// (결과 쿼터니언은 이미 정규화되어 있으므로 GetNormalized()는
 		//  부동 소수점 오차 보정 외에는 수학적으로 불필요합니다.)
 		return Quat;
 	}
@@ -841,7 +861,7 @@ struct alignas(16) FMatrix
 		Out.M[3][0] = invT.X; Out.M[3][1] = invT.Y; Out.M[3][2] = invT.Z; Out.M[3][3] = 1.0f;
 		return Out;
 	}
-	// 회전행렬 
+	// 회전행렬
 	FMatrix InverseAffineFast() const
 	{
 		// 상단 3x3
@@ -1027,7 +1047,7 @@ struct alignas(16) FMatrix
 
 	FVector TransformPosition(const FVector& V) const;
 	FVector TransformVector(const FVector& V) const;
-	
+
 	// View/Proj (L H)
 	static FMatrix LookAtLH(const FVector& Eye, const FVector& At, const FVector& Up);
 	static FMatrix PerspectiveFovLH(float FovY, float Aspect, float Zn, float Zf);
@@ -1041,11 +1061,11 @@ struct alignas(16) FMatrix
 	{
 		float YScale = 1.0f / std::tan(FovY * 0.5f);
 		float XScale = YScale / Aspect;
-		
+
 		// 원본 투영 행렬의 주요 성분들
 		float A = Zf / (Zf - Zn);
 		float B = (-Zn * Zf) / (Zf - Zn);
-		
+
 		FMatrix invProj{};
 		/*invProj.Rows[0] = _mm_set_ps(0.0f, 0.0f, 0.0f, 1.0f / XScale);
 		invProj.Rows[1] = _mm_set_ps(0.0f, 0.0f, 1.0f / YScale, 0.0f);
@@ -1056,10 +1076,10 @@ struct alignas(16) FMatrix
 		invProj.Rows[1] = _mm_set_ps(0.0f, 0.0f, 1.0f / YScale, 0.0f);
 		invProj.Rows[2] = _mm_set_ps(1.0f / B, 0.0f, 0.0f, 0.0f);
 		invProj.Rows[3] = _mm_set_ps(-A / B, 1.0f, 0.0f, 0.0f);
-		
+
 		return invProj;
 	}
-	
+
 	// 이미 생성된 Perspective Projection 행렬의 역행렬을 계산합니다
 	FMatrix InversePerspectiveProjection() const
 	{
@@ -1068,12 +1088,12 @@ struct alignas(16) FMatrix
 		// [0,       YScale, 0,     0]
 		// [0,       0,      A,     1]
 		// [0,       0,      B,     0]
-		
+
 		float XScale = M[0][0];
 		float YScale = M[1][1];
 		float A = M[2][2];
 		float B = M[3][2];
-		
+
 		// 안전성 체크
 		if (std::fabs(XScale) < KINDA_SMALL_NUMBER ||
 		    std::fabs(YScale) < KINDA_SMALL_NUMBER ||
@@ -1081,13 +1101,13 @@ struct alignas(16) FMatrix
 		{
 			return FMatrix::Identity();
 		}
-		
+
 		FMatrix invProj{};
 		invProj.Rows[0] = _mm_set_ps(0.0f, 0.0f, 0.0f, 1.0f / XScale);
 		invProj.Rows[1] = _mm_set_ps(0.0f, 0.0f, 1.0f / YScale, 0.0f);
 		invProj.Rows[2] = _mm_set_ps(1.0f/B, 0.0f, 0.0f, 0.0f);
 		invProj.Rows[3] = _mm_set_ps(-A / B, 1.0f, 0.0f, 0.0f);
-		
+
 		return invProj;
 	}
 
@@ -1258,7 +1278,7 @@ struct FTransform
 
 		//
 		// 부모 로컬 To World -> SRT, 자식 로컬 To 부모 -> Other.SRT
-		// 자식 로컬 To World -> Other.SRT * SRT 
+		// 자식 로컬 To World -> Other.SRT * SRT
 		// 자식 로컬 To World Translation -> Other.T * SRT = Translation(Rotation(Scale(Other.T)))
 		FVector Scaled(ChildTransform.Translation.X * Scale3D.X,
 			ChildTransform.Translation.Y * Scale3D.Y,
@@ -1292,8 +1312,8 @@ struct FTransform
 		FVector ResultT = ChildTransform.Translation - this->Translation;
 		ResultT = Inverse.Rotation.RotateVector(ResultT);
 		Result.Translation = FVector(
-			ResultT.X * Inverse.Scale3D.X, 
-			ResultT.Y * Inverse.Scale3D.Y, 
+			ResultT.X * Inverse.Scale3D.X,
+			ResultT.Y * Inverse.Scale3D.Y,
 			ResultT.Z * Inverse.Scale3D.Z );
 
 		return Result;
@@ -1390,7 +1410,7 @@ inline FMatrix FMatrix::LookAtLH(const FVector& Eye, const FVector& At, const FV
 
 	// 엔진(X=forward, Y=right, Z=up) → 쉐이더(X=right, Y=up, Z=forward)
 	static const FMatrix ToShaderCoords(
-		0, 0, 1, 0,  
+		0, 0, 1, 0,
 		1, 0, 0, 0,
 		0, 1, 0, 0,
 		0, 0, 0, 1

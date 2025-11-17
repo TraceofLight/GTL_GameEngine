@@ -381,25 +381,6 @@ void USkeletalMeshComponent::StopAnimation()
 }
 
 /**
- * @brief State Machine 설정 (AnimInstance를 통해)
- */
-void USkeletalMeshComponent::SetAnimationStateMachine(UAnimStateMachine* InStateMachine)
-{
-    // AnimInstance가 없으면 생성
-    if (!AnimInstance)
-    {
-        AnimInstance = NewObject<UAnimInstance>();
-        AnimInstance->Initialize(this);
-        UE_LOG("[SkeletalMeshComponent] AnimInstance created for StateMachine");
-    }
-
-    if (AnimInstance)
-    {
-        AnimInstance->SetStateMachine(InStateMachine);
-    }
-}
-
-/**
  * @brief BlendSpace2D 설정 (AnimInstance를 통해)
  */
 void USkeletalMeshComponent::SetBlendSpace2D(UBlendSpace2D* InBlendSpace)
@@ -436,6 +417,7 @@ void USkeletalMeshComponent::DuplicateSubObjects()
         // 새로운 AnimInstance 생성
         AnimInstance = NewObject<UAnimInstance>();
         AnimInstance->Initialize(this);
+    	AnimInstance->SetStateMachine(OldAnimInstance->GetStateMachineNode()->GetStateMachine());
 
         // 애니메이션 상태 복사
         if (OldAnimInstance->GetCurrentAnimation())
@@ -448,9 +430,6 @@ void USkeletalMeshComponent::DuplicateSubObjects()
                 AnimInstance->StopAnimation();
             }
         }
-
-        // 이전 AnimInstance 삭제 (메모리 누수 방지)
-        ObjectFactory::DeleteObject(OldAnimInstance);
     }
 }
 
@@ -481,11 +460,15 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
             float SavedTime = 0.0f;
             float SavedPlayRate = 1.0f;
             bool bWasPlaying = false;
+        	FString AnimStateMachine;
 
             FJsonSerializer::ReadString(InOutHandle, "AnimationPath", AnimPath, "");
             FJsonSerializer::ReadFloat(InOutHandle, "CurrentTime", SavedTime, 0.0f);
             FJsonSerializer::ReadFloat(InOutHandle, "PlayRate", SavedPlayRate, 1.0f);
             FJsonSerializer::ReadBool(InOutHandle, "IsPlaying", bWasPlaying, false);
+        	FJsonSerializer::ReadString(InOutHandle, "AnimStateMachine", AnimStateMachine, "");
+
+        	AnimInstance->SetStateMachine(RESOURCE.Load<UAnimStateMachine>(AnimStateMachine));
 
             // TODO: AnimPath를 통해 AnimSequence를 로드하고 재생
             // 현재는 AnimSequence 로드 시스템이 완성되지 않아 스킵
@@ -505,6 +488,7 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
             InOutHandle["CurrentTime"] = AnimInstance->GetCurrentTime();
             InOutHandle["PlayRate"] = AnimInstance->GetPlayRate();
             InOutHandle["IsPlaying"] = AnimInstance->IsPlaying();
+            InOutHandle["AnimStateMachine"] = AnimInstance->GetStateMachineNode()->GetStateMachine()->GetFilePath();
         }
     }
 }

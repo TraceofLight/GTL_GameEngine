@@ -12,6 +12,7 @@
 #include "LineDynamicMesh.h"
 
 #pragma once
+#include "AnimStateMachine.h"
 #include "ObjectFactory.h"
 #include "Object.h"
 #include "SkeletalMesh.h"
@@ -87,6 +88,7 @@ public:
 	void CreateBillboardMesh();
 	void CreateTextBillboardMesh();
 	void CreateTextBillboardTexture();
+	void PreLoadAnimStateMachines();
 
 	// --- 캐시 관리 ---
 	FMeshBVH* GetMeshBVH(const FString& ObjPath);
@@ -218,12 +220,15 @@ inline T* UResourceManager::Load(const FString& InFilePath, Args && ...InArgs)
 template <typename T, typename ... Args>
 T* UResourceManager::Load(const FWideString& InFilePath, Args&&... InArgs)
 {
-
 	if (InFilePath.empty())
-	{
-		return nullptr;
-	}
+    {
+       return nullptr;
+    }
 
+    std::filesystem::path PathHelper(InFilePath);
+	FString ConvertedPath = WideToUTF8(InFilePath);
+
+    return Load<T>(ConvertedPath, std::forward<Args>(InArgs)...);
 }
 
 template<>
@@ -279,6 +284,8 @@ EResourceType UResourceManager::GetResourceType()
         return EResourceType::Sound;
 	if (T::StaticClass() == UAnimSequence::StaticClass())
 		return EResourceType::Animation;
+	if (T::StaticClass() == UAnimStateMachine::StaticClass())
+		return EResourceType::AnimationStateMachine;
 
     return EResourceType::None;
 }

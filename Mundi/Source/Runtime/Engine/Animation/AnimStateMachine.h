@@ -1,5 +1,4 @@
 #pragma once
-
 #include "Object.h"
 #include "PoseContext.h"
 #include"UAnimStateMachine.generated.h"
@@ -9,84 +8,85 @@ class UCharacterMovementComponent;
 class UAnimSequence;
 
 /**
- * @brief 애니메이션 상태 열거형
- *
- * Character의 이동/액션 상태를 나타냄.
+ * @brief 비교 연산자
  */
-enum class EAnimState : uint8
+enum class EAnimConditionOp : uint8
 {
-	/** 정지 상태 */
-	Idle,
-
-	/** 걷기 */
-	Walk,
-
-	/** 달리기 */
-	Run,
-
-	/** 점프 (상승 중) */
-	Jump,
-
-	/** 낙하 (하강 중) */
-	Fall,
-
-	/** 비행 */
-	Fly,
-
-	/** 앉기 */
-	Crouch,
-
-	/** 상태 개수 (마지막) */
-	MAX
+	Equals,         // ==
+	NotEquals,      // !=
+	Greater,        // >
+	Less,           // <
+	GreaterOrEqual, // >=
+	LessOrEqual     // <=
 };
 
 /**
- * @brief 상태 전환 규칙
- *
- * 한 상태에서 다른 상태로 전환할 때의 조건과 블렌딩 시간.
+ * @brief 단일 트랜지션 조건
+ * 예: "Speed" (ParamName)가 100.0 (Threshold)보다 "Greater" (Op) 해야 한다.
+ */
+struct FAnimCondition
+{
+	FName ParameterName;      // 검사할 변수 이름 (예: "Speed", "IsAir")
+	EAnimConditionOp Op;      // 비교 방법
+	float Threshold;          // 기준 값
+
+	FAnimCondition()
+		: ParameterName(), Op(EAnimConditionOp::Greater), Threshold(0.0f) {}
+
+	FAnimCondition(FName InName, EAnimConditionOp InOp, float InVal)
+		: ParameterName(InName), Op(InOp), Threshold(InVal) {}
+};
+
+/**
+ * @brief 상태 전환 규칙 (수정됨)
+ * 이제 조건 목록(Conditions)을 가집니다.
  */
 struct FAnimStateTransition
 {
-	/** 시작 상태 */
-	EAnimState FromState;
-
-	/** 목표 상태 */
-	EAnimState ToState;
-
-	/** 전환 블렌딩 시간 (초) */
+	FName TargetStateName;
 	float BlendTime;
+	TArray<FAnimCondition> Conditions;
 
-	FAnimStateTransition()
-		: FromState(EAnimState::Idle)
-		, ToState(EAnimState::Idle)
-		, BlendTime(0.2f)
-	{
-	}
+	FAnimStateTransition(FName InTarget, float InBlendTime)
+		: TargetStateName(InTarget), BlendTime(InBlendTime) {}
 
-	FAnimStateTransition(EAnimState From, EAnimState To, float InBlendTime)
-		: FromState(From)
-		, ToState(To)
-		, BlendTime(InBlendTime)
+	void AddCondition(FName Param, EAnimConditionOp Op, float Val)
 	{
+		Conditions.Add(FAnimCondition(Param, Op, Val));
 	}
 };
 
 /**
- * @brief 애니메이션 State Machine
- *
- * Character의 이동 상태에 따라 자동으로 애니메이션을 전환.
- * Phase 1의 블렌딩 시스템을 활용하여 부드러운 전환 제공.
- *
- * 사용 예시:
- * ```cpp
- * UAnimStateMachine* SM = NewObject<UAnimStateMachine>();
- * SM->Initialize(MyCharacter);
- * SM->RegisterStateAnimation(EAnimState::Idle, IdleAnim);
- * SM->RegisterStateAnimation(EAnimState::Walk, WalkAnim);
- * SM->RegisterStateAnimation(EAnimState::Run, RunAnim);
- * ```
+ * @brief 상태 노드 (Data)
+ * * 하나의 상태를 정의하는 단위. 이름, 애니메이션, 나가는 연결선(Transition)을 가짐.
  */
-class UAnimStateMachine : public UObject
+struct FAnimStateNode
+{
+	/** 상태 이름 (고유 ID 역할, 예: "Idle", "Run") */
+	FName StateName;
+
+	/** 이 상태에서 재생할 애니메이션 */
+	UAnimSequence* AnimationAsset;
+
+	/** 이 상태에서 나갈 수 있는 트랜지션 목록 */
+	TArray<FAnimStateTransition> Transitions;
+
+	/** 루프 여부 */
+	bool bLoop;
+
+	FAnimStateNode()
+		: StateName(), AnimationAsset(nullptr), bLoop(true) {}
+
+	FAnimStateNode(const FName InStateName)
+		: StateName(InStateName), AnimationAsset(nullptr), bLoop(true) {}
+};
+
+/**
+ * @brief 애니메이션 State Machine (Asset)
+ * * 노드들의 집합을 관리하는 데이터 컨테이너.
+ * 에디터에서 저장/로드가 가능한 형태.
+ */
+class UAnimStateMachine : public UResourceBase
 {
 	GENERATED_REFLECTION_BODY()
 
@@ -94,62 +94,102 @@ public:
 	UAnimStateMachine();
 	virtual ~UAnimStateMachine() override = default;
 
-	// ===== Phase 3: State Machine 메서드 =====
+// ===== 에디터/구축 API =====
+public:
+	/**
+	 * @brief 새로운 상태 노드 추가
+	 * @return 추가가 제대로 되었는지 결과 반환 (같은 이름 존재 시 추가 X)
+	 */
+	FAnimStateNode* AddNode(FName NodeName, UAnimSequence* InAnim, bool bInLoop = true);
 
-	// ===== 애셋 데이터 편집 (에디터/런타임 공통) =====
+	/** * @brief 노드 삭제 (중요: 연결된 트랜지션도 정리함)
+	 * @return 삭제 성공 여부
+	 */
+	bool RemoveNode(FName NodeName);
 
 	/**
-	 * @brief 상태별 애니메이션 등록
-	 *
-	 * @param State 애니메이션 상태
-	 * @param Animation 재생할 애니메이션 시퀀스
+	 * @brief 노드 이름 변경 (중요: Map Key 교체 및 트랜지션 타겟 갱신)
+	 * @return 이름 변경 성공 여부 (중복 이름 있으면 실패)
 	 */
-	void RegisterStateAnimation(EAnimState State, UAnimSequence* Animation);
+	bool RenameNode(FName OldName, FName NewName);
 
 	/**
-	 * @brief 전환 규칙 추가
-	 *
-	 * @param Transition 전환 규칙 구조체
+	 * @brief 트랜지션 연결
 	 */
-	void AddTransition(const FAnimStateTransition& Transition);
-
-	// ===== 애셋 데이터 조회 =====
+	FAnimStateTransition* AddTransition(FName FromState, FName ToState, float BlendTime);
 
 	/**
-	 * @brief 특정 상태의 애니메이션 가져오기
-	 *
-	 * @param State 상태
-	 * @return 해당 상태의 애니메이션 시퀀스
+	 * @brief 트랜지션 삭제
+	 * @return 삭제 성공 여부
 	 */
-	UAnimSequence* GetStateAnimation(EAnimState State) const;
+	bool RemoveTransition(FName FromState, FName ToState);
 
 	/**
-	 * @brief 모든 전환 규칙 가져오기
+	 * @brief 특정 트랜지션 포인터 찾기 (조건 편집용)
 	 */
-	const TArray<FAnimStateTransition>& GetTransitions() const { return Transitions; }
+	FAnimStateTransition* FindTransition(FName FromState, FName ToState);
 
 	/**
-	 * @brief 특정 전환의 블렌드 시간 찾기
-	 *
-	 * @param FromState 시작 상태
-	 * @param ToState 목표 상태
-	 * @return 블렌드 시간 (전환 규칙이 없으면 기본값 0.2f)
+	 * @brief 특정 트랜지션에 조건 추가
+	 * @param FromState 출발 노드 이름
+	 * @param ToState 도착 노드 이름
+	 * @param Condition 추가할 조건 데이터
 	 */
-	float FindTransitionBlendTime(EAnimState FromState, EAnimState ToState) const;
+	bool AddConditionToTransition(FName FromState, FName ToState, const FAnimCondition& Condition);
+
+	/**
+	 * @brief 트랜지션에서 특정 인덱스의 조건 삭제
+	 */
+	bool RemoveConditionFromTransition(FName FromState, FName ToState, int32 ConditionIndex);
+
+	/**
+	 * @brief 트랜지션에서 특정 인덱스의 조건 수정
+	 */
+	bool UpdateConditionInTransition(FName FromState, FName ToState, int32 ConditionIndex, const FAnimCondition& NewCondition);
+
+	TMap<FName, FAnimStateNode>& GetNodes() { return Nodes; }
+
+	/**
+	 * @brief 시작 상태 설정
+	 */
+	void SetEntryState(FName NodeName) { EntryStateName = NodeName; }
+
+// ===== 런타임 조회 API =====
+public:
+	/**
+	 * @brief 이름으로 노드 찾기
+	 */
+	const FAnimStateNode* FindNode(FName NodeName) const { return Nodes.Find(NodeName); }
+
+	/**
+	 * @brief 시작 상태 이름 반환
+	 */
+	FName GetEntryStateName() const { return EntryStateName; }
 
 protected:
-	// ===== 애셋 데이터 (공유 가능) =====
+	/** 모든 상태 노드 저장소 {이름, 노드} */
+	TMap<FName, FAnimStateNode> Nodes;
 
-	/** 상태 → 애니메이션 매핑 */
-	TArray<UAnimSequence*> StateAnimations;  // EAnimState를 인덱스로 사용
+	/** 시작 상태 이름 (Entry Point) */
+	FName EntryStateName;
 
-	/** 전환 규칙들 */
-	TArray<FAnimStateTransition> Transitions;
-
-	// ===== 헬퍼 메서드 =====
+// ===== Serialize API =====
+public:
+	/**
+	 * @brief 현재 State Machine 애셋을 JSON 파일로 저장합니다.
+	 * @param Path FString 경로 (예: "Content/MyPlayer.StateMachine")
+	 * @return 저장 성공 여부
+	 */
+	bool SaveToFile(const FWideString& Path);
 
 	/**
-	 * @brief 상태 이름 가져오기 (디버깅용)
+	 * @brief JSON 파일에서 State Machine 애셋 데이터를 불러옵니다.
+	 * @param InFilePath FString 경로
+	 * @return 로드 성공 여부
 	 */
-	static const char* GetStateName(EAnimState State);
+	void Load(const FString& InFilePath, ID3D11Device* InDevice);
+
+public:
+	// ImGui 노드 에디터의 위치 저장
+	TMap<FName, FVector2D> NodePositions;
 };

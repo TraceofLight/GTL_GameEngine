@@ -1,0 +1,18 @@
+{
+  "EntryState" : "Invalid",
+  "Nodes" : [{
+      "AnimAsset" : "",
+      "Loop" : true,
+      "Name" : "State_0"
+    }, {
+      "AnimAsset" : "",
+      "Loop" : true,
+      "Name" : "State_1"
+    }],
+  "Transitions" : [{
+      "BlendTime" : 0.200000,
+      "Conditions" : [],
+      "From" : "State_0",
+      "To" : "State_1"
+    }]
+}

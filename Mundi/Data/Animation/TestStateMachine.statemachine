@@ -1,0 +1,31 @@
+{
+  "EntryState" : "Idle",
+  "Nodes" : [{
+      "AnimAsset" : "Data/Animation/Rummaging.fbx#mixamo.com",
+      "Loop" : true,
+      "Name" : "Idle"
+    }, {
+      "AnimAsset" : "Data/Northern_Soul_Spin.FBX#Unreal Take",
+      "Loop" : true,
+      "Name" : "Walk"
+    }],
+  "Transitions" : [{
+      "BlendTime" : 0.100000,
+      "Conditions" : [{
+          "Op" : 2,
+          "Param" : "Speed",
+          "Val" : 5.000000
+        }],
+      "From" : "Idle",
+      "To" : "Walk"
+    }, {
+      "BlendTime" : 0.100000,
+      "Conditions" : [{
+          "Op" : 3,
+          "Param" : "Speed",
+          "Val" : 5.000000
+        }],
+      "From" : "Walk",
+      "To" : "Idle"
+    }]
+}
