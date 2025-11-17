@@ -39,6 +39,28 @@ void UAnimSequenceBase::SetDataModel(UAnimDataModel* InDataModel)
 }
 
 /**
+ * @brief 다른 AnimSequence로부터 DataModel 소유권 이전
+ * @param Other 소유권을 이전할 AnimSequenceBase 객체
+ */
+void UAnimSequenceBase::TransferDataModelFrom(UAnimSequenceBase* Other)
+{
+	if (!Other || Other == this)
+	{
+		return;
+	}
+
+	// 기존 DataModel 삭제
+	if (DataModel && DataModel != Other->DataModel)
+	{
+		ObjectFactory::DeleteObject(DataModel);
+	}
+
+	// 소유권 이전
+	DataModel = Other->DataModel;
+	Other->DataModel = nullptr;  // 소유권 포기 (삭제하지 않음)
+}
+
+/**
  * @brief Notify 배열을 시간 순으로 정렬
  */
 void UAnimSequenceBase::SortNotifies()

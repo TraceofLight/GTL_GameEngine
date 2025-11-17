@@ -11,12 +11,7 @@ UAnimSequence::UAnimSequence()
 
 UAnimSequence::~UAnimSequence()
 {
-	// DataModel 삭제 (FBX 임포트 시 생성한 DataModel)
-	if (DataModel)
-	{
-		ObjectFactory::DeleteObject(DataModel);
-		DataModel = nullptr;
-	}
+	// 부모 클래스의 소멸자가 DataModel을 정리하므로 여기서는 추가 작업 불필요
 }
 
 void UAnimSequence::Load(const FString& InFilePath, ID3D11Device* InDevice)
@@ -71,22 +66,9 @@ void UAnimSequence::Load(const FString& InFilePath, ID3D11Device* InDevice)
 		return;
 	}
 
-	// DataModel 가져오기
-	UAnimDataModel* FoundDataModel = FoundAnimSequence->GetDataModel();
-
-	// 찾은 AnimSequence의 DataModel을 현재 객체로 이동
-	if (DataModel)
-	{
-		ObjectFactory::DeleteObject(DataModel);
-		DataModel = nullptr;
-	}
-
-	DataModel = FoundDataModel;
+	// DataModel 소유권 이전 (안전한 소유권 이전 패턴 사용)
+	TransferDataModelFrom(FoundAnimSequence);
 	Name = FoundAnimSequence->GetName();
-
-	// FoundAnimSequence는 더 이상 DataModel을 소유하지 않도록 설정
-	// SetDataModel(nullptr)을 호출하면 DataModel이 삭제되므로 직접 nullptr 설정
-	FoundAnimSequence->DataModel = nullptr;
 
 	// 나머지 AnimSequence들 정리
 	for (UAnimSequence* AnimSeq : AllAnimSequences)

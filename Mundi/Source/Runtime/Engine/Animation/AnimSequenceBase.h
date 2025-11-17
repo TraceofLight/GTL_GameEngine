@@ -20,6 +20,7 @@ public:
 	// 데이터 모델 접근
 	virtual UAnimDataModel* GetDataModel() const { return DataModel; }
 	virtual void SetDataModel(UAnimDataModel* InDataModel);
+	virtual void TransferDataModelFrom(UAnimSequenceBase* Other);
 
 	// Notify 관리
 	void SortNotifies();

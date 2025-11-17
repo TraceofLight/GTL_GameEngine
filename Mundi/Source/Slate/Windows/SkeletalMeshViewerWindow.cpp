@@ -375,7 +375,10 @@ void SSkeletalMeshViewerWindow::OnRender()
                 {
                     USkeletalMesh* Mesh = AllSkeletalMeshes[i];
                     const FSkeleton* Skeleton = Mesh->GetSkeleton();
-                    if (Skeleton)
+                    const FSkeletalMeshData* MeshData = Mesh->GetSkeletalMeshData();
+
+                    // Without Skin FBX로 생성된 빈 메시는 제외 (정점/인덱스 배열이 비어있음)
+                    if (Skeleton && MeshData && MeshData->Vertices.Num() > 0)
                     {
                         bool bIsSelected = (ActiveState->SelectedSkeletonMesh == Mesh);
 
