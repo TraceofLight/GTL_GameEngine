@@ -24,11 +24,31 @@ void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
     }
 
     float MaxTime = DataModel->GetPlayLength();
+    int32 TotalFrames = DataModel->GetNumberOfFrames();
 
+    // Working Range 기본값 설정 (프레임 단위)
+    if (State->WorkingRangeEndFrame < 0)
+    {
+        State->WorkingRangeEndFrame = TotalFrames;
+    }
+    if (State->ViewRangeEndFrame < 0)
+    {
+        State->ViewRangeEndFrame = TotalFrames;
+    }
+
+    // === 1. Timeline 통합 영역 (Notify 패널 포함) ===
+    ImGui::BeginChild("TimelineArea", ImVec2(0, -40), true);
+    {
+        RenderTimeline(State);
+    }
+    ImGui::EndChild();
+
+    ImGui::Separator();
+
+    // === 2. 재생 컨트롤 버튼들 (항상 하단 고정) ===
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 2));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 4));
 
-    // === 타임라인 컨트롤 버튼들 ===
     float ButtonSize = 20.0f;
     ImVec2 ButtonSizeVec(ButtonSize, ButtonSize);
 
@@ -133,6 +153,12 @@ void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
             bPauseClicked = ImGui::Button("||", ButtonSizeVec);
         }
 
+        // Tooltip은 버튼 직후에 체크 (클릭 여부와 무관)
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Pause");
+        }
+
         if (bPauseClicked)
         {
             if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
@@ -145,31 +171,28 @@ void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
             }
             State->bIsPlaying = false;
         }
-
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Pause");
-        }
     }
     else
     {
+        bool bPlayClicked = false;
         if (IconPlay && IconPlay->GetShaderResourceView())
         {
-            if (ImGui::ImageButton("##Play", IconPlay->GetShaderResourceView(), ButtonSizeVec))
-            {
-                TimelinePlay(State);
-            }
+            bPlayClicked = ImGui::ImageButton("##Play", IconPlay->GetShaderResourceView(), ButtonSizeVec);
         }
         else
         {
-            if (ImGui::Button(">", ButtonSizeVec))
-            {
-                TimelinePlay(State);
-            }
+            bPlayClicked = ImGui::Button(">", ButtonSizeVec);
         }
+
+        // Tooltip은 버튼 직후에 체크
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("Play");
+        }
+
+        if (bPlayClicked)
+        {
+            TimelinePlay(State);
         }
     }
 
@@ -251,16 +274,223 @@ void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
 
     ImGui::SameLine();
 
-    // 재생 속도
+    // 재생 속도 (입력 가능 + 드래그)
     ImGui::Text("Speed:");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(80.0f);
-    ImGui::SliderFloat("##Speed", &State->PlaybackSpeed, 0.1f, 3.0f, "%.1fx");
+    ImGui::DragFloat("##Speed", &State->PlaybackSpeed, 0.05f, 0.1f, 5.0f, "%.2fx");
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Drag or click to edit playback speed");
+    }
+
+    ImGui::SameLine();
+    ImGui::Dummy(ImVec2(20, 0));  // 간격
+    ImGui::SameLine();
+
+    // === Range 컨트롤 (재생 컨트롤 옆에 배치, 프레임 단위) ===
+    int32 WorkingStartFrame = State->WorkingRangeStartFrame;
+    int32 WorkingEndFrame = (State->WorkingRangeEndFrame < 0) ? TotalFrames : State->WorkingRangeEndFrame;
+    int32 PlaybackStartFrame = State->PlaybackRangeStartFrame;
+    int32 PlaybackEndFrame = (State->PlaybackRangeEndFrame < 0) ? TotalFrames : State->PlaybackRangeEndFrame;
+    int32 ViewStartFrame = State->ViewRangeStartFrame;
+    int32 ViewEndFrame = (State->ViewRangeEndFrame < 0) ? TotalFrames : State->ViewRangeEndFrame;
+
+    int32 WorkingDurationFrames = WorkingEndFrame - WorkingStartFrame;
+    int32 ViewDurationFrames = ViewEndFrame - ViewStartFrame;
+
+    ImGui::SetNextItemWidth(45.0f);
+    if (ImGui::DragInt("##WS", &State->WorkingRangeStartFrame, 1.0f, -9999, 9999))
+    {
+        State->WorkingRangeStartFrame = FMath::Clamp(State->WorkingRangeStartFrame, -9999, WorkingEndFrame - 1);
+
+        if (State->ViewRangeStartFrame < State->WorkingRangeStartFrame)
+        {
+            State->ViewRangeStartFrame = State->WorkingRangeStartFrame;
+        }
+
+        int32 NewViewDuration = State->ViewRangeEndFrame - State->ViewRangeStartFrame;
+        int32 NewWorkingDuration = WorkingEndFrame - State->WorkingRangeStartFrame;
+
+        if (NewViewDuration > NewWorkingDuration)
+        {
+            State->ViewRangeEndFrame = State->WorkingRangeStartFrame + NewWorkingDuration;
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Working Range Start (Frame)");
+    }
+    ImGui::SameLine();
+    char PlaybackStartText[16];
+    snprintf(PlaybackStartText, sizeof(PlaybackStartText), "0");
+
+    ImDrawList* DrawList = ImGui::GetWindowDrawList();
+    ImVec2 PlaybackStartSize(45.0f, ImGui::GetFrameHeight());
+    ImVec2 PlaybackStartMin = ImGui::GetCursorScreenPos();
+    ImVec2 PlaybackStartMax = ImVec2(PlaybackStartMin.x + PlaybackStartSize.x, PlaybackStartMin.y + PlaybackStartSize.y);
+
+    ImGui::InvisibleButton("##PS", PlaybackStartSize);
+    bool bIsHovered = ImGui::IsItemHovered();
+
+    if (bIsHovered)
+    {
+        DrawList->AddRectFilled(PlaybackStartMin, PlaybackStartMax, IM_COL32(50, 75, 50, 128));
+    }
+    else
+    {
+        DrawList->AddRectFilled(PlaybackStartMin, PlaybackStartMax, ImGui::GetColorU32(ImGuiCol_FrameBg));
+    }
+
+    DrawList->AddRect(PlaybackStartMin, PlaybackStartMax, ImGui::GetColorU32(ImGuiCol_Border));
+
+    ImVec2 TextSize = ImGui::CalcTextSize(PlaybackStartText);
+    float CenterX = PlaybackStartMin.x + (PlaybackStartSize.x - TextSize.x) * 0.5f;
+    float CenterY = PlaybackStartMin.y + (PlaybackStartSize.y - TextSize.y) * 0.5f;
+    DrawList->AddText(ImVec2(CenterX, CenterY), IM_COL32(0, 255, 0, 255), PlaybackStartText);
+
+    if (bIsHovered)
+    {
+        ImGui::SetTooltip("Playback Range Start (Frame)");
+    }
+    ImGui::SameLine();
+
+    ImGui::SetNextItemWidth(45.0f);
+    if (ImGui::DragInt("##VS", &State->ViewRangeStartFrame, 1.0f, WorkingStartFrame, WorkingEndFrame))
+    {
+        int32 CurrentEnd = (State->ViewRangeEndFrame < 0) ? TotalFrames : State->ViewRangeEndFrame;
+        State->ViewRangeStartFrame = FMath::Clamp(State->ViewRangeStartFrame, WorkingStartFrame, CurrentEnd - 1);
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("View Range Start (Frame)");
+    }
+    ImGui::SameLine();
+
+    float AvailWidth = ImGui::GetContentRegionAvail().x;
+    float RightButtonsWidth = 45.0f * 3.0f + ImGui::GetStyle().ItemSpacing.x * 2.0f;
+    float ScrollBarWidth = AvailWidth - RightButtonsWidth - 10.0f;
+    ScrollBarWidth = std::max(ScrollBarWidth, 100.0f);
+
+    ImVec2 BarSize(ScrollBarWidth, 20.0f);
+    ImVec2 BarMin = ImGui::GetCursorScreenPos();
+    ImVec2 BarMax = ImVec2(BarMin.x + BarSize.x, BarMin.y + BarSize.y);
+
+    ImGui::InvisibleButton("##RangeScrollBar", BarSize);
+
+    static bool bDraggingViewRange = false;
+    static int32 DragStartViewStartFrame = 0;
+    static float DragStartMouseX = 0.0f;
+
+    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+    {
+        ImVec2 MousePos = ImGui::GetMousePos();
+
+        if (!bDraggingViewRange)
+        {
+            bDraggingViewRange = true;
+            DragStartViewStartFrame = ViewStartFrame;
+            DragStartMouseX = MousePos.x;
+        }
+
+        float MouseDeltaX = MousePos.x - DragStartMouseX;
+        int32 FrameDelta = static_cast<int32>((MouseDeltaX / BarSize.x) * WorkingDurationFrames);
+        int32 NewViewStartFrame = DragStartViewStartFrame + FrameDelta;
+
+        NewViewStartFrame = FMath::Clamp(NewViewStartFrame, WorkingStartFrame, WorkingEndFrame - ViewDurationFrames);
+
+        State->ViewRangeStartFrame = NewViewStartFrame;
+        State->ViewRangeEndFrame = NewViewStartFrame + ViewDurationFrames;
+    }
+    else
+    {
+        bDraggingViewRange = false;
+    }
+
+    DrawList->AddRectFilled(BarMin, BarMax, IM_COL32(40, 40, 40, 255));
+    DrawList->AddRect(BarMin, BarMax, IM_COL32(100, 100, 100, 255));
+
+    if (WorkingDurationFrames > 0 && ViewDurationFrames < WorkingDurationFrames)
+    {
+        float ViewStartNorm = static_cast<float>(ViewStartFrame - WorkingStartFrame) / WorkingDurationFrames;
+        float ViewEndNorm = static_cast<float>(ViewEndFrame - WorkingStartFrame) / WorkingDurationFrames;
+
+        ImVec2 HandleMin = ImVec2(BarMin.x + ViewStartNorm * BarSize.x, BarMin.y + 2);
+        ImVec2 HandleMax = ImVec2(BarMin.x + ViewEndNorm * BarSize.x, BarMax.y - 2);
+
+        DrawList->AddRectFilled(HandleMin, HandleMax, IM_COL32(100, 150, 200, 255));
+        DrawList->AddRect(HandleMin, HandleMax, IM_COL32(150, 200, 255, 255), 0.0f, 0, 2.0f);
+    }
+
+    ImGui::SameLine();
+
+    ImGui::SetNextItemWidth(45.0f);
+    int32 TempViewEndFrame = ViewEndFrame;
+    if (ImGui::DragInt("##VE", &TempViewEndFrame, 1.0f, WorkingStartFrame, WorkingEndFrame))
+    {
+        int32 CurrentStart = State->ViewRangeStartFrame;
+        State->ViewRangeEndFrame = FMath::Clamp(TempViewEndFrame, CurrentStart + 1, WorkingEndFrame);
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("View Range End (Frame)");
+    }
+    ImGui::SameLine();
+
+    char PlaybackEndText[16];
+    snprintf(PlaybackEndText, sizeof(PlaybackEndText), "%d", TotalFrames);
+
+    ImVec2 PlaybackEndSize(45.0f, ImGui::GetFrameHeight());
+    ImVec2 PlaybackEndMin = ImGui::GetCursorScreenPos();
+    ImVec2 PlaybackEndMax = ImVec2(PlaybackEndMin.x + PlaybackEndSize.x, PlaybackEndMin.y + PlaybackEndSize.y);
+
+    ImGui::InvisibleButton("##PE", PlaybackEndSize);
+    bool bIsHoveredEnd = ImGui::IsItemHovered();
+
+    if (bIsHoveredEnd)
+    {
+        DrawList->AddRectFilled(PlaybackEndMin, PlaybackEndMax, IM_COL32(75, 50, 50, 128));
+    }
+    else
+    {
+        DrawList->AddRectFilled(PlaybackEndMin, PlaybackEndMax, ImGui::GetColorU32(ImGuiCol_FrameBg));
+    }
+
+    DrawList->AddRect(PlaybackEndMin, PlaybackEndMax, ImGui::GetColorU32(ImGuiCol_Border));
+
+    ImVec2 TextSizeEnd = ImGui::CalcTextSize(PlaybackEndText);
+    float CenterXEnd = PlaybackEndMin.x + (PlaybackEndSize.x - TextSizeEnd.x) * 0.5f;
+    float CenterYEnd = PlaybackEndMin.y + (PlaybackEndSize.y - TextSizeEnd.y) * 0.5f;
+    DrawList->AddText(ImVec2(CenterXEnd, CenterYEnd), IM_COL32(255, 0, 0, 255), PlaybackEndText);
+
+    if (bIsHoveredEnd)
+    {
+        ImGui::SetTooltip("Playback Range End (Frame)");
+    }
+    ImGui::SameLine();
+
+    ImGui::SetNextItemWidth(45.0f);
+    int32 TempWorkingEndFrame = WorkingEndFrame;
+    if (ImGui::DragInt("##WE", &TempWorkingEndFrame, 1.0f, -9999, 9999))
+    {
+        State->WorkingRangeEndFrame = FMath::Clamp(TempWorkingEndFrame, WorkingStartFrame + 1, 9999);
+
+        State->ViewRangeEndFrame = std::min(State->ViewRangeEndFrame, State->WorkingRangeEndFrame);
+
+        int32 NewViewDuration = State->ViewRangeEndFrame - State->ViewRangeStartFrame;
+        int32 NewWorkingDuration = State->WorkingRangeEndFrame - WorkingStartFrame;
+
+        if (NewViewDuration > NewWorkingDuration)
+        {
+            State->ViewRangeStartFrame = State->WorkingRangeEndFrame - NewWorkingDuration;
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Working Range End (Frame)");
+    }
 
     ImGui::PopStyleVar(2);
-
-    // 커스텀 타임라인 렌더링 (시간 표시 + 슬라이더 기능 포함)
-    RenderTimeline(State);
 }
 
 // Timeline 헬퍼: 프레임 변경 시 공통 갱신 로직
@@ -337,9 +567,18 @@ void SSkeletalMeshViewerWindow::TimelineToPrevious(ViewerState* State)
         return;
     }
 
-    // 프레임당 시간 (30fps 기준)
-    float FrameTime = 1.0f / 30.0f;
-    State->CurrentAnimationTime = FMath::Max(0.0f, State->CurrentAnimationTime - FrameTime);
+    // 프레임 단위로 스냅하여 이동
+    const FFrameRate& FrameRate = DataModel->GetFrameRate();
+    float TimePerFrame = 1.0f / FrameRate.AsDecimal();
+
+    // 현재 시간을 프레임으로 변환 (반올림)
+    int32 CurrentFrame = static_cast<int32>(State->CurrentAnimationTime / TimePerFrame + 0.5f);
+
+    // 이전 프레임으로 이동
+    CurrentFrame = FMath::Max(0, CurrentFrame - 1);
+
+    // 프레임을 시간으로 변환
+    State->CurrentAnimationTime = static_cast<float>(CurrentFrame) * TimePerFrame;
 
     RefreshAnimationFrame(State);
 }
@@ -430,10 +669,19 @@ void SSkeletalMeshViewerWindow::TimelineToNext(ViewerState* State)
         return;
     }
 
-    // 프레임당 시간 (30fps 기준)
-    float FrameTime = 1.0f / 30.0f;
-    float MaxTime = DataModel->GetPlayLength();
-    State->CurrentAnimationTime = FMath::Min(MaxTime, State->CurrentAnimationTime + FrameTime);
+    // 프레임 단위로 스냅하여 이동
+    const FFrameRate& FrameRate = DataModel->GetFrameRate();
+    float TimePerFrame = 1.0f / FrameRate.AsDecimal();
+    int32 TotalFrames = DataModel->GetNumberOfFrames();
+
+    // 현재 시간을 프레임으로 변환 (반올림)
+    int32 CurrentFrame = static_cast<int32>(State->CurrentAnimationTime / TimePerFrame + 0.5f);
+
+    // 다음 프레임으로 이동
+    CurrentFrame = FMath::Min(TotalFrames, CurrentFrame + 1);
+
+    // 프레임을 시간으로 변환
+    State->CurrentAnimationTime = static_cast<float>(CurrentFrame) * TimePerFrame;
 
     RefreshAnimationFrame(State);
 }
@@ -474,6 +722,14 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
     }
 
     float MaxTime = DataModel->GetPlayLength();
+    int32 TotalFrames = DataModel->GetNumberOfFrames();
+
+    // Track이 하나도 없으면 기본 Track 생성
+    if (State->NotifyTrackNames.empty())
+    {
+        State->NotifyTrackNames.push_back("Track 1");
+        State->UsedTrackNumbers.insert(1);
+    }
 
     // 타임라인 영역 크기 설정 (남은 전체 높이 사용)
     ImVec2 ContentAvail = ImGui::GetContentRegionAvail();
@@ -485,58 +741,470 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
 
     ImDrawList* DrawList = ImGui::GetWindowDrawList();
 
-    // 타임라인 배경
-    DrawList->AddRectFilled(TimelineMin, TimelineMax, IM_COL32(40, 40, 40, 255));
+    // View Range 범위만 표시 (프레임을 시간으로 변환)
+    int32 ViewStartFrame = State->ViewRangeStartFrame;
+    int32 ViewEndFrame = (State->ViewRangeEndFrame < 0) ? TotalFrames : State->ViewRangeEndFrame;
 
-    // 가시 범위 계산 (현재 시간 중심으로 표시)
-    float VisibleDuration = MaxTime / State->TimelineZoom;
-    float HalfDuration = VisibleDuration * 0.5f;
+    float FrameRate = DataModel->GetFrameRate().AsDecimal();
+    float StartTime = (FrameRate > 0.0f) ? (ViewStartFrame / FrameRate) : 0.0f;
+    float EndTime = (FrameRate > 0.0f) ? (ViewEndFrame / FrameRate) : MaxTime;
 
-    // Playhead를 화면 중앙에 고정, 타임라인이 스크롤됨
-    float StartTime = State->CurrentAnimationTime - HalfDuration;
-    float EndTime = State->CurrentAnimationTime + HalfDuration;
+    // 눈금자 영역 (상단 30픽셀)
+    const float RulerHeight = 30.0f;
+    const float TrackHeight = 25.0f;
+    const float NotifyPanelWidth = 150.0f;
+    ImVec2 RulerMin = TimelineMin;
+    ImVec2 RulerMax = ImVec2(TimelineMax.x, TimelineMin.y + RulerHeight);
 
-    // 범위 제한 (애니메이션 시작/끝을 벗어나지 않도록)
-    if (StartTime < 0.0f)
+    // 왼쪽 Ruler 영역에 필터 검색 UI 배치
+    ImGui::SetCursorScreenPos(ImVec2(RulerMin.x + 5.0f, RulerMin.y + 5.0f));
+    ImGui::PushItemWidth(NotifyPanelWidth - 10.0f);
+    static char FilterBuffer[128] = "";
+    ImGui::InputTextWithHint("##NotifyFilter", "Filter...", FilterBuffer, sizeof(FilterBuffer));
+    ImGui::PopItemWidth();
+
+    // 눈금자 렌더링 (필터 UI 영역 제외)
+    ImVec2 RulerTimelineMin = ImVec2(RulerMin.x + NotifyPanelWidth, RulerMin.y);
+    DrawTimelineRuler(DrawList, RulerTimelineMin, RulerMax, StartTime, EndTime, State);
+
+    // === 스크롤 가능한 Track 영역 시작 ===
+    ImGui::SetCursorScreenPos(ImVec2(TimelineMin.x, RulerMax.y));
+    ImVec2 ScrollAreaSize = ImVec2(TimelineSize.x, TimelineMax.y - RulerMax.y);
+
+    // 내부 콘텐츠 높이는 실제 Track 수에 따라 결정
+    int32 NumTracks = FMath::Max(1, State->NotifyTrackNames.Num());
+    float ActualContentHeight = (NumTracks + 1) * TrackHeight;  // Notifies 헤더 + Track들
+    float ContentHeight = ActualContentHeight;  // 실제 콘텐츠 높이만 사용
+
+    // 스크롤바 활성화 (세로 스크롤만, 가로 스크롤 비활성화)
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));  // 패딩 제거
+    ImGui::BeginChild("##TrackScrollArea", ScrollAreaSize, false, ImGuiWindowFlags_NoScrollWithMouse);
+
+    // 스크롤 영역 내부의 좌표 시작점
+    ImVec2 ScrollCursor = ImGui::GetCursorScreenPos();
+    DrawList = ImGui::GetWindowDrawList();  // 스크롤 영역의 DrawList로 교체
+
+    // === 왼쪽: Notify Track 목록 패널 (ImGui UI + DrawList 혼합) ===
+    ImVec2 NotifyPanelMin = ScrollCursor;
+
+    // NumTracks는 이미 742번 줄에서 선언됨
+
+    // Notify 패널 높이는 스크롤 영역과 무관하게 실제 Track 수만큼만
+    float ActualPanelHeight = TrackHeight;  // Notifies 헤더는 항상 표시
+    if (State->bNotifiesExpanded)
     {
-        EndTime -= StartTime;
-        StartTime = 0.0f;
+        ActualPanelHeight += NumTracks * TrackHeight;  // Track 추가
     }
-    if (EndTime > MaxTime)
+    // ContentHeight가 아닌 실제 패널 높이만큼만 배경 렌더링
+    ImVec2 NotifyPanelMax = ImVec2(ScrollCursor.x + NotifyPanelWidth, ScrollCursor.y + ActualPanelHeight);
+
+    // Notify 패널 배경
+    DrawList->AddRectFilled(NotifyPanelMin, NotifyPanelMax, IM_COL32(35, 35, 35, 255));
+    DrawList->AddLine(ImVec2(NotifyPanelMax.x, NotifyPanelMin.y), ImVec2(NotifyPanelMax.x, NotifyPanelMax.y), IM_COL32(60, 60, 60, 255));
+    float CurrentY = ScrollCursor.y;
+
+    // 첫 번째 줄: Notifies 토글 (CollapsingHeader 스타일)
+    ImGui::SetCursorScreenPos(ImVec2(NotifyPanelMin.x + 5.0f, CurrentY + 2.0f));
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.25f, 0.35f, 0.50f, 0.8f));
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.30f, 0.40f, 0.55f, 0.8f));
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.35f, 0.45f, 0.60f, 0.8f));
+    ImGui::PushItemWidth(NotifyPanelWidth - 35.0f);
+
+    if (ImGui::CollapsingHeader("Notifies", ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_DefaultOpen))
     {
-        StartTime -= (EndTime - MaxTime);
-        EndTime = MaxTime;
-        if (StartTime < 0.0f)
+        State->bNotifiesExpanded = true;
+    }
+    else
+    {
+        State->bNotifiesExpanded = false;
+    }
+
+    // Notifies 헤더 우측에 + 버튼 (새 Track 추가)
+    ImGui::SameLine();
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.2f, 0.8f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 0.3f, 0.9f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.8f, 0.4f, 1.0f));
+    if (ImGui::SmallButton("+##AddTrack"))
+    {
+        // Track 번호 재사용 로직
+        int32 NewTrackNumber = 1;
+        if (!State->UsedTrackNumbers.empty())
         {
-            StartTime = 0.0f;
+            int32 Expected = 1;
+            for (int32 UsedNum : State->UsedTrackNumbers)
+            {
+                if (UsedNum != Expected)
+                {
+                    NewTrackNumber = Expected;
+                    break;
+                }
+                ++Expected;
+            }
+            if (NewTrackNumber == 1 && State->UsedTrackNumbers.count(1) > 0)
+            {
+                NewTrackNumber = static_cast<int32>(State->UsedTrackNumbers.size()) + 1;
+            }
+        }
+
+        char TrackNameBuf[64];
+        snprintf(TrackNameBuf, sizeof(TrackNameBuf), "Track %d", NewTrackNumber);
+        State->NotifyTrackNames.push_back(TrackNameBuf);
+        State->UsedTrackNumbers.insert(NewTrackNumber);
+    }
+    ImGui::PopStyleColor(3);
+
+    ImGui::PopItemWidth();
+    ImGui::PopStyleColor(3);
+
+    // 첫 줄은 Notifies 토글이 차지
+    CurrentY += TrackHeight;
+
+    // Notifies가 펼쳐져 있을 때만 Track 이름 렌더링
+    static int32 TrackToRemove = -1;
+    if (State->bNotifiesExpanded)
+    {
+        for (int32 TrackIndex = 0; TrackIndex < State->NotifyTrackNames.Num(); ++TrackIndex)
+        {
+            float TrackY = CurrentY + TrackHeight * 0.5f;
+            const char* TrackName = State->NotifyTrackNames[TrackIndex].c_str();
+            ImVec2 TextSize = ImGui::CalcTextSize(TrackName);
+
+            // Track 이름 렌더링 (InvisibleButton으로 클릭 영역 확보)
+            ImGui::SetCursorScreenPos(ImVec2(NotifyPanelMin.x + 10.0f, CurrentY));
+            ImGui::PushID(TrackIndex);
+            ImGui::InvisibleButton("##TrackLabel", ImVec2(NotifyPanelWidth - 40.0f, TrackHeight));
+
+            // 우클릭 컨텍스트 메뉴
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+            if (ImGui::BeginPopupContextItem())
+            {
+                if (ImGui::MenuItem("Insert Track Below"))
+                {
+                    // Track 번호 재사용 로직
+                    int32 NewTrackNumber = 1;
+                    if (!State->UsedTrackNumbers.empty())
+                    {
+                        int32 Expected = 1;
+                        for (int32 UsedNum : State->UsedTrackNumbers)
+                        {
+                            if (UsedNum != Expected)
+                            {
+                                NewTrackNumber = Expected;
+                                break;
+                            }
+                            ++Expected;
+                        }
+                        if (NewTrackNumber == 1 && State->UsedTrackNumbers.count(1) > 0)
+                        {
+                            NewTrackNumber = static_cast<int32>(State->UsedTrackNumbers.size()) + 1;
+                        }
+                    }
+
+                    char TrackNameBuf[64];
+                    snprintf(TrackNameBuf, sizeof(TrackNameBuf), "Track %d", NewTrackNumber);
+
+                    // Track 중간에 삽입 시 이후 Notify들의 TrackIndex 조정
+                    int32 InsertIndex = TrackIndex + 1;
+                    if (State->CurrentAnimation)
+                    {
+                        TArray<FAnimNotifyEvent>& Notifies = State->CurrentAnimation->Notifies;
+                        for (int32 i = 0; i < Notifies.Num(); ++i)
+                        {
+                            if (Notifies[i].TrackIndex >= InsertIndex)
+                            {
+                                Notifies[i].TrackIndex++;
+                            }
+                        }
+                    }
+
+                    State->NotifyTrackNames.insert(State->NotifyTrackNames.begin() + InsertIndex, TrackNameBuf);
+                    State->UsedTrackNumbers.insert(NewTrackNumber);
+                }
+                // 마지막 남은 Track은 삭제 불가
+                bool bCanRemove = State->NotifyTrackNames.Num() > 1;
+                if (ImGui::MenuItem("Remove Track", nullptr, false, bCanRemove))
+                {
+                    TrackToRemove = TrackIndex;
+                }
+                ImGui::EndPopup();
+            }
+            ImGui::PopStyleVar(2);  // WindowPadding + ItemSpacing
+            ImGui::PopID();
+
+            // Track 이름 텍스트 렌더링
+            DrawList->AddText(ImVec2(NotifyPanelMin.x + 10.0f, TrackY - TextSize.y * 0.5f), IM_COL32(220, 220, 220, 255), TrackName);
+
+            CurrentY += TrackHeight;
         }
     }
 
-    // 눈금자 영역 (상단 30픽셀)
-    ImVec2 RulerMin = TimelineMin;
-    ImVec2 RulerMax = ImVec2(TimelineMax.x, TimelineMin.y + 30.0f);
+    // Track 제거 처리 (루프 밖에서 수행)
+    if (TrackToRemove >= 0 && TrackToRemove < State->NotifyTrackNames.Num())
+    {
+        // Track 번호 추출 (형식: "Track 3")
+        const FString& TrackName = State->NotifyTrackNames[TrackToRemove];
+        int32 TrackNumber = 0;
+        if (sscanf_s(TrackName.c_str(), "Track %d", &TrackNumber) == 1)
+        {
+            State->UsedTrackNumbers.erase(TrackNumber);
+        }
 
-    // 타임라인 트랙 영역 (하단 30픽셀)
-    ImVec2 TrackMin = ImVec2(TimelineMin.x, RulerMax.y);
-    ImVec2 TrackMax = TimelineMax;
+        State->NotifyTrackNames.erase(State->NotifyTrackNames.begin() + TrackToRemove);
 
-    // 눈금자 렌더링
-    DrawTimelineRuler(DrawList, RulerMin, RulerMax, StartTime, EndTime, State);
+        // 해당 Track의 Notify들 제거
+        if (State->CurrentAnimation)
+        {
+            TArray<FAnimNotifyEvent>& Notifies = State->CurrentAnimation->Notifies;
+            for (int32 i = Notifies.Num() - 1; i >= 0; --i)
+            {
+                if (Notifies[i].TrackIndex == TrackToRemove)
+                {
+                    Notifies.erase(Notifies.begin() + i);
+                }
+                else if (Notifies[i].TrackIndex > TrackToRemove)
+                {
+                    // 이후 Track들의 인덱스 조정
+                    Notifies[i].TrackIndex--;
+                }
+            }
+        }
 
-    // 재생 범위 렌더링 (녹색 반투명 영역)
-    DrawPlaybackRange(DrawList, TimelineMin, TimelineMax, StartTime, EndTime, State);
+        TrackToRemove = -1;
+    }
 
-    // 키프레임 마커 렌더링
-    DrawKeyframeMarkers(DrawList, TrackMin, TrackMax, StartTime, EndTime, State);
+    // Timeline 영역 조정 (스크롤 영역 기준, Notify 패널 제외)
+    ImVec2 ScrollTimelineMin = ImVec2(ScrollCursor.x + NotifyPanelWidth, ScrollCursor.y);
+    ImVec2 ScrollTimelineMax = ImVec2(ScrollCursor.x + ScrollAreaSize.x, ScrollCursor.y + ScrollAreaSize.y);
+    float ScrollTimelineWidth = ScrollTimelineMax.x - ScrollTimelineMin.x;
 
-    // Playhead 렌더링 (빨간 세로 바)
-    DrawTimelinePlayhead(DrawList, TimelineMin, TimelineMax, State->CurrentAnimationTime, StartTime, EndTime);
+    // 세로 그리드 (프레임 단위): 항상 스크롤 영역 전체 높이까지
+    // ViewStartFrame, ViewEndFrame은 이미 713-714번 줄에서 선언됨
+    int32 NumFrames = ViewEndFrame - ViewStartFrame;
+
+    for (int32 FrameIndex = ViewStartFrame; FrameIndex <= ViewEndFrame; ++FrameIndex)
+    {
+        float NormalizedX = static_cast<float>(FrameIndex - ViewStartFrame) / static_cast<float>(NumFrames);
+        float ScreenX = ScrollTimelineMin.x + NormalizedX * ScrollTimelineWidth;
+
+        // 세로 줄 (스크롤 영역 전체 높이, Track 개수와 무관)
+        DrawList->AddLine(
+            ImVec2(ScreenX, ScrollCursor.y),
+            ImVec2(ScreenX, ScrollCursor.y + FMath::Max(ScrollAreaSize.y, ContentHeight)),
+            IM_COL32(70, 70, 70, 255),
+            1.0f
+        );
+    }
+
+    // 가로 그리드 (Track 단위): Track 개수 + 1줄만 (Notifies 헤더 포함)
+    int32 TotalLines = NumTracks + 2;  // Notifies 헤더 + Track들 + 1줄 여유
+    for (int32 LineIndex = 0; LineIndex < TotalLines; ++LineIndex)
+    {
+        float LineY = ScrollCursor.y + LineIndex * TrackHeight;
+        DrawList->AddLine(
+            ImVec2(ScrollTimelineMin.x, LineY),
+            ImVec2(ScrollTimelineMax.x, LineY),
+            IM_COL32(60, 60, 60, 80),
+            1.0f
+        );
+    }
+
+    // Notify 렌더링을 위해 CurrentY 재설정 (Notifies 헤더 다음부터 시작)
+    CurrentY = ScrollCursor.y + TrackHeight;
+
+    for (int32 TrackIndex = 0; TrackIndex < NumTracks; ++TrackIndex)
+    {
+        ImVec2 TrackMin = ImVec2(ScrollTimelineMin.x, CurrentY);
+        ImVec2 TrackMax = ImVec2(ScrollTimelineMax.x, CurrentY + TrackHeight);
+
+        // Track 배경 제거 (격자만 표시)
+
+        // Notifies가 펼쳐져 있고 Track이 존재하면 해당 Track의 Notify 렌더링
+        if (State->bNotifiesExpanded && TrackIndex < State->NotifyTrackNames.Num())
+        {
+            TArray<FAnimNotifyEvent>& Notifies = State->CurrentAnimation->Notifies;
+            for (int32 NotifyIndex = 0; NotifyIndex < Notifies.Num(); ++NotifyIndex)
+            {
+                FAnimNotifyEvent& Notify = Notifies[NotifyIndex];
+
+                // 이 Track에 속한 Notify만 표시
+                if (Notify.TrackIndex != TrackIndex)
+                {
+                    continue;
+                }
+
+                // 현재 보이는 시간 범위 내에 있는지 확인
+                if (Notify.TriggerTime >= StartTime && Notify.TriggerTime <= EndTime)
+                {
+                    float NormalizedTime = (Notify.TriggerTime - StartTime) / (EndTime - StartTime);
+                    float NotifyX = ScrollTimelineMin.x + NormalizedTime * ScrollTimelineWidth;
+
+                    FString NotifyNameString = Notify.NotifyName.ToString();
+                    const char* NotifyNameStr = NotifyNameString.c_str();
+                    ImVec2 TextSize = ImGui::CalcTextSize(NotifyNameStr);
+                    ImU32 NotifyColor = (State->SelectedNotifyIndex == NotifyIndex) ? IM_COL32(255, 200, 0, 255) : IM_COL32(100, 150, 255, 255);
+
+                    bool bIsNotifyState = (Notify.Duration > 0.0f);
+
+                    if (bIsNotifyState)
+                    {
+                        // NotifyState: 박스 형태 + 시작/끝 다이아몬드
+                        float EndTime_Notify = Notify.TriggerTime + Notify.Duration;
+                        float NormalizedEndTime = (EndTime_Notify - StartTime) / (EndTime - StartTime);
+                        float EndX = ScrollTimelineMin.x + NormalizedEndTime * ScrollTimelineWidth;
+
+                        // 박스 (Track 라인 상단에 표시)
+                        const float BoxHeight = 18.0f;
+                        float BoxY = CurrentY + (TrackHeight - BoxHeight) * 0.5f;
+                        ImVec2 BoxMin = ImVec2(NotifyX, BoxY);
+                        ImVec2 BoxMax = ImVec2(EndX, BoxY + BoxHeight);
+                        DrawList->AddRectFilled(BoxMin, BoxMax, IM_COL32(100, 150, 255, 150));
+                        DrawList->AddRect(BoxMin, BoxMax, NotifyColor, 0.0f, 0, 2.0f);
+
+                        // 텍스트 (박스 중앙)
+                        ImVec2 TextPos = ImVec2(NotifyX + (EndX - NotifyX - TextSize.x) * 0.5f, BoxY + (BoxHeight - TextSize.y) * 0.5f);
+                        DrawList->AddText(TextPos, IM_COL32(255, 255, 255, 255), NotifyNameStr);
+
+                        // 시작 다이아몬드
+                        const float DiamondSize = 5.0f;
+                        ImVec2 StartCenter = ImVec2(NotifyX, BoxY + BoxHeight * 0.5f);
+                        DrawList->AddQuadFilled(
+                            ImVec2(StartCenter.x, StartCenter.y - DiamondSize),
+                            ImVec2(StartCenter.x + DiamondSize, StartCenter.y),
+                            ImVec2(StartCenter.x, StartCenter.y + DiamondSize),
+                            ImVec2(StartCenter.x - DiamondSize, StartCenter.y),
+                            NotifyColor
+                        );
+
+                        // 끝 다이아몬드
+                        ImVec2 EndCenter = ImVec2(EndX, BoxY + BoxHeight * 0.5f);
+                        DrawList->AddQuadFilled(
+                            ImVec2(EndCenter.x, EndCenter.y - DiamondSize),
+                            ImVec2(EndCenter.x + DiamondSize, EndCenter.y),
+                            ImVec2(EndCenter.x, EndCenter.y + DiamondSize),
+                            ImVec2(EndCenter.x - DiamondSize, EndCenter.y),
+                            NotifyColor
+                        );
+
+                        // 드래그용 InvisibleButton (박스 전체 영역)
+                        ImGui::SetCursorScreenPos(BoxMin);
+                        ImGui::PushID(NotifyIndex * 1000 + TrackIndex);
+                        ImGui::InvisibleButton("##NotifyMarker", ImVec2(EndX - NotifyX, BoxHeight));
+                    }
+                    else
+                    {
+                        // Notify: 다이아몬드 + 박스 태그
+                        const float BoxHeight = 18.0f;
+                        const float BoxPadding = 4.0f;
+                        float BoxWidth = TextSize.x + BoxPadding * 2;
+                        float BoxY = CurrentY + (TrackHeight - BoxHeight) * 0.5f;
+
+                        // 박스 (Track 라인 상단에 표시)
+                        ImVec2 BoxMin = ImVec2(NotifyX + 8.0f, BoxY);
+                        ImVec2 BoxMax = ImVec2(NotifyX + 8.0f + BoxWidth, BoxY + BoxHeight);
+                        DrawList->AddRectFilled(BoxMin, BoxMax, IM_COL32(100, 150, 255, 200));
+                        DrawList->AddRect(BoxMin, BoxMax, NotifyColor, 0.0f, 0, 2.0f);
+
+                        // 텍스트 (박스 중앙)
+                        ImVec2 TextPos = ImVec2(BoxMin.x + BoxPadding, BoxY + (BoxHeight - TextSize.y) * 0.5f);
+                        DrawList->AddText(TextPos, IM_COL32(255, 255, 255, 255), NotifyNameStr);
+
+                        // 다이아몬드 (박스 왼쪽)
+                        const float DiamondSize = 5.0f;
+                        ImVec2 DiamondCenter = ImVec2(NotifyX, BoxY + BoxHeight * 0.5f);
+                        DrawList->AddQuadFilled(
+                            ImVec2(DiamondCenter.x, DiamondCenter.y - DiamondSize),
+                            ImVec2(DiamondCenter.x + DiamondSize, DiamondCenter.y),
+                            ImVec2(DiamondCenter.x, DiamondCenter.y + DiamondSize),
+                            ImVec2(DiamondCenter.x - DiamondSize, DiamondCenter.y),
+                            NotifyColor
+                        );
+
+                        // 드래그용 InvisibleButton (다이아몬드 + 박스)
+                        ImGui::SetCursorScreenPos(ImVec2(NotifyX - DiamondSize, BoxY));
+                        ImGui::PushID(NotifyIndex * 1000 + TrackIndex);
+                        ImGui::InvisibleButton("##NotifyMarker", ImVec2(BoxWidth + 8.0f + DiamondSize, BoxHeight));
+                    }
+
+                    // 드래그 처리
+                    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+                    {
+                        ImVec2 MousePos = ImGui::GetMousePos();
+                        float MouseNormalizedX = (MousePos.x - ScrollTimelineMin.x) / ScrollTimelineWidth;
+                        float MouseTime = FMath::Lerp(StartTime, EndTime, FMath::Clamp(MouseNormalizedX, 0.0f, 1.0f));
+
+                        // Playback Range로 제한
+                        UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
+                        if (DataModel)
+                        {
+                            const FFrameRate& FrameRate = DataModel->GetFrameRate();
+                            float TimePerFrame = 1.0f / FrameRate.AsDecimal();
+
+                            // Playback Range 시간 범위 계산
+                            int32 PlaybackStartFrame = State->PlaybackRangeStartFrame;
+                            int32 PlaybackEndFrame = (State->PlaybackRangeEndFrame < 0) ? DataModel->GetNumberOfFrames() : State->PlaybackRangeEndFrame;
+                            float PlaybackStartTime = static_cast<float>(PlaybackStartFrame) * TimePerFrame;
+                            float PlaybackEndTime = static_cast<float>(PlaybackEndFrame) * TimePerFrame;
+
+                            // 마우스 시간을 Playback Range 내로 클램프
+                            MouseTime = FMath::Clamp(MouseTime, PlaybackStartTime, PlaybackEndTime);
+                        }
+
+                        Notify.TriggerTime = MouseTime;
+                        State->SelectedNotifyIndex = NotifyIndex;
+                    }
+
+                    // 클릭 시 선택
+                    if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+                    {
+                        State->SelectedNotifyIndex = NotifyIndex;
+                    }
+
+                    ImGui::PopID();
+
+                    // Duration이 있으면 연장선 표시
+                    if (Notify.Duration > 0.0f)
+                    {
+                        float EndTimeNotify = Notify.TriggerTime + Notify.Duration;
+                        if (EndTimeNotify <= EndTime)
+                        {
+                            float NormalizedEndTime = (EndTimeNotify - StartTime) / (EndTime - StartTime);
+                            float EndX = ScrollTimelineMin.x + NormalizedEndTime * ScrollTimelineWidth;
+
+                            ImVec2 DurationMin = ImVec2(NotifyX, CurrentY + 2);
+                            ImVec2 DurationMax = ImVec2(EndX, CurrentY + TrackHeight - 2);
+                            DrawList->AddRectFilled(DurationMin, DurationMax, IM_COL32(100, 150, 255, 100));
+                            DrawList->AddRect(DurationMin, DurationMax, IM_COL32(100, 150, 255, 200));
+                        }
+                    }
+                }
+            }
+        }
+
+        CurrentY += TrackHeight;
+    }
+
+    // 재생 범위 렌더링 (녹색 반투명 영역, Ruler 위치 기준)
+    ImVec2 PlaybackRangeMin = ImVec2(RulerMin.x + NotifyPanelWidth, RulerMin.y);
+    ImVec2 PlaybackRangeMax = ImVec2(RulerMax.x, RulerMax.y);
+    DrawPlaybackRange(DrawList, PlaybackRangeMin, PlaybackRangeMax, StartTime, EndTime, State);
+
+    // Playhead 렌더링 (빨간 세로 바) - 세로 그리드와 동일하게 스크롤 영역 전체 높이
+    ImVec2 PlayheadMin = ScrollTimelineMin;
+    ImVec2 PlayheadMax = ImVec2(ScrollTimelineMax.x, ScrollCursor.y + FMath::Max(ScrollAreaSize.y, ContentHeight));
+    DrawTimelinePlayhead(DrawList, PlayheadMin, PlayheadMax, State->CurrentAnimationTime, StartTime, EndTime);
 
     // 마우스 입력 처리 (InvisibleButton으로 영역 확보)
-    // SetCursorScreenPos 대신 상대 좌표 사용하여 ImGui assertion 회피
-    ImGui::InvisibleButton("##Timeline", TimelineSize);
+    ImGui::SetCursorScreenPos(ScrollTimelineMin);
+    ImGui::InvisibleButton("##Timeline", ImVec2(ScrollTimelineWidth, ScrollAreaSize.y));
 
-    // 재생 범위 핸들 드래그 감지 (Shift + 드래그)
+    // Timeline 빈 공간 클릭 시 Notify 선택 해제
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+    {
+        State->SelectedNotifyIndex = -1;
+    }
+
+    // 재생 범위 핸들 드래그 감지 (Shift + 드래그, 프레임 단위)
     static bool bDraggingRangeStart = false;
     static bool bDraggingRangeEnd = false;
     bool bShiftHeld = ImGui::GetIO().KeyShift;
@@ -544,21 +1212,22 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
     if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
     {
         ImVec2 MousePos = ImGui::GetMousePos();
-        float NormalizedX = (MousePos.x - TimelineMin.x) / TimelineSize.x;
+        float NormalizedX = (MousePos.x - ScrollTimelineMin.x) / ScrollTimelineWidth;
         float MouseTime = FMath::Lerp(StartTime, EndTime, NormalizedX);
+        int32 MouseFrame = (FrameRate > 0.0f) ? static_cast<int32>(MouseTime * FrameRate) : 0;
 
         if (bShiftHeld && !bDraggingRangeStart && !bDraggingRangeEnd)
         {
             // Shift 누른 상태에서 드래그 시작: 가까운 핸들 선택
-            float RangeEnd = (State->PlaybackRangeEnd < 0.0f) ? MaxTime : State->PlaybackRangeEnd;
-            float DistToStart = FMath::Abs(MouseTime - State->PlaybackRangeStart);
-            float DistToEnd = FMath::Abs(MouseTime - RangeEnd);
+            int32 RangeEndFrame = (State->PlaybackRangeEndFrame < 0) ? TotalFrames : State->PlaybackRangeEndFrame;
+            int32 DistToStart = FMath::Abs(MouseFrame - State->PlaybackRangeStartFrame);
+            int32 DistToEnd = FMath::Abs(MouseFrame - RangeEndFrame);
 
-            if (DistToStart < DistToEnd && DistToStart < 0.5f)
+            if (DistToStart < DistToEnd && DistToStart < 5)
             {
                 bDraggingRangeStart = true;
             }
-            else if (DistToEnd < 0.5f)
+            else if (DistToEnd < 5)
             {
                 bDraggingRangeEnd = true;
             }
@@ -566,14 +1235,14 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
 
         if (bDraggingRangeStart)
         {
-            // 범위 시작 드래그
-            float RangeEnd = (State->PlaybackRangeEnd < 0.0f) ? MaxTime : State->PlaybackRangeEnd;
-            State->PlaybackRangeStart = FMath::Clamp(MouseTime, 0.0f, RangeEnd - 0.01f);
+            // 범위 시작 드래그 (프레임 단위)
+            int32 RangeEndFrame = (State->PlaybackRangeEndFrame < 0) ? TotalFrames : State->PlaybackRangeEndFrame;
+            State->PlaybackRangeStartFrame = FMath::Clamp(MouseFrame, 0, RangeEndFrame - 1);
         }
         else if (bDraggingRangeEnd)
         {
-            // 범위 끝 드래그
-            State->PlaybackRangeEnd = FMath::Clamp(MouseTime, State->PlaybackRangeStart + 0.01f, MaxTime);
+            // 범위 끝 드래그 (프레임 단위)
+            State->PlaybackRangeEndFrame = FMath::Clamp(MouseFrame, State->PlaybackRangeStartFrame + 1, TotalFrames);
         }
         else if (!bShiftHeld)
         {
@@ -589,25 +1258,121 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
         bDraggingRangeEnd = false;
     }
 
+    // 우클릭 컨텍스트 메뉴 (Notify 추가)
+    static float RightClickTime = 0.0f;
+    static int32 RightClickTrackIndex = 0;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+    if (ImGui::BeginPopupContextItem("##TimelineContextMenu"))
+    {
+        if (ImGui::MenuItem("Add Notify..."))
+        {
+            // Notify 이름 입력 다이얼로그 표시 (TODO: 모달 다이얼로그 구현)
+            // 임시로 기본 이름 사용
+            char NotifyNameBuf[64];
+            static int32 NotifyCounter = 1;
+            snprintf(NotifyNameBuf, sizeof(NotifyNameBuf), "NewNotify_%d", NotifyCounter++);
+
+            FAnimNotifyEvent NewNotify(RightClickTime, FName(NotifyNameBuf), 0.0f, RightClickTrackIndex);
+            State->CurrentAnimation->Notifies.push_back(NewNotify);
+            State->CurrentAnimation->SortNotifies();
+        }
+
+        if (ImGui::MenuItem("Add Notify State..."))
+        {
+            // State Notify 추가 (Duration > 0)
+            char NotifyNameBuf[64];
+            static int32 StateCounter = 1;
+            snprintf(NotifyNameBuf, sizeof(NotifyNameBuf), "NewNotifyState_%d", StateCounter++);
+
+            FAnimNotifyEvent NewNotify(RightClickTime, FName(NotifyNameBuf), 0.5f, RightClickTrackIndex);
+            State->CurrentAnimation->Notifies.push_back(NewNotify);
+            State->CurrentAnimation->SortNotifies();
+        }
+
+        ImGui::EndPopup();
+    }
+    ImGui::PopStyleVar(2);  // WindowPadding + ItemSpacing
+
     if (ImGui::IsItemHovered())
     {
-        // 마우스 휠로 줌
-        float Wheel = ImGui::GetIO().MouseWheel;
-        if (Wheel != 0.0f)
+        // 우클릭 위치 저장
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
         {
-            State->TimelineZoom = FMath::Clamp(State->TimelineZoom + Wheel * 0.1f, 0.5f, 10.0f);
+            ImVec2 MousePos = ImGui::GetMousePos();
+
+            // 클릭한 시간 계산 (스크롤 영역 기준)
+            float NormalizedX = (MousePos.x - ScrollTimelineMin.x) / ScrollTimelineWidth;
+            float MouseTime = FMath::Lerp(StartTime, EndTime, FMath::Clamp(NormalizedX, 0.0f, 1.0f));
+
+            // Playback Range로 제한 (프레임 단위)
+            UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
+            if (DataModel)
+            {
+                const FFrameRate& FrameRate = DataModel->GetFrameRate();
+                float TimePerFrame = 1.0f / FrameRate.AsDecimal();
+
+                // Playback Range 시간 범위 계산
+                int32 PlaybackStartFrame = State->PlaybackRangeStartFrame;
+                int32 PlaybackEndFrame = (State->PlaybackRangeEndFrame < 0) ? DataModel->GetNumberOfFrames() : State->PlaybackRangeEndFrame;
+                float PlaybackStartTime = static_cast<float>(PlaybackStartFrame) * TimePerFrame;
+                float PlaybackEndTime = static_cast<float>(PlaybackEndFrame) * TimePerFrame;
+
+                // 마우스 시간을 Playback Range 내로 클램프
+                RightClickTime = FMath::Clamp(MouseTime, PlaybackStartTime, PlaybackEndTime);
+            }
+            else
+            {
+                RightClickTime = MouseTime;
+            }
+
+            // 클릭한 Track 계산 (스크롤 영역 기준, 첫 줄은 Notifies 헤더이므로 -1)
+            float RelativeY = MousePos.y - ScrollCursor.y;
+            int32 RowIndex = static_cast<int32>(RelativeY / TrackHeight);
+            RightClickTrackIndex = RowIndex - 1;  // 첫 줄(0)은 Notifies 헤더
+
+            // Notifies 헤더 줄(RightClickTrackIndex < 0)이 아닌 경우만 처리
+            if (RightClickTrackIndex >= 0)
+            {
+                // Track 범위를 벗어난 경우 가장 가까운 Track으로 클램프
+                if (RightClickTrackIndex >= State->NotifyTrackNames.Num())
+                {
+                    // Track 범위 아래 → 마지막 Track
+                    RightClickTrackIndex = State->NotifyTrackNames.Num() - 1;
+                }
+
+                // 유효한 Track이 있으면 메뉴 표시
+                if (State->NotifyTrackNames.Num() > 0)
+                {
+                    ImGui::OpenPopup("##TimelineContextMenu");
+                }
+            }
         }
 
         // Shift + 우클릭: 재생 범위 초기화
         if (bShiftHeld && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
         {
-            State->PlaybackRangeStart = 0.0f;
-            State->PlaybackRangeEnd = -1.0f; // 전체 범위
+            State->PlaybackRangeStartFrame = 0;
+            State->PlaybackRangeEndFrame = -1; // 전체 범위
         }
     }
 
-    // InvisibleButton이 이미 TimelineHeight만큼 영역을 차지했으므로 추가 간격만 더함
-    ImGui::Dummy(ImVec2(0.0f, 5.0f));
+    // 스크롤 영역 내부 콘텐츠 크기 설정
+    // Track이 적으면 스크롤 불필요, 많으면 정확히 ContentHeight만큼만
+    if (ContentHeight > ScrollAreaSize.y)
+    {
+        // 현재 커서 위치를 기준으로 남은 높이만 Dummy로 채움
+        float CurrentHeight = ImGui::GetCursorPosY();
+        float RemainingHeight = ContentHeight - CurrentHeight;
+        if (RemainingHeight > 0.0f)
+        {
+            ImGui::Dummy(ImVec2(0.0f, RemainingHeight));
+        }
+    }
+
+    ImGui::EndChild();  // TrackScrollArea 종료
+    ImGui::PopStyleVar();  // WindowPadding 복원
 }
 
 void SSkeletalMeshViewerWindow::DrawTimelineRuler(ImDrawList* DrawList, const ImVec2& RulerMin, const ImVec2& RulerMax, float StartTime, float EndTime, ViewerState* State)
@@ -615,64 +1380,87 @@ void SSkeletalMeshViewerWindow::DrawTimelineRuler(ImDrawList* DrawList, const Im
     // 눈금자 배경
     DrawList->AddRectFilled(RulerMin, RulerMax, IM_COL32(50, 50, 50, 255));
 
-    float RulerWidth = RulerMax.x - RulerMin.x;
-    float Duration = EndTime - StartTime;
+    // Ruler 하단 테두리 (첫 가로줄)
+    DrawList->AddLine(
+        ImVec2(RulerMin.x, RulerMax.y),
+        ImVec2(RulerMax.x, RulerMax.y),
+        IM_COL32(60, 60, 60, 255),
+        1.0f
+    );
 
-    if (Duration <= 0.0f)
+    if (!State->CurrentAnimation || !State->CurrentAnimation->GetDataModel())
     {
         return;
     }
 
-    // 눈금 간격 결정 (픽셀 기준 100px 간격)
-    float PixelsPerSecond = RulerWidth / Duration;
-    float DesiredTickSpacing = 100.0f; // 픽셀
-    float TimePerTick = DesiredTickSpacing / PixelsPerSecond;
-
-    // 적절한 눈금 간격으로 반올림 (0.1s, 0.5s, 1s, 5s, 10s 등)
-    float TickIntervals[] = {0.1f, 0.5f, 1.0f, 5.0f, 10.0f, 30.0f, 60.0f};
-    float TickInterval = 1.0f;
-    for (float Interval : TickIntervals)
+    UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
+    float FrameRate = DataModel->GetFrameRate().AsDecimal();
+    if (FrameRate <= 0.0f)
     {
-        if (TimePerTick <= Interval)
-        {
-            TickInterval = Interval;
-            break;
-        }
+        return;
     }
 
-    // 눈금 그리기
-    float FirstTick = std::ceil(StartTime / TickInterval) * TickInterval;
-    for (float Time = FirstTick; Time <= EndTime; Time += TickInterval)
+    // View Range 프레임 범위
+    int32 ViewStartFrame = State->ViewRangeStartFrame;
+    int32 ViewEndFrame = (State->ViewRangeEndFrame < 0) ? DataModel->GetNumberOfFrames() : State->ViewRangeEndFrame;
+
+    if (ViewEndFrame <= ViewStartFrame)
     {
-        float NormalizedX = (Time - StartTime) / Duration;
+        return;
+    }
+
+    float RulerWidth = RulerMax.x - RulerMin.x;
+    int32 NumFrames = ViewEndFrame - ViewStartFrame;
+
+    // 프레임마다 세로 줄 그리기 (타임라인 전체 높이)
+    // 타임라인 하단 좌표는 DrawTimelineRuler 함수에서 알 수 없으므로 충분한 높이로 설정
+    float TimelineBottom = RulerMax.y + 500.0f; // 충분히 긴 세로줄
+
+    for (int32 FrameIndex = ViewStartFrame; FrameIndex <= ViewEndFrame; ++FrameIndex)
+    {
+        float NormalizedX = static_cast<float>(FrameIndex - ViewStartFrame) / static_cast<float>(NumFrames);
         float ScreenX = RulerMin.x + NormalizedX * RulerWidth;
 
-        // 눈금선
+        // 세로 줄 (Ruler 하단부터 타임라인 맨 아래까지)
         DrawList->AddLine(
-            ImVec2(ScreenX, RulerMax.y - 10.0f),
             ImVec2(ScreenX, RulerMax.y),
-            IM_COL32(180, 180, 180, 255),
+            ImVec2(ScreenX, TimelineBottom),
+            IM_COL32(70, 70, 70, 255),
             1.0f
         );
 
-        // 시간 텍스트
-        char TimeLabel[32];
-        if (State->bShowFrameNumbers)
+        // 프레임 번호 표시 (일정 간격마다)
+        float PixelsPerFrame = RulerWidth / NumFrames;
+        int32 LabelInterval = 1;
+
+        // 간격 조정 (픽셀당 프레임 수에 따라)
+        if (PixelsPerFrame < 10.0f)
         {
-            int32 Frame = static_cast<int32>(Time * 30.0f); // 30fps 가정
-            snprintf(TimeLabel, sizeof(TimeLabel), "%d", Frame);
+            LabelInterval = 10;
         }
-        else
+        else if (PixelsPerFrame < 20.0f)
         {
-            snprintf(TimeLabel, sizeof(TimeLabel), "%.2fs", Time);
+            LabelInterval = 5;
+        }
+        else if (PixelsPerFrame < 40.0f)
+        {
+            LabelInterval = 2;
         }
 
-        ImVec2 TextSize = ImGui::CalcTextSize(TimeLabel);
-        DrawList->AddText(
-            ImVec2(ScreenX - TextSize.x * 0.5f, RulerMin.y + 5.0f),
-            IM_COL32(220, 220, 220, 255),
-            TimeLabel
-        );
+        // 라벨 표시 (Ruler 중앙)
+        if (FrameIndex % LabelInterval == 0)
+        {
+            char FrameLabel[32];
+            snprintf(FrameLabel, sizeof(FrameLabel), "%d", FrameIndex);
+
+            ImVec2 TextSize = ImGui::CalcTextSize(FrameLabel);
+            float RulerCenterY = (RulerMin.y + RulerMax.y) * 0.5f - TextSize.y * 0.5f;
+            DrawList->AddText(
+                ImVec2(ScreenX - TextSize.x * 0.5f, RulerCenterY),
+                IM_COL32(220, 220, 220, 255),
+                FrameLabel
+            );
+        }
     }
 }
 
@@ -724,15 +1512,21 @@ void SSkeletalMeshViewerWindow::DrawPlaybackRange(ImDrawList* DrawList, const Im
     }
 
     float MaxTime = DataModel->GetPlayLength();
+    int32 TotalFrames = DataModel->GetNumberOfFrames();
+    float FrameRate = DataModel->GetFrameRate().AsDecimal();
+
     float Duration = EndTime - StartTime;
     if (Duration <= 0.0f)
     {
         return;
     }
 
-    // 재생 범위가 설정되지 않았으면 전체 범위 사용
-    float RangeStart = State->PlaybackRangeStart;
-    float RangeEnd = (State->PlaybackRangeEnd < 0.0f) ? MaxTime : State->PlaybackRangeEnd;
+    // Playback Range는 항상 전체 범위 (0 ~ TotalFrames)
+    int32 RangeStartFrame = 0;
+    int32 RangeEndFrame = TotalFrames;
+
+    float RangeStart = 0.0f;
+    float RangeEnd = (FrameRate > 0.0f) ? (RangeEndFrame / FrameRate) : MaxTime;
 
     // 화면에 보이는 부분만 클리핑
     if (RangeEnd < StartTime || RangeStart > EndTime)
@@ -754,54 +1548,235 @@ void SSkeletalMeshViewerWindow::DrawPlaybackRange(ImDrawList* DrawList, const Im
     float ScreenStartX = TimelineMin.x + NormalizedStart * TimelineWidth;
     float ScreenEndX = TimelineMin.x + NormalizedEnd * TimelineWidth;
 
-    // 녹색 반투명 영역
+    // 녹색 반투명 영역 (상단 10픽셀만)
+    const float RangeBarHeight = 10.0f;
     DrawList->AddRectFilled(
         ImVec2(ScreenStartX, TimelineMin.y),
-        ImVec2(ScreenEndX, TimelineMax.y),
-        IM_COL32(50, 200, 50, 80)
+        ImVec2(ScreenEndX, TimelineMin.y + RangeBarHeight),
+        IM_COL32(50, 200, 50, 120)
     );
 
-    // 녹색 경계선 (In/Out 마커)
+    // 녹색 경계선 (In/Out 마커) - 작게
     DrawList->AddLine(
         ImVec2(ScreenStartX, TimelineMin.y),
-        ImVec2(ScreenStartX, TimelineMax.y),
+        ImVec2(ScreenStartX, TimelineMin.y + RangeBarHeight),
         IM_COL32(50, 255, 50, 255),
         2.0f
     );
 
     DrawList->AddLine(
         ImVec2(ScreenEndX, TimelineMin.y),
-        ImVec2(ScreenEndX, TimelineMax.y),
+        ImVec2(ScreenEndX, TimelineMin.y + RangeBarHeight),
         IM_COL32(50, 255, 50, 255),
         2.0f
     );
 
-    // In/Out 핸들 (상단 삼각형)
-    float HandleSize = 5.0f;
+    // In/Out 핸들 (상단 삼각형) - 작게
+    float HandleSize = 4.0f;
 
     // In 핸들 (왼쪽)
     DrawList->AddTriangleFilled(
         ImVec2(ScreenStartX, TimelineMin.y),
-        ImVec2(ScreenStartX - HandleSize, TimelineMin.y + HandleSize * 1.5f),
-        ImVec2(ScreenStartX + HandleSize, TimelineMin.y + HandleSize * 1.5f),
+        ImVec2(ScreenStartX - HandleSize, TimelineMin.y + HandleSize * 1.2f),
+        ImVec2(ScreenStartX + HandleSize, TimelineMin.y + HandleSize * 1.2f),
         IM_COL32(50, 255, 50, 255)
     );
 
     // Out 핸들 (오른쪽)
     DrawList->AddTriangleFilled(
         ImVec2(ScreenEndX, TimelineMin.y),
-        ImVec2(ScreenEndX - HandleSize, TimelineMin.y + HandleSize * 1.5f),
-        ImVec2(ScreenEndX + HandleSize, TimelineMin.y + HandleSize * 1.5f),
+        ImVec2(ScreenEndX - HandleSize, TimelineMin.y + HandleSize * 1.2f),
+        ImVec2(ScreenEndX + HandleSize, TimelineMin.y + HandleSize * 1.2f),
         IM_COL32(50, 255, 50, 255)
     );
 }
 
+void SSkeletalMeshViewerWindow::DrawNotifyTracksPanel(ViewerState* State, float StartTime, float EndTime)
+{
+    if (!State || !State->CurrentAnimation)
+    {
+        ImGui::TextDisabled("No animation selected");
+        return;
+    }
+
+    UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
+    if (!DataModel)
+    {
+        ImGui::TextDisabled("No animation data");
+        return;
+    }
+
+    const float AnimLength = DataModel->GetPlayLength();
+    const float Duration = EndTime - StartTime;
+
+    if (Duration <= 0.0f)
+    {
+        return;
+    }
+
+    // Notify 이벤트 가져오기
+    UAnimSequenceBase* AnimBase = State->CurrentAnimation;
+    TArray<const FAnimNotifyEvent*> Notifies;
+    AnimBase->GetAnimNotifiesFromDeltaPositions(0.0f, AnimLength, Notifies);
+
+    // Track이 없으면 안내 메시지
+    if (State->NotifyTrackNames.Num() == 0)
+    {
+        ImGui::TextDisabled("No tracks. Click '+ Add Track' to create one.");
+        return;
+    }
+
+    ImDrawList* DrawList = ImGui::GetWindowDrawList();
+    ImVec2 PanelMin = ImGui::GetWindowPos();
+    ImVec2 PanelSize = ImGui::GetWindowSize();
+    const float PanelWidth = PanelSize.x;
+    const float TrackHeight = 45.0f;
+    const float RulerHeight = 25.0f;
+
+    // 타임라인 눈금자 그리기 (상단)
+    ImVec2 RulerMin = PanelMin;
+    ImVec2 RulerMax = ImVec2(PanelMin.x + PanelWidth, PanelMin.y + RulerHeight);
+    DrawList->AddRectFilled(RulerMin, RulerMax, IM_COL32(40, 40, 45, 255));
+
+    // 눈금 그리기
+    const int32 NumTicks = 10;
+    for (int32 i = 0; i <= NumTicks; ++i)
+    {
+        float T = static_cast<float>(i) / static_cast<float>(NumTicks);
+        float Time = FMath::Lerp(StartTime, EndTime, T);
+        float X = RulerMin.x + T * PanelWidth;
+
+        DrawList->AddLine(ImVec2(X, RulerMax.y - 5), ImVec2(X, RulerMax.y), IM_COL32(180, 180, 180, 255), 1.0f);
+
+        char Label[32];
+        snprintf(Label, sizeof(Label), "%.1fs", Time);
+        ImVec2 TextSize = ImGui::CalcTextSize(Label);
+        DrawList->AddText(ImVec2(X - TextSize.x * 0.5f, RulerMin.y + 3), IM_COL32(200, 200, 200, 255), Label);
+    }
+
+    // Playhead (현재 시간 표시)
+    float CurrentTime = State->CurrentAnimationTime;
+    if (CurrentTime >= StartTime && CurrentTime <= EndTime)
+    {
+        float NormalizedX = (CurrentTime - StartTime) / Duration;
+        float PlayheadX = RulerMin.x + NormalizedX * PanelWidth;
+        DrawList->AddLine(ImVec2(PlayheadX, RulerMin.y), ImVec2(PlayheadX, PanelMin.y + PanelSize.y), IM_COL32(255, 100, 100, 255), 2.0f);
+    }
+
+    // 각 Track 렌더링
+    float CurrentY = RulerMax.y;
+    for (int32 TrackIndex = 0; TrackIndex < State->NotifyTrackNames.Num(); ++TrackIndex)
+    {
+        ImVec2 TrackMin = ImVec2(PanelMin.x, CurrentY);
+        ImVec2 TrackMax = ImVec2(PanelMin.x + PanelWidth, CurrentY + TrackHeight);
+
+        // Track 배경
+        bool bIsSelected = (State->SelectedNotifyTrackIndex == TrackIndex);
+        ImU32 TrackBgColor = bIsSelected ? IM_COL32(60, 60, 70, 255) : IM_COL32(45, 45, 50, 255);
+        DrawList->AddRectFilled(TrackMin, TrackMax, TrackBgColor);
+        DrawList->AddRect(TrackMin, TrackMax, IM_COL32(80, 80, 90, 255), 0.0f, 0, 1.0f);
+
+        // Track 이름
+        const char* TrackName = State->NotifyTrackNames[TrackIndex].c_str();
+        DrawList->AddText(ImVec2(TrackMin.x + 5, TrackMin.y + 3), IM_COL32(180, 180, 180, 255), TrackName);
+
+        // Track 메뉴 버튼 (오른쪽)
+        ImGui::SetCursorScreenPos(ImVec2(TrackMax.x - 50, TrackMin.y + 2));
+        char MenuButtonID[64];
+        snprintf(MenuButtonID, sizeof(MenuButtonID), "...##TrackMenu%d", TrackIndex);
+        if (ImGui::SmallButton(MenuButtonID))
+        {
+            char PopupID[64];
+            snprintf(PopupID, sizeof(PopupID), "TrackMenu%d", TrackIndex);
+            ImGui::OpenPopup(PopupID);
+        }
+
+        char PopupID[64];
+        snprintf(PopupID, sizeof(PopupID), "TrackMenu%d", TrackIndex);
+        if (ImGui::BeginPopup(PopupID))
+        {
+            if (ImGui::MenuItem("Insert New Notify"))
+            {
+                State->SelectedNotifyTrackIndex = TrackIndex;
+                FAnimNotifyEvent NewNotify(State->CurrentAnimationTime, FName("NewNotify"));
+                State->CurrentAnimation->AddNotify(NewNotify);
+            }
+            if (ImGui::MenuItem("Remove Track"))
+            {
+                State->NotifyTrackNames.erase(State->NotifyTrackNames.begin() + TrackIndex);
+                if (State->SelectedNotifyTrackIndex == TrackIndex)
+                {
+                    State->SelectedNotifyTrackIndex = -1;
+                }
+            }
+            ImGui::EndPopup();
+        }
+
+        // Track 클릭 감지
+        ImVec2 MousePos = ImGui::GetMousePos();
+        if (ImGui::IsMouseClicked(0))
+        {
+            if (MousePos.x >= TrackMin.x && MousePos.x <= TrackMax.x &&
+                MousePos.y >= TrackMin.y && MousePos.y <= TrackMax.y)
+            {
+                State->SelectedNotifyTrackIndex = TrackIndex;
+            }
+        }
+
+        // 이 Track에 속한 Notify들 그리기 (임시로 모든 Notify를 첫 번째 Track에 표시)
+        if (TrackIndex == 0)
+        {
+            for (int32 i = 0; i < Notifies.Num(); ++i)
+            {
+                const FAnimNotifyEvent* NotifyEvent = Notifies[i];
+                if (!NotifyEvent)
+                    continue;
+
+                float NotifyTime = NotifyEvent->TriggerTime;
+                if (NotifyTime < StartTime || NotifyTime > EndTime)
+                    continue;
+
+                float NormalizedX = (NotifyTime - StartTime) / Duration;
+                float NotifyX = TrackMin.x + NormalizedX * PanelWidth;
+
+                // Notify 마커
+                ImVec2 MarkerMin(NotifyX - 5, TrackMin.y + 20);
+                ImVec2 MarkerMax(NotifyX + 5, TrackMax.y - 5);
+
+                bool bNotifySelected = (State->SelectedNotifyIndex == i);
+                ImU32 MarkerColor = bNotifySelected ? IM_COL32(255, 200, 100, 255) : IM_COL32(100, 200, 255, 255);
+
+                DrawList->AddRectFilled(MarkerMin, MarkerMax, MarkerColor);
+                DrawList->AddRect(MarkerMin, MarkerMax, IM_COL32(255, 255, 255, 255), 0.0f, 0, 1.5f);
+
+                // Notify 이름
+                const char* NotifyName = NotifyEvent->NotifyName.ToString().c_str();
+                ImVec2 TextSize = ImGui::CalcTextSize(NotifyName);
+                DrawList->AddText(ImVec2(NotifyX - TextSize.x * 0.5f, MarkerMin.y - TextSize.y - 2), IM_COL32(220, 220, 220, 255), NotifyName);
+
+                // Notify 클릭 감지
+                if (ImGui::IsMouseClicked(0))
+                {
+                    if (MousePos.x >= MarkerMin.x && MousePos.x <= MarkerMax.x &&
+                        MousePos.y >= MarkerMin.y && MousePos.y <= MarkerMax.y)
+                    {
+                        State->SelectedNotifyIndex = i;
+                        State->CurrentAnimationTime = NotifyTime;
+                        RefreshAnimationFrame(State);
+                    }
+                }
+            }
+        }
+
+        CurrentY += TrackHeight;
+    }
+
+    // Spacer
+    ImGui::Dummy(ImVec2(0, RulerHeight + (State->NotifyTrackNames.Num() * TrackHeight)));
+}
+
 void SSkeletalMeshViewerWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
 {
-    // TODO: AnimNotify 시스템 구현 후 활성화
-    // 현재는 키프레임 마커를 그리지 않음
-
-    /*
     if (!State || !State->CurrentAnimation)
     {
         return;
@@ -813,7 +1788,6 @@ void SSkeletalMeshViewerWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const 
         return;
     }
 
-    const TArray<FAnimNotifyEvent>& Notifies = DataModel->GetAnimNotifyEvents();
     float Duration = EndTime - StartTime;
     if (Duration <= 0.0f)
     {
@@ -823,9 +1797,19 @@ void SSkeletalMeshViewerWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const 
     float TimelineWidth = TimelineMax.x - TimelineMin.x;
     float MarkerHeight = TimelineMax.y - TimelineMin.y;
 
-    for (const FAnimNotifyEvent& Notify : Notifies)
+    // Notify 이벤트 가져오기
+    UAnimSequenceBase* AnimBase = State->CurrentAnimation;
+    TArray<const FAnimNotifyEvent*> Notifies;
+    float MaxTime = DataModel->GetPlayLength();
+    AnimBase->GetAnimNotifiesFromDeltaPositions(0.0f, MaxTime, Notifies);
+
+    for (int32 i = 0; i < Notifies.Num(); ++i)
     {
-        float TriggerTime = Notify.TriggerTime;
+        const FAnimNotifyEvent* Notify = Notifies[i];
+        if (!Notify)
+            continue;
+
+        float TriggerTime = Notify->TriggerTime;
         if (TriggerTime < StartTime || TriggerTime > EndTime)
         {
             continue; // 화면 밖
@@ -833,16 +1817,43 @@ void SSkeletalMeshViewerWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const 
 
         float NormalizedX = (TriggerTime - StartTime) / Duration;
         float ScreenX = TimelineMin.x + NormalizedX * TimelineWidth;
+        float ScreenY = TimelineMin.y + MarkerHeight * 0.5f;
 
-        // 키프레임 마커 (다이아몬드)
-        float MarkerSize = 4.0f;
+        // 선택 여부 확인
+        bool bIsSelected = (State->SelectedNotifyIndex == i);
+        ImU32 MarkerColor = bIsSelected ? IM_COL32(255, 200, 100, 255) : IM_COL32(100, 200, 255, 255);
+
+        // Notify 마커 (다이아몬드)
+        float MarkerSize = 5.0f;
         DrawList->AddQuadFilled(
-            ImVec2(ScreenX, TimelineMin.y + MarkerHeight * 0.5f - MarkerSize),
-            ImVec2(ScreenX + MarkerSize, TimelineMin.y + MarkerHeight * 0.5f),
-            ImVec2(ScreenX, TimelineMin.y + MarkerHeight * 0.5f + MarkerSize),
-            ImVec2(ScreenX - MarkerSize, TimelineMin.y + MarkerHeight * 0.5f),
-            IM_COL32(100, 200, 255, 255)
+            ImVec2(ScreenX, ScreenY - MarkerSize),
+            ImVec2(ScreenX + MarkerSize, ScreenY),
+            ImVec2(ScreenX, ScreenY + MarkerSize),
+            ImVec2(ScreenX - MarkerSize, ScreenY),
+            MarkerColor
         );
+
+        // Notify 이름 표시
+        const char* NotifyName = Notify->NotifyName.ToString().c_str();
+        ImVec2 TextSize = ImGui::CalcTextSize(NotifyName);
+        DrawList->AddText(
+            ImVec2(ScreenX - TextSize.x * 0.5f, ScreenY - MarkerSize - TextSize.y - 2),
+            IM_COL32(220, 220, 220, 255),
+            NotifyName
+        );
+
+        // 클릭 감지 (마우스가 마커 근처에 있는지)
+        ImVec2 MousePos = ImGui::GetMousePos();
+        if (ImGui::IsMouseClicked(0))
+        {
+            float DistToMarker = FMath::Sqrt(
+                (MousePos.x - ScreenX) * (MousePos.x - ScreenX) +
+                (MousePos.y - ScreenY) * (MousePos.y - ScreenY)
+            );
+            if (DistToMarker < MarkerSize * 2.0f)
+            {
+                State->SelectedNotifyIndex = i;
+            }
+        }
     }
-    */
 }

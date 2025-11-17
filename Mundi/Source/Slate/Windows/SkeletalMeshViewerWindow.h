@@ -111,4 +111,5 @@ private:
     void DrawPlaybackRange(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State);
     void DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime);
     void DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State);
+    void DrawNotifyTracksPanel(ViewerState* State, float StartTime, float EndTime);
 };

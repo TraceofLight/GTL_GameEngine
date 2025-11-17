@@ -414,6 +414,16 @@ void SSkeletalMeshViewerWindow::OnRender()
                                         // 편집된 bone transform 캐시 클리어 (새로운 메시/애니메이션 로드)
                                         ActiveState->EditedBoneTransforms.clear();
 
+                                        // Working Range 초기화 (0 ~ TotalFrames)
+                                        if (ActiveState->CurrentAnimation && ActiveState->CurrentAnimation->GetDataModel())
+                                        {
+                                            int32 TotalFrames = ActiveState->CurrentAnimation->GetDataModel()->GetNumberOfFrames();
+                                            ActiveState->WorkingRangeStartFrame = 0;
+                                            ActiveState->WorkingRangeEndFrame = TotalFrames;
+                                            ActiveState->ViewRangeStartFrame = 0;
+                                            ActiveState->ViewRangeEndFrame = FMath::Min(30, TotalFrames);  // View Range 초기값 30
+                                        }
+
                                         // AnimInstance 생성 또는 재사용 후 첫 번째 애니메이션 재생
                                         UAnimInstance* AnimInst = Component->GetAnimInstance();
                                         if (!AnimInst)
@@ -1302,6 +1312,16 @@ void SSkeletalMeshViewerWindow::OnRender()
                             ActiveState->CurrentAnimationTime = 0.0f;
                             ActiveState->EditedBoneTransforms.clear();
                             ActiveState->bIsPlaying = true;
+
+                            // Working Range 초기화 (0 ~ TotalFrames)
+                            if (ActiveState->CurrentAnimation && ActiveState->CurrentAnimation->GetDataModel())
+                            {
+                                int32 TotalFrames = ActiveState->CurrentAnimation->GetDataModel()->GetNumberOfFrames();
+                                ActiveState->WorkingRangeStartFrame = 0;
+                                ActiveState->WorkingRangeEndFrame = TotalFrames;
+                                ActiveState->ViewRangeStartFrame = 0;
+                                ActiveState->ViewRangeEndFrame = FMath::Min(60, TotalFrames);  // View Range 초기값 60
+                            }
 
                             // AnimInstance 생성 또는 재사용
                             if (ActiveState->PreviewActor && ActiveState->PreviewActor->GetSkeletalMeshComponent())

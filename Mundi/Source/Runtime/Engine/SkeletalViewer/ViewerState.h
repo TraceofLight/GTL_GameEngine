@@ -58,8 +58,19 @@ public:
     float TimelineZoom = 1.0f;  // 타임라인 줌 레벨 (1.0 = 기본)
     float TimelineScroll = 0.0f;  // 타임라인 스크롤 오프셋 (초 단위)
     bool bShowFrameNumbers = false;  // false=시간(초), true=프레임 번호
-    float PlaybackRangeStart = 0.0f;  // 재생 범위 시작 (초)
-    float PlaybackRangeEnd = -1.0f;  // 재생 범위 끝 (초, -1=전체)
+    int32 PlaybackRangeStartFrame = 0;  // 재생 범위 시작 (프레임)
+    int32 PlaybackRangeEndFrame = -1;  // 재생 범위 끝 (프레임, -1=전체)
+    int32 WorkingRangeStartFrame = 0;  // 작업 범위 시작 (프레임)
+    int32 WorkingRangeEndFrame = -1;  // 작업 범위 끝 (프레임, -1=전체)
+    int32 ViewRangeStartFrame = 0;  // 뷰 범위 시작 (프레임)
+    int32 ViewRangeEndFrame = -1;  // 뷰 범위 끝 (프레임, -1=전체)
+
+    // Notify Track 관련
+    bool bNotifiesExpanded = false;  // Notifies 드롭다운 펼침 상태
+    int32 SelectedNotifyTrackIndex = -1;  // 선택된 Notify Track 인덱스
+    int32 SelectedNotifyIndex = -1;  // 선택된 Notify 이벤트 인덱스
+    TArray<FString> NotifyTrackNames;  // Notify Track 이름 목록 (예: "Track 1", "Track 2")
+    std::set<int32> UsedTrackNumbers;  // 사용 중인 Track 번호 (빈 번호 재사용용)
 
     // 이 Viewer에서 임포트한 AnimSequence들 (메모리 관리용)
     TArray<UAnimSequence*> ImportedAnimSequences;

@@ -37,12 +37,12 @@ public:
 	void SetLooping(bool bInLoop) { bLoop = bInLoop; }
 
 	FString Name;
+	TArray<FAnimNotifyEvent> Notifies;
 
 protected:
 	UAnimDataModel* DataModel;
 
 private:
-	TArray<FAnimNotifyEvent> Notifies;
 	float SequenceLength;
 	float RateScale;
 	bool bLoop;

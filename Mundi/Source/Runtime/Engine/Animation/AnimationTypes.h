@@ -19,19 +19,22 @@ struct FAnimNotifyEvent
 	float Duration;
 	FName NotifyName;
 	float TriggerWeightThreshold;
+	int32 TrackIndex;  // Notify가 속한 Track 인덱스 (0부터 시작)
 
 	FAnimNotifyEvent()
 		: TriggerTime(0.0f)
 		, Duration(0.0f)
 		, TriggerWeightThreshold(0.0f)
+		, TrackIndex(0)
 	{
 	}
 
-	FAnimNotifyEvent(float InTriggerTime, FName InNotifyName, float InDuration = 0.0f)
+	FAnimNotifyEvent(float InTriggerTime, FName InNotifyName, float InDuration = 0.0f, int32 InTrackIndex = 0)
 		: TriggerTime(InTriggerTime)
 		, Duration(InDuration)
 		, NotifyName(InNotifyName)
 		, TriggerWeightThreshold(0.0f)
+		, TrackIndex(InTrackIndex)
 	{
 	}
 
