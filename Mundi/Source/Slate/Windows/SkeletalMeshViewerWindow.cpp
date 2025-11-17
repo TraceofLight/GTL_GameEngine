@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "SkeletalMeshViewerWindow.h"
 #include "FViewport.h"
 #include "FViewportClient.h"

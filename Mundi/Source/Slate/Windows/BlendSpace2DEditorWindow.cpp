@@ -13,6 +13,7 @@
 #include "Source/Runtime/Engine/SkeletalViewer/ViewerState.h"
 #include "Source/Runtime/Renderer/FViewport.h"
 #include"FViewportClient.h"
+#include "Source/Runtime/Engine/Animation/AnimInstance.h"
 #include "Math.h"
 
 SBlendSpace2DEditorWindow::SBlendSpace2DEditorWindow()
@@ -42,6 +43,25 @@ bool SBlendSpace2DEditorWindow::Initialize(float StartX, float StartY, float Wid
 	{
 		return false;
 	}
+
+	// 타임라인 아이콘 로드
+	IconGoToFront = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_Front_24x.png");
+	IconGoToFrontOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_Front_24x_OFF.png");
+	IconStepBackwards = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Backwards_24x.png");
+	IconStepBackwardsOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Backwards_24x_OFF.png");
+	IconBackwards = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Backwards_24x.png");
+	IconBackwardsOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Backwards_24x_OFF.png");
+	IconRecord = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Record_24x.png");
+	IconPause = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Pause_24x.png");
+	IconPauseOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Pause_24x_OFF.png");
+	IconPlay = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Play_24x.png");
+	IconPlayOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Play_24x_OFF.png");
+	IconStepForward = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Forward_24x.png");
+	IconStepForwardOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Forward_24x_OFF.png");
+	IconGoToEnd = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_End_24x.png");
+	IconGoToEndOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_End_24x_OFF.png");
+	IconLoop = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Loop_24x.png");
+	IconLoopOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Loop_24x_OFF.png");
 
 	return true;
 }
@@ -456,35 +476,63 @@ void SBlendSpace2DEditorWindow::HandleMouseInput()
 	if (!bMouseInCanvas)
 		return;
 
-	// 왼쪽 클릭: 샘플 선택 또는 드래그 시작
+	// 왼쪽 클릭: PreviewMarker, 샘플 선택 또는 드래그 시작
 	if (ImGui::IsMouseClicked(0))
 	{
-		// 클릭한 위치에 샘플이 있는지 확인
-		bool bFoundSample = false;
-		for (int32 i = 0; i < EditingBlendSpace->GetNumSamples(); ++i)
-		{
-			ImVec2 SampleScreenPos = ParamToScreen(EditingBlendSpace->Samples[i].Position);
-			float Dist = sqrtf(
-				(MousePos.x - SampleScreenPos.x) * (MousePos.x - SampleScreenPos.x) +
-				(MousePos.y - SampleScreenPos.y) * (MousePos.y - SampleScreenPos.y)
-			);
+		// 먼저 PreviewMarker를 클릭했는지 확인
+		ImVec2 PreviewScreenPos = ParamToScreen(PreviewParameter);
+		float DistToPreview = sqrtf(
+			(MousePos.x - PreviewScreenPos.x) * (MousePos.x - PreviewScreenPos.x) +
+			(MousePos.y - PreviewScreenPos.y) * (MousePos.y - PreviewScreenPos.y)
+		);
 
-			if (Dist <= SamplePointRadius + 5.0f)
-			{
-				SelectSample(i);
-				bDraggingSample = true;
-				bFoundSample = true;
-				break;
-			}
-		}
-
-		if (!bFoundSample)
+		if (DistToPreview <= PreviewMarkerRadius + 5.0f)
 		{
+			// PreviewMarker 드래그 시작
+			bDraggingPreviewMarker = true;
 			SelectedSampleIndex = -1;
+		}
+		else
+		{
+			// 클릭한 위치에 샘플이 있는지 확인
+			bool bFoundSample = false;
+			for (int32 i = 0; i < EditingBlendSpace->GetNumSamples(); ++i)
+			{
+				ImVec2 SampleScreenPos = ParamToScreen(EditingBlendSpace->Samples[i].Position);
+				float Dist = sqrtf(
+					(MousePos.x - SampleScreenPos.x) * (MousePos.x - SampleScreenPos.x) +
+					(MousePos.y - SampleScreenPos.y) * (MousePos.y - SampleScreenPos.y)
+				);
+
+				if (Dist <= SamplePointRadius + 5.0f)
+				{
+					SelectSample(i);
+					bDraggingSample = true;
+					bFoundSample = true;
+					break;
+				}
+			}
+
+			if (!bFoundSample)
+			{
+				SelectedSampleIndex = -1;
+			}
 		}
 	}
 
-	// 드래그 중
+	// PreviewMarker 드래그 중
+	if (bDraggingPreviewMarker && ImGui::IsMouseDragging(0))
+	{
+		FVector2D NewPos = ScreenToParam(MousePos);
+
+		// 축 범위 내로 제한
+		NewPos.X = FMath::Clamp(NewPos.X, EditingBlendSpace->XAxisMin, EditingBlendSpace->XAxisMax);
+		NewPos.Y = FMath::Clamp(NewPos.Y, EditingBlendSpace->YAxisMin, EditingBlendSpace->YAxisMax);
+
+		PreviewParameter = NewPos;
+	}
+
+	// 샘플 드래그 중
 	if (bDraggingSample && ImGui::IsMouseDragging(0))
 	{
 		if (SelectedSampleIndex >= 0 && SelectedSampleIndex < EditingBlendSpace->GetNumSamples())
@@ -498,6 +546,7 @@ void SBlendSpace2DEditorWindow::HandleMouseInput()
 	if (ImGui::IsMouseReleased(0))
 	{
 		bDraggingSample = false;
+		bDraggingPreviewMarker = false;
 	}
 
 	// 더블 클릭: 새 샘플 추가
@@ -560,8 +609,9 @@ void SBlendSpace2DEditorWindow::RenderPreviewViewport()
 	ImGui::Text("Animation Preview");
 	ImGui::Separator();
 
-	// 뷰포트 렌더링 영역 (전체 영역 사용)
-	ImGui::BeginChild("ViewportRenderArea", ImVec2(0, -80), false, ImGuiWindowFlags_NoScrollbar);
+	// 뷰포트 렌더링 영역 (타임라인을 위해 하단 여백 확보)
+	float TimelineHeight = 120.0f;  // 타임라인 높이
+	ImGui::BeginChild("ViewportRenderArea", ImVec2(0, -(TimelineHeight + 10)), false, ImGuiWindowFlags_NoScrollbar);
 	ImVec2 childPos = ImGui::GetWindowPos();
 	ImVec2 childSize = ImGui::GetWindowSize();
 	ImVec2 rectMin = childPos;
@@ -576,9 +626,41 @@ void SBlendSpace2DEditorWindow::RenderPreviewViewport()
 
 	ImGui::EndChild();
 
-	// 프리뷰 컨트롤
 	ImGui::Separator();
-	ImGui::Text("Preview Controls:");
+
+	// 타임라인 렌더링
+	RenderTimelineControls();
+
+	// 재생/일시정지 버튼
+	if (bIsPlaying)
+	{
+		if (ImGui::Button("Pause", ImVec2(80, 0)))
+		{
+			bIsPlaying = false;
+		}
+	}
+	else
+	{
+		if (ImGui::Button("Play", ImVec2(80, 0)))
+		{
+			bIsPlaying = true;
+		}
+	}
+
+	ImGui::SameLine();
+
+	// 루프 토글
+	ImGui::Checkbox("Loop", &bLoopAnimation);
+
+	ImGui::SameLine();
+
+	// 재생 속도
+	ImGui::SetNextItemWidth(100);
+	ImGui::DragFloat("Speed", &PlaybackSpeed, 0.1f, 0.1f, 5.0f, "%.1fx");
+
+	ImGui::Spacing();
+
+	// 블렌드 파라미터 슬라이더
 	ImGui::SliderFloat("X Axis", &PreviewParameter.X,
 		EditingBlendSpace->XAxisMin,
 		EditingBlendSpace->XAxisMax);
@@ -939,6 +1021,76 @@ void SBlendSpace2DEditorWindow::OnUpdate(float DeltaSeconds)
 		PreviewState->Client->Tick(DeltaSeconds);
 	}
 
+	// BlendSpace2D 애니메이션 블렌딩 및 재생
+	if (EditingBlendSpace && PreviewState->PreviewActor)
+	{
+		USkeletalMeshComponent* SkelComp = PreviewState->PreviewActor->GetSkeletalMeshComponent();
+		if (SkelComp && EditingBlendSpace->GetNumSamples() > 0)
+		{
+			// AnimInstance 생성 (없으면)
+			UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+			if (!AnimInst)
+			{
+				AnimInst = NewObject<UAnimInstance>();
+				if (AnimInst)
+				{
+					SkelComp->SetAnimInstance(AnimInst);
+				}
+			}
+
+			if (AnimInst)
+			{
+				// 재생 상태 동기화
+				if (bIsPlaying && !AnimInst->IsPlaying())
+				{
+					AnimInst->ResumeAnimation();
+				}
+				else if (!bIsPlaying && AnimInst->IsPlaying())
+				{
+					AnimInst->StopAnimation();
+				}
+
+				// 재생 속도 동기화
+				if (FMath::Abs(AnimInst->GetPlayRate() - PlaybackSpeed) > 0.001f)
+				{
+					AnimInst->SetPlayRate(PlaybackSpeed);
+				}
+
+				// BlendSpace2D에서 블렌드 가중치 계산
+				TArray<int32> SampleIndices;
+				TArray<float> Weights;
+				EditingBlendSpace->GetBlendWeights(PreviewParameter, SampleIndices, Weights);
+
+				// 블렌딩된 애니메이션 재생
+				if (SampleIndices.Num() > 0)
+				{
+					// 현재는 가장 가중치가 높은 애니메이션만 재생 (단순화)
+					// TODO: 나중에 실제 블렌딩 구현
+					int32 MaxWeightIndex = 0;
+					float MaxWeight = 0.0f;
+					for (int32 i = 0; i < Weights.Num(); ++i)
+					{
+						if (Weights[i] > MaxWeight)
+						{
+							MaxWeight = Weights[i];
+							MaxWeightIndex = i;
+						}
+					}
+
+					int32 BestSampleIndex = SampleIndices[MaxWeightIndex];
+					if (BestSampleIndex >= 0 && BestSampleIndex < EditingBlendSpace->Samples.Num())
+					{
+						UAnimSequence* TargetAnim = EditingBlendSpace->Samples[BestSampleIndex].Animation;
+						if (TargetAnim && AnimInst->GetCurrentAnimation() != TargetAnim)
+						{
+							AnimInst->PlayAnimation(TargetAnim, PlaybackSpeed);
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// PreviewWorld 업데이트 (SkeletalMeshViewer와 동일)
 	PreviewState->World->Tick(DeltaSeconds);
 }
@@ -1002,5 +1154,689 @@ void SBlendSpace2DEditorWindow::OnRenderViewport()
 		// 뷰포트 영역이 없으면 리셋
 		PreviewViewportRect = FRect(0, 0, 0, 0);
 		PreviewViewportRect.UpdateMinMax();
+	}
+}
+
+// ========================================
+// Timeline Implementation
+// ========================================
+
+void SBlendSpace2DEditorWindow::RenderTimelineControls()
+{
+	// BlendSpace2D에서 현재 재생중인 애니메이션 가져오기
+	UAnimSequence* CurrentAnimation = nullptr;
+	if (EditingBlendSpace && PreviewState->PreviewActor)
+	{
+		USkeletalMeshComponent* SkelComp = PreviewState->PreviewActor->GetSkeletalMeshComponent();
+		if (SkelComp)
+		{
+			UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+			if (AnimInst)
+			{
+				UAnimSequenceBase* AnimBase = AnimInst->GetCurrentAnimation();
+				CurrentAnimation = dynamic_cast<UAnimSequence*>(AnimBase);
+			}
+		}
+	}
+
+	if (!CurrentAnimation)
+	{
+		ImGui::TextDisabled("No animation playing");
+		return;
+	}
+
+	UAnimDataModel* DataModel = CurrentAnimation->GetDataModel();
+	if (!DataModel)
+	{
+		return;
+	}
+
+	float MaxTime = DataModel->GetPlayLength();
+	int32 TotalFrames = DataModel->GetNumberOfFrames();
+
+	// === Timeline 렌더링 영역 ===
+	ImGui::BeginChild("TimelineArea", ImVec2(0, -40), true);
+	{
+		RenderTimeline();
+	}
+	ImGui::EndChild();
+
+	ImGui::Separator();
+
+	// === 재생 컨트롤 버튼들 ===
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 2));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 4));
+
+	float ButtonSize = 20.0f;
+	ImVec2 ButtonSizeVec(ButtonSize, ButtonSize);
+
+	// ToFront |<<
+	if (IconGoToFront && IconGoToFront->GetShaderResourceView())
+	{
+		if (ImGui::ImageButton("##ToFront", IconGoToFront->GetShaderResourceView(), ButtonSizeVec))
+		{
+			TimelineToFront();
+		}
+	}
+	else
+	{
+		if (ImGui::Button("|<<", ButtonSizeVec))
+		{
+			TimelineToFront();
+		}
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("To Front");
+	}
+
+	ImGui::SameLine();
+
+	// ToPrevious |<
+	if (IconStepBackwards && IconStepBackwards->GetShaderResourceView())
+	{
+		if (ImGui::ImageButton("##StepBackwards", IconStepBackwards->GetShaderResourceView(), ButtonSizeVec))
+		{
+			TimelineToPrevious();
+		}
+	}
+	else
+	{
+		if (ImGui::Button("|<", ButtonSizeVec))
+		{
+			TimelineToPrevious();
+		}
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Previous Frame");
+	}
+
+	ImGui::SameLine();
+
+	// Reverse <<
+	if (IconBackwards && IconBackwards->GetShaderResourceView())
+	{
+		if (ImGui::ImageButton("##Backwards", IconBackwards->GetShaderResourceView(), ButtonSizeVec))
+		{
+			TimelineReverse();
+		}
+	}
+	else
+	{
+		if (ImGui::Button("<<", ButtonSizeVec))
+		{
+			TimelineReverse();
+		}
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Reverse");
+	}
+
+	ImGui::SameLine();
+
+	// Play/Pause
+	if (bIsPlaying)
+	{
+		bool bPauseClicked = false;
+		if (IconPause && IconPause->GetShaderResourceView())
+		{
+			bPauseClicked = ImGui::ImageButton("##Pause", IconPause->GetShaderResourceView(), ButtonSizeVec);
+		}
+		else
+		{
+			bPauseClicked = ImGui::Button("||", ButtonSizeVec);
+		}
+
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Pause");
+		}
+
+		if (bPauseClicked)
+		{
+			if (PreviewState->PreviewActor && PreviewState->PreviewActor->GetSkeletalMeshComponent())
+			{
+				UAnimInstance* AnimInst = PreviewState->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+				if (AnimInst)
+				{
+					AnimInst->StopAnimation();
+				}
+			}
+			bIsPlaying = false;
+		}
+	}
+	else
+	{
+		bool bPlayClicked = false;
+		if (IconPlay && IconPlay->GetShaderResourceView())
+		{
+			bPlayClicked = ImGui::ImageButton("##Play", IconPlay->GetShaderResourceView(), ButtonSizeVec);
+		}
+		else
+		{
+			bPlayClicked = ImGui::Button(">", ButtonSizeVec);
+		}
+
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Play");
+		}
+
+		if (bPlayClicked)
+		{
+			TimelinePlay();
+		}
+	}
+
+	ImGui::SameLine();
+
+	// ToNext >|
+	if (IconStepForward && IconStepForward->GetShaderResourceView())
+	{
+		if (ImGui::ImageButton("##StepForward", IconStepForward->GetShaderResourceView(), ButtonSizeVec))
+		{
+			TimelineToNext();
+		}
+	}
+	else
+	{
+		if (ImGui::Button(">|", ButtonSizeVec))
+		{
+			TimelineToNext();
+		}
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Next Frame");
+	}
+
+	ImGui::SameLine();
+
+	// ToEnd >>|
+	if (IconGoToEnd && IconGoToEnd->GetShaderResourceView())
+	{
+		if (ImGui::ImageButton("##ToEnd", IconGoToEnd->GetShaderResourceView(), ButtonSizeVec))
+		{
+			TimelineToEnd();
+		}
+	}
+	else
+	{
+		if (ImGui::Button(">>|", ButtonSizeVec))
+		{
+			TimelineToEnd();
+		}
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("To End");
+	}
+
+	ImGui::SameLine();
+
+	// Loop 토글
+	bool bWasLooping = bLoopAnimation;
+	UTexture* LoopIcon = bWasLooping ? IconLoop : IconLoopOff;
+	if (LoopIcon && LoopIcon->GetShaderResourceView())
+	{
+		if (ImGui::ImageButton("##Loop", LoopIcon->GetShaderResourceView(), ButtonSizeVec))
+		{
+			bLoopAnimation = !bLoopAnimation;
+		}
+	}
+	else
+	{
+		if (bWasLooping)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
+		}
+		if (ImGui::Button("Loop", ButtonSizeVec))
+		{
+			bLoopAnimation = !bLoopAnimation;
+		}
+		if (bWasLooping)
+		{
+			ImGui::PopStyleColor();
+		}
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Loop");
+	}
+
+	ImGui::SameLine();
+
+	// 재생 속도
+	ImGui::Text("Speed:");
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(80.0f);
+	ImGui::DragFloat("##Speed", &PlaybackSpeed, 0.05f, 0.1f, 5.0f, "%.2fx");
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Drag or click to edit playback speed");
+	}
+
+	ImGui::PopStyleVar(2);
+}
+
+void SBlendSpace2DEditorWindow::RenderTimeline()
+{
+	// BlendSpace2D에서 현재 재생중인 애니메이션 가져오기
+	UAnimSequence* CurrentAnimation = nullptr;
+	if (EditingBlendSpace && PreviewState->PreviewActor)
+	{
+		USkeletalMeshComponent* SkelComp = PreviewState->PreviewActor->GetSkeletalMeshComponent();
+		if (SkelComp)
+		{
+			UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+			if (AnimInst)
+			{
+				UAnimSequenceBase* AnimBase = AnimInst->GetCurrentAnimation();
+				CurrentAnimation = dynamic_cast<UAnimSequence*>(AnimBase);
+			}
+		}
+	}
+
+	if (!CurrentAnimation)
+	{
+		return;
+	}
+
+	UAnimDataModel* DataModel = CurrentAnimation->GetDataModel();
+	if (!DataModel)
+	{
+		return;
+	}
+
+	float MaxTime = DataModel->GetPlayLength();
+	int32 TotalFrames = DataModel->GetNumberOfFrames();
+
+	// 타임라인 영역 크기 설정
+	ImVec2 ContentAvail = ImGui::GetContentRegionAvail();
+	ImVec2 TimelineSize = ImVec2(ContentAvail.x, ContentAvail.y);
+
+	ImVec2 CursorPos = ImGui::GetCursorScreenPos();
+	ImVec2 TimelineMin = CursorPos;
+	ImVec2 TimelineMax = ImVec2(CursorPos.x + TimelineSize.x, CursorPos.y + TimelineSize.y);
+
+	ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
+	// 전체 범위 표시
+	float StartTime = 0.0f;
+	float EndTime = MaxTime;
+
+	// 눈금자 영역 (상단 30픽셀)
+	const float RulerHeight = 30.0f;
+	ImVec2 RulerMin = TimelineMin;
+	ImVec2 RulerMax = ImVec2(TimelineMax.x, TimelineMin.y + RulerHeight);
+
+	// 눈금자 렌더링
+	DrawTimelineRuler(DrawList, RulerMin, RulerMax, StartTime, EndTime);
+
+	// 타임라인 영역 (눈금자 아래)
+	ImVec2 ScrollTimelineMin = ImVec2(TimelineMin.x, RulerMax.y);
+	ImVec2 ScrollTimelineMax = TimelineMax;
+	float ScrollTimelineWidth = ScrollTimelineMax.x - ScrollTimelineMin.x;
+	float ScrollTimelineHeight = ScrollTimelineMax.y - ScrollTimelineMin.y;
+
+	// 배경
+	DrawList->AddRectFilled(ScrollTimelineMin, ScrollTimelineMax, IM_COL32(40, 40, 40, 255));
+
+	// 세로 그리드 (프레임 단위)
+	float FrameRate = DataModel->GetFrameRate().AsDecimal();
+	for (int32 FrameIndex = 0; FrameIndex <= TotalFrames; ++FrameIndex)
+	{
+		float FrameTime = (FrameRate > 0.0f) ? (FrameIndex / FrameRate) : 0.0f;
+		float NormalizedX = (FrameTime - StartTime) / (EndTime - StartTime);
+		float ScreenX = ScrollTimelineMin.x + NormalizedX * ScrollTimelineWidth;
+
+		DrawList->AddLine(
+			ImVec2(ScreenX, ScrollTimelineMin.y),
+			ImVec2(ScreenX, ScrollTimelineMax.y),
+			IM_COL32(70, 70, 70, 255),
+			1.0f
+		);
+	}
+
+	// Playhead 렌더링 (빨간 세로 바)
+	DrawTimelinePlayhead(DrawList, ScrollTimelineMin, ScrollTimelineMax, CurrentAnimationTime, StartTime, EndTime);
+
+	// 마우스 입력 처리 (타임라인 스크러빙)
+	ImGui::SetCursorScreenPos(ScrollTimelineMin);
+	ImGui::InvisibleButton("##Timeline", ImVec2(ScrollTimelineWidth, ScrollTimelineHeight));
+
+	if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+	{
+		ImVec2 MousePos = ImGui::GetMousePos();
+		float NormalizedX = (MousePos.x - ScrollTimelineMin.x) / ScrollTimelineWidth;
+		float MouseTime = FMath::Lerp(StartTime, EndTime, FMath::Clamp(NormalizedX, 0.0f, 1.0f));
+
+		CurrentAnimationTime = FMath::Clamp(MouseTime, 0.0f, MaxTime);
+
+		// AnimInstance 시간 업데이트
+		if (PreviewState->PreviewActor && PreviewState->PreviewActor->GetSkeletalMeshComponent())
+		{
+			UAnimInstance* AnimInst = PreviewState->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+			if (AnimInst)
+			{
+				AnimInst->SetPosition(CurrentAnimationTime);
+			}
+		}
+	}
+}
+
+void SBlendSpace2DEditorWindow::DrawTimelineRuler(ImDrawList* DrawList, const ImVec2& RulerMin, const ImVec2& RulerMax, float StartTime, float EndTime)
+{
+	// 눈금자 배경
+	DrawList->AddRectFilled(RulerMin, RulerMax, IM_COL32(50, 50, 50, 255));
+
+	// Ruler 하단 테두리
+	DrawList->AddLine(
+		ImVec2(RulerMin.x, RulerMax.y),
+		ImVec2(RulerMax.x, RulerMax.y),
+		IM_COL32(60, 60, 60, 255),
+		1.0f
+	);
+
+	// BlendSpace2D에서 현재 재생중인 애니메이션 가져오기
+	UAnimSequence* CurrentAnimation = nullptr;
+	if (EditingBlendSpace && PreviewState->PreviewActor)
+	{
+		USkeletalMeshComponent* SkelComp = PreviewState->PreviewActor->GetSkeletalMeshComponent();
+		if (SkelComp)
+		{
+			UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+			if (AnimInst)
+			{
+				UAnimSequenceBase* AnimBase = AnimInst->GetCurrentAnimation();
+				CurrentAnimation = dynamic_cast<UAnimSequence*>(AnimBase);
+			}
+		}
+	}
+
+	if (!CurrentAnimation || !CurrentAnimation->GetDataModel())
+	{
+		return;
+	}
+
+	UAnimDataModel* DataModel = CurrentAnimation->GetDataModel();
+	float FrameRate = DataModel->GetFrameRate().AsDecimal();
+	if (FrameRate <= 0.0f)
+	{
+		return;
+	}
+
+	int32 TotalFrames = DataModel->GetNumberOfFrames();
+	float RulerWidth = RulerMax.x - RulerMin.x;
+
+	// 프레임마다 세로 줄 그리기
+	for (int32 FrameIndex = 0; FrameIndex <= TotalFrames; ++FrameIndex)
+	{
+		float FrameTime = FrameIndex / FrameRate;
+		float NormalizedX = (FrameTime - StartTime) / (EndTime - StartTime);
+		float ScreenX = RulerMin.x + NormalizedX * RulerWidth;
+
+		// 프레임 번호 표시 (일정 간격마다)
+		float PixelsPerFrame = RulerWidth / TotalFrames;
+		int32 LabelInterval = 1;
+
+		if (PixelsPerFrame < 10.0f)
+		{
+			LabelInterval = 10;
+		}
+		else if (PixelsPerFrame < 20.0f)
+		{
+			LabelInterval = 5;
+		}
+		else if (PixelsPerFrame < 40.0f)
+		{
+			LabelInterval = 2;
+		}
+
+		// 라벨 표시
+		if (FrameIndex % LabelInterval == 0)
+		{
+			char FrameLabel[32];
+			snprintf(FrameLabel, sizeof(FrameLabel), "%d", FrameIndex);
+
+			ImVec2 TextSize = ImGui::CalcTextSize(FrameLabel);
+			float RulerCenterY = (RulerMin.y + RulerMax.y) * 0.5f - TextSize.y * 0.5f;
+			DrawList->AddText(
+				ImVec2(ScreenX - TextSize.x * 0.5f, RulerCenterY),
+				IM_COL32(220, 220, 220, 255),
+				FrameLabel
+			);
+		}
+	}
+}
+
+void SBlendSpace2DEditorWindow::DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime)
+{
+	float Duration = EndTime - StartTime;
+	if (Duration <= 0.0f)
+	{
+		return;
+	}
+
+	float NormalizedX = (CurrentTime - StartTime) / Duration;
+	if (NormalizedX < 0.0f || NormalizedX > 1.0f)
+	{
+		return; // 화면 밖
+	}
+
+	float ScreenX = TimelineMin.x + NormalizedX * (TimelineMax.x - TimelineMin.x);
+
+	// 빨간 세로 바
+	DrawList->AddLine(
+		ImVec2(ScreenX, TimelineMin.y),
+		ImVec2(ScreenX, TimelineMax.y),
+		IM_COL32(255, 50, 50, 255),
+		2.0f
+	);
+
+	// 상단 삼각형 핸들
+	float TriangleSize = 6.0f;
+	DrawList->AddTriangleFilled(
+		ImVec2(ScreenX, TimelineMin.y),
+		ImVec2(ScreenX - TriangleSize, TimelineMin.y + TriangleSize * 1.5f),
+		ImVec2(ScreenX + TriangleSize, TimelineMin.y + TriangleSize * 1.5f),
+		IM_COL32(255, 50, 50, 255)
+	);
+}
+
+// Timeline 컨트롤 기능
+void SBlendSpace2DEditorWindow::TimelineToFront()
+{
+	CurrentAnimationTime = 0.0f;
+
+	if (PreviewState->PreviewActor && PreviewState->PreviewActor->GetSkeletalMeshComponent())
+	{
+		UAnimInstance* AnimInst = PreviewState->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+		if (AnimInst)
+		{
+			AnimInst->SetPosition(CurrentAnimationTime);
+		}
+	}
+}
+
+void SBlendSpace2DEditorWindow::TimelineToPrevious()
+{
+	// 현재 재생중인 애니메이션 가져오기
+	UAnimSequence* CurrentAnimation = nullptr;
+	if (EditingBlendSpace && PreviewState->PreviewActor)
+	{
+		USkeletalMeshComponent* SkelComp = PreviewState->PreviewActor->GetSkeletalMeshComponent();
+		if (SkelComp)
+		{
+			UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+			if (AnimInst)
+			{
+				UAnimSequenceBase* AnimBase = AnimInst->GetCurrentAnimation();
+				CurrentAnimation = dynamic_cast<UAnimSequence*>(AnimBase);
+			}
+		}
+	}
+
+	if (!CurrentAnimation)
+	{
+		return;
+	}
+
+	UAnimDataModel* DataModel = CurrentAnimation->GetDataModel();
+	if (!DataModel)
+	{
+		return;
+	}
+
+	// 프레임 단위로 스냅하여 이동
+	const FFrameRate& FrameRate = DataModel->GetFrameRate();
+	float TimePerFrame = 1.0f / FrameRate.AsDecimal();
+
+	// 현재 시간을 프레임으로 변환 (반올림)
+	int32 CurrentFrame = static_cast<int32>(CurrentAnimationTime / TimePerFrame + 0.5f);
+
+	// 이전 프레임으로 이동
+	CurrentFrame = FMath::Max(0, CurrentFrame - 1);
+
+	// 프레임을 시간으로 변환
+	CurrentAnimationTime = static_cast<float>(CurrentFrame) * TimePerFrame;
+
+	if (PreviewState->PreviewActor && PreviewState->PreviewActor->GetSkeletalMeshComponent())
+	{
+		UAnimInstance* AnimInst = PreviewState->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+		if (AnimInst)
+		{
+			AnimInst->SetPosition(CurrentAnimationTime);
+		}
+	}
+}
+
+void SBlendSpace2DEditorWindow::TimelineReverse()
+{
+	// 역재생 (음수 속도)
+	PlaybackSpeed = -FMath::Abs(PlaybackSpeed);
+
+	if (PreviewState->PreviewActor && PreviewState->PreviewActor->GetSkeletalMeshComponent())
+	{
+		UAnimInstance* AnimInst = PreviewState->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+		if (AnimInst)
+		{
+			AnimInst->SetPlayRate(PlaybackSpeed);
+			AnimInst->ResumeAnimation();
+			bIsPlaying = true;
+		}
+	}
+}
+
+void SBlendSpace2DEditorWindow::TimelinePlay()
+{
+	// 정방향 재생
+	PlaybackSpeed = FMath::Abs(PlaybackSpeed);
+
+	if (PreviewState->PreviewActor && PreviewState->PreviewActor->GetSkeletalMeshComponent())
+	{
+		UAnimInstance* AnimInst = PreviewState->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+		if (AnimInst)
+		{
+			AnimInst->SetPlayRate(PlaybackSpeed);
+			AnimInst->ResumeAnimation();
+			bIsPlaying = true;
+		}
+	}
+}
+
+void SBlendSpace2DEditorWindow::TimelineToNext()
+{
+	// 현재 재생중인 애니메이션 가져오기
+	UAnimSequence* CurrentAnimation = nullptr;
+	if (EditingBlendSpace && PreviewState->PreviewActor)
+	{
+		USkeletalMeshComponent* SkelComp = PreviewState->PreviewActor->GetSkeletalMeshComponent();
+		if (SkelComp)
+		{
+			UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+			if (AnimInst)
+			{
+				UAnimSequenceBase* AnimBase = AnimInst->GetCurrentAnimation();
+				CurrentAnimation = dynamic_cast<UAnimSequence*>(AnimBase);
+			}
+		}
+	}
+
+	if (!CurrentAnimation)
+	{
+		return;
+	}
+
+	UAnimDataModel* DataModel = CurrentAnimation->GetDataModel();
+	if (!DataModel)
+	{
+		return;
+	}
+
+	// 프레임 단위로 스냅하여 이동
+	const FFrameRate& FrameRate = DataModel->GetFrameRate();
+	float TimePerFrame = 1.0f / FrameRate.AsDecimal();
+	int32 TotalFrames = DataModel->GetNumberOfFrames();
+
+	// 현재 시간을 프레임으로 변환 (반올림)
+	int32 CurrentFrame = static_cast<int32>(CurrentAnimationTime / TimePerFrame + 0.5f);
+
+	// 다음 프레임으로 이동
+	CurrentFrame = FMath::Min(TotalFrames, CurrentFrame + 1);
+
+	// 프레임을 시간으로 변환
+	CurrentAnimationTime = static_cast<float>(CurrentFrame) * TimePerFrame;
+
+	if (PreviewState->PreviewActor && PreviewState->PreviewActor->GetSkeletalMeshComponent())
+	{
+		UAnimInstance* AnimInst = PreviewState->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+		if (AnimInst)
+		{
+			AnimInst->SetPosition(CurrentAnimationTime);
+		}
+	}
+}
+
+void SBlendSpace2DEditorWindow::TimelineToEnd()
+{
+	// 현재 재생중인 애니메이션 가져오기
+	UAnimSequence* CurrentAnimation = nullptr;
+	if (EditingBlendSpace && PreviewState->PreviewActor)
+	{
+		USkeletalMeshComponent* SkelComp = PreviewState->PreviewActor->GetSkeletalMeshComponent();
+		if (SkelComp)
+		{
+			UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+			if (AnimInst)
+			{
+				UAnimSequenceBase* AnimBase = AnimInst->GetCurrentAnimation();
+				CurrentAnimation = dynamic_cast<UAnimSequence*>(AnimBase);
+			}
+		}
+	}
+
+	if (!CurrentAnimation)
+	{
+		return;
+	}
+
+	UAnimDataModel* DataModel = CurrentAnimation->GetDataModel();
+	if (!DataModel)
+	{
+		return;
+	}
+
+	CurrentAnimationTime = DataModel->GetPlayLength();
+
+	if (PreviewState->PreviewActor && PreviewState->PreviewActor->GetSkeletalMeshComponent())
+	{
+		UAnimInstance* AnimInst = PreviewState->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
+		if (AnimInst)
+		{
+			AnimInst->SetPosition(CurrentAnimationTime);
+		}
 	}
 }
