@@ -2,6 +2,14 @@
 #include "LuaManager.h"
 #include "LuaComponentProxy.h"
 
+// Helper function to create LuaComponentProxy from Instance pointer
+inline sol::object MakeComponentProxy(sol::state_view SolState, void* Instance, UClass* Class) {
+    LuaComponentProxy Proxy;
+    Proxy.Instance = Instance;
+    Proxy.Class = Class;
+    return sol::make_object(SolState, std::move(Proxy));
+}
+
 // 클래스별 바인더 등록 매크로(컴포넌트 cpp에서 사용)
 #define LUA_BIND_BEGIN(ClassType) \
 static void BuildLua_##ClassType(sol::state_view L, sol::table& T); \

@@ -7,7 +7,9 @@
 #include "BlendSpace2D.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Runtime/Engine/GameFramework/Pawn.h"
+#include "Source/Runtime/Engine/GameFramework/World.h"
 #include "Actor.h"
+#include "Source/Runtime/Engine/Scripting/LuaManager.h"
 
 IMPLEMENT_CLASS(UAnimInstance)
 
@@ -172,16 +174,36 @@ void UAnimInstance::SetPosition(float NewTime)
 }
 
 /**
- * @brief 개별 Notify 이벤트 처리 (오버라이드 가능)
+ * @brief 개별 Notify 이벤트 처리
  * @param NotifyEvent 트리거된 Notify 이벤트
  */
 void UAnimInstance::HandleNotify(const FAnimNotifyEvent& NotifyEvent)
 {
-	// 기본 구현: SkeletalMeshComponent를 통해 Actor에게 전달
-	if (OwnerComponent)
+	if (!OwnerComponent)
 	{
-		OwnerComponent->HandleAnimNotify(NotifyEvent);
+		return;
 	}
+
+	AActor* Owner = OwnerComponent->GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+
+	UWorld* World = Owner->GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FLuaManager* LuaMgr = World->GetLuaManager();
+	if (!LuaMgr)
+	{
+		return;
+	}
+
+	FString NotifyClassName = NotifyEvent.NotifyName.ToString();
+	LuaMgr->ExecuteNotify(NotifyClassName, NotifyEvent.PropertyData, OwnerComponent, NotifyEvent.TriggerTime, NotifyEvent.Duration);
 }
 
 /**

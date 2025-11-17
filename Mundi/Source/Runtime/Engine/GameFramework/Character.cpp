@@ -107,7 +107,7 @@ void ACharacter::BeginPlay()
 			if (Skeleton)
 			{
 				UFbxLoader& FbxLoader = UFbxLoader::GetInstance();
-				SkeletalMesh->GetAnimations()[0];
+				// SkeletalMesh->GetAnimations()[0];
 				// 애니메이션 로드
 			/*	TArray<UAnimSequence*> IdleAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Idle.fbx", *Skeleton);
 				TArray<UAnimSequence*> WalkAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Walking.fbx", *Skeleton);

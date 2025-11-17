@@ -258,6 +258,16 @@ UActorComponent* AActor::GetComponent(UClass* ComponentClass)
 	return nullptr;
 }
 
+UActorComponent* AActor::FindComponentByClass(const FString& ClassName)
+{
+	UClass* ComponentClass = UClass::FindClass(ClassName);
+	if (!ComponentClass)
+	{
+		return nullptr;
+	}
+	return GetComponent(ComponentClass);
+}
+
 void AActor::RegisterAllComponents(UWorld* InWorld)
 {
 	// 액터 생성 후 아무 컴포넌트가 없으면 강제로 빈 루트 컴포넌트 할당

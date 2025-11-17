@@ -19,13 +19,15 @@ struct FAnimNotifyEvent
 	float Duration;
 	FName NotifyName;
 	float TriggerWeightThreshold;
-	int32 TrackIndex;  // Notify가 속한 Track 인덱스 (0부터 시작)
+	int32 TrackIndex;
+	FString PropertyData;
 
 	FAnimNotifyEvent()
 		: TriggerTime(0.0f)
 		, Duration(0.0f)
 		, TriggerWeightThreshold(0.0f)
 		, TrackIndex(0)
+		, PropertyData("{}")
 	{
 	}
 
@@ -35,10 +37,10 @@ struct FAnimNotifyEvent
 		, NotifyName(InNotifyName)
 		, TriggerWeightThreshold(0.0f)
 		, TrackIndex(InTrackIndex)
+		, PropertyData("{}")
 	{
 	}
 
-	// Operators
 	bool operator<(const FAnimNotifyEvent& Other) const
 	{
 		return TriggerTime < Other.TriggerTime;

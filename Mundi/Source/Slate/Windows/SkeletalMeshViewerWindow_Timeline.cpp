@@ -1012,6 +1012,10 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
     // Notify 렌더링을 위해 CurrentY 재설정 (Notifies 헤더 다음부터 시작)
     CurrentY = ScrollCursor.y + TrackHeight;
 
+    // Notify 마커 위에서 마우스가 hover 중인지 플래그 (Timeline 우클릭 메뉴 방지용)
+    static bool bIsHoveringNotify = false;
+    bIsHoveringNotify = false;  // 매 프레임 초기화
+
     for (int32 TrackIndex = 0; TrackIndex < NumTracks; ++TrackIndex)
     {
         ImVec2 TrackMin = ImVec2(ScrollTimelineMin.x, CurrentY);
@@ -1154,11 +1158,165 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
                         State->SelectedNotifyIndex = NotifyIndex;
                     }
 
+                    // Hover 시 플래그 설정 (Timeline 우클릭 메뉴 방지용)
+                    if (ImGui::IsItemHovered())
+                    {
+                        bIsHoveringNotify = true;
+                    }
+
                     // 클릭 시 선택
                     if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
                     {
                         State->SelectedNotifyIndex = NotifyIndex;
                     }
+
+                    // 우클릭 시 Edit 메뉴
+                    if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
+                    {
+                        State->SelectedNotifyIndex = NotifyIndex;
+                        ImGui::OpenPopup("##NotifyContextMenu");
+                    }
+
+                    // Notify 컨텍스트 메뉴 (PopID 전에 BeginPopup 호출해야 ID 스택 일치)
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+                    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+                    if (ImGui::BeginPopup("##NotifyContextMenu"))
+                    {
+                        // 헤더: Notify 정보 표시
+                        ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.2f, 1.0f), "NOTIFY");
+
+                        ImGui::Separator();
+
+                        // Begin Time 수정 (초 단위)
+                        ImGui::Text("Begin Time");
+                        ImGui::SameLine();
+                        float TriggerTime = Notify.TriggerTime;
+                        ImGui::SetNextItemWidth(100.0f);
+                        if (ImGui::DragFloat("##BeginTime", &TriggerTime, 0.01f, 0.0f, FLT_MAX, "%.3f"))
+                        {
+                            // Playback Range로 제한
+                            UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
+                            if (DataModel)
+                            {
+                                const FFrameRate& FrameRate = DataModel->GetFrameRate();
+                                float TimePerFrame = 1.0f / FrameRate.AsDecimal();
+                                int32 PlaybackStartFrame = State->PlaybackRangeStartFrame;
+                                int32 PlaybackEndFrame = (State->PlaybackRangeEndFrame < 0) ? DataModel->GetNumberOfFrames() : State->PlaybackRangeEndFrame;
+                                float PlaybackStartTime = static_cast<float>(PlaybackStartFrame) * TimePerFrame;
+                                float PlaybackEndTime = static_cast<float>(PlaybackEndFrame) * TimePerFrame;
+                                Notify.TriggerTime = FMath::Clamp(TriggerTime, PlaybackStartTime, PlaybackEndTime);
+                            }
+                            else
+                            {
+                                Notify.TriggerTime = FMath::Max(0.0f, TriggerTime);
+                            }
+                        }
+
+                        // Notify Frame 수정 (프레임 단위)
+                        ImGui::Text("Notify Frame");
+                        ImGui::SameLine();
+                        if (State->CurrentAnimation && State->CurrentAnimation->GetDataModel())
+                        {
+                            const FFrameRate& FR = State->CurrentAnimation->GetDataModel()->GetFrameRate();
+                            float TimePerFrame = 1.0f / FR.AsDecimal();
+                            int32 NotifyFrame = static_cast<int32>(Notify.TriggerTime * FR.AsDecimal());
+
+                            ImGui::SetNextItemWidth(100.0f);
+                            if (ImGui::DragInt("##NotifyFrame", &NotifyFrame, 1.0f, 0, INT_MAX))
+                            {
+                                // 프레임을 시간으로 변환
+                                float NewTime = static_cast<float>(NotifyFrame) * TimePerFrame;
+
+                                // Playback Range로 제한
+                                int32 PlaybackStartFrame = State->PlaybackRangeStartFrame;
+                                int32 PlaybackEndFrame = (State->PlaybackRangeEndFrame < 0) ? State->CurrentAnimation->GetDataModel()->GetNumberOfFrames() : State->PlaybackRangeEndFrame;
+                                float PlaybackStartTime = static_cast<float>(PlaybackStartFrame) * TimePerFrame;
+                                float PlaybackEndTime = static_cast<float>(PlaybackEndFrame) * TimePerFrame;
+                                Notify.TriggerTime = FMath::Clamp(NewTime, PlaybackStartTime, PlaybackEndTime);
+                            }
+                        }
+
+                        ImGui::Separator();
+
+                        // EDIT 섹션
+                        ImGui::TextDisabled("EDIT");
+
+                        // Copy
+                        if (ImGui::MenuItem("Copy", "CTRL+C"))
+                        {
+                            // TODO: Copy 구현
+                        }
+
+                        // Delete
+                        if (ImGui::MenuItem("Delete"))
+                        {
+                            // Notify 제거 (루프 밖에서 처리하도록 플래그 설정)
+                            State->SelectedNotifyIndex = -1;
+                            Notifies.erase(Notifies.begin() + NotifyIndex);
+                        }
+
+                        // Cut
+                        if (ImGui::MenuItem("Cut", "CTRL+X"))
+                        {
+                            // TODO: Cut 구현
+                        }
+
+                        // Replace with Notify... (하위 메뉴)
+                        if (ImGui::BeginMenu("Replace with Notify..."))
+                        {
+                            // Notify 라이브러리 자동 스캔
+                            ScanNotifyLibrary();
+
+                            for (const FString& NotifyClass : AvailableNotifyClasses)
+                            {
+                                if (ImGui::MenuItem(NotifyClass.c_str()))
+                                {
+                                    Notify.NotifyName = FName(NotifyClass);
+                                    Notify.Duration = 0.0f;  // Notify는 Duration 없음
+                                }
+                            }
+                            ImGui::EndMenu();
+                        }
+
+                        // Replace with Notify State... (하위 메뉴)
+                        if (ImGui::BeginMenu("Replace with Notify State..."))
+                        {
+                            // NotifyState 라이브러리 자동 스캔
+                            ScanNotifyLibrary();
+
+                            for (const FString& NotifyStateClass : AvailableNotifyStateClasses)
+                            {
+                                if (ImGui::MenuItem(NotifyStateClass.c_str()))
+                                {
+                                    Notify.NotifyName = FName(NotifyStateClass);
+                                    if (Notify.Duration == 0.0f)
+                                    {
+                                        Notify.Duration = 0.1f;  // NotifyState는 기본 Duration 설정
+                                    }
+                                }
+                            }
+                            ImGui::EndMenu();
+                        }
+
+                        ImGui::Separator();
+
+                        // Min Trigger Weight
+                        ImGui::Text("Min Trigger Weight");
+                        ImGui::SetNextItemWidth(150.0f);
+                        ImGui::DragFloat("##MinTriggerWeight", &Notify.TriggerWeightThreshold, 0.01f, 0.0f, 1.0f, "%.5f");
+
+                        // Edit Script (Lua 파일 열기)
+                        ImGui::Separator();
+                        if (ImGui::MenuItem("Edit Script"))
+                        {
+                            FString NotifyClassName = Notify.NotifyName.ToString();
+                            bool bIsNotifyState = (Notify.Duration > 0.0f);
+                            OpenNotifyScriptInEditor(NotifyClassName, bIsNotifyState);
+                        }
+
+                        ImGui::EndPopup();
+                    }
+                    ImGui::PopStyleVar(2);
 
                     ImGui::PopID();
 
@@ -1258,47 +1416,14 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
         bDraggingRangeEnd = false;
     }
 
-    // 우클릭 컨텍스트 메뉴 (Notify 추가)
+    // 우클릭 컨텍스트 메뉴 (Notify 추가 - Notify 마커 위가 아닐 때만)
     static float RightClickTime = 0.0f;
     static int32 RightClickTrackIndex = 0;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
-    if (ImGui::BeginPopupContextItem("##TimelineContextMenu"))
-    {
-        if (ImGui::MenuItem("Add Notify..."))
-        {
-            // Notify 이름 입력 다이얼로그 표시 (TODO: 모달 다이얼로그 구현)
-            // 임시로 기본 이름 사용
-            char NotifyNameBuf[64];
-            static int32 NotifyCounter = 1;
-            snprintf(NotifyNameBuf, sizeof(NotifyNameBuf), "NewNotify_%d", NotifyCounter++);
-
-            FAnimNotifyEvent NewNotify(RightClickTime, FName(NotifyNameBuf), 0.0f, RightClickTrackIndex);
-            State->CurrentAnimation->Notifies.push_back(NewNotify);
-            State->CurrentAnimation->SortNotifies();
-        }
-
-        if (ImGui::MenuItem("Add Notify State..."))
-        {
-            // State Notify 추가 (Duration > 0)
-            char NotifyNameBuf[64];
-            static int32 StateCounter = 1;
-            snprintf(NotifyNameBuf, sizeof(NotifyNameBuf), "NewNotifyState_%d", StateCounter++);
-
-            FAnimNotifyEvent NewNotify(RightClickTime, FName(NotifyNameBuf), 0.5f, RightClickTrackIndex);
-            State->CurrentAnimation->Notifies.push_back(NewNotify);
-            State->CurrentAnimation->SortNotifies();
-        }
-
-        ImGui::EndPopup();
-    }
-    ImGui::PopStyleVar(2);  // WindowPadding + ItemSpacing
-
     if (ImGui::IsItemHovered())
     {
-        // 우클릭 위치 저장
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+        // 우클릭 위치 저장 (Notify 위가 아닐 때만)
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && !bIsHoveringNotify)
         {
             ImVec2 MousePos = ImGui::GetMousePos();
 
@@ -1306,56 +1431,132 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
             float NormalizedX = (MousePos.x - ScrollTimelineMin.x) / ScrollTimelineWidth;
             float MouseTime = FMath::Lerp(StartTime, EndTime, FMath::Clamp(NormalizedX, 0.0f, 1.0f));
 
-            // Playback Range로 제한 (프레임 단위)
-            UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
-            if (DataModel)
-            {
-                const FFrameRate& FrameRate = DataModel->GetFrameRate();
-                float TimePerFrame = 1.0f / FrameRate.AsDecimal();
-
-                // Playback Range 시간 범위 계산
-                int32 PlaybackStartFrame = State->PlaybackRangeStartFrame;
-                int32 PlaybackEndFrame = (State->PlaybackRangeEndFrame < 0) ? DataModel->GetNumberOfFrames() : State->PlaybackRangeEndFrame;
-                float PlaybackStartTime = static_cast<float>(PlaybackStartFrame) * TimePerFrame;
-                float PlaybackEndTime = static_cast<float>(PlaybackEndFrame) * TimePerFrame;
-
-                // 마우스 시간을 Playback Range 내로 클램프
-                RightClickTime = FMath::Clamp(MouseTime, PlaybackStartTime, PlaybackEndTime);
-            }
-            else
-            {
-                RightClickTime = MouseTime;
-            }
-
             // 클릭한 Track 계산 (스크롤 영역 기준, 첫 줄은 Notifies 헤더이므로 -1)
             float RelativeY = MousePos.y - ScrollCursor.y;
             int32 RowIndex = static_cast<int32>(RelativeY / TrackHeight);
-            RightClickTrackIndex = RowIndex - 1;  // 첫 줄(0)은 Notifies 헤더
+            int32 TrackIndex = RowIndex - 1;  // 첫 줄(0)은 Notifies 헤더
 
-            // Notifies 헤더 줄(RightClickTrackIndex < 0)이 아닌 경우만 처리
-            if (RightClickTrackIndex >= 0)
+            // Notifies 헤더 줄(TrackIndex < 0)이 아닌 경우만 처리
+            if (TrackIndex >= 0 && TrackIndex < State->NotifyTrackNames.Num())
             {
-                // Track 범위를 벗어난 경우 가장 가까운 Track으로 클램프
-                if (RightClickTrackIndex >= State->NotifyTrackNames.Num())
-                {
-                    // Track 범위 아래 → 마지막 Track
-                    RightClickTrackIndex = State->NotifyTrackNames.Num() - 1;
-                }
-
-                // 유효한 Track이 있으면 메뉴 표시
-                if (State->NotifyTrackNames.Num() > 0)
-                {
-                    ImGui::OpenPopup("##TimelineContextMenu");
-                }
+                RightClickTime = MouseTime;
+                RightClickTrackIndex = TrackIndex;
+                ImGui::OpenPopup("##TimelineContextMenu");
             }
         }
+    }
 
-        // Shift + 우클릭: 재생 범위 초기화
-        if (bShiftHeld && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+    if (ImGui::BeginPopup("##TimelineContextMenu"))
+    {
+        if (ImGui::BeginMenu("Add Notify..."))
         {
-            State->PlaybackRangeStartFrame = 0;
-            State->PlaybackRangeEndFrame = -1; // 전체 범위
+            // 메뉴 열릴 때마다 Notify 라이브러리 자동 스캔 (파일 추가/삭제 반영)
+            ScanNotifyLibrary();
+
+            for (const FString& NotifyClass : AvailableNotifyClasses)
+            {
+                if (ImGui::MenuItem(NotifyClass.c_str()))
+                {
+                    FAnimNotifyEvent NewNotify;
+                    NewNotify.NotifyName = FName(NotifyClass);
+                    NewNotify.TriggerTime = RightClickTime;
+                    NewNotify.Duration = 0.0f;
+                    NewNotify.TrackIndex = RightClickTrackIndex;
+                    State->CurrentAnimation->AddNotify(NewNotify);
+                }
+            }
+
+            ImGui::Separator();
+
+            // New Notify Script (하위 메뉴로 텍스트 입력 제공)
+            if (ImGui::BeginMenu("New Notify Script..."))
+            {
+                ImGui::Text("Enter script name (empty for auto-numbering):");
+                ImGui::SetNextItemWidth(250.0f);
+                bool bEnterPressed = ImGui::InputTextWithHint("##NewNotifyName", "e.g., FootStep", NewNotifyNameBuffer, sizeof(NewNotifyNameBuffer), ImGuiInputTextFlags_EnterReturnsTrue);
+
+                ImGui::Spacing();
+
+                if (ImGui::Button("Create", ImVec2(120, 0)) || bEnterPressed)
+                {
+                    FString ScriptName(NewNotifyNameBuffer);
+                    CreateNewNotifyScript(ScriptName, false);
+                    memset(NewNotifyNameBuffer, 0, sizeof(NewNotifyNameBuffer));
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel", ImVec2(120, 0)))
+                {
+                    memset(NewNotifyNameBuffer, 0, sizeof(NewNotifyNameBuffer));
+                    ImGui::CloseCurrentPopup();
+                }
+
+                ImGui::EndMenu();
+            }
+
+            ImGui::EndMenu();
         }
+
+        if (ImGui::BeginMenu("Add Notify State..."))
+        {
+            // 메뉴 열릴 때마다 Notify 라이브러리 자동 스캔 (파일 추가/삭제 반영)
+            ScanNotifyLibrary();
+
+            for (const FString& StateClass : AvailableNotifyStateClasses)
+            {
+                if (ImGui::MenuItem(StateClass.c_str()))
+                {
+                    FAnimNotifyEvent NewNotify;
+                    NewNotify.NotifyName = FName(StateClass);
+                    NewNotify.TriggerTime = RightClickTime;
+                    NewNotify.Duration = 1.0f;
+                    NewNotify.TrackIndex = RightClickTrackIndex;
+                    State->CurrentAnimation->AddNotify(NewNotify);
+                }
+            }
+
+            ImGui::Separator();
+
+            // New Notify State Script (하위 메뉴로 텍스트 입력 제공)
+            if (ImGui::BeginMenu("New Notify State Script..."))
+            {
+                ImGui::Text("Enter script name (empty for auto-numbering):");
+                ImGui::SetNextItemWidth(250.0f);
+                bool bEnterPressed = ImGui::InputTextWithHint("##NewNotifyStateName", "e.g., TrailEffect", NewNotifyNameBuffer, sizeof(NewNotifyNameBuffer), ImGuiInputTextFlags_EnterReturnsTrue);
+
+                ImGui::Spacing();
+
+                if (ImGui::Button("Create", ImVec2(120, 0)) || bEnterPressed)
+                {
+                    FString ScriptName(NewNotifyNameBuffer);
+                    CreateNewNotifyScript(ScriptName, true);
+                    memset(NewNotifyNameBuffer, 0, sizeof(NewNotifyNameBuffer));
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel", ImVec2(120, 0)))
+                {
+                    memset(NewNotifyNameBuffer, 0, sizeof(NewNotifyNameBuffer));
+                    ImGui::CloseCurrentPopup();
+                }
+
+                ImGui::EndMenu();
+            }
+
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndPopup();
+    }
+    ImGui::PopStyleVar(2);  // WindowPadding + ItemSpacing
+
+    // Shift + 우클릭: 재생 범위 초기화
+    if (ImGui::IsItemHovered() && bShiftHeld && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+    {
+        State->PlaybackRangeStartFrame = 0;
+        State->PlaybackRangeEndFrame = -1; // 전체 범위
     }
 
     // 스크롤 영역 내부 콘텐츠 크기 설정
@@ -1695,12 +1896,73 @@ void SSkeletalMeshViewerWindow::DrawNotifyTracksPanel(ViewerState* State, float 
         snprintf(PopupID, sizeof(PopupID), "TrackMenu%d", TrackIndex);
         if (ImGui::BeginPopup(PopupID))
         {
-            if (ImGui::MenuItem("Insert New Notify"))
+            if (ImGui::BeginMenu("Add Notify..."))
             {
-                State->SelectedNotifyTrackIndex = TrackIndex;
-                FAnimNotifyEvent NewNotify(State->CurrentAnimationTime, FName("NewNotify"));
-                State->CurrentAnimation->AddNotify(NewNotify);
+                // 메뉴 열릴 때마다 Notify 라이브러리 자동 스캔 (파일 추가/삭제 반영)
+                ScanNotifyLibrary();
+
+                for (const FString& NotifyClass : AvailableNotifyClasses)
+                {
+                    if (ImGui::MenuItem(NotifyClass.c_str()))
+                    {
+                        FAnimNotifyEvent NewNotify;
+                        NewNotify.NotifyName = FName(NotifyClass);
+                        NewNotify.TriggerTime = State->CurrentAnimationTime;
+                        NewNotify.Duration = 0.0f;
+                        NewNotify.TrackIndex = TrackIndex;
+                        State->CurrentAnimation->AddNotify(NewNotify);
+                    }
+                }
+
+                ImGui::Separator();
+
+                if (ImGui::MenuItem("New Notify Script..."))
+                {
+                    bShowNewNotifyDialog = true;
+                    memset(NewNotifyNameBuffer, 0, sizeof(NewNotifyNameBuffer));
+                }
+
+                ImGui::EndMenu();
             }
+
+            if (ImGui::BeginMenu("Add Notify State..."))
+            {
+                // 메뉴 열릴 때마다 Notify 라이브러리 자동 스캔 (파일 추가/삭제 반영)
+                ScanNotifyLibrary();
+
+                for (const FString& StateClass : AvailableNotifyStateClasses)
+                {
+                    if (ImGui::MenuItem(StateClass.c_str()))
+                    {
+                        FAnimNotifyEvent NewNotify;
+                        NewNotify.NotifyName = FName(StateClass);
+                        NewNotify.TriggerTime = State->CurrentAnimationTime;
+                        NewNotify.Duration = 1.0f;
+                        NewNotify.TrackIndex = TrackIndex;
+                        State->CurrentAnimation->AddNotify(NewNotify);
+                    }
+                }
+
+                ImGui::Separator();
+
+                if (ImGui::MenuItem("New Notify State Script..."))
+                {
+                    bShowNewNotifyStateDialog = true;
+                    memset(NewNotifyNameBuffer, 0, sizeof(NewNotifyNameBuffer));
+                }
+
+                ImGui::EndMenu();
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Manage Notifies..."))
+            {
+                ScanNotifyLibrary();
+            }
+
+            ImGui::Separator();
+
             if (ImGui::MenuItem("Remove Track"))
             {
                 State->NotifyTrackNames.erase(State->NotifyTrackNames.begin() + TrackIndex);
@@ -1723,48 +1985,65 @@ void SSkeletalMeshViewerWindow::DrawNotifyTracksPanel(ViewerState* State, float 
             }
         }
 
-        // 이 Track에 속한 Notify들 그리기 (임시로 모든 Notify를 첫 번째 Track에 표시)
-        if (TrackIndex == 0)
+        for (int32 i = 0; i < Notifies.Num(); ++i)
         {
-            for (int32 i = 0; i < Notifies.Num(); ++i)
+            const FAnimNotifyEvent* NotifyEvent = Notifies[i];
+            if (!NotifyEvent)
+                continue;
+
+            if (NotifyEvent->TrackIndex != TrackIndex)
+                continue;
+
+            float NotifyTime = NotifyEvent->TriggerTime;
+            if (NotifyTime < StartTime || NotifyTime > EndTime)
+                continue;
+
+            float NormalizedX = (NotifyTime - StartTime) / Duration;
+            float NotifyX = TrackMin.x + NormalizedX * PanelWidth;
+
+            ImVec2 MarkerMin(NotifyX - 5, TrackMin.y + 20);
+            ImVec2 MarkerMax(NotifyX + 5, TrackMax.y - 5);
+
+            bool bNotifySelected = (State->SelectedNotifyIndex == i);
+            ImU32 MarkerColor = bNotifySelected ? IM_COL32(255, 200, 100, 255) : IM_COL32(100, 200, 255, 255);
+
+            DrawList->AddRectFilled(MarkerMin, MarkerMax, MarkerColor);
+            DrawList->AddRect(MarkerMin, MarkerMax, IM_COL32(255, 255, 255, 255), 0.0f, 0, 1.5f);
+
+            const char* NotifyName = NotifyEvent->NotifyName.ToString().c_str();
+            ImVec2 TextSize = ImGui::CalcTextSize(NotifyName);
+            DrawList->AddText(ImVec2(NotifyX - TextSize.x * 0.5f, MarkerMin.y - TextSize.y - 2), IM_COL32(220, 220, 220, 255), NotifyName);
+
+            bool bIsHovered = (MousePos.x >= MarkerMin.x && MousePos.x <= MarkerMax.x &&
+                               MousePos.y >= MarkerMin.y && MousePos.y <= MarkerMax.y);
+
+            if (bIsHovered && ImGui::IsMouseClicked(0))
             {
-                const FAnimNotifyEvent* NotifyEvent = Notifies[i];
-                if (!NotifyEvent)
-                    continue;
+                State->SelectedNotifyIndex = i;
+                State->bDraggingNotify = false;
+                State->NotifyDragOffsetX = MousePos.x - NotifyX;
+            }
 
-                float NotifyTime = NotifyEvent->TriggerTime;
-                if (NotifyTime < StartTime || NotifyTime > EndTime)
-                    continue;
-
-                float NormalizedX = (NotifyTime - StartTime) / Duration;
-                float NotifyX = TrackMin.x + NormalizedX * PanelWidth;
-
-                // Notify 마커
-                ImVec2 MarkerMin(NotifyX - 5, TrackMin.y + 20);
-                ImVec2 MarkerMax(NotifyX + 5, TrackMax.y - 5);
-
-                bool bNotifySelected = (State->SelectedNotifyIndex == i);
-                ImU32 MarkerColor = bNotifySelected ? IM_COL32(255, 200, 100, 255) : IM_COL32(100, 200, 255, 255);
-
-                DrawList->AddRectFilled(MarkerMin, MarkerMax, MarkerColor);
-                DrawList->AddRect(MarkerMin, MarkerMax, IM_COL32(255, 255, 255, 255), 0.0f, 0, 1.5f);
-
-                // Notify 이름
-                const char* NotifyName = NotifyEvent->NotifyName.ToString().c_str();
-                ImVec2 TextSize = ImGui::CalcTextSize(NotifyName);
-                DrawList->AddText(ImVec2(NotifyX - TextSize.x * 0.5f, MarkerMin.y - TextSize.y - 2), IM_COL32(220, 220, 220, 255), NotifyName);
-
-                // Notify 클릭 감지
-                if (ImGui::IsMouseClicked(0))
+            if (State->SelectedNotifyIndex == i && ImGui::IsMouseDragging(0, 2.0f))
+            {
+                if (!State->bDraggingNotify)
                 {
-                    if (MousePos.x >= MarkerMin.x && MousePos.x <= MarkerMax.x &&
-                        MousePos.y >= MarkerMin.y && MousePos.y <= MarkerMax.y)
-                    {
-                        State->SelectedNotifyIndex = i;
-                        State->CurrentAnimationTime = NotifyTime;
-                        RefreshAnimationFrame(State);
-                    }
+                    State->bDraggingNotify = true;
                 }
+
+                float NewNotifyX = MousePos.x - State->NotifyDragOffsetX;
+                float NewNormalizedX = (NewNotifyX - TrackMin.x) / PanelWidth;
+                float NewTime = StartTime + NewNormalizedX * Duration;
+                NewTime = FMath::Clamp(NewTime, 0.0f, AnimLength);
+
+                State->CurrentAnimation->Notifies[i].TriggerTime = NewTime;
+                State->CurrentAnimationTime = NewTime;
+                RefreshAnimationFrame(State);
+            }
+
+            if (ImGui::IsMouseReleased(0) && State->SelectedNotifyIndex == i)
+            {
+                State->bDraggingNotify = false;
             }
         }
 

@@ -2,6 +2,9 @@
 #include "SkeletalMeshActor.h"
 #include "World.h"
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
+#include "Source/Runtime/Engine/GameFramework/FAudioDevice.h"
+#include "Source/Runtime/AssetManagement/ResourceManager.h"
+#include "Source/Runtime/Engine/Audio/Sound.h"
 
 ASkeletalMeshActor::ASkeletalMeshActor()
 {
@@ -16,6 +19,50 @@ ASkeletalMeshActor::ASkeletalMeshActor()
 }
 
 ASkeletalMeshActor::~ASkeletalMeshActor() = default;
+
+void ASkeletalMeshActor::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // AnimNotify Delegate 구독 (UE 표준: BeginPlay에서 초기화)
+    RegisterAnimNotifyDelegate();
+}
+
+void ASkeletalMeshActor::EndPlay()
+{
+    // BeginPlay에서 등록한 델리게이트를 대칭적으로 해제 (LuaScriptComponent 패턴)
+    if (SkeletalMeshComponent && AnimNotifyDelegateHandle != 0)
+    {
+        SkeletalMeshComponent->OnAnimNotify.Remove(AnimNotifyDelegateHandle);
+        AnimNotifyDelegateHandle = 0;
+    }
+
+    Super::EndPlay();
+}
+
+void ASkeletalMeshActor::RegisterAnimNotifyDelegate()
+{
+    if (!SkeletalMeshComponent)
+    {
+        return;
+    }
+
+    // 중복 구독 방지
+    if (AnimNotifyDelegateHandle != 0)
+    {
+        return;
+    }
+
+    AnimNotifyDelegateHandle = SkeletalMeshComponent->OnAnimNotify.Add([this](const FAnimNotifyEvent& Event)
+    {
+        FString SoundPath = Event.NotifyName.ToString();
+        USound* Sound = UResourceManager::GetInstance().Load<USound>(SoundPath);
+        if (Sound)
+        {
+            FAudioDevice::PlaySound3D(Sound, GetActorLocation(), 1.0f, false);
+        }
+    });
+}
 
 void ASkeletalMeshActor::Tick(float DeltaTime)
 {
@@ -228,13 +275,13 @@ void ASkeletalMeshActor::BuildBoneLinesCache()
     {
         return;
     }
-    
+
     USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMesh();
     if (!SkeletalMesh)
     {
         return;
     }
-    
+
     const FSkeletalMeshData* Data = SkeletalMesh->GetSkeletalMeshData();
     if (!Data)
     {
@@ -272,13 +319,13 @@ void ASkeletalMeshActor::BuildBoneLinesCache()
     }
 
     const int NumSegments = CachedSegments;
-    
+
     for (int32 i = 0; i < BoneCount; ++i)
     {
         FBoneDebugLines& BL = BoneLinesCache[i];
         const FVector Center = JointPos[i];
         const int32 parent = Bones[i].ParentIndex;
-        
+
         if (parent >= 0)
         {
             const FVector ParentPos = JointPos[parent];
@@ -350,19 +397,19 @@ void ASkeletalMeshActor::UpdateBoneSelectionHighlight(int32 SelectedBoneIndex)
     {
         return;
     }
-    
+
     USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMesh();
     if (!SkeletalMesh)
     {
         return;
     }
-    
+
     const FSkeletalMeshData* Data = SkeletalMesh->GetSkeletalMeshData();
     if (!Data)
     {
         return;
     }
-    
+
     const auto& Bones = Data->Skeleton.Bones;
     const int32 BoneCount = static_cast<int32>(Bones.size());
 
@@ -406,19 +453,19 @@ void ASkeletalMeshActor::UpdateBoneSubtreeTransforms(int32 BoneIndex)
     {
         return;
     }
-    
+
     USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMesh();
     if (!SkeletalMesh)
     {
         return;
     }
-    
+
     const FSkeletalMeshData* Data = SkeletalMesh->GetSkeletalMeshData();
     if (!Data)
     {
         return;
     }
-    
+
     const auto& Bones = Data->Skeleton.Bones;
     const int32 BoneCount = static_cast<int32>(Bones.size());
     if (BoneIndex < 0 || BoneIndex >= BoneCount)
@@ -437,7 +484,7 @@ void ASkeletalMeshActor::UpdateBoneSubtreeTransforms(int32 BoneIndex)
 
     const FMatrix WorldInv = GetWorldMatrix().InverseAffine();
     TArray<FVector> Centers; Centers.resize(BoneCount);
-    
+
     for (int32 b : ToUpdate)
     {
         const FMatrix W = SkeletalMeshComponent->GetBoneWorldTransform(b).ToMatrix();
