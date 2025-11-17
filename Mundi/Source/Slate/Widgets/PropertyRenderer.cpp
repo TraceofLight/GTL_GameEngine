@@ -330,12 +330,23 @@ void UPropertyRenderer::CacheResources()
 
 	if (CachedSkeletalMeshPaths.IsEmpty() && CachedSkeletalMeshItems.IsEmpty())
 	{
-		CachedSkeletalMeshPaths = ResMgr.GetAllFilePaths<USkeletalMesh>();
-		for (const FString& path : CachedSkeletalMeshPaths)
+		// Without Skin FBX로 생성된 빈 메시는 제외하고 캐시 생성
+		TArray<USkeletalMesh*> AllSkeletalMeshes = ResMgr.GetAll<USkeletalMesh>();
+		for (USkeletalMesh* Mesh : AllSkeletalMeshes)
 		{
-			// 파일명만 추출해서 표시
-			std::filesystem::path fsPath(path);
-			CachedSkeletalMeshItems.push_back(fsPath.filename().string());
+			if (Mesh)
+			{
+				const FSkeletalMeshData* MeshData = Mesh->GetSkeletalMeshData();
+				// 정점 배열이 비어있으면 Without Skin FBX이므로 제외
+				if (MeshData && MeshData->Vertices.Num() > 0)
+				{
+					const FString& path = Mesh->GetFilePath();
+					CachedSkeletalMeshPaths.push_back(path);
+					// 파일명만 추출해서 표시
+					std::filesystem::path fsPath(path);
+					CachedSkeletalMeshItems.push_back(fsPath.filename().string());
+				}
+			}
 		}
 		CachedSkeletalMeshPaths.Insert("", 0);
 		CachedSkeletalMeshItems.Insert("None", 0);
