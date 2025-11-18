@@ -37,14 +37,15 @@ FLuaManager::FLuaManager()
         "UUID", &FGameObject::UUID,
         "Tag", sol::property(&FGameObject::GetTag, &FGameObject::SetTag),
         "Location", sol::property(&FGameObject::GetLocation, &FGameObject::SetLocation),
-        "Rotation", sol::property(&FGameObject::GetRotation, &FGameObject::SetRotation), 
+        "Rotation", sol::property(&FGameObject::GetRotation, &FGameObject::SetRotation),
         "Scale", sol::property(&FGameObject::GetScale, &FGameObject::SetScale),
         "bIsActive", sol::property(&FGameObject::GetIsActive, &FGameObject::SetIsActive),
         "Velocity", &FGameObject::Velocity,
         "PrintLocation", &FGameObject::PrintLocation,
-        "GetForward", &FGameObject::GetForward
+        "GetForward", &FGameObject::GetForward,
+        "GetOwner", &FGameObject::GetOwner
     );
-    
+
     Lua->new_usertype<UCameraComponent>("CameraComponent",
         sol::no_constructor,
         "SetLocation", sol::overload(
@@ -121,25 +122,25 @@ FLuaManager::FLuaManager()
         },
         "SetCursorVisible", [](UInputManager* Self, bool bVisible){
             if (bVisible)
-            { 
+            {
                 Self->SetCursorVisible(true);
                 if (Self->IsCursorLocked())
                     Self->ReleaseCursor();
             } else
-            { 
+            {
                 Self->SetCursorVisible(false);
                 Self->LockCursor();
             }
         }
-    );                
-    
+    );
+
     sol::table MouseButton = Lua->create_table("MouseButton");
     MouseButton["Left"] = EMouseButton::LeftButton;
     MouseButton["Right"] = EMouseButton::RightButton;
     MouseButton["Middle"] = EMouseButton::MiddleButton;
     MouseButton["XButton1"] = EMouseButton::XButton1;
     MouseButton["XButton2"] = EMouseButton::XButton2;
-    
+
     Lua->set_function("print", [](sol::variadic_args va) {
         std::string output;
         for (auto arg : va)
@@ -177,9 +178,9 @@ FLuaManager::FLuaManager()
         }
         UE_LOG("[Lua] %s\n", output.c_str());
     });
-    
+
     // GlobalConfig는 전역 table
-    SharedLib["GlobalConfig"] = Lua->create_table(); 
+    SharedLib["GlobalConfig"] = Lua->create_table();
     // SharedLib["GlobalConfig"]["Gravity"] = 9.8;
 
     SharedLib.set_function("SpawnPrefab", sol::overload(
@@ -304,15 +305,15 @@ FLuaManager::FLuaManager()
     SharedLib.set_function("SetSlomo", [](float Duration , float Dilation) { GWorld->RequestSlomo(Duration, Dilation); });
 
     SharedLib.set_function("HitStop", [](float Duration, sol::optional<float> Scale) { GWorld->RequestHitStop(Duration, Scale.value_or(0.0f)); });
-    
-    SharedLib.set_function("TargetHitStop", [](FGameObject& Obj, float Duration, sol::optional<float> Scale) 
+
+    SharedLib.set_function("TargetHitStop", [](FGameObject& Obj, float Duration, sol::optional<float> Scale)
         {
             if (AActor* Owner = Obj.GetOwner())
             {
                 Owner->SetCustomTimeDillation(Duration, Scale.value_or(0.0f));
             }
         });
-    
+
     // FVector usertype 등록 (메서드와 프로퍼티)
     SharedLib.new_usertype<FVector>("FVector",
         sol::no_constructor,  // 생성자는 위에서 Vector 함수로 등록했음
@@ -370,7 +371,7 @@ FLuaManager::FLuaManager()
 FLuaManager::~FLuaManager()
 {
     ShutdownBeforeLuaClose();
-    
+
     if (Lua)
     {
         delete Lua;
@@ -386,7 +387,7 @@ sol::environment FLuaManager::CreateEnvironment()
     sol::table MetaTable = Lua->create_table();
     MetaTable[sol::meta_function::index] = SharedLib;
     Env[sol::metatable_key] = MetaTable;
-    
+
     return Env;
 }
 
@@ -408,7 +409,7 @@ void FLuaManager::ExposeAllComponentsToLua()
                 UE_LOG("[Lua][error] Error: Expected GameObject\n");
                 return sol::make_object(*Lua, sol::nil);
             }
-        
+
             FGameObject& GameObject = Obj.as<FGameObject&>();
             AActor* Actor = GameObject.GetOwner();
 
@@ -426,16 +427,16 @@ void FLuaManager::ExposeAllComponentsToLua()
                 UE_LOG("[Lua][error] Error: Expected GameObject\n");
                 return sol::make_object(*Lua, sol::nil);
             }
-            
+
             FGameObject& GameObject = Obj.as<FGameObject&>();
             AActor* Actor = GameObject.GetOwner();
 
             UClass* Class = UClass::FindClass(ClassName);
             if (!Class) return sol::make_object(*Lua, sol::nil);
-            
+
             UActorComponent* Comp = Actor->GetComponent(Class);
-            if (!Comp) return sol::make_object(*Lua, sol::nil); 
-            
+            if (!Comp) return sol::make_object(*Lua, sol::nil);
+
             return MakeCompProxy(*Lua, Comp, Class);
         }
     );
@@ -561,7 +562,7 @@ void FLuaManager::ExposeGlobalFunctions()
         {
             if (Self) Self->DeleteVignette();
         },
-            
+
         "SetViewTarget", [](APlayerCameraManager* self, LuaComponentProxy& Proxy)
         {
             // 타입 안정성 확인
@@ -599,9 +600,9 @@ void FLuaManager::ExposeGlobalFunctions()
 bool FLuaManager::LoadScriptInto(sol::environment& Env, const FString& Path) {
     auto Chunk = Lua->load_file(Path);
     if (!Chunk.valid()) { sol::error Err = Chunk; UE_LOG("[Lua][error] %s", Err.what()); return false; }
-    
+
     sol::protected_function ProtectedFunc = Chunk;
-    sol::set_environment(Env, ProtectedFunc);         
+    sol::set_environment(Env, ProtectedFunc);
     auto Result = ProtectedFunc();
     if (!Result.valid()) { sol::error Err = Result; UE_LOG("[Lua][error] %s", Err.what()); return false; }
     return true;
@@ -615,9 +616,9 @@ void FLuaManager::Tick(double DeltaSeconds)
 void FLuaManager::ShutdownBeforeLuaClose()
 {
     CoroutineSchedular.ShutdownBeforeLuaClose();
-    
+
     FLuaBindRegistry::Get().Reset();
-    
+
     SharedLib = sol::nil;
 }
 
@@ -630,11 +631,11 @@ sol::protected_function FLuaManager::GetFunc(sol::environment& Env, const char* 
         return {};
 
     sol::object Object = Env[Name];
-    
+
     if (Object == sol::nil || Object.get_type() != sol::type::function)
         return {};
-    
+
     sol::protected_function Func = Object.as<sol::protected_function>();
-    
+
     return Func;
 }
