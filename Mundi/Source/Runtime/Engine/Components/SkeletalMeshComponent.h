@@ -39,6 +39,7 @@ public:
 	void DuplicateSubObjects() override;
 
 	// Getters
+	UFUNCTION(LuaBind, DisplayName = "GetAnimInstance")
 	UAnimInstance* GetAnimInstance() const { return AnimInstance; }
 	FTransform GetBoneLocalTransform(int32 BoneIndex) const;
 	FTransform GetBoneWorldTransform(int32 BoneIndex);
@@ -65,12 +66,6 @@ public:
 	 */
 	void StopAnimation();
 
-	/**
-	 * @brief State Machine 설정 (AnimInstance를 통해)
-	 *
-	 * @param InStateMachine 설정할 State Machine 애셋
-	 */
-	void SetAnimationStateMachine(UAnimStateMachine* InStateMachine);
 	void SetBlendSpace2D(class UBlendSpace2D* InBlendSpace);
 
 	// Batch Pose Update (AnimInstance에서 사용)

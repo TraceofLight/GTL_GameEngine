@@ -519,6 +519,7 @@
     <ClCompile Include="Source\Slate\Windows\ControlPanelWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ExperimentalFeatureWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\PropertyWindow.cpp" />
+    <ClCompile Include="Source\Slate\Windows\AnimStateMachineWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SceneWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SControlPanel.cpp" />
     <ClCompile Include="Source\Slate\Windows\SDetailsWindow.cpp" />
@@ -530,9 +531,15 @@
     <ClCompile Include="Source\Slate\Windows\SViewportWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\UIWindow.cpp" />
+    <ClCompile Include="ThirdParty\Include\ImGui\crude_json.cpp">
+    <PrecompiledHeader>NotUsing</PrecompiledHeader>
+  </ClCompile>
     <ClCompile Include="ThirdParty\Include\ImGui\imgui.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ThirdParty\Include\ImGui\imgui_canvas.cpp">
+    <PrecompiledHeader>NotUsing</PrecompiledHeader>
+  </ClCompile>
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_draw.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -542,6 +549,12 @@
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_impl_win32.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ThirdParty\Include\ImGui\imgui_node_editor.cpp">
+    <PrecompiledHeader>NotUsing</PrecompiledHeader>
+  </ClCompile>
+    <ClCompile Include="ThirdParty\Include\ImGui\imgui_node_editor_api.cpp">
+    <PrecompiledHeader>NotUsing</PrecompiledHeader>
+  </ClCompile>
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_tables.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -801,6 +814,7 @@
     <ClInclude Include="Source\Slate\Windows\ControlPanelWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ExperimentalFeatureWindow.h" />
     <ClInclude Include="Source\Slate\Windows\PropertyWindow.h" />
+    <ClInclude Include="Source\Slate\Windows\AnimStateMachineWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SceneWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SControlPanel.h" />
     <ClInclude Include="Source\Slate\Windows\SDetailsWindow.h" />

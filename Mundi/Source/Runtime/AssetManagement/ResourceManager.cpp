@@ -49,6 +49,7 @@ void UResourceManager::Initialize(ID3D11Device* InDevice, ID3D11DeviceContext* I
     CreateTextBillboardTexture();
     CreateDefaultShader();
     CreateDefaultMaterial();
+	PreLoadAnimStateMachines();
 }
 
 // 전체 해제
@@ -559,6 +560,39 @@ void UResourceManager::CreateTextBillboardTexture()
     UTexture* TextBillboardTexture = NewObject<UTexture>();
     TextBillboardTexture->Load("TextBillboard.dds",Device);
     Add<UTexture>("TextBillboard.dds", TextBillboardTexture);
+}
+
+void UResourceManager::PreLoadAnimStateMachines()
+{
+	FWideString WDataDir = UTF8ToWide(GDataDir);
+	const fs::path DataDir(WDataDir);
+
+	if (!fs::exists(DataDir) || !fs::is_directory(DataDir))
+	{
+		UE_LOG("UResourceManager::Preload: Data directory not found: %s", GDataDir.c_str());
+		return;
+	}
+
+	TSet<FWideString> ProcessedFiles;
+	for (const auto& Entry : fs::recursive_directory_iterator(DataDir))
+	{
+		if (!Entry.is_regular_file())
+			continue;
+
+		const fs::path& Path = Entry.path();
+
+		FWideString Extension = Path.extension().wstring();
+		std::ranges::transform(Extension, Extension.begin(), ::towlower);
+
+		if (Extension == L".statemachine")
+		{
+			// 변경 (wstring -> WideToUTF8 -> FString)
+			FWideString WPathStr = Path.wstring();
+			FString PathStr = NormalizePath(WideToUTF8(WPathStr));
+
+			Load<UAnimStateMachine>(PathStr);
+		}
+	}
 }
 
 void UResourceManager::CheckAndReloadShaders(float DeltaTime)

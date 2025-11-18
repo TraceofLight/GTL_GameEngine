@@ -93,4 +93,27 @@ protected:
 	FAnimNode_BlendSpace2D BlendSpace2DNode;
 
 	virtual void HandleNotify(const FAnimNotifyEvent& NotifyEvent);
+
+// ===== 파라미터(Blackboard) 시스템 =====
+public:
+	UFUNCTION(LuaBind, DisplayName = "SetFloat")
+	void SetFloat(FName Key, float Value) { Parameters.Add(Key, Value); }
+	UFUNCTION(LuaBind, DisplayName = "GetFloat")
+	float GetFloat(FName Key) const
+	{
+		if (const float* Val = Parameters.Find(Key))
+		{
+			return *Val;
+		}
+		return 0.0f;
+	}
+
+	UFUNCTION(LuaBind, DisplayName = "SetBool")
+	void SetBool(FName Key, bool bValue) { SetFloat(Key, bValue ? 1.0f : 0.0f); }
+	UFUNCTION(LuaBind, DisplayName = "GetBool")
+	bool GetBool(FName Key) const { return GetFloat(Key) > 0.5f; }
+
+protected:
+	/** 변수 저장소 (이름 -> 값) */
+	TMap<FName, float> Parameters;
 };

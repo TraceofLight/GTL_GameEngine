@@ -19,6 +19,7 @@
 #include "UIManager.h"
 #include "GlobalConsole.h"
 #include "ThumbnailManager.h"
+#include "Windows/AnimStateMachineWindow.h"
 
 IMPLEMENT_CLASS(USlateManager)
 
@@ -266,6 +267,45 @@ void USlateManager::CloseBlendSpace2DEditor()
     BlendSpace2DEditorWindow = nullptr;
 }
 
+void USlateManager::OpenAnimStateMachineWindow()
+{
+	if (AnimStateMachineWindow) { return; }
+
+	AnimStateMachineWindow = new SAnimStateMachineWindow();
+
+	// Open as a detached window at a default size and position
+	const float ToolbarHeight = 50.0f;
+	const float AvailableHeight = Rect.GetHeight() - ToolbarHeight;
+	const float w = Rect.GetWidth() * 0.85f;
+	const float h = AvailableHeight * 0.85f;
+	const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
+	const float y = Rect.Top + ToolbarHeight + (AvailableHeight - h) * 0.5f;
+
+	AnimStateMachineWindow->Initialize(x, y, w, h);
+}
+
+void USlateManager::OpenAnimStateMachineWindowWithFile(const char* FilePath)
+{
+	if (!AnimStateMachineWindow)
+	{
+		OpenAnimStateMachineWindow();
+	}
+
+	// 파일 로드 로직
+	if (AnimStateMachineWindow && FilePath && FilePath[0] != '\0')
+	{
+		// AnimGraphWindow->LoadGraph(FilePath);
+	}
+}
+
+void USlateManager::CloseAnimStateMachineWindow()
+{
+	if (!AnimStateMachineWindow) { return; }
+
+	delete AnimStateMachineWindow;
+	AnimStateMachineWindow = nullptr;
+}
+
 void USlateManager::SwitchLayout(EViewportLayoutMode NewMode)
 {
     if (NewMode == CurrentMode) return;
@@ -437,7 +477,7 @@ void USlateManager::Render()
             {
                 ToggleConsole(); // 콘솔 닫기
             }
-            
+
             // 둥근 모서리가 있는 반투명 배경 추가
             ImDrawList* DrawList = ImGui::GetWindowDrawList();
             ImVec2 WindowPos = ImGui::GetWindowPos();
@@ -458,7 +498,7 @@ void USlateManager::Render()
         ImGui::PopStyleColor(1);
         ImGui::PopStyleVar(3);
     }
-    
+
     // Render detached viewer on top
     if (SkeletalViewerWindow)
     {
@@ -475,6 +515,11 @@ void USlateManager::Render()
         {
             CloseBlendSpace2DEditor();
         }
+    }
+
+    if (AnimStateMachineWindow)
+    {
+        AnimStateMachineWindow->OnRender();
     }
 }
 
@@ -797,17 +842,13 @@ void USlateManager::Shutdown()
     MainViewport = nullptr;
     ActiveViewport = nullptr;
 
-    if (SkeletalViewerWindow)
-    {
-        delete SkeletalViewerWindow;
-        SkeletalViewerWindow = nullptr;
-    }
-
     if (BlendSpace2DEditorWindow)
     {
         delete BlendSpace2DEditorWindow;
         BlendSpace2DEditorWindow = nullptr;
     }
+	CloseSkeletalMeshViewer();
+	CloseAnimStateMachineWindow();
 }
 
 void USlateManager::SetPIEWorld(UWorld* InWorld)
