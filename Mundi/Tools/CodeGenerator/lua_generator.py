@@ -29,6 +29,15 @@ LUA_BIND_BEGIN({{ class_name }})
     {%- if func.return_type == 'void' %}
     AddAlias<{{ class_name }}{{ func.get_parameter_types_string() }}>(
         T, "{{ func.display_name }}", &{{ class_name }}::{{ func.name }});
+    {%- elif func.needs_proxy_wrapper %}
+    T.set_function("{{ func.display_name }}", [](sol::this_state L, LuaComponentProxy& Proxy{{ func.get_lua_parameter_list() }}) -> sol::object {
+        if (!Proxy.Instance || !Proxy.Class) return sol::nil;
+        if (!Proxy.Class->IsChildOf({{ class_name }}::StaticClass())) return sol::nil;
+
+        {{ func.return_type }} Result = (static_cast<{{ class_name }}*>(Proxy.Instance)->{{ func.name }}({{ func.get_parameter_names() }}));
+        if (!Result) return sol::nil;
+        return MakeComponentProxy(sol::state_view(L), Result, Result->GetClass());
+    });
     {%- else %}
     AddMethodR<{{ func.return_type }}, {{ class_name }}{{ func.get_parameter_types_string() }}>(
         T, "{{ func.display_name }}", &{{ class_name }}::{{ func.name }});

@@ -1,11 +1,14 @@
 #pragma once
 #include "SkinnedMeshComponent.h"
+#include "Source/Runtime/Core/Misc/Delegates.h"
 #include "USkeletalMeshComponent.generated.h"
 
 class UAnimInstance;
 class UAnimStateMachine;
 class UAnimSequence;
 struct FAnimNotifyEvent;
+
+DECLARE_DELEGATE_TYPE(FOnAnimNotify, const FAnimNotifyEvent&);
 
 /**
  * @brief 스켈레탈 메시 컴포넌트
@@ -30,15 +33,20 @@ public:
 	~USkeletalMeshComponent() override;
 
 	// Functions
+	void BeginPlay() override;
 	void TickComponent(float DeltaTime) override;
 	void SetSkeletalMesh(const FString& PathFileName) override;
 	void HandleAnimNotify(const FAnimNotifyEvent& Notify);
+
+	UFUNCTION(LuaBind)
+	void TriggerAnimNotify(const FString& NotifyName, float TriggerTime, float Duration);
 
 	// Serialization
 	void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 	void DuplicateSubObjects() override;
 
 	// Getters
+	UFUNCTION(LuaBind, DisplayName = "GetAnimInstance")
 	UAnimInstance* GetAnimInstance() const { return AnimInstance; }
 	FTransform GetBoneLocalTransform(int32 BoneIndex) const;
 	FTransform GetBoneWorldTransform(int32 BoneIndex);
@@ -65,12 +73,6 @@ public:
 	 */
 	void StopAnimation();
 
-	/**
-	 * @brief State Machine 설정 (AnimInstance를 통해)
-	 *
-	 * @param InStateMachine 설정할 State Machine 애셋
-	 */
-	void SetAnimationStateMachine(UAnimStateMachine* InStateMachine);
 	void SetBlendSpace2D(class UBlendSpace2D* InBlendSpace);
 
 	// Batch Pose Update (AnimInstance에서 사용)
@@ -80,7 +82,8 @@ public:
 	// Reset to Reference Pose (T-Pose)
 	void ResetToReferencePose();
 
-
+	// AnimNotify 델리게이트
+	FOnAnimNotify OnAnimNotify;
 
 protected:
 	TArray<FTransform> CurrentLocalSpacePose;

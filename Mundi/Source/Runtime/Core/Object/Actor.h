@@ -42,6 +42,8 @@ public:
 
     // 월드/표시
     void SetWorld(UWorld* InWorld) { World = InWorld; }
+
+    UFUNCTION(LuaBind)
     UWorld* GetWorld() const { return World; }
 
     // 루트/컴포넌트
@@ -57,6 +59,9 @@ public:
     const TArray<USceneComponent*>& GetSceneComponents() const { return SceneComponents; }
     const TSet<UActorComponent*>& GetOwnedComponents() const { return OwnedComponents; }
     UActorComponent* GetComponent(UClass* ComponentClass);
+
+    UFUNCTION(LuaBind)
+    UActorComponent* FindComponentByClass(const FString& ClassName);
 
     // 컴포넌트 생성 (템플릿)
     template<typename T>
@@ -88,6 +93,7 @@ public:
     FTransform GetActorTransform() const;
 
     void SetActorLocation(const FVector& NewLocation);
+    UFUNCTION(LuaBind)
     FVector GetActorLocation() const;
 
     void SetActorRotation(const FVector& EulerDegree);

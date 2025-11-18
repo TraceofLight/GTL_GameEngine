@@ -15,6 +15,7 @@
 #include "InputComponent.h"
 #include "ObjectFactory.h"
 #include "GameModeBase.h"
+#include "LuaScriptComponent.h"
 #include "World.h"
 
 //IMPLEMENT_CLASS(ACharacter)
@@ -107,47 +108,15 @@ void ACharacter::BeginPlay()
 			if (Skeleton)
 			{
 				UFbxLoader& FbxLoader = UFbxLoader::GetInstance();
-				SkeletalMesh->GetAnimations()[0];
+				// SkeletalMesh->GetAnimations()[0];
 				// 애니메이션 로드
-			/*	TArray<UAnimSequence*> IdleAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Idle.fbx", *Skeleton);
+				TArray<UAnimSequence*> IdleAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Idle.fbx", *Skeleton);
 				TArray<UAnimSequence*> WalkAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Walking.fbx", *Skeleton);
-				TArray<UAnimSequence*> RunAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Slow Run.fbx", *Skeleton);*/
+				TArray<UAnimSequence*> RunAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Slow Run.fbx", *Skeleton);
 
 				UAnimSequence* IdleAnim = SkeletalMesh->GetAnimations()[0];
 				UAnimSequence* WalkAnim = SkeletalMesh->GetAnimations()[1];
 				UAnimSequence* RunAnim = SkeletalMesh->GetAnimations()[2];
-
-				// ===== StateMachine 사용 =====
-				AnimStateMachine = NewObject<UAnimStateMachine>();
-				if (AnimStateMachine)
-				{
-					// 애니메이션 등록
-					if (IdleAnim)
-					{
-						AnimStateMachine->RegisterStateAnimation(EAnimState::Idle, IdleAnim);
-						UE_LOG("[Character] Idle animation loaded!");
-					}
-					if (WalkAnim)
-					{
-						AnimStateMachine->RegisterStateAnimation(EAnimState::Walk, WalkAnim);
-						UE_LOG("[Character] Walk animation loaded!");
-					}
-					if (RunAnim)
-					{
-						AnimStateMachine->RegisterStateAnimation(EAnimState::Run, RunAnim);
-						UE_LOG("[Character] Run animation loaded!");
-					}
-
-					// 전환 규칙 추가 (부드러운 전환)
-					AnimStateMachine->AddTransition(FAnimStateTransition(EAnimState::Idle, EAnimState::Walk, 0.2f));
-					AnimStateMachine->AddTransition(FAnimStateTransition(EAnimState::Walk, EAnimState::Idle, 0.2f));
-					AnimStateMachine->AddTransition(FAnimStateTransition(EAnimState::Walk, EAnimState::Run, 0.3f));
-					AnimStateMachine->AddTransition(FAnimStateTransition(EAnimState::Run, EAnimState::Walk, 0.3f));
-
-					// SkeletalMeshComponent에 State Machine 설정
-					SkeletalMeshComponent->SetAnimationStateMachine(AnimStateMachine);
-					UE_LOG("[Character] AnimationStateMachine initialized!");
-				}
 
 				// ===== BlendSpace2D 예제 (주석 처리 - 나중에 8방향 이동용) =====
 				/*

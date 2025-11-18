@@ -25,6 +25,7 @@
 #pragma warning(disable: 4244) // conversion from 'type1' to 'type2', possible loss of data
 #pragma warning(disable: 4805) // unsafe mix of type and type in operation
 #pragma warning(disable: 5055) // operator between enumeration and floating-point type
+#include "AnimInstance.h"
 #include "ImGui/imgui_curve.hpp"
 #pragma warning(pop)
 
@@ -457,7 +458,7 @@ bool UPropertyRenderer::RenderBoolProperty(const FProperty& Prop, void* Instance
 bool UPropertyRenderer::RenderInt32Property(const FProperty& Prop, void* Instance)
 {
 	int32* Value = Prop.GetValuePtr<int32>(Instance);
-	
+
 	// 드래그 속도를 계산합니다.
 	const float TotalRange = (float)Prop.MaxValue - (float)Prop.MinValue;
 	const float ProportionalSpeed = TotalRange * 0.0005f;
@@ -960,14 +961,14 @@ bool UPropertyRenderer::RenderCurveProperty(const FProperty& Prop, void* Instanc
 	// 4. 저장된 프리셋 인덱스 로드, 없으면 0.0f (일반적으로 "Linear" 또는 "Custom")
 	EditorData[4] = storage->GetFloat(presetId, 0.0f);
 
-	// 5. Bezier 위젯을 호출합니다. 
+	// 5. Bezier 위젯을 호출합니다.
 	//    Prop.Name을 레이블로 사용합니다. (PushID로 고유성 보장됨)
 	bool bCurveChanged = ImGui::Bezier(Prop.Name, EditorData);
 
 	// 6. 값이 변경되었는지 확인합니다.
 	if (bCurveChanged)
 	{
-		// 7. 변경된 곡선 값(EditorData[0]~[3])을 
+		// 7. 변경된 곡선 값(EditorData[0]~[3])을
 		//    실제 프로퍼티(PropertyData)에 다시 복사합니다.
 		memcpy(PropertyData, EditorData, sizeof(float) * 4);
 
@@ -1112,16 +1113,19 @@ bool UPropertyRenderer::RenderSkeletalMeshProperty(const FProperty& Prop, void* 
 		}
 	}
 
+	UObject* Object = static_cast<UObject*>(Instance);
+	USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(Object);
+
 	ImGui::SetNextItemWidth(240);
 	if (ImGui::Combo(Prop.Name, &SelectedIdx, &ItemsGetter, (void*)&CachedSkeletalMeshItems, static_cast<int>(CachedSkeletalMeshItems.size())))
 	{
 		if (SelectedIdx >= 0 && SelectedIdx < static_cast<int>(CachedSkeletalMeshPaths.size()))
 		{
 			// 컴포넌트별 Setter 호출
-			UObject* Object = static_cast<UObject*>(Instance);
-			if (USkeletalMeshComponent* StaticMeshComponent = Cast<USkeletalMeshComponent>(Object))
+
+			if (SkeletalMeshComponent)
 			{
-				StaticMeshComponent->SetSkeletalMesh(CachedSkeletalMeshPaths[SelectedIdx]);
+				SkeletalMeshComponent->SetSkeletalMesh(CachedSkeletalMeshPaths[SelectedIdx]);
 			}
 			else
 			{
@@ -1149,6 +1153,59 @@ bool UPropertyRenderer::RenderSkeletalMeshProperty(const FProperty& Prop, void* 
 		//}
 
 		ImGui::EndTooltip();
+	}
+
+	// AnimInstance Section
+	if (!SkeletalMeshComponent->GetAnimInstance()) { return false; }
+
+	// State Machine 할당
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	static UAnimStateMachine* SelectedStateMachine = nullptr;
+	if (UAnimStateMachine* StateMachine = SkeletalMeshComponent->GetAnimInstance()->GetStateMachineNode()->GetStateMachine())
+	{
+		SelectedStateMachine = StateMachine;
+	}
+
+	ImGui::Text("State Machine ");
+	ImGui::SameLine();
+
+	const TArray<UAnimStateMachine*>& AllStateMachines = RESOURCE.GetAll<UAnimStateMachine>();
+
+	if (ImGui::BeginCombo("##StateMachine",
+		SelectedStateMachine ? SelectedStateMachine->GetFilePath().c_str() : "Select..."))
+	{
+		if (ImGui::Selectable("(None)", SelectedStateMachine == nullptr))
+		{
+			SelectedStateMachine = nullptr;
+			if (SkeletalMeshComponent)
+			{
+				SkeletalMeshComponent->GetAnimInstance()->SetStateMachine(nullptr);
+			}
+		}
+
+		for (UAnimStateMachine* SM : AllStateMachines)
+		{
+			if (!SM) continue;
+
+			bool bIsSelected = (SelectedStateMachine == SM);
+			if (ImGui::Selectable(SM->GetFilePath().c_str(), bIsSelected))
+			{
+				SelectedStateMachine = SM;
+				if (SkeletalMeshComponent)
+				{
+					SkeletalMeshComponent->GetAnimInstance()->SetStateMachine(SM);
+				}
+			}
+
+			if (bIsSelected)
+			{
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
 	}
 
 	return false;
@@ -1399,7 +1456,7 @@ bool UPropertyRenderer::RenderSingleMaterialSlot(const char* Label, UMaterialInt
 				bElementChanged = true;
 			}
 		}
-		
+
 
 		// --- 2-3. FMaterialInfo 파라미터 (스칼라 및 벡터) ---
 
@@ -1709,7 +1766,7 @@ bool UPropertyRenderer::RenderTextureSelectionCombo(const char* Label, UTexture*
 
 	return bChanged;
 }
- 
+
 
 
 

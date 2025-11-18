@@ -27,8 +27,10 @@ public:
 // ──────────────────────────────
 struct FName
 {
-    uint32 DisplayIndex = -1;
-    uint32 ComparisonIndex = -1;
+	static constexpr uint32 InvalidIndex = std::numeric_limits<uint32>::max();
+
+    uint32 DisplayIndex = InvalidIndex;
+    uint32 ComparisonIndex = InvalidIndex;
 
     FName() = default;
     FName(const char* InStr) { Init(FString(InStr)); }
@@ -39,6 +41,12 @@ struct FName
         int32_t Index = FNamePool::Add(InStr);
         DisplayIndex = Index;
         ComparisonIndex = Index; // 필요시 다른 규칙 적용 가능
+    }
+
+	// 초기화 여부 확인 함수
+	bool IsValid() const
+    {
+    	return ComparisonIndex != InvalidIndex;
     }
 
     bool operator==(const FName& Other) const { return ComparisonIndex == Other.ComparisonIndex; }

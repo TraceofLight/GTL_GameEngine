@@ -151,6 +151,29 @@ class Function:
         param_types = ", ".join([p.type for p in self.parameters])
         return f", {param_types}"
 
+    @property
+    def needs_proxy_wrapper(self) -> bool:
+        """UObject* 파생 타입을 반환하는 함수인지 확인"""
+        if '*' not in self.return_type:
+            return False
+        # 포인터 타입에서 클래스 이름 추출 (const 제거, * 제거, 공백 제거)
+        clean_type = self.return_type.replace('const', '').replace('*', '').strip()
+        # UObject 파생 클래스는 U 또는 A로 시작
+        return clean_type.startswith('U') or clean_type.startswith('A')
+
+    def get_lua_parameter_list(self) -> str:
+        """Lua 람다 함수의 파라미터 리스트 생성: , int32 Param1, const FString& Param2"""
+        if not self.parameters:
+            return ""
+        param_list = ", ".join([f"{p.type} {p.name}" for p in self.parameters])
+        return f", {param_list}"
+
+    def get_parameter_names(self) -> str:
+        """함수 호출 시 파라미터 이름만 나열: Param1, Param2, Param3"""
+        if not self.parameters:
+            return ""
+        return ", ".join([p.name for p in self.parameters])
+
 
 @dataclass
 class ClassInfo:

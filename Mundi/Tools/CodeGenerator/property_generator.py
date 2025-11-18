@@ -67,7 +67,7 @@ class PropertyGenerator:
             mark_type = None  # AActor는 MARK 없음
         elif self._is_derived_from(class_info.name, 'AActor'):
             mark_type = 'SPAWNABLE'  # AActor를 상속받은 클래스 (직간접)
-        else:
+        elif self._is_derived_from(class_info.name, 'UActorComponent'):
             mark_type = 'COMPONENT'  # 그 외 (컴포넌트 등)
 
         # DisplayName과 Description 결정

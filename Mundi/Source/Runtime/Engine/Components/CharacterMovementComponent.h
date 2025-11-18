@@ -47,9 +47,9 @@ enum class EMovementMode : uint8
 class UCharacterMovementComponent : public UActorComponent
 {
 public:
-	
+
 	GENERATED_REFLECTION_BODY()
-	
+
 
 	UCharacterMovementComponent();
 	virtual ~UCharacterMovementComponent() override;
@@ -137,6 +137,7 @@ public:
 	/**
 	 * 현재 속도를 반환합니다.
 	 */
+	UFUNCTION(LuaBind, DisplayName = "GetVelocity")
 	FVector GetVelocity() const { return Velocity; }
 
 	/**

@@ -5,7 +5,7 @@
 
 class APawn;
 class ACharacter;
-class UCharacterMovementComponent;
+class UAnimInstance;
 
 /**
  * @brief State Machine 실행 노드
@@ -25,127 +25,89 @@ public:
 
 	/**
 	 * @brief 노드 초기화
-	 *
 	 * @param InPawn 소유 Pawn
 	 */
 	void Initialize(APawn* InPawn);
 
 	/**
 	 * @brief 매 프레임 업데이트
-	 *
-	 * Character의 Movement 상태를 체크하여 상태 전환.
-	 *
+	 * ActiveNode의 상태를 체크하여 상태 전환.
 	 * @param DeltaSeconds 델타 타임
 	 */
 	void Update(float DeltaSeconds);
 
 	/**
 	 * @brief 현재 포즈 평가 (블렌딩 적용)
-	 *
 	 * @param OutPose 출력 포즈
 	 */
 	void Evaluate(FPoseContext& OutPose);
 
-	// ===== 애셋 설정 =====
-
 	/**
 	 * @brief State Machine 애셋 설정
-	 *
 	 * @param InStateMachine 사용할 State Machine 애셋
 	 */
-	void SetStateMachine(UAnimStateMachine* InStateMachine);
+	void SetStateMachine(UAnimStateMachine* InStateMachine) { StateMachineAsset = InStateMachine; }
 
 	/**
 	 * @brief State Machine 애셋 가져오기
 	 */
-	UAnimStateMachine* GetStateMachine() const { return StateMachine; }
+	UAnimStateMachine* GetStateMachine() const { return StateMachineAsset; }
 
-	// ===== 실행 상태 조회 =====
-
-	/**
-	 * @brief 현재 상태 가져오기
-	 */
-	EAnimState GetCurrentState() const { return CurrentState; }
+	// ===== 상태 제어 =====
 
 	/**
-	 * @brief 전환 중인지 확인
+	 * @brief 강제 상태 변경
 	 */
-	bool IsTransitioning() const { return bIsTransitioning; }
+	void TransitionTo(FName NewStateName, float BlendTime = -1.0f);
 
 	/**
-	 * @brief 전환 진행도 가져오기 (0~1)
+	 * @brief 현재 상태 이름
 	 */
-	float GetTransitionAlpha() const;
+	FName GetCurrentStateName() const { return CurrentStateName; }
 
-	/**
-	 * @brief 현재 재생 중인 애니메이션 가져오기
-	 */
-	UAnimSequence* GetCurrentAnimation() const;
-
+// ===== 데이터 참조 =====
 protected:
-	// ===== 애셋 참조 =====
+	/** 실행할 State Machine 에셋 데이터 */
+	UAnimStateMachine* StateMachineAsset;
 
-	/** State Machine 애셋 */
-	UAnimStateMachine* StateMachine;
-
-	// ===== 실행 상태 (인스턴스 데이터) =====
-
-	/** 현재 상태 */
-	EAnimState CurrentState;
-
-	/** 이전 상태 (전환용) */
-	EAnimState PreviousState;
-
-	/** 전환 중인지 여부 */
-	bool bIsTransitioning;
-
-	/** 전환 경과 시간 */
-	float TransitionTime;
-
-	/** 전환 총 시간 */
-	float TransitionDuration;
-
-	/** 현재 상태 애니메이션 재생 시간 */
-	float CurrentAnimTime;
-
-	/** 이전 상태 애니메이션 재생 시간 (블렌딩용) */
-	float PreviousAnimTime;
-
-	// ===== 소유자 정보 =====
-
-	/** 소유 Pawn */
+	/** 소유자 (데이터 접근용) */
 	APawn* OwnerPawn;
 
-	/** 소유 Character (캐싱) */
-	ACharacter* OwnerCharacter;
+	/** AnimInstance (데이터 접근용) */
+	UAnimInstance* OwnerAnimInstance;
 
-	/** Character Movement Component (캐싱) */
-	UCharacterMovementComponent* MovementComponent;
+	// ===== 런타임 상태 =====
 
-	// ===== 상태 판별 임계값 =====
+	/** 현재 상태 이름 */
+	FName CurrentStateName;
 
-	/** 걷기 최대 속도 */
-	float WalkSpeed;
+	/** 현재 활성화된 노드 포인터 (매번 Map 검색 안 하려고 캐싱) */
+	const FAnimStateNode* ActiveNode;
 
-	/** 달리기 최소 속도 */
-	float RunSpeed;
+// ===== 트랜지션/블렌딩 관련 =====
+protected:
+	/** 이전 상태 이름 (블렌딩 소스) */
+	FName PreviousStateName;
 
-	// ===== 내부 메서드 =====
+	/** 이전 노드 포인터 */
+	const FAnimStateNode* PreviousNode;
 
+	bool bIsTransitioning;
+	float TransitionAlpha;    // 0.0 ~ 1.0
+	float CurrentTransitionDuration; // 블렌딩 시간
+
+	// ===== 애니메이션 재생 시간 =====
+	float CurrentAnimTime;  // 현재 상태 재생 시간
+	float PreviousAnimTime; // 이전 상태 재생 시간 (블렌딩용)
+
+// ===== 내부 로직 =====
+protected:
 	/**
-	 * @brief 전환 가능한 상태 체크
+	 * @brief 트랜지션 조건 검사
+	 * * 현재 노드의 Transitions 배열을 순회하며 조건 만족 시 이동
 	 */
 	void CheckTransitions();
 
-	/**
-	 * @brief 특정 상태로 전환
-	 *
-	 * @param NewState 새로운 상태
-	 */
-	void TransitionToState(EAnimState NewState);
-
-	/**
-	 * @brief 현재 Movement 상태 기반으로 AnimState 결정
-	 */
-	EAnimState DetermineStateFromMovement();
+	// 내부 헬퍼 함수: 비교 연산 수행
+	bool EvaluateCondition(float CurrentValue, EAnimConditionOp Op, float Threshold);
 };

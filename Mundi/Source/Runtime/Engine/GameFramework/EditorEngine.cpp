@@ -196,7 +196,6 @@ bool UEditorEngine::Startup(HINSTANCE hInstance)
 
     FObjManager::Preload();
     UFbxLoader::PreLoad();
-
     FAudioDevice::Preload();
 
     ///////////////////////////////////

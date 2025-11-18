@@ -82,6 +82,20 @@ private:
 	void RenderSampleList();
 	void RenderProperties();
 
+	// ===== 타임라인 렌더링 =====
+	void RenderTimelineControls();
+	void RenderTimeline();
+	void DrawTimelineRuler(ImDrawList* DrawList, const ImVec2& RulerMin, const ImVec2& RulerMax, float StartTime, float EndTime);
+	void DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime);
+
+	// ===== 타임라인 컨트롤 =====
+	void TimelineToFront();
+	void TimelineToPrevious();
+	void TimelineReverse();
+	void TimelinePlay();
+	void TimelineToNext();
+	void TimelineToEnd();
+
 	// ===== 좌표 변환 =====
 	ImVec2 ParamToScreen(FVector2D Param) const;
 	FVector2D ScreenToParam(ImVec2 ScreenPos) const;
@@ -112,8 +126,34 @@ private:
 	ImVec2 CanvasSize;
 	int32 SelectedSampleIndex = -1;
 	bool bDraggingSample = false;
+	bool bDraggingPreviewMarker = false;
 	FVector2D PreviewParameter = FVector2D(0.0f, 0.0f);
 	FRect PreviewViewportRect = FRect(0, 0, 0, 0);  // 프리뷰 뷰포트 영역
+
+	// ===== 애니메이션 재생 상태 =====
+	bool bIsPlaying = true;           // 재생 중인지 여부
+	float PlaybackSpeed = 1.0f;       // 재생 속도 배율
+	bool bLoopAnimation = true;       // 루프 재생 여부
+	float CurrentAnimationTime = 0.0f;  // 현재 애니메이션 시간
+
+	// ===== 타임라인 아이콘 =====
+	class UTexture* IconGoToFront = nullptr;
+	class UTexture* IconGoToFrontOff = nullptr;
+	class UTexture* IconStepBackwards = nullptr;
+	class UTexture* IconStepBackwardsOff = nullptr;
+	class UTexture* IconBackwards = nullptr;
+	class UTexture* IconBackwardsOff = nullptr;
+	class UTexture* IconRecord = nullptr;
+	class UTexture* IconPause = nullptr;
+	class UTexture* IconPauseOff = nullptr;
+	class UTexture* IconPlay = nullptr;
+	class UTexture* IconPlayOff = nullptr;
+	class UTexture* IconStepForward = nullptr;
+	class UTexture* IconStepForwardOff = nullptr;
+	class UTexture* IconGoToEnd = nullptr;
+	class UTexture* IconGoToEndOff = nullptr;
+	class UTexture* IconLoop = nullptr;
+	class UTexture* IconLoopOff = nullptr;
 
 	// ===== UI 설정 =====
 	static constexpr float GridCellSize = 40.0f;

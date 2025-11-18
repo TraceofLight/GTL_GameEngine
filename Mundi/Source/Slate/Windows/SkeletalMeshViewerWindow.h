@@ -112,4 +112,16 @@ private:
     void DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime);
     void DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State);
     void DrawNotifyTracksPanel(ViewerState* State, float StartTime, float EndTime);
+
+    // Notify 라이브러리 관리
+    void ScanNotifyLibrary();
+    void CreateNewNotifyScript(const FString& ScriptName, bool bIsNotifyState);
+    void OpenNotifyScriptInEditor(const FString& NotifyClassName, bool bIsNotifyState);
+    TArray<FString> AvailableNotifyClasses;
+    TArray<FString> AvailableNotifyStateClasses;
+
+    // New Notify Script 다이얼로그 상태
+    bool bShowNewNotifyDialog = false;
+    bool bShowNewNotifyStateDialog = false;
+    char NewNotifyNameBuffer[128] = "";
 };

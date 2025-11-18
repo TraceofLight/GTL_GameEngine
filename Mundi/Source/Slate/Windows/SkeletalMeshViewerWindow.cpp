@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "SkeletalMeshViewerWindow.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
@@ -62,6 +62,8 @@ bool SSkeletalMeshViewerWindow::Initialize(float StartX, float StartY, float Wid
     IconGoToEndOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_End_24x_OFF.png");
     IconLoop = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Loop_24x.png");
     IconLoopOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Loop_24x_OFF.png");
+
+    ScanNotifyLibrary();
 
     // Create first tab/state
     OpenNewTab("Viewer 1");
@@ -1337,6 +1339,7 @@ void SSkeletalMeshViewerWindow::OnRender()
             ImGui::EndChild();
         }
     }
+
     ImGui::End();
 
     // If collapsed or not visible, clear the center rect so we don't render a floating viewport
@@ -1752,4 +1755,196 @@ void SSkeletalMeshViewerWindow::ExpandToSelectedBone(ViewerState* State, int32 B
         State->ExpandedBoneIndices.insert(CurrentIndex);
         CurrentIndex = Skeleton->Bones[CurrentIndex].ParentIndex;
     }
+}
+
+void SSkeletalMeshViewerWindow::ScanNotifyLibrary()
+{
+    AvailableNotifyClasses.clear();
+    AvailableNotifyStateClasses.clear();
+
+    WIN32_FIND_DATAA FindData;
+    HANDLE hFind;
+
+    // Notify 폴더 스캔 (*.lua 모든 파일)
+    FString NotifyDir = "Data/Scripts/Notify/";
+    FString NotifyPattern = NotifyDir + "*.lua";
+    hFind = FindFirstFileA(NotifyPattern.c_str(), &FindData);
+    if (hFind != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            if (!(FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            {
+                FString FileName(FindData.cFileName);
+                FString FileNameWithoutExt = FileName.substr(0, FileName.find_last_of('.'));
+                AvailableNotifyClasses.push_back(FileNameWithoutExt);
+            }
+        } while (FindNextFileA(hFind, &FindData));
+        FindClose(hFind);
+    }
+
+    // NotifyState 폴더 스캔 (*.lua 모든 파일)
+    FString StateDir = "Data/Scripts/NotifyState/";
+    FString StatePattern = StateDir + "*.lua";
+    hFind = FindFirstFileA(StatePattern.c_str(), &FindData);
+    if (hFind != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            if (!(FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            {
+                FString FileName(FindData.cFileName);
+                FString FileNameWithoutExt = FileName.substr(0, FileName.find_last_of('.'));
+                AvailableNotifyStateClasses.push_back(FileNameWithoutExt);
+            }
+        } while (FindNextFileA(hFind, &FindData));
+        FindClose(hFind);
+    }
+
+    UE_LOG("[SkeletalMeshViewer] Scanned Notify Library: %d Notifies, %d NotifyStates",
+        AvailableNotifyClasses.Num(), AvailableNotifyStateClasses.Num());
+}
+
+void SSkeletalMeshViewerWindow::CreateNewNotifyScript(const FString& ScriptName, bool bIsNotifyState)
+{
+    // 대상 폴더 및 접두사
+    FString DestDir = bIsNotifyState ? "Data/Scripts/NotifyState/" : "Data/Scripts/Notify/";
+    FString Prefix = bIsNotifyState ? "ANS_" : "AN_";
+
+    FString FileName;
+    FString DestPath;
+
+    // 사용자가 이름을 입력하지 않았으면 자동 번호 매기기
+    if (ScriptName.empty())
+    {
+        // 기존 파일 중 가장 높은 번호 찾기
+        int32 MaxNum = 0;
+        WIN32_FIND_DATAA FindData;
+        FString SearchPattern = DestDir + Prefix + "Custom_*.lua";
+        HANDLE hFind = FindFirstFileA(SearchPattern.c_str(), &FindData);
+        if (hFind != INVALID_HANDLE_VALUE)
+        {
+            do
+            {
+                if (!(FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                {
+                    FString ExistingFile(FindData.cFileName);
+                    // "AN_Custom_123.lua" → "123" 추출
+                    size_t UnderscorePos = ExistingFile.rfind('_');
+                    size_t DotPos = ExistingFile.find_last_of('.');
+                    if (UnderscorePos != FString::npos && DotPos != FString::npos)
+                    {
+                        FString NumStr = ExistingFile.substr(UnderscorePos + 1, DotPos - UnderscorePos - 1);
+                        int32 Num = std::stoi(NumStr);
+                        if (Num > MaxNum)
+                        {
+                            MaxNum = Num;
+                        }
+                    }
+                }
+            } while (FindNextFileA(hFind, &FindData));
+            FindClose(hFind);
+        }
+
+        // 다음 번호로 파일명 생성
+        FileName = Prefix + "Custom_" + std::to_string(MaxNum + 1) + ".lua";
+    }
+    else
+    {
+        // 사용자가 입력한 이름 사용
+        FileName = Prefix + ScriptName + ".lua";
+    }
+
+    DestPath = DestDir + FileName;
+
+    // 파일이 이미 존재하는지 확인
+    FILE* ExistingFile = nullptr;
+    fopen_s(&ExistingFile, DestPath.c_str(), "r");
+    if (ExistingFile)
+    {
+        fclose(ExistingFile);
+        UE_LOG("[SkeletalMeshViewer] CreateNewNotifyScript: File already exists: %s", DestPath.c_str());
+        return;
+    }
+
+    // 템플릿 파일 경로
+    FString TemplatePath = bIsNotifyState ? "Data/Scripts/Template/ANS_Template.lua" : "Data/Scripts/Template/AN_Template.lua";
+
+    // 템플릿 파일 읽기
+    FILE* TemplateFile = nullptr;
+    fopen_s(&TemplateFile, TemplatePath.c_str(), "rb");
+    if (!TemplateFile)
+    {
+        UE_LOG("[SkeletalMeshViewer] CreateNewNotifyScript: Template file not found: %s", TemplatePath.c_str());
+        return;
+    }
+
+    // 파일 크기 확인
+    fseek(TemplateFile, 0, SEEK_END);
+    size_t FileSize = ftell(TemplateFile);
+    fseek(TemplateFile, 0, SEEK_SET);
+
+    // 템플릿 내용 읽기
+    FString TemplateContent;
+    TemplateContent.resize(FileSize);
+    fread(&TemplateContent[0], 1, FileSize, TemplateFile);
+    fclose(TemplateFile);
+
+    // 새 파일 생성
+    FILE* OutFile = nullptr;
+    fopen_s(&OutFile, DestPath.c_str(), "wb");
+    if (!OutFile)
+    {
+        UE_LOG("[SkeletalMeshViewer] CreateNewNotifyScript: Failed to create file: %s", DestPath.c_str());
+        return;
+    }
+
+    fwrite(TemplateContent.c_str(), 1, TemplateContent.size(), OutFile);
+    fclose(OutFile);
+
+    UE_LOG("[SkeletalMeshViewer] Created new Notify script: %s (from template: %s)", DestPath.c_str(), TemplatePath.c_str());
+
+    // 라이브러리 재스캔
+    ScanNotifyLibrary();
+
+    // 생성된 파일을 기본 에디터에서 열기 (VS Code, Notepad++ 등)
+    std::wstring WideDestPath(DestPath.begin(), DestPath.end());
+    FPlatformProcess::OpenFileInDefaultEditor(WideDestPath);
+}
+
+void SSkeletalMeshViewerWindow::OpenNotifyScriptInEditor(const FString& NotifyClassName, bool bIsNotifyState)
+{
+    if (NotifyClassName.empty())
+    {
+        UE_LOG("[SkeletalMeshViewer] OpenNotifyScriptInEditor: Empty class name");
+        return;
+    }
+
+    // 파일 경로 생성
+    FString DestDir = bIsNotifyState ? "Data/Scripts/NotifyState/" : "Data/Scripts/Notify/";
+    FString FilePath = DestDir + NotifyClassName + ".lua";
+
+    // 절대 경로 생성
+    std::filesystem::path AbsolutePath;
+    try
+    {
+        AbsolutePath = std::filesystem::absolute(FilePath);
+    }
+    catch (const std::filesystem::filesystem_error& e)
+    {
+        UE_LOG("[SkeletalMeshViewer] OpenNotifyScriptInEditor: Path conversion failed: %s", e.what());
+        return;
+    }
+
+    // 파일이 존재하는지 확인
+    if (!std::filesystem::exists(AbsolutePath))
+    {
+        UE_LOG("[SkeletalMeshViewer] OpenNotifyScriptInEditor: File not found: %s", AbsolutePath.string().c_str());
+        return;
+    }
+
+    // FPlatformProcess로 파일 열기
+    std::wstring WideAbsolutePath = AbsolutePath.wstring();
+    FPlatformProcess::OpenFileInDefaultEditor(WideAbsolutePath);
+    UE_LOG("[SkeletalMeshViewer] OpenNotifyScriptInEditor: Opened file: %s", AbsolutePath.string().c_str());
 }

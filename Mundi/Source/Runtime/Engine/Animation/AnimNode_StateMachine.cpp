@@ -3,25 +3,16 @@
 #include "AnimationRuntime.h"
 #include "AnimSequence.h"
 #include "AnimDataModel.h"
+#include "AnimInstance.h"
+#include "SkeletalMeshComponent.h"
 #include "Source/Runtime/Engine/GameFramework/Pawn.h"
 #include "Source/Runtime/Engine/GameFramework/Character.h"
-#include "Source/Runtime/Engine/Components/CharacterMovementComponent.h"
-#include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 
 FAnimNode_StateMachine::FAnimNode_StateMachine()
-	: StateMachine(nullptr)
-	, CurrentState(EAnimState::Idle)
-	, PreviousState(EAnimState::Idle)
-	, bIsTransitioning(false)
-	, TransitionTime(0.0f)
-	, TransitionDuration(0.3f)
-	, CurrentAnimTime(0.0f)
-	, PreviousAnimTime(0.0f)
-	, OwnerPawn(nullptr)
-	, OwnerCharacter(nullptr)
-	, MovementComponent(nullptr)
-	, WalkSpeed(30.0f)  // Walk/Run 전환 속도 (MaxWalkSpeed 60의 절반)
-	, RunSpeed(60.0f)   // 최대 속도
+	: StateMachineAsset(nullptr), OwnerPawn(nullptr)
+	  , OwnerAnimInstance(nullptr), ActiveNode(nullptr), PreviousNode(nullptr)
+	  , bIsTransitioning(false), TransitionAlpha(0)
+	  , CurrentTransitionDuration(0), CurrentAnimTime(0.0f), PreviousAnimTime(0.0f)
 {
 }
 
@@ -31,30 +22,16 @@ FAnimNode_StateMachine::FAnimNode_StateMachine()
 void FAnimNode_StateMachine::Initialize(APawn* InPawn)
 {
 	OwnerPawn = InPawn;
-
-	// Character로 캐스팅 시도
-	OwnerCharacter = Cast<ACharacter>(InPawn);
-	if (OwnerCharacter)
+	if (ACharacter* Character = Cast<ACharacter>(InPawn))
 	{
-		// MovementComponent 캐싱
-		MovementComponent = OwnerCharacter->GetCharacterMovement();
+		OwnerAnimInstance = Character->GetMesh()->GetAnimInstance();
 	}
 
-	// 초기 상태 설정
-	CurrentState = EAnimState::Idle;
-	PreviousState = EAnimState::Idle;
-	bIsTransitioning = false;
-	TransitionTime = 0.0f;
-	CurrentAnimTime = 0.0f;
-	PreviousAnimTime = 0.0f;
-}
-
-/**
- * @brief State Machine 애셋 설정
- */
-void FAnimNode_StateMachine::SetStateMachine(UAnimStateMachine* InStateMachine)
-{
-	StateMachine = InStateMachine;
+	if (StateMachineAsset)
+	{
+		FName EntryName = StateMachineAsset->GetEntryStateName();
+		TransitionTo(EntryName, 0.0f);
+	}
 }
 
 /**
@@ -62,87 +39,38 @@ void FAnimNode_StateMachine::SetStateMachine(UAnimStateMachine* InStateMachine)
  */
 void FAnimNode_StateMachine::Update(float DeltaSeconds)
 {
-	if (!StateMachine)
+	if (!ActiveNode) return;
+
+	// 애니메이션 시간 갱신
+	CurrentAnimTime += DeltaSeconds;
+	if (ActiveNode->AnimationAsset && ActiveNode->bLoop)
 	{
-		return;
+		// 루프 처리
+		float Length = ActiveNode->AnimationAsset->GetPlayLength();
+		if (Length > 0.f)
+		{
+			CurrentAnimTime = fmod(CurrentAnimTime, Length);
+		}
 	}
 
-	// 전환 중이면 전환 진행
+	// 블렌딩 중이라면 이전 애니메이션 시간도 갱신
 	if (bIsTransitioning)
 	{
-		TransitionTime += DeltaSeconds;
+		PreviousAnimTime += DeltaSeconds;
+		TransitionAlpha += DeltaSeconds / CurrentTransitionDuration;
 
-		// 이전 애니메이션 시간 업데이트
-		if (StateMachine->GetStateAnimation(PreviousState))
+		if (TransitionAlpha >= 1.0f)
 		{
-			UAnimSequence* PrevAnim = StateMachine->GetStateAnimation(PreviousState);
-			PreviousAnimTime += DeltaSeconds;
-
-			// 루프 처리
-			if (PrevAnim && PrevAnim->GetDataModel())
-			{
-				float PrevDuration = PrevAnim->GetDataModel()->GetPlayLength();
-				if (PreviousAnimTime > PrevDuration)
-				{
-					PreviousAnimTime = fmod(PreviousAnimTime, PrevDuration);
-				}
-			}
-		}
-
-		// 전환 완료 체크
-		if (TransitionTime >= TransitionDuration)
-		{
+			// 전환 완료
 			bIsTransitioning = false;
-			TransitionTime = 0.0f;
-			PreviousState = CurrentState;
+			PreviousStateName = FName();
+			PreviousNode = nullptr;
+			TransitionAlpha = 0.0f;
 		}
 	}
 
-	// 현재 애니메이션 시간 업데이트
-	if (StateMachine->GetStateAnimation(CurrentState))
-	{
-		UAnimSequence* CurrentAnim = StateMachine->GetStateAnimation(CurrentState);
-		CurrentAnimTime += DeltaSeconds;
-
-		// 루프 처리
-		if (CurrentAnim && CurrentAnim->GetDataModel())
-		{
-			float CurrentDuration = CurrentAnim->GetDataModel()->GetPlayLength();
-			if (CurrentAnimTime > CurrentDuration)
-			{
-				CurrentAnimTime = fmod(CurrentAnimTime, CurrentDuration);
-			}
-		}
-	}
-
-	// 전환 가능한 상태 체크
+	// 트랜지션 체크
 	CheckTransitions();
-}
-
-/**
- * @brief 전환 진행도 가져오기
- */
-float FAnimNode_StateMachine::GetTransitionAlpha() const
-{
-	if (!bIsTransitioning || TransitionDuration <= 0.0f)
-	{
-		return 0.0f;
-	}
-
-	return FMath::Clamp(TransitionTime / TransitionDuration, 0.0f, 1.0f);
-}
-
-/**
- * @brief 현재 재생 중인 애니메이션 가져오기
- */
-UAnimSequence* FAnimNode_StateMachine::GetCurrentAnimation() const
-{
-	if (!StateMachine)
-	{
-		return nullptr;
-	}
-
-	return StateMachine->GetStateAnimation(CurrentState);
 }
 
 /**
@@ -150,146 +78,147 @@ UAnimSequence* FAnimNode_StateMachine::GetCurrentAnimation() const
  */
 void FAnimNode_StateMachine::Evaluate(FPoseContext& OutPose)
 {
-	if (!StateMachine)
-	{
-		return;
-	}
+    if (!ActiveNode) { return; }
+	UAnimSequence* CurrentAnim = ActiveNode->AnimationAsset;
+	CurrentAnim->GetDataModel()->Skeleton = const_cast<FSkeleton*>(OutPose.Skeleton); // 미친 테스트코드임 지금 Anim Skeleton이 댕글링이라 해놓음
 
-	// 전환 중이 아니면 현재 상태의 애니메이션만 재생
-	if (!bIsTransitioning)
-	{
-		UAnimSequence* CurrentAnim = StateMachine->GetStateAnimation(CurrentState);
-		if (!CurrentAnim || !CurrentAnim->GetDataModel())
-		{
-			return;
-		}
+    // ==========================================
+    // Case A: 전환 중이 아님 (단일 애니메이션 재생)
+    // ==========================================
+    if (!bIsTransitioning)
+    {
+       if (CurrentAnim && CurrentAnim->GetDataModel())
+       {
+          FAnimationRuntime::GetPoseFromAnimSequence(CurrentAnim, CurrentAnimTime, OutPose);
+       }
+       return;
+    }
 
-		// 포즈 샘플링
-		FAnimationRuntime::GetPoseFromAnimSequence(
-			CurrentAnim,
-			CurrentAnimTime,
-			OutPose
-		);
+    // ==========================================
+    // Case B: 전환 중 (블렌딩)
+    // ==========================================
+    if (!PreviousNode)
+    {
+        if (CurrentAnim && CurrentAnim->GetDataModel())
+        {
+            FAnimationRuntime::GetPoseFromAnimSequence(CurrentAnim, CurrentAnimTime, OutPose);
+        }
+        return;
+    }
 
-		return;
-	}
+    UAnimSequence* PrevAnim = PreviousNode->AnimationAsset;
+    if (!PrevAnim || !PrevAnim->GetDataModel())
+    {
+        if (CurrentAnim) FAnimationRuntime::GetPoseFromAnimSequence(CurrentAnim, CurrentAnimTime, OutPose);
+        return;
+    }
+    if (!CurrentAnim || !CurrentAnim->GetDataModel())
+    {
+        FAnimationRuntime::GetPoseFromAnimSequence(PrevAnim, PreviousAnimTime, OutPose);
+        return;
+    }
 
-	// 전환 중이면 두 포즈를 블렌딩
-	UAnimSequence* PrevAnim = StateMachine->GetStateAnimation(PreviousState);
-	UAnimSequence* CurrentAnim = StateMachine->GetStateAnimation(CurrentState);
+    // 두 포즈 샘플링
 
-	if (!PrevAnim || !CurrentAnim)
-	{
-		return;
-	}
+    // [Target] 현재 상태 포즈
+    FPoseContext CurrentPose;
+    if (OutPose.Skeleton)
+    {
+        CurrentPose.Initialize(OutPose.Skeleton);
+    }
+    else
+    {
+        CurrentPose.LocalSpacePose.SetNum(OutPose.LocalSpacePose.Num());
+    }
 
-	if (!PrevAnim->GetDataModel() || !CurrentAnim->GetDataModel())
-	{
-		return;
-	}
+    FAnimationRuntime::GetPoseFromAnimSequence(CurrentAnim, CurrentAnimTime, CurrentPose);
 
-	// 이전 포즈 샘플링
-	FPoseContext PreviousPose;
-	PreviousPose.LocalSpacePose.SetNum(OutPose.LocalSpacePose.Num());
-	FAnimationRuntime::GetPoseFromAnimSequence(
-		PrevAnim,
-		PreviousAnimTime,
-		PreviousPose
-	);
+    // [Source] 이전 상태 포즈
+    FPoseContext PreviousPose;
+    if (OutPose.Skeleton)
+    {
+        PreviousPose.Initialize(OutPose.Skeleton);
+    }
+    else
+    {
+        PreviousPose.LocalSpacePose.SetNum(OutPose.LocalSpacePose.Num());
+    }
 
-	// 현재 포즈 샘플링
-	FPoseContext CurrentPose;
-	CurrentPose.LocalSpacePose.SetNum(OutPose.LocalSpacePose.Num());
-	FAnimationRuntime::GetPoseFromAnimSequence(
-		CurrentAnim,
-		CurrentAnimTime,
-		CurrentPose
-	);
+    FAnimationRuntime::GetPoseFromAnimSequence(PrevAnim, PreviousAnimTime, PreviousPose);
 
-	// 블렌딩
-	float BlendAlpha = GetTransitionAlpha();
-	FAnimationRuntime::BlendTwoPosesTogether(
-		PreviousPose,
-		CurrentPose,
-		BlendAlpha,
-		OutPose
-	);
+    // 최종 블렌딩 (Source -> Target)
+    float BlendAlpha = TransitionAlpha;
+    FAnimationRuntime::BlendTwoPosesTogether(PreviousPose, CurrentPose, BlendAlpha, OutPose);
 }
 
-/**
- * @brief 전환 가능한 상태 체크
- */
-void FAnimNode_StateMachine::CheckTransitions()
+void FAnimNode_StateMachine::TransitionTo(FName NewStateName, float BlendTime)
 {
-	if (!StateMachine || !MovementComponent)
-	{
-		return;
-	}
+	if (CurrentStateName == NewStateName) { return; }
 
-	// Movement 상태 기반으로 목표 상태 결정
-	EAnimState TargetState = DetermineStateFromMovement();
+	const FAnimStateNode* NextNode = StateMachineAsset->FindNode(NewStateName);
+	if (!NextNode) { return; }
 
-	// 현재 상태와 다르면 전환 시도
-	if (TargetState != CurrentState && !bIsTransitioning)
-	{
-		TransitionToState(TargetState);
-	}
-}
-
-/**
- * @brief 특정 상태로 전환
- */
-void FAnimNode_StateMachine::TransitionToState(EAnimState NewState)
-{
-	if (!StateMachine)
-	{
-		return;
-	}
-
-	// 전환 규칙에서 블렌드 시간 찾기
-	float BlendTime = StateMachine->FindTransitionBlendTime(CurrentState, NewState);
-
-	// 전환 시작
-	PreviousState = CurrentState;
-	CurrentState = NewState;
-	bIsTransitioning = true;
-	TransitionTime = 0.0f;
-	TransitionDuration = BlendTime;
+	PreviousStateName = CurrentStateName;
+	PreviousNode = ActiveNode;
 	PreviousAnimTime = CurrentAnimTime;
+
+	CurrentStateName = NewStateName;
+	ActiveNode = NextNode;
 	CurrentAnimTime = 0.0f;
-}
 
-/**
- * @brief Movement 상태 기반으로 AnimState 결정
- */
-EAnimState FAnimNode_StateMachine::DetermineStateFromMovement()
-{
-	if (!MovementComponent)
+	if (BlendTime > 0.0f)
 	{
-		return EAnimState::Idle;
-	}
-
-	// 속도 가져오기
-	FVector Velocity = MovementComponent->GetVelocity();
-	float Speed = Velocity.Size();
-
-	// 공중에 있으면
-	if (MovementComponent->IsFalling())
-	{
-		return EAnimState::Fall;
-	}
-
-	// 속도에 따라 상태 결정
-	if (Speed < 1.0f)
-	{
-		return EAnimState::Idle;
-	}
-	else if (Speed < WalkSpeed)
-	{
-		return EAnimState::Walk;
+		bIsTransitioning = true;
+		CurrentTransitionDuration = BlendTime;
+		TransitionAlpha = 0.0f;
 	}
 	else
 	{
-		return EAnimState::Run;
+		bIsTransitioning = false;
+	}
+}
+
+void FAnimNode_StateMachine::CheckTransitions()
+{
+	if (!ActiveNode || bIsTransitioning) return;
+
+	// AnimInstance가 없으면 변수를 못 읽으니 중단
+	if (!OwnerAnimInstance) return;
+
+	// 현재 노드의 모든 트랜지션 후보 검사
+	for (const FAnimStateTransition& Transition : ActiveNode->Transitions)
+	{
+		bool bAllConditionsMet = true;
+
+		// 트랜지션 내의 모든 조건(AND) 확인
+		for (const FAnimCondition& Condition : Transition.Conditions)
+		{
+			float CurrentVal = OwnerAnimInstance->GetFloat(Condition.ParameterName);
+			if (!EvaluateCondition(CurrentVal, Condition.Op, Condition.Threshold))
+			{
+				bAllConditionsMet = false;
+				break; // 하나라도 틀리면 이 트랜지션은 실패
+			}
+		}
+
+		if (bAllConditionsMet)
+		{
+			TransitionTo(Transition.TargetStateName, Transition.BlendTime);
+			return;
+		}
+	}
+}
+
+bool FAnimNode_StateMachine::EvaluateCondition(float CurrentValue, EAnimConditionOp Op, float Threshold)
+{
+	switch (Op)
+	{
+		case EAnimConditionOp::Equals:          return FMath::IsNearlyEqual(CurrentValue, Threshold);
+		case EAnimConditionOp::NotEquals:       return !FMath::IsNearlyEqual(CurrentValue, Threshold);
+		case EAnimConditionOp::Greater:         return CurrentValue > Threshold;
+		case EAnimConditionOp::Less:            return CurrentValue < Threshold;
+		case EAnimConditionOp::GreaterOrEqual:  return CurrentValue >= Threshold;
+		case EAnimConditionOp::LessOrEqual:     return CurrentValue <= Threshold;
+		default: return false;
 	}
 }

@@ -48,6 +48,9 @@ ViewerState* SkeletalViewerBootstrap::CreateViewerState(const char* Name, UWorld
         {
             // Enable tick in editor for preview world
             Preview->SetTickInEditor(true);
+
+            // Preview World에서는 BeginPlay가 호출되지 않으므로 명시적으로 Delegate 등록
+            Preview->RegisterAnimNotifyDelegate();
         }
         State->PreviewActor = Preview;
     }

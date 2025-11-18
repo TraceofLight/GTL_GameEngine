@@ -16,6 +16,8 @@ public:
     ~ASkeletalMeshActor() override;
 
     // AActor
+    void BeginPlay() override;
+    void EndPlay() override;
     void Tick(float DeltaTime) override;
     FAABB GetBounds() const override;
 
@@ -46,15 +48,21 @@ public:
     void DuplicateSubObjects() override;
     void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 
+    // AnimNotify Delegate 등록
+    void RegisterAnimNotifyDelegate();
+
 protected:
     // 스켈레탈 메시를 실제로 렌더링하는 컴포넌트 (미리뷰/프리뷰 액터의 루트로 사용)
     USkeletalMeshComponent* SkeletalMeshComponent = nullptr;
-    
+
     // 본(부모-자식) 연결을 라인으로 그리기 위한 디버그용 컴포넌트
     // - 액터의 로컬 공간에서 선분을 추가하고, 액터 트랜스폼에 따라 함께 이동/회전/스케일됨
     ULineComponent* BoneLineComponent = nullptr;
     // Anchor component used for gizmo selection/transform at a bone
     UBoneAnchorComponent* BoneAnchor = nullptr;
+
+    // AnimNotify Delegate Handle (구독 해제용)
+    FDelegateHandle AnimNotifyDelegateHandle;
 
     // Incremental bone line overlay cache (avoid ClearLines every frame)   
     struct FBoneDebugLines

@@ -72,26 +72,59 @@ void UAnimSequenceBase::SortNotifies()
 }
 
 /**
- * @brief 특정 시간 구간의 Notify 수집
+ * @brief 특정 시간 구간의 Notify 수집 (UE 표준 로직)
  * @param PreviousTime 이전 시간
  * @param CurrentTime 현재 시간
  * @param OutNotifies 트리거된 Notify 배열 (출력)
+ *
+ * @details UE 표준 로직:
+ *   - Forward: (PreviousPosition, CurrentPosition] (exclusive to inclusive)
+ *   - Backward: [CurrentPosition, PreviousPosition) (inclusive to exclusive)
  */
 void UAnimSequenceBase::GetAnimNotifiesFromDeltaPositions(float PreviousTime, float CurrentTime,
                                                           TArray<const FAnimNotifyEvent*>& OutNotifies) const
 {
-	// 시간이 역방향이면 스왑
-	if (PreviousTime > CurrentTime)
-	{
-		std::swap(PreviousTime, CurrentTime);
-	}
+	const bool bPlayingForward = (CurrentTime >= PreviousTime);
+	const float AnimLength = GetPlayLength();
 
 	for (const FAnimNotifyEvent& NotifyEvent : Notifies)
 	{
-		// 트리거 시간이 구간 내에 있는지 확인
-		if (NotifyEvent.TriggerTime >= PreviousTime && NotifyEvent.TriggerTime < CurrentTime)
+		float NotifyStartTime = NotifyEvent.TriggerTime;
+		float NotifyEndTime = NotifyStartTime + NotifyEvent.Duration;
+
+		if (NotifyEvent.Duration > 0.0f)
 		{
-			OutNotifies.push_back(&NotifyEvent);
+			if (bPlayingForward)
+			{
+				if ((NotifyStartTime <= CurrentTime) && (NotifyEndTime > PreviousTime))
+				{
+					OutNotifies.push_back(&NotifyEvent);
+				}
+			}
+			else
+			{
+				if ((NotifyStartTime < PreviousTime) && (NotifyEndTime >= CurrentTime))
+				{
+					OutNotifies.push_back(&NotifyEvent);
+				}
+			}
+		}
+		else
+		{
+			if (bPlayingForward)
+			{
+				if ((NotifyStartTime > PreviousTime) && (NotifyStartTime <= CurrentTime))
+				{
+					OutNotifies.push_back(&NotifyEvent);
+				}
+			}
+			else
+			{
+				if ((NotifyStartTime < PreviousTime) && (NotifyStartTime >= CurrentTime))
+				{
+					OutNotifies.push_back(&NotifyEvent);
+				}
+			}
 		}
 	}
 }

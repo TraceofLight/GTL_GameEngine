@@ -27,6 +27,15 @@ USkeletalMeshComponent::~USkeletalMeshComponent()
     }
 }
 
+void USkeletalMeshComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	if (AnimInstance)
+	{
+		AnimInstance->NativeBeginPlay();
+	}
+}
+
 /**
  * @brief Animation 인스턴스 설정
  */
@@ -58,6 +67,15 @@ void USkeletalMeshComponent::HandleAnimNotify(const FAnimNotifyEvent& Notify)
     {
         OwnerActor->HandleAnimNotify(Notify);
     }
+}
+
+void USkeletalMeshComponent::TriggerAnimNotify(const FString& NotifyName, float TriggerTime, float Duration)
+{
+    FAnimNotifyEvent Event;
+    Event.NotifyName = FName(NotifyName);
+    Event.TriggerTime = TriggerTime;
+    Event.Duration = Duration;
+    OnAnimNotify.Broadcast(Event);
 }
 
 void USkeletalMeshComponent::TickComponent(float DeltaTime)
@@ -381,25 +399,6 @@ void USkeletalMeshComponent::StopAnimation()
 }
 
 /**
- * @brief State Machine 설정 (AnimInstance를 통해)
- */
-void USkeletalMeshComponent::SetAnimationStateMachine(UAnimStateMachine* InStateMachine)
-{
-    // AnimInstance가 없으면 생성
-    if (!AnimInstance)
-    {
-        AnimInstance = NewObject<UAnimInstance>();
-        AnimInstance->Initialize(this);
-        UE_LOG("[SkeletalMeshComponent] AnimInstance created for StateMachine");
-    }
-
-    if (AnimInstance)
-    {
-        AnimInstance->SetStateMachine(InStateMachine);
-    }
-}
-
-/**
  * @brief BlendSpace2D 설정 (AnimInstance를 통해)
  */
 void USkeletalMeshComponent::SetBlendSpace2D(UBlendSpace2D* InBlendSpace)
@@ -436,6 +435,7 @@ void USkeletalMeshComponent::DuplicateSubObjects()
         // 새로운 AnimInstance 생성
         AnimInstance = NewObject<UAnimInstance>();
         AnimInstance->Initialize(this);
+    	AnimInstance->SetStateMachine(OldAnimInstance->GetStateMachineNode()->GetStateMachine());
 
         // 애니메이션 상태 복사
         if (OldAnimInstance->GetCurrentAnimation())
@@ -448,9 +448,6 @@ void USkeletalMeshComponent::DuplicateSubObjects()
                 AnimInstance->StopAnimation();
             }
         }
-
-        // 이전 AnimInstance 삭제 (메모리 누수 방지)
-        ObjectFactory::DeleteObject(OldAnimInstance);
     }
 }
 
@@ -481,11 +478,15 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
             float SavedTime = 0.0f;
             float SavedPlayRate = 1.0f;
             bool bWasPlaying = false;
+        	FString AnimStateMachine;
 
             FJsonSerializer::ReadString(InOutHandle, "AnimationPath", AnimPath, "");
             FJsonSerializer::ReadFloat(InOutHandle, "CurrentTime", SavedTime, 0.0f);
             FJsonSerializer::ReadFloat(InOutHandle, "PlayRate", SavedPlayRate, 1.0f);
             FJsonSerializer::ReadBool(InOutHandle, "IsPlaying", bWasPlaying, false);
+        	FJsonSerializer::ReadString(InOutHandle, "AnimStateMachine", AnimStateMachine, "");
+
+        	AnimInstance->SetStateMachine(RESOURCE.Load<UAnimStateMachine>(AnimStateMachine));
 
             // TODO: AnimPath를 통해 AnimSequence를 로드하고 재생
             // 현재는 AnimSequence 로드 시스템이 완성되지 않아 스킵
@@ -497,14 +498,18 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
         bool bHasAnimInstance = (AnimInstance != nullptr);
         InOutHandle["HasAnimInstance"] = bHasAnimInstance;
 
-        if (bHasAnimInstance && AnimInstance->GetCurrentAnimation())
+        if (bHasAnimInstance)
         {
-            // 애니메이션 상태 저장
-            // TODO: CurrentAnimation의 경로를 저장 (현재는 Asset 경로 시스템 미완성)
-            InOutHandle["AnimationPath"] = FString("");
-            InOutHandle["CurrentTime"] = AnimInstance->GetCurrentTime();
-            InOutHandle["PlayRate"] = AnimInstance->GetPlayRate();
-            InOutHandle["IsPlaying"] = AnimInstance->IsPlaying();
+        	if (AnimInstance->GetCurrentAnimation())
+        	{
+        		// 애니메이션 상태 저장
+        		// TODO: CurrentAnimation의 경로를 저장 (현재는 Asset 경로 시스템 미완성)
+        		InOutHandle["AnimationPath"] = FString("");
+        		InOutHandle["CurrentTime"] = AnimInstance->GetCurrentTime();
+        		InOutHandle["PlayRate"] = AnimInstance->GetPlayRate();
+        		InOutHandle["IsPlaying"] = AnimInstance->IsPlaying();
+        	}
+            InOutHandle["AnimStateMachine"] = AnimInstance->GetStateMachineNode()->GetStateMachine()->GetFilePath();
         }
     }
 }

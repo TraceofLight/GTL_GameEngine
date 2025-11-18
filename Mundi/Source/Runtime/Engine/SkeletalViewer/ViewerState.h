@@ -71,7 +71,9 @@ public:
     int32 SelectedNotifyIndex = -1;  // 선택된 Notify 이벤트 인덱스
     TArray<FString> NotifyTrackNames;  // Notify Track 이름 목록 (예: "Track 1", "Track 2")
     std::set<int32> UsedTrackNumbers;  // 사용 중인 Track 번호 (빈 번호 재사용용)
+	bool bDraggingNotify = false;
+	float NotifyDragOffsetX = 0.0f;
 
     // View Mode
-    EViewerMode ViewMode = EViewerMode::Skeletal;  // 기본값: Skeletal 모드
+    EViewerMode ViewMode = EViewerMode::Skeletal;
 };

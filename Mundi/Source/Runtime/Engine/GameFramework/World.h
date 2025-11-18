@@ -113,6 +113,13 @@ public:
     /** Generate unique name for actor based on type */
     FString GenerateUniqueActorName(const FString& ActorType);
 
+    /** AnimNotify Delegate 핸들러 등록 */
+    void RegisterAnimNotifyHandler(class USkeletalMeshComponent* SkeletalMeshComp, class AActor* OwnerActor);
+
+    /** Lua에서 사운드 재생 (Notify에서 사용) */
+    UFUNCTION(LuaBind)
+    void PlaySound3D(const FString& SoundPath, const FVector& Location, float Volume = 1.0f);
+
     /** === 타임 / 틱 === */
     virtual void Tick(float DeltaSeconds);
     // Overlap pair de-duplication (per-frame)

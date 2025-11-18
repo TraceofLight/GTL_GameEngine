@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -520,6 +520,7 @@
     <ClCompile Include="Source\Slate\Windows\ControlPanelWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ExperimentalFeatureWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\PropertyWindow.cpp" />
+    <ClCompile Include="Source\Slate\Windows\AnimStateMachineWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SceneWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SControlPanel.cpp" />
     <ClCompile Include="Source\Slate\Windows\SDetailsWindow.cpp" />
@@ -531,7 +532,13 @@
     <ClCompile Include="Source\Slate\Windows\SViewportWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\UIWindow.cpp" />
+    <ClCompile Include="ThirdParty\Include\ImGui\crude_json.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="ThirdParty\Include\ImGui\imgui.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\Include\ImGui\imgui_canvas.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_draw.cpp">
@@ -541,6 +548,12 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_impl_win32.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\Include\ImGui\imgui_node_editor.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\Include\ImGui\imgui_node_editor_api.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_tables.cpp">
@@ -602,6 +615,7 @@
     <ClCompile Include="Generated\UAnimStateMachine.generated.cpp" />
     <ClCompile Include="Generated\USkeletalMesh.generated.cpp" />
     <ClCompile Include="Generated\UInputComponent.generated.cpp" />
+    <ClCompile Include="Generated\UAnimInstance.generated.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -803,6 +817,7 @@
     <ClInclude Include="Source\Slate\Windows\ControlPanelWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ExperimentalFeatureWindow.h" />
     <ClInclude Include="Source\Slate\Windows\PropertyWindow.h" />
+    <ClInclude Include="Source\Slate\Windows\AnimStateMachineWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SceneWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SControlPanel.h" />
     <ClInclude Include="Source\Slate\Windows\SDetailsWindow.h" />
@@ -892,6 +907,7 @@
     <ClInclude Include="Generated\UAnimStateMachine.generated.h" />
     <ClInclude Include="Generated\USkeletalMesh.generated.h" />
     <ClInclude Include="Generated\UInputComponent.generated.h" />
+    <ClInclude Include="Generated\UAnimInstance.generated.h" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Shaders\Common\LightingBuffers.hlsl" />

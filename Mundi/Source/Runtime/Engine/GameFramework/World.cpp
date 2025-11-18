@@ -28,6 +28,10 @@
 #include "Level.h"
 #include "LightManager.h"
 #include "LuaManager.h"
+#include "SkeletalMeshComponent.h"
+#include "FAudioDevice.h"
+#include "ResourceManager.h"
+#include "Sound.h"
 #include "PlayerController.h"
 #include "Pawn.h"
 #include "ShapeComponent.h"
@@ -341,8 +345,23 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 	{
 		UE_LOG("[World] PlayerController created for PIE: %s", NewPlayerController->GetName().c_str());
 
-		// 첫 번째 Pawn 찾아서 자동으로 Possess
-		ACharacter* Character = PIEWorld->SpawnActor<ACharacter>();
+		// 첫 번째 Character 찾아서 자동으로 Possess
+		ACharacter* Character = nullptr;
+		for (AActor* Actor : PIEWorld->GetActors())
+		{
+			if (Actor->IsA(ACharacter::StaticClass()))
+			{
+				Character = Cast<ACharacter>(Actor);
+				break;
+			}
+		}
+
+		// 없을 시 생성
+		if (!Character)
+		{
+			Character = PIEWorld->SpawnActor<ACharacter>();
+		}
+
 		if (Character)
 		{
 			NewPlayerController->Possess(Character);
@@ -763,4 +782,38 @@ bool UWorld::TryMarkOverlapPair(const AActor* Actor, const AActor* B)
 
 	FrameOverlapPairs.Add(Key);
 	return true;
+}
+
+// XXX(KHJ): 지금은 굳이 필요하지 않음. AnimNotify 용도로 생성했으나 추후 간단하게 수정해서 쓸 수 있다고 보고 놔두기로 함
+void UWorld::RegisterAnimNotifyHandler(USkeletalMeshComponent* SkeletalMeshComp, AActor* OwnerActor)
+{
+	if (!SkeletalMeshComp || !OwnerActor)
+	{
+		return;
+	}
+
+	SkeletalMeshComp->OnAnimNotify.Add([OwnerActor](const FAnimNotifyEvent& Event)
+	{
+		FString SoundPath = Event.NotifyName.ToString();
+		USound* Sound = UResourceManager::GetInstance().Load<USound>(SoundPath);
+		if (Sound)
+		{
+			FAudioDevice::PlaySound3D(Sound, OwnerActor->GetActorLocation(), 1.0f, false);
+		}
+	});
+}
+
+void UWorld::PlaySound3D(const FString& SoundPath, const FVector& Location, float Volume)
+{
+	// ResourceManager에서 사운드 로드
+	USound* Sound = UResourceManager::GetInstance().Load<USound>(SoundPath);
+	if (Sound)
+	{
+		UE_LOG("[World] PlaySound3D: Playing sound at location (%.1f, %.1f, %.1f), Volume=%.2f", Location.X, Location.Y, Location.Z, Volume);
+		FAudioDevice::PlaySound3D(Sound, Location, Volume, false);
+	}
+	else
+	{
+		UE_LOG("[World] PlaySound3D: Failed to load sound: %s", SoundPath.c_str());
+	}
 }
