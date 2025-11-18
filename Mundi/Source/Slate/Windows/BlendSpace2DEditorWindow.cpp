@@ -109,24 +109,49 @@ void SBlendSpace2DEditorWindow::OnRender()
 
 		// 전체 레이아웃 크기 계산
 		ImVec2 ContentRegion = ImGui::GetContentRegionAvail();
-		float TopHeight = ContentRegion.y * 0.6f;  // 상단 60%
-		float BottomHeight = ContentRegion.y * 0.4f; // 하단 40%
+		float TopHeight = ContentRegion.y * 0.55f;     // 상단 55%
+		float BottomHeight = ContentRegion.y * 0.43f;  // 하단 43%
 
-		// ===== 상단: 애니메이션 프리뷰 뷰포트 (60%) =====
+		// ===== 상단: 애니메이션 프리뷰 뷰포트 (55%) =====
 		ImGui::BeginChild("BlendSpace2DViewport", ImVec2(0, TopHeight), true, ImGuiWindowFlags_NoScrollbar);
 		{
 			RenderPreviewViewport();
 		}
 		ImGui::EndChild();
 
-		// ===== 하단: 그리드 에디터 + 애니메이션 리스트 (40%) =====
+		// ===== 하단: 3단 레이아웃 (Properties/Samples | Grid | Animations) (43%) =====
 		ImGui::BeginChild("BottomArea", ImVec2(0, BottomHeight), false, ImGuiWindowFlags_NoScrollbar);
 		{
-			float BottomLeftWidth = ContentRegion.x * 0.65f;  // 왼쪽 65%
-			float BottomRightWidth = ContentRegion.x * 0.35f; // 오른쪽 35%
+			float LeftPanelWidth = ContentRegion.x * 0.22f;    // 왼쪽 22%
+			float CenterPanelWidth = ContentRegion.x * 0.53f;  // 중앙 53%
+			float RightPanelWidth = ContentRegion.x * 0.23f;   // 오른쪽 23%
 
-			// 왼쪽: 2D 블렌드 그리드
-			ImGui::BeginChild("GridEditor", ImVec2(BottomLeftWidth, 0), true);
+			// 왼쪽: Properties (위) + Samples (아래)
+			ImGui::BeginChild("LeftPanel", ImVec2(LeftPanelWidth, 0), false, ImGuiWindowFlags_NoScrollbar);
+			{
+				float PropertiesHeight = BottomHeight * 0.48f;  // 위 48%
+				float SamplesHeight = BottomHeight * 0.48f;     // 아래 48%
+
+				// Properties (위)
+				ImGui::BeginChild("PropertiesPanel", ImVec2(0, PropertiesHeight), true);
+				{
+					RenderProperties();
+				}
+				ImGui::EndChild();
+
+				// Samples (아래)
+				ImGui::BeginChild("SamplesPanel", ImVec2(0, SamplesHeight), true);
+				{
+					RenderSampleList();
+				}
+				ImGui::EndChild();
+			}
+			ImGui::EndChild();
+
+			ImGui::SameLine();
+
+			// 중앙: 2D 블렌드 그리드
+			ImGui::BeginChild("GridEditor", ImVec2(CenterPanelWidth, 0), true);
 			{
 				RenderGridEditor();
 			}
@@ -135,7 +160,7 @@ void SBlendSpace2DEditorWindow::OnRender()
 			ImGui::SameLine();
 
 			// 오른쪽: 애니메이션 시퀀스 목록
-			ImGui::BeginChild("AnimationList", ImVec2(BottomRightWidth, 0), true);
+			ImGui::BeginChild("AnimationsPanel", ImVec2(RightPanelWidth, 0), true);
 			{
 				RenderAnimationList();
 			}
@@ -252,6 +277,46 @@ void SBlendSpace2DEditorWindow::RenderAxisLabels()
 
 	DrawList->AddText(YMinPos, IM_COL32(200, 200, 200, 255), LabelMin);
 	DrawList->AddText(YMaxPos, IM_COL32(200, 200, 200, 255), LabelMax);
+}
+
+/**
+ * @brief Delaunay 삼각분할 시각화
+ */
+void SBlendSpace2DEditorWindow::RenderTriangulation()
+{
+	if (!EditingBlendSpace)
+		return;
+
+	ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
+	// 삼각형 렌더링
+	for (const FBlendTriangle& Tri : EditingBlendSpace->Triangles)
+	{
+		if (!Tri.IsValid())
+			continue;
+
+		// 인덱스 유효성 검사
+		if (Tri.Index0 < 0 || Tri.Index0 >= EditingBlendSpace->GetNumSamples() ||
+			Tri.Index1 < 0 || Tri.Index1 >= EditingBlendSpace->GetNumSamples() ||
+			Tri.Index2 < 0 || Tri.Index2 >= EditingBlendSpace->GetNumSamples())
+		{
+			continue;
+		}
+
+		// 3개 정점의 화면 좌표
+		ImVec2 P0 = ParamToScreen(EditingBlendSpace->Samples[Tri.Index0].Position);
+		ImVec2 P1 = ParamToScreen(EditingBlendSpace->Samples[Tri.Index1].Position);
+		ImVec2 P2 = ParamToScreen(EditingBlendSpace->Samples[Tri.Index2].Position);
+
+		// 삼각형 경계선 (얇은 노란색)
+		ImU32 TriColor = IM_COL32(255, 255, 0, 100);  // 반투명 노란색
+		DrawList->AddLine(P0, P1, TriColor, 1.5f);
+		DrawList->AddLine(P1, P2, TriColor, 1.5f);
+		DrawList->AddLine(P2, P0, TriColor, 1.5f);
+
+		// 삼각형 내부 (매우 투명한 채우기 - 선택적)
+		// DrawList->AddTriangleFilled(P0, P1, P2, IM_COL32(255, 255, 0, 20));
+	}
 }
 
 void SBlendSpace2DEditorWindow::RenderToolbar()
@@ -390,35 +455,79 @@ void SBlendSpace2DEditorWindow::RenderProperties()
 	if (!EditingBlendSpace)
 		return;
 
-	ImGui::Text("Blend Space Properties");
-	ImGui::Separator();
-
-	// 축 범위 편집
-	ImGui::InputFloat("X Min", &EditingBlendSpace->XAxisMin);
-	ImGui::InputFloat("X Max", &EditingBlendSpace->XAxisMax);
-	ImGui::InputFloat("Y Min", &EditingBlendSpace->YAxisMin);
-	ImGui::InputFloat("Y Max", &EditingBlendSpace->YAxisMax);
-
-	ImGui::Separator();
-
-	// 선택된 샘플 속성
+	// 선택된 샘플이 있으면 샘플 속성 표시
 	if (SelectedSampleIndex >= 0 && SelectedSampleIndex < EditingBlendSpace->GetNumSamples())
 	{
-		ImGui::Text("Selected Sample Properties");
+		ImGui::Text("Sample Properties [%d]", SelectedSampleIndex);
+		ImGui::Separator();
+
 		FBlendSample& Sample = EditingBlendSpace->Samples[SelectedSampleIndex];
 
-		ImGui::InputFloat("Position X", &Sample.Position.X);
-		ImGui::InputFloat("Position Y", &Sample.Position.Y);
+		// 위치
+		ImGui::Text("Position");
+		ImGui::InputFloat("X##SamplePosX", &Sample.Position.X);
+		ImGui::InputFloat("Y##SamplePosY", &Sample.Position.Y);
 
+		ImGui::Separator();
+
+		// RateScale (재생 속도 배율)
+		ImGui::Text("Playback");
+		ImGui::SliderFloat("Rate Scale", &Sample.RateScale, 0.1f, 3.0f, "%.2f");
+		ImGui::SameLine();
+		if (ImGui::Button("Reset##RateScale"))
+		{
+			Sample.RateScale = 1.0f;
+		}
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+			"Playback speed multiplier");
+
+		ImGui::Separator();
+
+		// 애니메이션 정보
+		ImGui::Text("Animation");
 		if (Sample.Animation)
 		{
-			ImGui::Text("Animation: %s", Sample.Animation->GetName().c_str());
+			ImGui::TextColored(ImVec4(0.7f, 0.9f, 0.7f, 1.0f),
+				"%s", Sample.Animation->GetName().c_str());
 			ImGui::Text("Duration: %.2fs", Sample.Animation->GetPlayLength());
+			ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f),
+				"Effective: %.2fs (with RateScale)",
+				Sample.Animation->GetPlayLength() / Sample.RateScale);
 		}
 		else
 		{
-			ImGui::Text("Animation: None");
+			ImGui::TextColored(ImVec4(0.8f, 0.4f, 0.4f, 1.0f), "No Animation");
 		}
+	}
+	else
+	{
+		// 샘플이 선택되지 않았으면 BlendSpace 전체 속성 표시
+		ImGui::Text("Blend Space Properties");
+		ImGui::Separator();
+
+		// 축 범위
+		ImGui::Text("Axis Ranges");
+		ImGui::InputFloat("X Min", &EditingBlendSpace->XAxisMin);
+		ImGui::InputFloat("X Max", &EditingBlendSpace->XAxisMax);
+		ImGui::InputFloat("Y Min", &EditingBlendSpace->YAxisMin);
+		ImGui::InputFloat("Y Max", &EditingBlendSpace->YAxisMax);
+
+		ImGui::Separator();
+
+		// 축별 블렌드 가중치
+		ImGui::Text("Axis Blend Weights");
+		ImGui::SliderFloat("X Weight", &EditingBlendSpace->XAxisBlendWeight, 0.1f, 3.0f, "%.2f");
+		ImGui::SliderFloat("Y Weight", &EditingBlendSpace->YAxisBlendWeight, 0.1f, 3.0f, "%.2f");
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+			"Higher = more important");
+
+		ImGui::Separator();
+
+		// 통계
+		ImGui::Text("Statistics");
+		ImGui::Text("Total Samples: %d", EditingBlendSpace->GetNumSamples());
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+			"Select a sample to edit");
 	}
 }
 
@@ -545,6 +654,12 @@ void SBlendSpace2DEditorWindow::HandleMouseInput()
 	// 드래그 종료
 	if (ImGui::IsMouseReleased(0))
 	{
+		// 샘플 드래그가 끝났으면 삼각분할 재생성
+		if (bDraggingSample && EditingBlendSpace)
+		{
+			EditingBlendSpace->GenerateTriangulation();
+		}
+
 		bDraggingSample = false;
 		bDraggingPreviewMarker = false;
 	}
@@ -609,66 +724,49 @@ void SBlendSpace2DEditorWindow::RenderPreviewViewport()
 	ImGui::Text("Animation Preview");
 	ImGui::Separator();
 
-	// 뷰포트 렌더링 영역 (타임라인을 위해 하단 여백 확보)
-	float TimelineHeight = 120.0f;  // 타임라인 높이
-	ImGui::BeginChild("ViewportRenderArea", ImVec2(0, -(TimelineHeight + 10)), false, ImGuiWindowFlags_NoScrollbar);
-	ImVec2 childPos = ImGui::GetWindowPos();
-	ImVec2 childSize = ImGui::GetWindowSize();
-	ImVec2 rectMin = childPos;
-	ImVec2 rectMax(childPos.x + childSize.x, childPos.y + childSize.y);
+	// 전체 가용 영역 계산
+	ImVec2 ContentAvail = ImGui::GetContentRegionAvail();
+	float TimelineAndControlsHeight = 180.0f;  // 타임라인 + 컨트롤 높이
+	float ViewportHeight = ContentAvail.y - TimelineAndControlsHeight;
 
-	// 뷰포트 영역 저장 (SkeletalMeshViewer의 CenterRect와 동일)
-	PreviewViewportRect.Left = rectMin.x;
-	PreviewViewportRect.Top = rectMin.y;
-	PreviewViewportRect.Right = rectMax.x;
-	PreviewViewportRect.Bottom = rectMax.y;
-	PreviewViewportRect.UpdateMinMax();
+	// 뷰포트 렌더링 영역
+	ImGui::BeginChild("ViewportRenderArea", ImVec2(0, ViewportHeight), false, ImGuiWindowFlags_NoScrollbar);
+	{
+		ImVec2 childPos = ImGui::GetWindowPos();
+		ImVec2 childSize = ImGui::GetWindowSize();
+		ImVec2 rectMin = childPos;
+		ImVec2 rectMax(childPos.x + childSize.x, childPos.y + childSize.y);
 
+		// 뷰포트 영역 저장
+		PreviewViewportRect.Left = rectMin.x;
+		PreviewViewportRect.Top = rectMin.y;
+		PreviewViewportRect.Right = rectMax.x;
+		PreviewViewportRect.Bottom = rectMax.y;
+		PreviewViewportRect.UpdateMinMax();
+	}
 	ImGui::EndChild();
 
 	ImGui::Separator();
 
-	// 타임라인 렌더링
-	RenderTimelineControls();
-
-	// 재생/일시정지 버튼
-	if (bIsPlaying)
+	// 타임라인과 컨트롤 영역
+	ImGui::BeginChild("TimelineAndControls", ImVec2(0, TimelineAndControlsHeight), true);
 	{
-		if (ImGui::Button("Pause", ImVec2(80, 0)))
-		{
-			bIsPlaying = false;
-		}
+		// 타임라인 렌더링
+		RenderTimelineControls();
+
+		ImGui::Separator();
+
+		// 블렌드 파라미터 슬라이더
+		ImGui::Text("Blend Parameters");
+		ImGui::SliderFloat("X Axis", &PreviewParameter.X,
+			EditingBlendSpace->XAxisMin,
+			EditingBlendSpace->XAxisMax);
+
+		ImGui::SliderFloat("Y Axis", &PreviewParameter.Y,
+			EditingBlendSpace->YAxisMin,
+			EditingBlendSpace->YAxisMax);
 	}
-	else
-	{
-		if (ImGui::Button("Play", ImVec2(80, 0)))
-		{
-			bIsPlaying = true;
-		}
-	}
-
-	ImGui::SameLine();
-
-	// 루프 토글
-	ImGui::Checkbox("Loop", &bLoopAnimation);
-
-	ImGui::SameLine();
-
-	// 재생 속도
-	ImGui::SetNextItemWidth(100);
-	ImGui::DragFloat("Speed", &PlaybackSpeed, 0.1f, 0.1f, 5.0f, "%.1fx");
-
-	ImGui::Spacing();
-
-	// 블렌드 파라미터 슬라이더
-	ImGui::SliderFloat("X Axis", &PreviewParameter.X,
-		EditingBlendSpace->XAxisMin,
-		EditingBlendSpace->XAxisMax);
-
-	// Y축 슬라이더를 별도로 (범위가 다를 수 있음)
-	ImGui::SliderFloat("Y Axis", &PreviewParameter.Y,
-		EditingBlendSpace->YAxisMin,
-		EditingBlendSpace->YAxisMax);
+	ImGui::EndChild();
 }
 
 /**
@@ -690,10 +788,12 @@ void SBlendSpace2DEditorWindow::RenderGridEditor()
 
 	ImGui::Separator();
 
-	// 그리드 캔버스
+	// 그리드 캔버스 (전체 영역 사용 - 직사각형)
 	CanvasPos = ImGui::GetCursorScreenPos();
 	ImVec2 AvailableSize = ImGui::GetContentRegionAvail();
-	CanvasSize = ImVec2(FMath::Min(AvailableSize.x - 20, 500.0f), FMath::Min(AvailableSize.y - 20, 500.0f));
+
+	// 가용 영역 전체 사용 (정사각형 비율 유지 안 함)
+	CanvasSize = ImVec2(AvailableSize.x - 10, AvailableSize.y - 10);
 
 	ImDrawList* DrawList = ImGui::GetWindowDrawList();
 
@@ -707,6 +807,9 @@ void SBlendSpace2DEditorWindow::RenderGridEditor()
 
 	// 축 라벨 렌더링
 	RenderAxisLabels();
+
+	// Delaunay 삼각분할 렌더링
+	RenderTriangulation();
 
 	// 샘플 포인트 렌더링
 	RenderSamplePoints();
@@ -1049,6 +1152,16 @@ void SBlendSpace2DEditorWindow::OnUpdate(float DeltaSeconds)
 					{
 						BlendNode->SetBlendSpace(EditingBlendSpace);
 						BlendNode->SetAutoCalculateParameter(false);  // 수동으로 파라미터 설정
+
+						// 첫 번째 유효한 샘플 애니메이션을 재생 (타임라인 표시용)
+						/*for (int32 i = 0; i < EditingBlendSpace->GetNumSamples(); ++i)
+						{
+							if (EditingBlendSpace->Samples[i].Animation)
+							{
+								AnimInst->PlayAnimation(EditingBlendSpace->Samples[i].Animation, PlaybackSpeed);
+								break;
+							}
+						}*/
 					}
 
 					// 현재 PreviewParameter 설정
@@ -1149,7 +1262,7 @@ void SBlendSpace2DEditorWindow::RenderTimelineControls()
 		USkeletalMeshComponent* SkelComp = PreviewState->PreviewActor->GetSkeletalMeshComponent();
 		if (SkelComp)
 		{
-			UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+			UAnimInstance* AnimInst = SkelComp->GetAnimInstance(); for (int32 i = 0; i < EditingBlendSpace->GetNumSamples(); ++i)
 			if (AnimInst)
 			{
 				UAnimSequenceBase* AnimBase = AnimInst->GetCurrentAnimation();
@@ -1174,13 +1287,12 @@ void SBlendSpace2DEditorWindow::RenderTimelineControls()
 	int32 TotalFrames = DataModel->GetNumberOfFrames();
 
 	// === Timeline 렌더링 영역 ===
-	ImGui::BeginChild("TimelineArea", ImVec2(0, -40), true);
+	float TimelineAreaHeight = 100.0f;
+	ImGui::BeginChild("TimelineArea", ImVec2(0, TimelineAreaHeight), true, ImGuiWindowFlags_NoScrollbar);
 	{
 		RenderTimeline();
 	}
 	ImGui::EndChild();
-
-	ImGui::Separator();
 
 	// === 재생 컨트롤 버튼들 ===
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 2));
@@ -1420,6 +1532,7 @@ void SBlendSpace2DEditorWindow::RenderTimeline()
 
 	if (!CurrentAnimation)
 	{
+		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No animation playing");
 		return;
 	}
 
@@ -1471,13 +1584,33 @@ void SBlendSpace2DEditorWindow::RenderTimeline()
 		float NormalizedX = (FrameTime - StartTime) / (EndTime - StartTime);
 		float ScreenX = ScrollTimelineMin.x + NormalizedX * ScrollTimelineWidth;
 
+		// 메이저/마이너 그리드 구분
+		bool bIsMajor = (FrameIndex % 10 == 0);
+		ImU32 LineColor = bIsMajor ? IM_COL32(100, 100, 100, 255) : IM_COL32(60, 60, 60, 255);
+		float LineThickness = bIsMajor ? 1.5f : 1.0f;
+
 		DrawList->AddLine(
 			ImVec2(ScreenX, ScrollTimelineMin.y),
 			ImVec2(ScreenX, ScrollTimelineMax.y),
-			IM_COL32(70, 70, 70, 255),
-			1.0f
+			LineColor,
+			LineThickness
 		);
 	}
+
+	// 현재 시간 표시 (하단)
+	char TimeText[64];
+	sprintf_s(TimeText, "%.2fs / %.2fs", CurrentAnimationTime, MaxTime);
+	ImVec2 TimeTextSize = ImGui::CalcTextSize(TimeText);
+	ImVec2 TimeTextPos = ImVec2(
+		ScrollTimelineMin.x + 5,
+		ScrollTimelineMax.y - TimeTextSize.y - 5
+	);
+	DrawList->AddRectFilled(
+		ImVec2(TimeTextPos.x - 2, TimeTextPos.y - 2),
+		ImVec2(TimeTextPos.x + TimeTextSize.x + 2, TimeTextPos.y + TimeTextSize.y + 2),
+		IM_COL32(0, 0, 0, 180)
+	);
+	DrawList->AddText(TimeTextPos, IM_COL32(255, 255, 255, 255), TimeText);
 
 	// Playhead 렌더링 (빨간 세로 바)
 	DrawTimelinePlayhead(DrawList, ScrollTimelineMin, ScrollTimelineMax, CurrentAnimationTime, StartTime, EndTime);

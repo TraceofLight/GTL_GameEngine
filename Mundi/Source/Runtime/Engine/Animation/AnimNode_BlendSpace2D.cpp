@@ -113,18 +113,30 @@ void FAnimNode_BlendSpace2D::Update(float DeltaSeconds)
 		}
 	}
 
-	// Step 1: 첫 번째 유효한 애니메이션을 찾아서 시간 누적
+	// Step 1: 블렌드 가중치 계산하여 Leader(가장 높은 가중치) 찾기
+	TArray<int32> SampleIndices;
+	TArray<float> Weights;
+	BlendSpace->GetBlendWeights(BlendParameter, SampleIndices, Weights);
+
 	int32 ReferenceSampleIndex = -1;
 	float ReferenceDuration = 0.0f;
+	float MaxWeight = 0.0f;
 
-	for (int32 i = 0; i < NumSamples; ++i)
+	// 가장 높은 가중치를 가진 샘플을 Leader로 선택
+	for (int32 i = 0; i < SampleIndices.Num(); ++i)
 	{
-		const FBlendSample& Sample = BlendSpace->Samples[i];
-		if (Sample.Animation && Sample.Animation->GetDataModel())
+		int32 SampleIndex = SampleIndices[i];
+		float Weight = Weights[i];
+
+		if (Weight > MaxWeight && SampleIndex >= 0 && SampleIndex < NumSamples)
 		{
-			ReferenceSampleIndex = i;
-			ReferenceDuration = Sample.Animation->GetDataModel()->GetPlayLength();
-			break;
+			const FBlendSample& Sample = BlendSpace->Samples[SampleIndex];
+			if (Sample.Animation && Sample.Animation->GetDataModel())
+			{
+				ReferenceSampleIndex = SampleIndex;
+				ReferenceDuration = Sample.Animation->GetDataModel()->GetPlayLength();
+				MaxWeight = Weight;
+			}
 		}
 	}
 
@@ -134,8 +146,10 @@ void FAnimNode_BlendSpace2D::Update(float DeltaSeconds)
 		return;
 	}
 
-	// Step 2: 기준 샘플의 시간 누적 (일반 재생과 동일)
-	SampleAnimTimes[ReferenceSampleIndex] += DeltaSeconds;
+	// Step 2: 기준 샘플의 시간 누적 (RateScale 적용)
+	const FBlendSample& RefSample = BlendSpace->Samples[ReferenceSampleIndex];
+	float LeaderRateScale = RefSample.RateScale;
+	SampleAnimTimes[ReferenceSampleIndex] += DeltaSeconds * LeaderRateScale;
 
 	// 루프 처리
 	if (SampleAnimTimes[ReferenceSampleIndex] >= ReferenceDuration)
@@ -162,22 +176,23 @@ void FAnimNode_BlendSpace2D::Update(float DeltaSeconds)
 		}
 	}
 
-	// 디버그: 시간 동기화 확인
+	// 디버그: 시간 동기화 및 Leader 정보 확인
 	static int32 TimeLogCounter = 0;
 	if (TimeLogCounter++ % 60 == 0)
 	{
-		UE_LOG("[BlendSpace2D] Update: NormalizedTime=%.3f, DeltaSeconds=%.4f, RefSample=%d",
-			NormalizedTime, DeltaSeconds, ReferenceSampleIndex);
-		for (int32 i = 0; i < NumSamples && i < 3; ++i)
+		UE_LOG("[BlendSpace2D] Update: NormalizedTime=%.3f, DeltaSeconds=%.4f, Leader=%d (Weight=%.3f)",
+			NormalizedTime, DeltaSeconds, ReferenceSampleIndex, MaxWeight);
+		for (int32 i = 0; i < SampleIndices.Num() && i < 3; ++i)
 		{
-			const FBlendSample& Sample = BlendSpace->Samples[i];
+			int32 SampleIdx = SampleIndices[i];
+			const FBlendSample& Sample = BlendSpace->Samples[SampleIdx];
 			if (Sample.Animation && Sample.Animation->GetDataModel())
 			{
-				UE_LOG("  Sample[%d]%s: Time=%.3f / %.2f (%.1f%%)",
-					i, (i == ReferenceSampleIndex) ? " [REF]" : "",
-					SampleAnimTimes[i],
+				UE_LOG("  Sample[%d]%s: Time=%.3f / %.2f (Weight=%.3f)",
+					SampleIdx, (SampleIdx == ReferenceSampleIndex) ? " [LEADER]" : "",
+					SampleAnimTimes[SampleIdx],
 					Sample.Animation->GetDataModel()->GetPlayLength(),
-					(NormalizedTime * 100.0f));
+					Weights[i]);
 			}
 		}
 	}

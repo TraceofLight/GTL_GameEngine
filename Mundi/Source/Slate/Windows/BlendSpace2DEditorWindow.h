@@ -78,6 +78,7 @@ private:
 	void RenderSamplePoints();
 	void RenderPreviewMarker();
 	void RenderAxisLabels();
+	void RenderTriangulation();  // Delaunay 삼각분할 시각화
 	void RenderToolbar();
 	void RenderSampleList();
 	void RenderProperties();
