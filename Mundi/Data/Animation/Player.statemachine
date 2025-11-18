@@ -2,14 +2,20 @@
   "EntryState" : "Idle",
   "Nodes" : [{
       "AnimAsset" : "Data/Animation/XBOT_Slow Run.fbx#mixamo.com",
+      "EditorPosX" : 184.000000,
+      "EditorPosY" : 249.000000,
       "Loop" : true,
       "Name" : "Run"
     }, {
       "AnimAsset" : "Data/Animation/XBOT_Idle.fbx#mixamo.com",
+      "EditorPosX" : 199.000000,
+      "EditorPosY" : -71.000000,
       "Loop" : true,
       "Name" : "Idle"
     }, {
       "AnimAsset" : "Data/Animation/XBOT_Walking.fbx#mixamo.com",
+      "EditorPosX" : 184.000000,
+      "EditorPosY" : 89.000000,
       "Loop" : true,
       "Name" : "Walk"
     }],

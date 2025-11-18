@@ -11,14 +11,6 @@ namespace ed = ax::NodeEditor;
 SAnimStateMachineWindow::SAnimStateMachineWindow()
 {
     Rect = { 0, 0, 0, 0 };
-
-	// TEST
-	UFbxLoader& FbxLoader = UFbxLoader::GetInstance();
-	USkeletalMesh* SkeletalMesh = FbxLoader.LoadFbxMesh(GDataDir + "/X Bot.fbx");
-	TArray<UAnimSequence*> IdleAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Idle.fbx", *SkeletalMesh->GetSkeleton());
-	TArray<UAnimSequence*> WalkAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Walking.fbx", *SkeletalMesh->GetSkeleton());
-	TArray<UAnimSequence*> RunAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Slow Run.fbx", *SkeletalMesh->GetSkeleton());
-	// TEST
 }
 
 SAnimStateMachineWindow::~SAnimStateMachineWindow()
@@ -110,7 +102,7 @@ void SAnimStateMachineWindow::OnRender()
         return;
     }
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoSavedSettings;
 
     if (!bInitialPlacementDone)
     {
@@ -121,90 +113,94 @@ void SAnimStateMachineWindow::OnRender()
 
     if (ImGui::Begin("Animation State Machine Editor", &bIsOpen, flags))
     {
-        // === Menu Bar ===
-        if (ImGui::BeginMenuBar())
+        // === Toolbar (File 메뉴 없이 버튼으로 직접 노출) ===
+        const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/Animation";
+        const FWideString Extension = L".statemachine";
+        const FWideString Description = L"State Machines";
+        FWideString DefaultFileName = L"NewStateMachine";
+
+        // New 버튼
+        if (ImGui::Button("New", ImVec2(60, 0)))
         {
-            if (ImGui::BeginMenu("File"))
-            {
-            	const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/Animation";
-            	const FWideString Extension = L".statemachine";
-            	const FWideString Description = L"State Machines";
-            	FWideString DefaultFileName = L"NewStateMachine";
-
-                if (ImGui::MenuItem("New State Machine"))
-                {
-                    char label[64];
-                    sprintf_s(label, "State Machine %d", static_cast<int32>(Tabs.size()) + 1);
-					CreateNewGraphTab(label, nullptr);
-                }
-            	// [Save]
-            	if (ImGui::MenuItem("Save", "Ctrl+S"))
-            	{
-            		if (ActiveState && ActiveState->StateMachine)
-            		{
-            			FWideString SavePath = ActiveState->AssetPath;
-
-            			// 경로가 없으면(새로 만든 경우) 다이얼로그 띄움
-            			if (SavePath.empty())
-            			{
-            				std::filesystem::path SelectedPath = FPlatformProcess::OpenSaveFileDialog(BaseDir, Extension, Description, DefaultFileName);
-            				if (!SelectedPath.empty())
-            				{
-            					SavePath = SelectedPath.wstring();
-            					ActiveState->AssetPath = SavePath; // 경로 저장
-
-            					// 탭 이름도 파일명으로 변경해주면 좋음
-            					ActiveState->Name = SelectedPath.stem().string();
-            				}
-            			}
-
-            			if (!SavePath.empty())
-            			{
-            				try
-            				{
-            					if (ActiveState->StateMachine->SaveToFile(SavePath))
-            					{
-            						UE_LOG("StateMachine saved: %S", SavePath.c_str());
-            					}
-            					else
-            					{
-            						UE_LOG("[error] StateMachine save failed.");
-            					}
-            				}
-            				catch (const std::exception& Exception)
-            				{
-            					UE_LOG("[error] StateMachine Save Error: %s", Exception.what());
-            				}
-            			}
-            		}
-            	}
-            	// [Load] - 변경된 핵심 부분
-            	if (ImGui::MenuItem("Load", "Ctrl+O"))
-            	{
-            		std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(BaseDir, Extension, Description);
-
-            		if (!SelectedPath.empty())
-            		{
-            			FWideString FilePath = SelectedPath.wstring();
-            			UAnimStateMachine* LoadedAsset = RESOURCE.Load<UAnimStateMachine>(FilePath);
-
-            			if (LoadedAsset)
-            			{
-            				// @TODO - 이미 열려있는지 확인
-            				// 로드된 에셋으로 새 탭 생성
-            				std::string FileName = SelectedPath.stem().string();
-            				CreateNewGraphTab(FileName.c_str(), LoadedAsset, FilePath);
-            			}
-            			else
-            			{
-            				UE_LOG("[Error] Failed to load AnimStateMachine: %S", FilePath.c_str());
-            			}
-            		}
-            	}
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenuBar();
+            char label[64];
+            sprintf_s(label, "State Machine %d", static_cast<int32>(Tabs.size()) + 1);
+            CreateNewGraphTab(label, nullptr);
         }
+
+        ImGui::SameLine();
+
+        // Save 버튼
+        if (ImGui::Button("Save", ImVec2(60, 0)))
+        {
+            if (ActiveState && ActiveState->StateMachine)
+            {
+                FWideString SavePath = ActiveState->AssetPath;
+
+                // 경로가 없으면(새로 만든 경우) 다이얼로그 띄움
+                if (SavePath.empty())
+                {
+                    std::filesystem::path SelectedPath = FPlatformProcess::OpenSaveFileDialog(BaseDir, Extension, Description, DefaultFileName);
+                    if (!SelectedPath.empty())
+                    {
+                        SavePath = SelectedPath.wstring();
+                        ActiveState->AssetPath = SavePath; // 경로 저장
+
+                        // 탭 이름도 파일명으로 변경해주면 좋음
+                        ActiveState->Name = SelectedPath.stem().string();
+                    }
+                }
+
+                if (!SavePath.empty())
+                {
+                    try
+                    {
+                        // 노드 위치 저장
+                        SaveNodePositions(ActiveState);
+
+                        if (ActiveState->StateMachine->SaveToFile(SavePath))
+                        {
+                            UE_LOG("StateMachine saved: %S", SavePath.c_str());
+                        }
+                        else
+                        {
+                            UE_LOG("[error] StateMachine save failed.");
+                        }
+                    }
+                    catch (const std::exception& Exception)
+                    {
+                        UE_LOG("[error] StateMachine Save Error: %s", Exception.what());
+                    }
+                }
+            }
+        }
+
+        ImGui::SameLine();
+
+        // Load 버튼
+        if (ImGui::Button("Load", ImVec2(60, 0)))
+        {
+            std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(BaseDir, Extension, Description);
+
+            if (!SelectedPath.empty())
+            {
+                FWideString FilePath = SelectedPath.wstring();
+                UAnimStateMachine* LoadedAsset = RESOURCE.Load<UAnimStateMachine>(FilePath);
+
+                if (LoadedAsset)
+                {
+                    // @TODO - 이미 열려있는지 확인
+                    // 로드된 에셋으로 새 탭 생성
+                    std::string FileName = SelectedPath.stem().string();
+                    CreateNewGraphTab(FileName.c_str(), LoadedAsset, FilePath);
+                }
+                else
+                {
+                    UE_LOG("[Error] Failed to load AnimStateMachine: %S", FilePath.c_str());
+                }
+            }
+        }
+
+        ImGui::Separator();
 
         // === Tab Bar ===
         bool bTabClosed = false;
@@ -346,6 +342,36 @@ void SAnimStateMachineWindow::RenderLeftPanel(float width, float height)
 	ImGui::PopStyleVar();
 }
 
+// 아이콘 그리기 헬퍼 함수
+void DrawPinIcon(const ImVec2& size, bool filled, ImU32 color)
+{
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    ImVec2 cursorPos = ImGui::GetCursorScreenPos();
+
+    ImRect rect(cursorPos, cursorPos + size);
+    float centerX = (rect.Min.x + rect.Max.x) * 0.5f;
+    float centerY = (rect.Min.y + rect.Max.y) * 0.5f;
+
+    // 삼각형 그리기 (Flow 타입)
+    const float triangleSize = size.x * 0.6f;
+    const float halfSize = triangleSize * 0.5f;
+
+    ImVec2 p1(centerX - halfSize, centerY - halfSize * 0.866f);
+    ImVec2 p2(centerX + halfSize, centerY);
+    ImVec2 p3(centerX - halfSize, centerY + halfSize * 0.866f);
+
+    if (filled)
+    {
+        drawList->AddTriangleFilled(p1, p2, p3, color);
+    }
+    else
+    {
+        drawList->AddTriangle(p1, p2, p3, color, 2.0f);
+    }
+
+    ImGui::Dummy(size);
+}
+
 void SAnimStateMachineWindow::RenderCenterPanel(float width, float height)
 {
     ImGui::BeginChild("GraphArea", ImVec2(width, height), true);
@@ -370,7 +396,9 @@ void SAnimStateMachineWindow::RenderCenterPanel(float width, float height)
 
             ed::BeginNode(Node.ID);
 
-            ImGui::PushItemWidth(150.0f);
+            // 노드 헤더 영역
+            ImGui::BeginGroup();
+            ImGui::PushItemWidth(200.0f);
             ImGui::Text(Node.Name.c_str());
             ImGui::PopItemWidth();
 
@@ -390,24 +418,66 @@ void SAnimStateMachineWindow::RenderCenterPanel(float width, float height)
             {
                 ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "[LOOP]");
             }
+            ImGui::EndGroup();
 
-            // Input/Output Pins (상태 간 연결용)
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            // Input/Output Pins - 블루프린트 스타일로 개선
+            const float pinIconSize = 24.0f;
+            const float nodeContentWidth = 200.0f;
+
+            // 왼쪽: Input Pin (들어오는 화살표)
             ImGui::BeginGroup();
             for (auto& Pin : Node.Inputs)
             {
                 ed::BeginPin(Pin.ID, Pin.Kind);
-                ImGui::Text("-> In  ");
+                ed::PinPivotAlignment(ImVec2(0.0f, 0.5f));
+                ed::PinPivotSize(ImVec2(0, 0));
+
+                // 연결 여부 체크
+                bool connected = false;
+                for (const auto& Link : ActiveState->Links)
+                {
+                    if (Link.EndPinID == Pin.ID)
+                    {
+                        connected = true;
+                        break;
+                    }
+                }
+
+                DrawPinIcon(ImVec2(pinIconSize, pinIconSize), connected,
+                           IM_COL32(100, 200, 255, 255));
+
                 ed::EndPin();
             }
             ImGui::EndGroup();
 
-            ImGui::SameLine();
+            ImGui::SameLine(0, nodeContentWidth - pinIconSize * 2);
 
+            // 오른쪽: Output Pin (나가는 화살표)
             ImGui::BeginGroup();
             for (auto& Pin : Node.Outputs)
             {
                 ed::BeginPin(Pin.ID, Pin.Kind);
-                ImGui::Text("  Out ->");
+                ed::PinPivotAlignment(ImVec2(1.0f, 0.5f));
+                ed::PinPivotSize(ImVec2(0, 0));
+
+                // 연결 여부 체크
+                bool connected = false;
+                for (const auto& Link : ActiveState->Links)
+                {
+                    if (Link.StartPinID == Pin.ID)
+                    {
+                        connected = true;
+                        break;
+                    }
+                }
+
+                DrawPinIcon(ImVec2(pinIconSize, pinIconSize), connected,
+                           IM_COL32(255, 180, 100, 255));
+
                 ed::EndPin();
             }
             ImGui::EndGroup();
@@ -798,15 +868,13 @@ void SAnimStateMachineWindow::RenderRightPanel(float width, float height)
                 ImGui::Separator();
                 ImGui::Spacing();
 
-// ==========================================================
+                // ==========================================================
                 // Conditions (수정된 로직)
                 // ==========================================================
                 ImGui::TextDisabled("Transition Conditions");
                 ImGui::Spacing();
 
                 // StateMachine에 즉시 반영하기 위해 From/To 노드 정보 미리 찾기
-                FGraphNode* FromNode = FindNodeByPin(ActiveState, SelectedLink->StartPinID);
-                FGraphNode* ToNode = FindNodeByPin(ActiveState, SelectedLink->EndPinID);
                 bool bCanEditData = (FromNode && ToNode && ActiveState->StateMachine);
 
                 // Condition 리스트 표시 및 편집
@@ -952,9 +1020,9 @@ void SAnimStateMachineWindow::CreateNode_State(FGraphState* State)
 
     State->Nodes.push_back(Node);
 
-    // 위치 설정
+    // 위치 설정 (약간씩 떨어뜨려서 생성)
     ed::SetCurrentEditor(State->Context);
-    ed::SetNodePosition(Node.ID, ImVec2(100 + State->StateCounter * 50, 100));
+    ed::SetNodePosition(Node.ID, ImVec2(100 + State->StateCounter * 50, 100 + State->StateCounter * 50));
     ed::SetCurrentEditor(nullptr);
 }
 
@@ -1023,6 +1091,22 @@ const char* SAnimStateMachineWindow::GetConditionOpString(EAnimConditionOp Op)
     }
 }
 
+void SAnimStateMachineWindow::SaveNodePositions(FGraphState* State)
+{
+    if (!State || !State->StateMachine) return;
+
+    ed::SetCurrentEditor(State->Context);
+
+    for (auto& Node : State->Nodes)
+    {
+        ImVec2 pos = ed::GetNodePosition(Node.ID);
+        FName nodeName(Node.Name);
+        State->StateMachine->NodePositions[nodeName] = FVector2D(pos.x, pos.y);
+    }
+
+    ed::SetCurrentEditor(nullptr);
+}
+
 void SAnimStateMachineWindow::SyncGraphFromStateMachine(FGraphState* State)
 {
     if (!State || !State->StateMachine) return;
@@ -1049,11 +1133,19 @@ void SAnimStateMachineWindow::SyncGraphFromStateMachine(FGraphState* State)
 
         State->Nodes.push_back(Node);
 
-        // 위치 복원
+        // 위치 복원 - 저장된 위치가 있으면 사용, 없으면 기본 위치
         if (State->StateMachine->NodePositions.Contains(StateNode.StateName))
         {
             const FVector2D& Pos = State->StateMachine->NodePositions[StateNode.StateName];
             ed::SetNodePosition(Node.ID, ImVec2(Pos.X, Pos.Y));
+        }
+        else
+        {
+            // 저장된 위치가 없으면 그리드 형태로 배치
+            int nodeIndex = State->Nodes.size() - 1;
+            int row = nodeIndex / 3;
+            int col = nodeIndex % 3;
+            ed::SetNodePosition(Node.ID, ImVec2(100 + col * 300, 100 + row * 250));
         }
     }
 

@@ -81,7 +81,9 @@ struct FGraphState
           SelectedNodeID(ed::NodeId::Invalid),
           SelectedLinkID(ed::LinkId::Invalid)
     {
-        Context = ed::CreateEditor();
+    	ed::Config Config;
+    	Config.SettingsFile = nullptr;
+    	Context = ed::CreateEditor(&Config);
     }
 
     ~FGraphState()
@@ -130,6 +132,7 @@ private:
     FGraphNode* FindNodeByPin(FGraphState* State, ed::PinId PinID);
     FGraphLink* FindLink(FGraphState* State, ed::LinkId LinkID);
     const char* GetConditionOpString(EAnimConditionOp Op);
+    void SaveNodePositions(FGraphState* State);
 
     // Sync Functions
     void SyncGraphFromStateMachine(FGraphState* State);
