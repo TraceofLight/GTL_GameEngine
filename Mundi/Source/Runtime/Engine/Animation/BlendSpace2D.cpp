@@ -75,7 +75,7 @@ void UBlendSpace2D::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 				if (!AnimPath.empty())
 				{
 					// ResourceManager에서 로드 시도
-					Sample.Animation = UResourceManager::GetInstance().Get<UAnimSequence>(AnimPath);
+					Sample.Animation = UResourceManager::GetInstance().Load<UAnimSequence>(AnimPath);
 
 					if (!Sample.Animation)
 					{
@@ -667,6 +667,7 @@ UBlendSpace2D* UBlendSpace2D::LoadFromFile(const FString& FilePath)
 
 	// 새 BlendSpace2D 객체 생성 및 역직렬화
 	UBlendSpace2D* BlendSpace = NewObject<UBlendSpace2D>();
+	BlendSpace->SetFilePath(FilePath);
 	BlendSpace->Serialize(true, JsonData);
 
 	UE_LOG("BlendSpace2D loaded from: %s", FilePath.c_str());

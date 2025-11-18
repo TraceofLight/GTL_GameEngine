@@ -111,6 +111,23 @@ public:
 	void SetBool(const FString& Key, bool bValue) { SetFloat(Key, bValue ? 1.0f : 0.0f); }
 	bool GetBool(FName Key) const { return GetFloat(Key) > 0.5f; }
 
+	// ===== BlendSpace2D 파라미터 설정 =====
+
+	/**
+	 * @brief BlendSpace2D 파라미터 설정 (Lua에서 호출)
+	 * @param X X축 파라미터 값 (예: 속도)
+	 * @param Y Y축 파라미터 값 (예: 방향)
+	 */
+	UFUNCTION(LuaBind, DisplayName = "SetBlendSpace2DParameter")
+	void SetBlendSpace2DParameter(float X, float Y);
+
+	/**
+	 * @brief BlendSpace2D 자동 파라미터 계산 활성화/비활성화 (Lua에서 호출)
+	 * @param bEnable true면 Movement에서 자동 계산, false면 수동 설정
+	 */
+	UFUNCTION(LuaBind, DisplayName = "SetBlendSpace2DAutoCalculate")
+	void SetBlendSpace2DAutoCalculate(bool bEnable);
+
 protected:
 	/** 변수 저장소 (이름 -> 값) */
 	TMap<FName, float> Parameters;

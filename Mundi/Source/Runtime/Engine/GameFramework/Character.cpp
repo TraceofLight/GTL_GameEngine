@@ -110,13 +110,13 @@ void ACharacter::BeginPlay()
 				UFbxLoader& FbxLoader = UFbxLoader::GetInstance();
 				// SkeletalMesh->GetAnimations()[0];
 				// 애니메이션 로드
-				TArray<UAnimSequence*> IdleAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Idle.fbx", *Skeleton);
+				/*TArray<UAnimSequence*> IdleAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Idle.fbx", *Skeleton);
 				TArray<UAnimSequence*> WalkAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Walking.fbx", *Skeleton);
 				TArray<UAnimSequence*> RunAnims = FbxLoader.LoadAllFbxAnimations(GDataDir + "/Animation/XBOT_Slow Run.fbx", *Skeleton);
 
 				UAnimSequence* IdleAnim = SkeletalMesh->GetAnimations()[0];
 				UAnimSequence* WalkAnim = SkeletalMesh->GetAnimations()[1];
-				UAnimSequence* RunAnim = SkeletalMesh->GetAnimations()[2];
+				UAnimSequence* RunAnim = SkeletalMesh->GetAnimations()[2];*/
 
 				// ===== BlendSpace2D 예제 (주석 처리 - 나중에 8방향 이동용) =====
 				/*

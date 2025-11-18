@@ -233,6 +233,19 @@ void FAnimNode_BlendSpace2D::Evaluate(FPoseContext& OutPose)
 	TArray<FPoseContext> SourcePoses;
 	SourcePoses.SetNum(SampleIndices.Num());
 
+	// 각 SourcePose 초기화 (Skeleton 설정)
+	for (int32 i = 0; i < SourcePoses.Num(); ++i)
+	{
+		if (OutPose.Skeleton)
+		{
+			SourcePoses[i].Initialize(OutPose.Skeleton);
+		}
+		else
+		{
+			SourcePoses[i].LocalSpacePose.SetNum(OutPose.LocalSpacePose.Num());
+		}
+	}
+
 	// 각 샘플의 포즈 샘플링
 	for (int32 i = 0; i < SampleIndices.Num(); ++i)
 	{
@@ -246,6 +259,18 @@ void FAnimNode_BlendSpace2D::Evaluate(FPoseContext& OutPose)
 		if (!Sample.Animation)
 		{
 			continue;
+		}
+
+		// DataModel과 Skeleton 확인 및 설정
+		if (!Sample.Animation->GetDataModel())
+		{
+			continue;
+		}
+
+		// Skeleton 설정 (OutPose에서 가져옴)
+		if (OutPose.Skeleton)
+		{
+			Sample.Animation->GetDataModel()->Skeleton = const_cast<FSkeleton*>(OutPose.Skeleton);
 		}
 
 		// 애니메이션 시간 가져오기
