@@ -81,7 +81,7 @@ void FAnimNode_StateMachine::Evaluate(FPoseContext& OutPose)
 {
 	if (!ActiveNode) { return; }
 	UAnimSequence* CurrentAnim = ActiveNode->AnimationAsset;
-	//CurrentAnim->GetDataModel()->Skeleton = const_cast<FSkeleton*>(OutPose.Skeleton); // 미친 테스트코드임 지금 Anim Skeleton이 댕글링이라 해놓음
+	CurrentAnim->GetDataModel()->Skeleton = const_cast<FSkeleton*>(OutPose.Skeleton); // 미친 테스트코드임 지금 Anim Skeleton이 댕글링이라 해놓음
 
 	// ==========================================
 	// 1. 타겟 포즈 계산
