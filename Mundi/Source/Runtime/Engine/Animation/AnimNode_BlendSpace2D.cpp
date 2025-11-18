@@ -11,6 +11,7 @@ FAnimNode_BlendSpace2D::FAnimNode_BlendSpace2D()
 	: BlendSpace(nullptr)
 	, BlendParameter(FVector2D::Zero())
 	, bAutoCalculateParameter(true)
+	, NormalizedTime(0.0f)
 	, OwnerPawn(nullptr)
 	, OwnerCharacter(nullptr)
 	, MovementComponent(nullptr)
@@ -101,20 +102,82 @@ void FAnimNode_BlendSpace2D::Update(float DeltaSeconds)
 		CalculateBlendParameterFromMovement();
 	}
 
-	// 모든 샘플 애니메이션 시간 업데이트
+	// 샘플 개수 확인 및 배열 크기 조정
 	const int32 NumSamples = BlendSpace->GetNumSamples();
+	if (SampleAnimTimes.Num() != NumSamples)
+	{
+		SampleAnimTimes.SetNum(NumSamples);
+		for (int32 i = 0; i < SampleAnimTimes.Num(); ++i)
+		{
+			SampleAnimTimes[i] = 0.0f;
+		}
+	}
+
+	// Step 1: 첫 번째 유효한 애니메이션을 찾아서 시간 누적
+	int32 ReferenceSampleIndex = -1;
+	float ReferenceDuration = 0.0f;
+
 	for (int32 i = 0; i < NumSamples; ++i)
 	{
-		SampleAnimTimes[i] += DeltaSeconds;
+		const FBlendSample& Sample = BlendSpace->Samples[i];
+		if (Sample.Animation && Sample.Animation->GetDataModel())
+		{
+			ReferenceSampleIndex = i;
+			ReferenceDuration = Sample.Animation->GetDataModel()->GetPlayLength();
+			break;
+		}
+	}
 
-		// 루프 처리
+	// 유효한 샘플이 없으면 중단
+	if (ReferenceSampleIndex == -1)
+	{
+		return;
+	}
+
+	// Step 2: 기준 샘플의 시간 누적 (일반 재생과 동일)
+	SampleAnimTimes[ReferenceSampleIndex] += DeltaSeconds;
+
+	// 루프 처리
+	if (SampleAnimTimes[ReferenceSampleIndex] >= ReferenceDuration)
+	{
+		SampleAnimTimes[ReferenceSampleIndex] = fmod(SampleAnimTimes[ReferenceSampleIndex], ReferenceDuration);
+	}
+
+	// 정규화된 시간 계산 (0~1)
+	NormalizedTime = (ReferenceDuration > 0.0f) ? (SampleAnimTimes[ReferenceSampleIndex] / ReferenceDuration) : 0.0f;
+
+	// Step 3: 나머지 샘플들을 기준 샘플과 동기화
+	for (int32 i = 0; i < NumSamples; ++i)
+	{
+		if (i == ReferenceSampleIndex)
+		{
+			continue; // 이미 업데이트함
+		}
+
 		const FBlendSample& Sample = BlendSpace->Samples[i];
 		if (Sample.Animation && Sample.Animation->GetDataModel())
 		{
 			float Duration = Sample.Animation->GetDataModel()->GetPlayLength();
-			if (SampleAnimTimes[i] > Duration)
+			SampleAnimTimes[i] = NormalizedTime * Duration;
+		}
+	}
+
+	// 디버그: 시간 동기화 확인
+	static int32 TimeLogCounter = 0;
+	if (TimeLogCounter++ % 60 == 0)
+	{
+		UE_LOG("[BlendSpace2D] Update: NormalizedTime=%.3f, DeltaSeconds=%.4f, RefSample=%d",
+			NormalizedTime, DeltaSeconds, ReferenceSampleIndex);
+		for (int32 i = 0; i < NumSamples && i < 3; ++i)
+		{
+			const FBlendSample& Sample = BlendSpace->Samples[i];
+			if (Sample.Animation && Sample.Animation->GetDataModel())
 			{
-				SampleAnimTimes[i] = fmod(SampleAnimTimes[i], Duration);
+				UE_LOG("  Sample[%d]%s: Time=%.3f / %.2f (%.1f%%)",
+					i, (i == ReferenceSampleIndex) ? " [REF]" : "",
+					SampleAnimTimes[i],
+					Sample.Animation->GetDataModel()->GetPlayLength(),
+					(NormalizedTime * 100.0f));
 			}
 		}
 	}

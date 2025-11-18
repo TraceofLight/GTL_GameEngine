@@ -1040,55 +1040,34 @@ void SBlendSpace2DEditorWindow::OnUpdate(float DeltaSeconds)
 
 			if (AnimInst)
 			{
-				// 재생 상태 동기화
-				if (bIsPlaying && !AnimInst->IsPlaying())
+				// BlendSpace2D 노드 설정
+				FAnimNode_BlendSpace2D* BlendNode = AnimInst->GetBlendSpace2DNode();
+				if (BlendNode)
 				{
-					AnimInst->ResumeAnimation();
-				}
-				else if (!bIsPlaying && AnimInst->IsPlaying())
-				{
-					AnimInst->StopAnimation();
-				}
-
-				// 재생 속도 동기화
-				if (FMath::Abs(AnimInst->GetPlayRate() - PlaybackSpeed) > 0.001f)
-				{
-					AnimInst->SetPlayRate(PlaybackSpeed);
-				}
-
-				// BlendSpace2D에서 블렌드 가중치 계산
-				TArray<int32> SampleIndices;
-				TArray<float> Weights;
-				EditingBlendSpace->GetBlendWeights(PreviewParameter, SampleIndices, Weights);
-
-				// 블렌딩된 애니메이션 재생
-				if (SampleIndices.Num() > 0)
-				{
-					// 현재는 가장 가중치가 높은 애니메이션만 재생 (단순화)
-					// TODO: 나중에 실제 블렌딩 구현
-					int32 MaxWeightIndex = 0;
-					float MaxWeight = 0.0f;
-					for (int32 i = 0; i < Weights.Num(); ++i)
+					// BlendSpace 설정 (최초 1회)
+					if (BlendNode->GetBlendSpace() != EditingBlendSpace)
 					{
-						if (Weights[i] > MaxWeight)
-						{
-							MaxWeight = Weights[i];
-							MaxWeightIndex = i;
-						}
+						BlendNode->SetBlendSpace(EditingBlendSpace);
+						BlendNode->SetAutoCalculateParameter(false);  // 수동으로 파라미터 설정
 					}
 
-					int32 BestSampleIndex = SampleIndices[MaxWeightIndex];
-					if (BestSampleIndex >= 0 && BestSampleIndex < EditingBlendSpace->Samples.Num())
-					{
-						UAnimSequence* TargetAnim = EditingBlendSpace->Samples[BestSampleIndex].Animation;
-						if (TargetAnim && AnimInst->GetCurrentAnimation() != TargetAnim)
-						{
-							AnimInst->PlayAnimation(TargetAnim, PlaybackSpeed);
-						}
-					}
+					// 현재 PreviewParameter 설정
+					BlendNode->SetBlendParameter(PreviewParameter);
+
+					// 참고: Update()와 Evaluate()는 SkeletalMeshComponent::TickComponent()에서 자동 호출됨 (Unreal 방식)
 				}
 			}
 		}
+	}
+
+	// PlaybackSpeed를 World TimeDilation으로 적용 (Unreal Engine 방식)
+	if (bIsPlaying)
+	{
+		PreviewState->World->SetTimeDilation(PlaybackSpeed) ;
+	}
+	else
+	{
+		PreviewState->World->SetTimeDilation(PlaybackSpeed);  // 일시정지
 	}
 
 	// PreviewWorld 업데이트 (SkeletalMeshViewer와 동일)

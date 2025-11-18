@@ -1,5 +1,20 @@
 {
-  "SampleCount" : 0,
+  "SampleCount" : 3,
+  "Sample_0" : {
+    "AnimationPath" : "mixamo.com",
+    "PositionX" : 274.399994,
+    "PositionY" : 79.310333
+  },
+  "Sample_1" : {
+    "AnimationPath" : "mixamo.com",
+    "PositionX" : 200.799988,
+    "PositionY" : 3.448273
+  },
+  "Sample_2" : {
+    "AnimationPath" : "mixamo.com",
+    "PositionX" : 122.399994,
+    "PositionY" : -84.827583
+  },
   "XAxisMax" : 400.000000,
   "XAxisMin" : 0.000000,
   "XAxisName" : "Speed",

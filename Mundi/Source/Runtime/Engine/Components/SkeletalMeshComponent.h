@@ -77,6 +77,9 @@ public:
 	void SetBoneLocalTransformDirect(int32 BoneIndex, const FTransform& NewLocalTransform);
 	void RefreshBoneTransforms();
 
+	// Pose 전체 설정 (BlendSpace2D 등에서 사용)
+	void SetPose(const TArray<FTransform>& InLocalSpacePose, const TArray<FTransform>& InComponentSpacePose);
+
 	// Reset to Reference Pose (T-Pose)
 	void ResetToReferencePose();
 

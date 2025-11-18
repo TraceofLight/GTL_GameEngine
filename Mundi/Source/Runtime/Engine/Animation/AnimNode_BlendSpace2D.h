@@ -78,6 +78,9 @@ private:
 	// 각 샘플 애니메이션의 재생 시간
 	TArray<float> SampleAnimTimes;
 
+	// 동기화된 재생 시간 (0~1 정규화)
+	float NormalizedTime;
+
 	// ===== Owner 참조 =====
 	APawn* OwnerPawn;
 	ACharacter* OwnerCharacter;
