@@ -17,6 +17,8 @@
 #include "Math.h"
 #include <commdlg.h>  // Windows 파일 다이얼로그
 
+#include "PlatformProcess.h"
+
 SBlendSpace2DEditorWindow::SBlendSpace2DEditorWindow()
 	: CanvasPos(ImVec2(0, 0))
 	, CanvasSize(ImVec2(600, 600))
@@ -443,31 +445,29 @@ void SBlendSpace2DEditorWindow::RenderToolbar()
 	}
 
 	ImGui::SameLine();
-
 	// 로드 버튼
 	if (ImGui::Button("Load"))
 	{
-		// Windows 파일 열기 다이얼로그
-		OPENFILENAMEA ofn;
-		char szFile[260] = { 0 };
-		ZeroMemory(&ofn, sizeof(ofn));
-		ofn.lStructSize = sizeof(ofn);
-		ofn.hwndOwner = NULL;
-		ofn.lpstrFile = szFile;
-		ofn.nMaxFile = sizeof(szFile);
-		ofn.lpstrFilter = "BlendSpace2D Files (*.blend2d)\0*.blend2d\0All Files (*.*)\0*.*\0";
-		ofn.nFilterIndex = 1;
-		ofn.lpstrFileTitle = NULL;
-		ofn.nMaxFileTitle = 0;
-		ofn.lpstrInitialDir = "Data\\Animation";
-		ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+		const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/Animation";
+		const FWideString Extension = L".blend2d";
+		const FWideString Description = L"BlendSpace2D Files";
 
-		if (GetOpenFileNameA(&ofn) == TRUE)
+		// 2. 플랫폼 공용 다이얼로그 호출 (SelectedPath는 ABSOLUTE PATH)
+		std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(BaseDir, Extension, Description);
+
+		if (!SelectedPath.empty())
 		{
-			UBlendSpace2D* LoadedBS = UBlendSpace2D::LoadFromFile(ofn.lpstrFile);
+			FWideString AbsolutePath = SelectedPath.wstring();
+			FString FinalPathStr = ResolveAssetRelativePath(WideToUTF8(AbsolutePath), "");
+			UBlendSpace2D* LoadedBS = UBlendSpace2D::LoadFromFile(FinalPathStr);
+
 			if (LoadedBS)
 			{
 				SetBlendSpace(LoadedBS);
+			}
+			else
+			{
+				UE_LOG("[Error] Failed to load BlendSpace2D: %S", AbsolutePath.c_str());
 			}
 		}
 	}

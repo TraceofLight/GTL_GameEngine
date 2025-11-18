@@ -890,43 +890,47 @@ void SAnimStateMachineWindow::RenderRightPanel(float width, float height)
             }
 
             // BlendSpace2D 선택
-            if (ImGui::Button("Select BlendSpace2D...", ImVec2(-1, 0)))
-            {
-                // Windows 파일 열기 다이얼로그
-                OPENFILENAMEA ofn;
-                char szFile[260] = { 0 };
-                ZeroMemory(&ofn, sizeof(ofn));
-                ofn.lStructSize = sizeof(ofn);
-                ofn.hwndOwner = NULL;
-                ofn.lpstrFile = szFile;
-                ofn.nMaxFile = sizeof(szFile);
-                ofn.lpstrFilter = "BlendSpace2D Files (*.blend2d)\0*.blend2d\0All Files (*.*)\0*.*\0";
-                ofn.nFilterIndex = 1;
-                ofn.lpstrFileTitle = NULL;
-                ofn.nMaxFileTitle = 0;
-                ofn.lpstrInitialDir = "Data\\Animation";
-                ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+        	if (ImGui::Button("Select BlendSpace2D...", ImVec2(-1, 0)))
+        	{
+        		// 1. 다이얼로그 설정
+        		const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/Animation";
+        		const FWideString Extension = L".blend2d";
+        		const FWideString Description = L"BlendSpace2D Files";
 
-                if (GetOpenFileNameA(&ofn) == TRUE)
-                {
-                    // BlendSpace2D 로드
-                    UBlendSpace2D* LoadedBlendSpace = UBlendSpace2D::LoadFromFile(ofn.lpstrFile);
-                    if (LoadedBlendSpace)
-                    {
-                        // StateMachine에 반영
-                        if (ActiveState->StateMachine)
-                        {
-                            FName NodeName(SelectedNode->Name);
-                            if (FAnimStateNode* StateNode = ActiveState->StateMachine->GetNodes().Find(NodeName))
-                            {
-                                StateNode->AnimAssetType = EAnimAssetType::BlendSpace2D;
-                                StateNode->AnimationAsset = nullptr;
-                                StateNode->BlendSpaceAsset = LoadedBlendSpace;
-                            }
-                        }
-                    }
-                }
-            }
+        		// 2. 파일 선택 다이얼로그 열기 (SelectedPath는 ABSOLUTE PATH)
+        		std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(BaseDir, Extension, Description);
+
+        		if (!SelectedPath.empty())
+        		{
+        			// Absolute Path
+        			FWideString AbsolutePath = SelectedPath.wstring();
+
+        			// Relative Path
+        			FString FinalPathStr = ResolveAssetRelativePath(WideToUTF8(AbsolutePath), "");
+
+        			UBlendSpace2D* LoadedBlendSpace = UBlendSpace2D::LoadFromFile(FinalPathStr);
+
+        			if (LoadedBlendSpace)
+        			{
+        				// StateMachine에 반영
+        				if (ActiveState->StateMachine)
+        				{
+        					FName NodeName(SelectedNode->Name);
+        					if (FAnimStateNode* StateNode = ActiveState->StateMachine->GetNodes().Find(NodeName))
+        					{
+        						// StateNode에 로드된 에셋 포인터 할당
+        						StateNode->AnimAssetType = EAnimAssetType::BlendSpace2D;
+        						StateNode->AnimationAsset = nullptr;
+        						StateNode->BlendSpaceAsset = LoadedBlendSpace;
+        					}
+        				}
+        			}
+        			else
+        			{
+        				UE_LOG("[Error] Failed to load BlendSpace2D from file: %S", AbsolutePath.c_str());
+        			}
+        		}
+        	}
 
             // 현재 애셋 표시
             if (ActiveState->StateMachine)
