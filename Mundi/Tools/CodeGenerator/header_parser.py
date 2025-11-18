@@ -119,7 +119,7 @@ class Property:
                 else:
                     # UObject 파생 포인터 타입 (UAnimSequence* 등)
                     # AssetType 메타데이터 추가
-                    clean_type = self.type.replace('*', '').replace('const', '').strip()
+                    clean_type = self.type.replace('*', '').replace('const', '').replace('class', '').strip()
                     if clean_type.startswith('U') or clean_type.startswith('A'):
                         self.metadata['AssetType'] = clean_type
 

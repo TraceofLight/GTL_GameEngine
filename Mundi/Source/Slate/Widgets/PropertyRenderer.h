@@ -81,4 +81,6 @@ private:
 	static TArray<const char*> CachedScriptItems;
 	static TArray<FString> CachedAnimSequencePaths;
 	static TArray<const char*> CachedAnimSequenceItems;
+	static TArray<FString> CachedAnimStateMachinePaths;
+	static TArray<const char*> CachedAnimStateMachineItems;
 };

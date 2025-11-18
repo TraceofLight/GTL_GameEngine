@@ -30,9 +30,6 @@ bool SAnimStateMachineWindow::Initialize(float StartX, float StartY, float Width
     Rect.Right = StartX + Width;
     Rect.Bottom = StartY + Height;
 
-    // 기본 탭 하나 생성
-	CreateNewGraphTab("New State Machine", nullptr);
-
     return true;
 }
 
@@ -90,6 +87,35 @@ void SAnimStateMachineWindow::CloseTab(int Index)
         ActiveTabIndex = std::min(Index, (int)Tabs.size() - 1);
         ActiveState = Tabs[ActiveTabIndex];
     }
+}
+
+void SAnimStateMachineWindow::LoadStateMachineFile(const char* FilePath)
+{
+    if (!FilePath || FilePath[0] == '\0')
+        return;
+
+    // Load the asset
+    FString FilePathStr = FilePath;
+    UAnimStateMachine* LoadedAsset = RESOURCE.Load<UAnimStateMachine>(FilePathStr);
+
+    if (LoadedAsset)
+    {
+        // Extract filename for tab name
+        std::filesystem::path fsPath(FilePath);
+        std::string FileName = fsPath.stem().string();
+
+        // Create new tab with loaded asset
+        CreateNewGraphTab(FileName.c_str(), LoadedAsset, UTF8ToWide(FilePathStr));
+    }
+    else
+    {
+        UE_LOG("[Error] Failed to load AnimStateMachine: %s", FilePath);
+    }
+}
+
+void SAnimStateMachineWindow::CreateNewEmptyTab()
+{
+    CreateNewGraphTab("New State Machine", nullptr);
 }
 
 void SAnimStateMachineWindow::OnRender()

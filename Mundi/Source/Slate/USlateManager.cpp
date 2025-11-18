@@ -267,9 +267,10 @@ void USlateManager::CloseBlendSpace2DEditor()
     BlendSpace2DEditorWindow = nullptr;
 }
 
-void USlateManager::OpenAnimStateMachineWindow()
+void USlateManager::CreateAnimStateMachineWindowIfNeeded()
 {
-	if (AnimStateMachineWindow) { return; }
+	if (AnimStateMachineWindow)
+		return;
 
 	AnimStateMachineWindow = new SAnimStateMachineWindow();
 
@@ -284,17 +285,25 @@ void USlateManager::OpenAnimStateMachineWindow()
 	AnimStateMachineWindow->Initialize(x, y, w, h);
 }
 
+void USlateManager::OpenAnimStateMachineWindow()
+{
+	CreateAnimStateMachineWindowIfNeeded();
+
+	// Create a new empty tab
+	if (AnimStateMachineWindow)
+	{
+		AnimStateMachineWindow->CreateNewEmptyTab();
+	}
+}
+
 void USlateManager::OpenAnimStateMachineWindowWithFile(const char* FilePath)
 {
-	if (!AnimStateMachineWindow)
-	{
-		OpenAnimStateMachineWindow();
-	}
+	CreateAnimStateMachineWindowIfNeeded();
 
 	// 파일 로드 로직
 	if (AnimStateMachineWindow && FilePath && FilePath[0] != '\0')
 	{
-		// AnimGraphWindow->LoadGraph(FilePath);
+		AnimStateMachineWindow->LoadStateMachineFile(FilePath);
 	}
 }
 

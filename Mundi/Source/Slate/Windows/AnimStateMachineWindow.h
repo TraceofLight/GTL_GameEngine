@@ -113,6 +113,12 @@ public:
     void SetOpen(bool bOpen) { bIsOpen = bOpen; }
     bool IsOpen() const { return bIsOpen; }
 
+    // External API to open a file
+    void LoadStateMachineFile(const char* FilePath);
+
+    // Create a new empty tab
+    void CreateNewEmptyTab();
+
 private:
     // Tab Management
 	void CreateNewGraphTab(const char* Name, UAnimStateMachine* InAsset, const FWideString& InPath = L"");

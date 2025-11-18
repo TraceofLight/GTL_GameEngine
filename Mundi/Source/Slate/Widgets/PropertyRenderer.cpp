@@ -21,6 +21,8 @@
 #include "USlateManager.h"
 #include "AnimSequence.h"
 #include "Source/Runtime/Engine/Animation/BlendSpace2D.h"
+#include "Source/Runtime/Core/Misc/Enums.h"
+#include "AnimStateMachine.h"
 
 // Disable warnings for third-party library
 #pragma warning(push)
@@ -48,6 +50,8 @@ TArray<FString> UPropertyRenderer::CachedAnimSequencePaths;
 TArray<const char*> UPropertyRenderer::CachedAnimSequenceItems;
 TArray<FString> UPropertyRenderer::CachedScriptPaths;
 TArray<const char*> UPropertyRenderer::CachedScriptItems;
+TArray<FString> UPropertyRenderer::CachedAnimStateMachinePaths;
+TArray<const char*> UPropertyRenderer::CachedAnimStateMachineItems;
 
 static bool ItemsGetter(void* Data, int Index, const char** CItem)
 {
@@ -261,6 +265,28 @@ void UPropertyRenderer::RenderProperties(const TArray<FProperty>& Properties, UO
 	if (Properties.IsEmpty())
 		return;
 
+	// XXX(KHJ): 범용 로직에 예외 처리하는 게 바람직하지 않음. 추후 수정 필요.
+	// SkeletalMeshComponent의 AnimationMode를 읽어서 조건부 필터링
+	EAnimationMode CurrentAnimationMode = EAnimationMode::AnimationSingleNode;
+	bool bIsSkeletalMeshComponent = false;
+
+	if (Object && Object->IsA<class USkeletalMeshComponent>())
+	{
+		bIsSkeletalMeshComponent = true;
+		UClass* Class = Object->GetClass();
+		const TArray<FProperty>& AllProps = Class->GetProperties();
+
+		for (const FProperty& Prop : AllProps)
+		{
+			if (FString(Prop.Name) == "AnimationMode")
+			{
+				uint8* PropPtr = (uint8*)((uint8*)Object + Prop.Offset);
+				CurrentAnimationMode = *(EAnimationMode*)PropPtr;
+				break;
+			}
+		}
+	}
+
 	// 1. 카테고리 (삽입 순서 보장용 TArray)
 	TArray<TPair<FString, TArray<const FProperty*>>> CategorizedProps;
 
@@ -271,6 +297,29 @@ void UPropertyRenderer::RenderProperties(const TArray<FProperty>& Properties, UO
 	{
 		if (Prop.bIsEditAnywhere)
 		{
+			// SkeletalMeshComponent의 AnimationMode 기반 필터링
+			if (bIsSkeletalMeshComponent)
+			{
+				FString PropName = Prop.Name;
+
+				// AnimationMode가 AnimationBlueprint (0)이면 AnimationData 관련 프로퍼티 숨김
+				if (CurrentAnimationMode == EAnimationMode::AnimationBlueprint)
+				{
+					if (PropName == "AnimationData")
+					{
+						continue;
+					}
+				}
+				// AnimationMode가 AnimationSingleNode (1)이면 AnimBlueprint 관련 프로퍼티 숨김
+				else if (CurrentAnimationMode == EAnimationMode::AnimationSingleNode)
+				{
+					if (PropName == "AnimBlueprint")
+					{
+						continue;
+					}
+				}
+			}
+
 			FString CategoryName = Prop.Category ? Prop.Category : "Default";
 
 			// 3. 맵에서 이미 카테고리가 있는지 빠르게 검색
@@ -469,6 +518,17 @@ void UPropertyRenderer::CacheResources()
             CachedAnimSequenceItems.push_back(CachedAnimSequencePaths[i].c_str());
         }
     }
+
+    // 7. AnimStateMachine (.statemachine)
+    if (CachedAnimStateMachinePaths.IsEmpty() && CachedAnimStateMachineItems.IsEmpty())
+    {
+        CachedAnimStateMachinePaths = ResMgr.GetAllFilePaths<UAnimStateMachine>();
+        CachedAnimStateMachineItems.Add("None");
+        for (size_t i = 0; i < CachedAnimStateMachinePaths.size(); ++i)
+        {
+            CachedAnimStateMachineItems.push_back(CachedAnimStateMachinePaths[i].c_str());
+        }
+    }
 }
 
 void UPropertyRenderer::ClearResourcesCache()
@@ -489,6 +549,8 @@ void UPropertyRenderer::ClearResourcesCache()
 	CachedScriptItems.Empty();
 	CachedAnimSequencePaths.Empty();
 	CachedAnimSequenceItems.Empty();
+	CachedAnimStateMachinePaths.Empty();
+	CachedAnimStateMachineItems.Empty();
 }
 
 // ===== 타입별 렌더링 구현 =====
@@ -704,6 +766,11 @@ bool UPropertyRenderer::RenderAssetPtrProperty(const FProperty& Prop, void* Inst
 		CachedPaths = &CachedSoundPaths;
 		CachedItems = &CachedSoundItems;
 	}
+	else if (AssetTypeName == "UAnimStateMachine")
+	{
+		CachedPaths = &CachedAnimStateMachinePaths;
+		CachedItems = &CachedAnimStateMachineItems;
+	}
 	// 필요시 추가 타입 지원
 	else
 	{
@@ -763,8 +830,85 @@ bool UPropertyRenderer::RenderAssetPtrProperty(const FProperty& Prop, void* Inst
 			{
 				*ObjPtr = ResMgr.Load<USound>(SelectedPath);
 			}
+			else if (AssetTypeName == "UAnimStateMachine")
+			{
+				*ObjPtr = ResMgr.Load<UAnimStateMachine>(SelectedPath);
+			}
 		}
 		bChanged = true;
+	}
+
+	// Edit 버튼 추가 (AnimStateMachine, SkeletalMesh 등)
+	if (AssetTypeName == "UAnimStateMachine" || AssetTypeName == "USkeletalMesh")
+	{
+		ImGui::SameLine();
+
+		if (ImGui::Button("Edit"))
+		{
+			if (CurrentObj)
+			{
+				UResourceBase* ResBase = Cast<UResourceBase>(CurrentObj);
+				if (ResBase)
+				{
+					FString FilePath = ResBase->GetFilePath();
+
+					if (AssetTypeName == "UAnimStateMachine")
+					{
+						SLATE.OpenAnimStateMachineWindowWithFile(FilePath.c_str());
+					}
+					else if (AssetTypeName == "USkeletalMesh")
+					{
+						SLATE.OpenSkeletalMeshViewerWithFile(FilePath.c_str());
+					}
+				}
+			}
+			else
+			{
+				// None일 때는 새 에디터 창만 열기
+				if (AssetTypeName == "UAnimStateMachine")
+				{
+					SLATE.OpenAnimStateMachineWindow();
+				}
+				else if (AssetTypeName == "USkeletalMesh")
+				{
+					SLATE.OpenSkeletalMeshViewer();
+				}
+			}
+		}
+
+		if (ImGui::IsItemHovered())
+		{
+			if (AssetTypeName == "UAnimStateMachine")
+			{
+				ImGui::SetTooltip("Open AnimStateMachine Editor");
+			}
+			else if (AssetTypeName == "USkeletalMesh")
+			{
+				ImGui::SetTooltip("Open SkeletalMesh Viewer");
+			}
+		}
+	}
+
+	// 더블클릭으로도 에셋 에디터 열기 (기존 기능 유지)
+	if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+	{
+		if (CurrentObj)
+		{
+			UResourceBase* ResBase = Cast<UResourceBase>(CurrentObj);
+			if (ResBase)
+			{
+				FString FilePath = ResBase->GetFilePath();
+
+				if (AssetTypeName == "UAnimStateMachine")
+				{
+					SLATE.OpenAnimStateMachineWindowWithFile(FilePath.c_str());
+				}
+				else if (AssetTypeName == "USkeletalMesh")
+				{
+					SLATE.OpenSkeletalMeshViewerWithFile(FilePath.c_str());
+				}
+			}
+		}
 	}
 
 	return bChanged;
@@ -825,6 +969,17 @@ bool UPropertyRenderer::RenderStructProperty(const FProperty& Prop, void* Instan
 	}
 
 	ImGui::Unindent();
+
+	// Struct 필드가 변경되었으면 Owner 객체에 알림
+	if (bChanged && Instance)
+	{
+		if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(static_cast<UObject*>(Instance)))
+		{
+			// SkeletalMeshComponent의 AnimationData가 변경된 경우
+			// BeginPlay 시 AnimInstance가 자동 생성되도록 플래그 설정
+			// (에디터에서는 즉시 적용하지 않고, PIE 시작 시 적용)
+		}
+	}
 
 	return bChanged;
 }
@@ -2192,8 +2347,24 @@ bool UPropertyRenderer::RenderEnumProperty(const FProperty& Prop, void* Instance
 
 		if (ImGui::Combo(Prop.Name, &CurrentValue, Items, ItemCount))
 		{
-			*EnumValuePtr = static_cast<uint8>(CurrentValue);
 			bChanged = true;
+
+			// AnimationMode 변경 시 Setter 호출 (상호 배타적 처리)
+			UObject* Obj = static_cast<UObject*>(Instance);
+			if (Obj && Obj->IsA<USkeletalMeshComponent>())
+			{
+				USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(Obj);
+				if (SkelMeshComp)
+				{
+					EAnimationMode NewMode = static_cast<EAnimationMode>(CurrentValue);
+					SkelMeshComp->SetAnimationMode(NewMode);
+				}
+			}
+			else
+			{
+				// SkeletalMeshComponent가 아닌 경우 직접 설정
+				*EnumValuePtr = static_cast<uint8>(CurrentValue);
+			}
 		}
 	}
 	else

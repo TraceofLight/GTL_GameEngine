@@ -31,8 +31,22 @@ void USkeletalMeshComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// AnimationMode에 따라 AnimInstance 초기화
-	if (AnimationMode == EAnimationMode::AnimationSingleNode && AnimationData.AnimToPlay)
+	// AnimInstance 초기화 (AnimBlueprint와 AnimToPlay는 상호 배타적)
+	if (AnimBlueprint)
+	{
+		// AnimBlueprint 모드: AnimStateMachine 기반 AnimInstance 생성
+		if (!AnimInstance)
+		{
+			UAnimInstance* NewAnimInstance = NewObject<UAnimInstance>();
+			SetAnimInstance(NewAnimInstance);
+		}
+
+		if (AnimInstance)
+		{
+			AnimInstance->SetStateMachine(AnimBlueprint);
+		}
+	}
+	else if (AnimationData.AnimToPlay)
 	{
 		// SingleNode 모드: AnimationData로부터 AnimInstance 자동 생성
 		if (!AnimInstance)
@@ -70,6 +84,31 @@ void USkeletalMeshComponent::SetAnimInstance(UAnimInstance* InAnimInstance)
     if (AnimInstance)
     {
         AnimInstance->Initialize(this);
+    }
+}
+
+/**
+ * @brief AnimationMode 설정 (상호 배타적 처리)
+ */
+void USkeletalMeshComponent::SetAnimationMode(EAnimationMode NewMode)
+{
+    if (AnimationMode == NewMode)
+    {
+        return;
+    }
+
+    AnimationMode = NewMode;
+
+    // 상호 배타적 처리
+    if (NewMode == EAnimationMode::AnimationBlueprint)
+    {
+        // AnimationBlueprint 모드로 변경 시 AnimationData 초기화
+        AnimationData = FSingleAnimationPlayData();
+    }
+    else if (NewMode == EAnimationMode::AnimationSingleNode)
+    {
+        // AnimationSingleNode 모드로 변경 시 AnimBlueprint null
+        AnimBlueprint = nullptr;
     }
 }
 
@@ -163,7 +202,9 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
             else
             {
                 // State Machine도 없으면 기본 AnimInstance 업데이트
+                // (SingleNodeInstance의 경우 UpdateAnimation + Evaluate 필요)
                 AnimInstance->UpdateAnimation(DeltaTime);
+                AnimInstance->EvaluateAnimation();
             }
         }
     }
@@ -445,28 +486,15 @@ void USkeletalMeshComponent::DuplicateSubObjects()
     // Tick 활성화 (복제 시 유지되지 않으므로 명시적으로 설정)
     bCanEverTick = true;
 
-    // AnimInstance가 있으면 복제
+    // AnimInstance가 있으면 삭제 (BeginPlay에서 재생성)
     if (AnimInstance)
     {
-        UAnimInstance* OldAnimInstance = AnimInstance;
-
-        // 새로운 AnimInstance 생성
-        AnimInstance = NewObject<UAnimInstance>();
-        AnimInstance->Initialize(this);
-    	AnimInstance->SetStateMachine(OldAnimInstance->GetStateMachineNode()->GetStateMachine());
-
-        // 애니메이션 상태 복사
-        if (OldAnimInstance->GetCurrentAnimation())
-        {
-            AnimInstance->PlayAnimation(OldAnimInstance->GetCurrentAnimation(), OldAnimInstance->GetPlayRate());
-            AnimInstance->SetPosition(OldAnimInstance->GetCurrentTime());
-
-            if (!OldAnimInstance->IsPlaying())
-            {
-                AnimInstance->StopAnimation();
-            }
-        }
+        ObjectFactory::DeleteObject(AnimInstance);
+        AnimInstance = nullptr;
     }
+
+    // AnimationMode에 따라 AnimInstance는 BeginPlay에서 재생성됨
+    // AnimationData와 AnimBlueprint는 얕은 복사로 이미 복사되었음
 }
 
 /**
@@ -478,12 +506,15 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
 
     if (bInIsLoading)
     {
-        // AnimationMode 로드
-        int32 ModeValue = static_cast<int32>(EAnimationMode::AnimationSingleNode);
-        FJsonSerializer::ReadInt32(InOutHandle, "AnimationMode", ModeValue, static_cast<int32>(EAnimationMode::AnimationSingleNode));
-        AnimationMode = static_cast<EAnimationMode>(ModeValue);
+        // AnimBlueprint 로드 (먼저)
+        FString AnimBlueprintPath;
+        FJsonSerializer::ReadString(InOutHandle, "AnimBlueprintPath", AnimBlueprintPath, "");
+        if (!AnimBlueprintPath.empty())
+        {
+            AnimBlueprint = RESOURCE.Load<UAnimStateMachine>(AnimBlueprintPath);
+        }
 
-        // AnimationData 로드 (AnimationSingleNode 모드용)
+        // AnimationData 로드 (먼저)
         FString AnimToPlayPath;
         FJsonSerializer::ReadString(InOutHandle, "AnimToPlayPath", AnimToPlayPath, "");
         FJsonSerializer::ReadBool(InOutHandle, "bSavedLooping", AnimationData.bSavedLooping, true);
@@ -496,42 +527,29 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
             AnimationData.AnimToPlay = RESOURCE.Load<UAnimSequence>(AnimToPlayPath);
         }
 
-        // AnimInstance 로드
-        bool bHasAnimInstance = false;
-        FJsonSerializer::ReadBool(InOutHandle, "HasAnimInstance", bHasAnimInstance, false);
+        // AnimationMode 로드 (마지막) - 직접 설정 (Setter 사용 안 함)
+        int32 ModeValue = static_cast<int32>(EAnimationMode::AnimationSingleNode);
+        FJsonSerializer::ReadInt32(InOutHandle, "AnimationMode", ModeValue, static_cast<int32>(EAnimationMode::AnimationSingleNode));
+        AnimationMode = static_cast<EAnimationMode>(ModeValue);
 
-        if (bHasAnimInstance)
-        {
-            // AnimInstance 생성
-            if (!AnimInstance)
-            {
-                AnimInstance = NewObject<UAnimInstance>();
-                AnimInstance->Initialize(this);
-            }
-
-            // 애니메이션 상태 로드
-            FString AnimPath;
-            float SavedTime = 0.0f;
-            float SavedPlayRate = 1.0f;
-            bool bWasPlaying = false;
-        	FString AnimStateMachine;
-
-            FJsonSerializer::ReadString(InOutHandle, "AnimationPath", AnimPath, "");
-            FJsonSerializer::ReadFloat(InOutHandle, "CurrentTime", SavedTime, 0.0f);
-            FJsonSerializer::ReadFloat(InOutHandle, "PlayRate", SavedPlayRate, 1.0f);
-            FJsonSerializer::ReadBool(InOutHandle, "IsPlaying", bWasPlaying, false);
-        	FJsonSerializer::ReadString(InOutHandle, "AnimStateMachine", AnimStateMachine, "");
-
-        	AnimInstance->SetStateMachine(RESOURCE.Load<UAnimStateMachine>(AnimStateMachine));
-
-            // TODO: AnimPath를 통해 AnimSequence를 로드하고 재생
-            // 현재는 AnimSequence 로드 시스템이 완성되지 않아 스킵
-        }
+        // AnimInstance는 BeginPlay에서 AnimationMode에 따라 생성됨
+        // (UAnimInstance vs UAnimSingleNodeInstance)
+        // Serialize에서는 애니메이션 데이터만 로드하고 AnimInstance는 생성하지 않음
     }
     else
     {
         // AnimationMode 저장
         InOutHandle["AnimationMode"] = static_cast<uint8>(AnimationMode);
+
+        // AnimBlueprint 저장 (AnimationBlueprint 모드용)
+        if (AnimBlueprint)
+        {
+            InOutHandle["AnimBlueprintPath"] = AnimBlueprint->GetFilePath();
+        }
+        else
+        {
+            InOutHandle["AnimBlueprintPath"] = FString("");
+        }
 
         // AnimationData 저장 (AnimationSingleNode 모드용)
         if (AnimationData.AnimToPlay)
@@ -547,22 +565,6 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
         InOutHandle["SavedPosition"] = AnimationData.SavedPosition;
         InOutHandle["SavedPlayRate"] = AnimationData.SavedPlayRate;
 
-        // AnimInstance 저장
-        bool bHasAnimInstance = (AnimInstance != nullptr);
-        InOutHandle["HasAnimInstance"] = bHasAnimInstance;
-
-        if (bHasAnimInstance)
-        {
-        	if (AnimInstance->GetCurrentAnimation())
-        	{
-        		// 애니메이션 상태 저장
-        		// TODO: CurrentAnimation의 경로를 저장 (현재는 Asset 경로 시스템 미완성)
-        		InOutHandle["AnimationPath"] = FString("");
-        		InOutHandle["CurrentTime"] = AnimInstance->GetCurrentTime();
-        		InOutHandle["PlayRate"] = AnimInstance->GetPlayRate();
-        		InOutHandle["IsPlaying"] = AnimInstance->IsPlaying();
-        	}
-            InOutHandle["AnimStateMachine"] = AnimInstance->GetStateMachineNode()->GetStateMachine()->GetFilePath();
-        }
+        // AnimInstance는 저장하지 않음 (BeginPlay에서 재생성됨)
     }
 }

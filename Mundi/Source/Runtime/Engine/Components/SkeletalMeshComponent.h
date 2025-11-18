@@ -54,6 +54,7 @@ public:
 
 	// Setters
 	void SetAnimInstance(UAnimInstance* InAnimInstance);
+	void SetAnimationMode(EAnimationMode NewMode);
 	void SetBoneLocalTransform(int32 BoneIndex, const FTransform& NewLocalTransform);
 	void SetBoneWorldTransform(int32 BoneIndex, const FTransform& NewWorldTransform);
 
@@ -88,6 +89,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Animation")
 	EAnimationMode AnimationMode = EAnimationMode::AnimationSingleNode;
+
+	UPROPERTY(EditAnywhere, Category="Animation")
+	class UAnimStateMachine* AnimBlueprint = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="Animation")
 	FSingleAnimationPlayData AnimationData;
