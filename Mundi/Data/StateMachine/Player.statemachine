@@ -7,7 +7,16 @@
       "EditorPosX" : 12.000000,
       "EditorPosY" : -301.000000,
       "Loop" : false,
-      "Name" : "Jump"
+      "Name" : "Jump",
+      "StateEntryNotifies" : [{
+          "Duration" : 0.000000,
+          "Name" : "AN_PlaySound",
+          "PropertyData" : "{}",
+          "Time" : 0.000000,
+          "TrackIndex" : 0
+        }],
+      "StateExitNotifies" : [],
+      "StateFullyBlendedNotifies" : []
     }, {
       "AnimAsset" : "Data/Animation/XBOT_Idle.fbx#mixamo.com",
       "AnimAssetType" : 1,
@@ -15,15 +24,21 @@
       "EditorPosX" : 186.000000,
       "EditorPosY" : -109.000000,
       "Loop" : true,
-      "Name" : "Idle"
+      "Name" : "Idle",
+      "StateEntryNotifies" : [],
+      "StateExitNotifies" : [],
+      "StateFullyBlendedNotifies" : []
     }, {
       "AnimAsset" : "",
       "AnimAssetType" : 2,
-      "BlendSpaceAsset" : "Data/Animation/BSH_Walk.blend2d",
+      "BlendSpaceAsset" : "Data/Blend/BSH_Walk.blend2d",
       "EditorPosX" : 210.000000,
       "EditorPosY" : 83.000000,
       "Loop" : true,
-      "Name" : "Walk"
+      "Name" : "Walk",
+      "StateEntryNotifies" : [],
+      "StateExitNotifies" : [],
+      "StateFullyBlendedNotifies" : []
     }, {
       "AnimAsset" : "",
       "AnimAssetType" : 1,
@@ -31,7 +46,10 @@
       "EditorPosX" : 212.000000,
       "EditorPosY" : -397.000000,
       "Loop" : false,
-      "Name" : "Falling"
+      "Name" : "Falling",
+      "StateEntryNotifies" : [],
+      "StateExitNotifies" : [],
+      "StateFullyBlendedNotifies" : []
     }, {
       "AnimAsset" : "Data/Animation/XBOT_JumpingEnd.fbx#mixamo.com",
       "AnimAssetType" : 1,
@@ -39,7 +57,10 @@
       "EditorPosX" : 402.000000,
       "EditorPosY" : -285.000000,
       "Loop" : false,
-      "Name" : "JumpEnd"
+      "Name" : "JumpEnd",
+      "StateEntryNotifies" : [],
+      "StateExitNotifies" : [],
+      "StateFullyBlendedNotifies" : []
     }],
   "Transitions" : [{
       "BlendTime" : 0.200000,
@@ -50,7 +71,8 @@
           "Val" : 0.000000
         }],
       "From" : "Jump",
-      "To" : "Falling"
+      "To" : "Falling",
+      "TransitionNotifies" : []
     }, {
       "BlendTime" : 0.100000,
       "Conditions" : [{
@@ -60,7 +82,8 @@
           "Val" : 1.000000
         }],
       "From" : "Idle",
-      "To" : "Jump"
+      "To" : "Jump",
+      "TransitionNotifies" : []
     }, {
       "BlendTime" : 0.200000,
       "Conditions" : [{
@@ -70,7 +93,8 @@
           "Val" : 0.100000
         }],
       "From" : "Idle",
-      "To" : "Walk"
+      "To" : "Walk",
+      "TransitionNotifies" : []
     }, {
       "BlendTime" : 0.200000,
       "Conditions" : [{
@@ -80,7 +104,8 @@
           "Val" : 1.000000
         }],
       "From" : "Walk",
-      "To" : "Idle"
+      "To" : "Idle",
+      "TransitionNotifies" : []
     }, {
       "BlendTime" : 0.200000,
       "Conditions" : [{
@@ -90,7 +115,8 @@
           "Val" : 1.000000
         }],
       "From" : "Walk",
-      "To" : "Jump"
+      "To" : "Jump",
+      "TransitionNotifies" : []
     }, {
       "BlendTime" : 0.200000,
       "Conditions" : [{
@@ -100,9 +126,10 @@
           "Val" : 0.000000
         }],
       "From" : "Falling",
-      "To" : "JumpEnd"
+      "To" : "JumpEnd",
+      "TransitionNotifies" : []
     }, {
-      "BlendTime" : 0.100000,
+      "BlendTime" : 0.500000,
       "Conditions" : [{
           "Op" : 3,
           "Param" : "None",
@@ -110,7 +137,8 @@
           "Val" : 0.100000
         }],
       "From" : "JumpEnd",
-      "To" : "Idle"
+      "To" : "Idle",
+      "TransitionNotifies" : []
     }, {
       "BlendTime" : 0.100000,
       "Conditions" : [{
@@ -120,6 +148,7 @@
           "Val" : 0.100000
         }],
       "From" : "JumpEnd",
-      "To" : "Walk"
+      "To" : "Walk",
+      "TransitionNotifies" : []
     }]
 }
