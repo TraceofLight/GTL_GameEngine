@@ -47,6 +47,9 @@ struct FAnimStateTransition
 	float BlendTime;
 	TArray<FAnimCondition> Conditions;
 
+	/** Transition 중에 발동할 Notify 목록 (Transition 진행률 기반) */
+	TArray<struct FAnimNotifyEvent> TransitionNotifies;
+
 	FAnimStateTransition(FName InTarget, float InBlendTime)
 		: TargetStateName(InTarget), BlendTime(InBlendTime) {}
 
@@ -89,6 +92,15 @@ struct FAnimStateNode
 
 	/** 루프 여부 */
 	bool bLoop;
+
+	/** State Entry 시 발동할 Notify 목록 (State 진입 시 1회) */
+	TArray<struct FAnimNotifyEvent> StateEntryNotifies;
+
+	/** State Exit 시 발동할 Notify 목록 (State 나갈 때 1회) */
+	TArray<struct FAnimNotifyEvent> StateExitNotifies;
+
+	/** Fully Blended 시 발동할 Notify 목록 (Transition 완료 후 1회) */
+	TArray<struct FAnimNotifyEvent> StateFullyBlendedNotifies;
 
 	FAnimStateNode()
 		: StateName()

@@ -143,6 +143,10 @@ private:
     // Sync Functions
     void SyncGraphFromStateMachine(FGraphState* State);
 
+    // Notify UI Helper Functions
+    void RefreshNotifyClassList();
+    void RenderNotifyCombo(const char* Label, struct FAnimNotifyEvent& Notify);
+
 private:
     bool bIsOpen = true;
     bool bInitialPlacementDone = false;
@@ -157,4 +161,8 @@ private:
     // Panel Ratios
     float LeftPanelRatio = 0.15f;   // 15%
     float RightPanelRatio = 0.25f;  // 25%
+
+    // Notify Class Registry
+    TArray<FString> AvailableNotifyClasses;
+    bool bNotifyClassListDirty = true;
 };

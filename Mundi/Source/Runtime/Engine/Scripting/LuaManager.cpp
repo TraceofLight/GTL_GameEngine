@@ -8,7 +8,11 @@
 #include "CameraComponent.h"
 #include "PlayerCameraManager.h"
 #include "SkeletalMeshComponent.h"
+#include "Source/Runtime/AssetManagement/ResourceManager.h"
+#include "Source/Runtime/Engine/Audio/Sound.h"
+#include "Source/Runtime/Engine/GameFramework/FAudioDevice.h"
 #include <tuple>
+#include <xaudio2.h>
 
 FLuaManager::FLuaManager()
 {
@@ -358,6 +362,31 @@ FLuaManager::FLuaManager()
     MetaTableShared[sol::meta_function::index] = Lua->globals();
     SharedLib[sol::metatable_key]  = MetaTableShared;
 
+    // AnimNotify 글로벌 테이블 생성
+    (*Lua)["AnimNotify"] = Lua->create_table();
+
+    // Notifies 폴더의 모든 Lua 파일 로드하여 AnimNotify 테이블에 등록
+    LoadNotifyClasses();
+
+    // FAudioDevice 바인딩 (정적 함수들)
+    sol::table AudioDeviceTable = Lua->create_table();
+    AudioDeviceTable["PlaySound3D"] = [](const FString& SoundPath, const FVector& Position, float Volume, bool bLoop) -> bool
+    {
+        USound* Sound = UResourceManager::GetInstance().Get<USound>(SoundPath);
+        if (!Sound)
+        {
+            Sound = UResourceManager::GetInstance().Load<USound>(SoundPath);
+        }
+
+        if (Sound)
+        {
+            IXAudio2SourceVoice* Voice = FAudioDevice::PlaySound3D(Sound, Position, Volume, bLoop);
+            return Voice != nullptr;
+        }
+        return false;
+    };
+    (*Lua)["AudioDevice"] = AudioDeviceTable;
+
     // Debug: 등록된 Lua 바인더 개수 출력
     const auto& Builders = FLuaBindRegistry::Get().GetBuilders();
     UE_LOG("[LuaManager] Registered %d Lua binders\n", Builders.size());
@@ -642,36 +671,25 @@ bool FLuaManager::ExecuteNotify(const FString& NotifyClassName, const FString& P
         return false;
     }
 
-    // Notify 또는 NotifyState 폴더 자동 결정
-    FString NotifyFolder = (NotifyClassName.find("NotifyState") == 0 || NotifyClassName.find("ANS_") == 0)
-        ? "Data/Scripts/NotifyState/"
-        : "Data/Scripts/Notify/";
-    FString NotifyPath = NotifyFolder + NotifyClassName + ".lua";
+    // AnimNotify 테이블에서 Notify 클래스 찾기
+    sol::optional<sol::table> AnimNotifyTable = (*Lua)["AnimNotify"];
+    if (!AnimNotifyTable)
+    {
+        UE_LOG("[LuaManager] AnimNotify table not found!");
+        return false;
+    }
+
+    sol::optional<sol::table> NotifyClassOpt = (*AnimNotifyTable)[NotifyClassName];
+    if (!NotifyClassOpt)
+    {
+        UE_LOG("[LuaManager] Notify class '%s' not found in AnimNotify table", NotifyClassName.c_str());
+        return false;
+    }
+
+    sol::table NotifyClass = *NotifyClassOpt;
 
     try
     {
-        sol::load_result LoadResult = Lua->load_file(NotifyPath.c_str());
-        if (!LoadResult.valid())
-        {
-            sol::error Err = LoadResult;
-            UE_LOG("[LuaManager] Failed to load Notify script '%s': %s", NotifyPath.c_str(), Err.what());
-            return false;
-        }
-
-        sol::protected_function_result ExecResult = LoadResult();
-        if (!ExecResult.valid())
-        {
-            sol::error Err = ExecResult;
-            UE_LOG("[LuaManager] Failed to execute Notify script '%s': %s", NotifyPath.c_str(), Err.what());
-            return false;
-        }
-
-        sol::table NotifyClass = ExecResult;
-        if (!NotifyClass.valid())
-        {
-            UE_LOG("[LuaManager] Notify script '%s' did not return a table", NotifyPath.c_str());
-            return false;
-        }
 
         sol::table NotifyInstance = Lua->create_table();
         NotifyInstance[sol::metatable_key] = Lua->create_table_with("__index", NotifyClass);
@@ -948,4 +966,92 @@ bool FLuaManager::ExecuteNotifyStateEnd(const FString& NotifyClassName, const FS
         NotifyStateInstanceCache.erase(It);
         return false;
     }
+}
+
+TArray<FString> FLuaManager::GetRegisteredNotifyClasses() const
+{
+    TArray<FString> NotifyClasses;
+
+    if (!Lua)
+    {
+        return NotifyClasses;
+    }
+
+    sol::optional<sol::table> AnimNotifyTable = (*Lua)["AnimNotify"];
+    if (!AnimNotifyTable)
+    {
+        return NotifyClasses;
+    }
+
+    for (const auto& Pair : *AnimNotifyTable)
+    {
+        if (Pair.first.is<std::string>())
+        {
+            FString ClassName = Pair.first.as<std::string>();
+            NotifyClasses.Add(ClassName);
+        }
+    }
+
+    return NotifyClasses;
+}
+
+void FLuaManager::LoadNotifyClasses()
+{
+    if (!Lua)
+    {
+        return;
+    }
+
+    FString NotifyDir = GDataDir + "/Scripts/Notify";
+    FWideString WNotifyDir = UTF8ToWide(NotifyDir);
+
+    if (!std::filesystem::exists(WNotifyDir))
+    {
+        UE_LOG("[LuaManager] Notify directory not found: %s", NotifyDir.c_str());
+        return;
+    }
+
+    sol::table AnimNotifyTable = (*Lua)["AnimNotify"];
+
+    int32 LoadedCount = 0;
+    for (const auto& Entry : std::filesystem::directory_iterator(WNotifyDir))
+    {
+        if (!Entry.is_regular_file())
+        {
+            continue;
+        }
+
+        FWideString Extension = Entry.path().extension().wstring();
+        std::ranges::transform(Extension, Extension.begin(), ::towlower);
+
+        if (Extension != L".lua")
+        {
+            continue;
+        }
+
+        FString FilePath = WideToUTF8(Entry.path().wstring());
+        FString FileName = WideToUTF8(Entry.path().stem().wstring());
+
+        auto Result = Lua->safe_script_file(FilePath);
+        if (!Result.valid())
+        {
+            sol::error Err = Result;
+            UE_LOG("[LuaManager] Failed to load notify: %s - %s", FilePath.c_str(), Err.what());
+            continue;
+        }
+
+        if (Result.get_type() == sol::type::table)
+        {
+            sol::table NotifyClass = Result;
+            AnimNotifyTable[FileName] = NotifyClass;
+            ++LoadedCount;
+            UE_LOG("[LuaManager] Loaded notify: %s", FileName.c_str());
+        }
+        else
+        {
+            UE_LOG("[LuaManager] Notify script did not return a table: %s", FilePath.c_str());
+        }
+    }
+
+    UE_LOG("[LuaManager] Loaded %d notify classes from %s", LoadedCount, NotifyDir.c_str());
 }

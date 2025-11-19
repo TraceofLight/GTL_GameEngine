@@ -4,18 +4,36 @@
       "AnimAsset" : "Data/Animation/XBOT_Idle.fbx#mixamo.com",
       "AnimAssetType" : 1,
       "BlendSpaceAsset" : "",
-      "EditorPosX" : 199.000000,
-      "EditorPosY" : -71.000000,
+      "EditorPosX" : 194.000000,
+      "EditorPosY" : -61.000000,
       "Loop" : true,
-      "Name" : "Idle"
+      "Name" : "Idle",
+      "StateEntryNotifies" : [{
+          "Duration" : 0.000000,
+          "Name" : "AN_PlaySound",
+          "PropertyData" : "{}",
+          "Time" : 0.000000,
+          "TrackIndex" : 0
+        }],
+      "StateExitNotifies" : [{
+          "Duration" : 0.000000,
+          "Name" : "AN_CameraShake",
+          "PropertyData" : "{}",
+          "Time" : 0.000000,
+          "TrackIndex" : 0
+        }],
+      "StateFullyBlendedNotifies" : []
     }, {
       "AnimAsset" : "",
       "AnimAssetType" : 2,
       "BlendSpaceAsset" : "Data/Animation/BSH_Walk.blend2d",
-      "EditorPosX" : 324.000000,
-      "EditorPosY" : 67.000000,
+      "EditorPosX" : 322.000000,
+      "EditorPosY" : 35.000000,
       "Loop" : true,
-      "Name" : "State_0"
+      "Name" : "State_0",
+      "StateEntryNotifies" : [],
+      "StateExitNotifies" : [],
+      "StateFullyBlendedNotifies" : []
     }],
   "Transitions" : [{
       "BlendTime" : 0.200000,
@@ -25,7 +43,8 @@
           "Val" : 0.100000
         }],
       "From" : "Idle",
-      "To" : "State_0"
+      "To" : "State_0",
+      "TransitionNotifies" : []
     }, {
       "BlendTime" : 0.200000,
       "Conditions" : [{
@@ -34,6 +53,7 @@
           "Val" : 0.100000
         }],
       "From" : "State_0",
-      "To" : "Idle"
+      "To" : "Idle",
+      "TransitionNotifies" : []
     }]
 }
