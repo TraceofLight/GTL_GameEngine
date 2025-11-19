@@ -332,6 +332,40 @@ void UAnimInstance::HandleNotify(const FAnimNotifyEvent& NotifyEvent)
 }
 
 /**
+ * @brief 수동으로 Notify 트리거 (State Machine에서 호출)
+ * @param NotifyEvent 트리거할 Notify 이벤트
+ * @param MeshComp Skeletal Mesh Component
+ */
+void UAnimInstance::TriggerNotify(const FAnimNotifyEvent& NotifyEvent, USkeletalMeshComponent* MeshComp)
+{
+	if (!MeshComp)
+	{
+		return;
+	}
+
+	AActor* Owner = MeshComp->GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+
+	UWorld* World = Owner->GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FLuaManager* LuaMgr = World->GetLuaManager();
+	if (!LuaMgr)
+	{
+		return;
+	}
+
+	FString NotifyClassName = NotifyEvent.NotifyName.ToString();
+	LuaMgr->ExecuteNotify(NotifyClassName, NotifyEvent.PropertyData, MeshComp, NotifyEvent.TriggerTime, NotifyEvent.Duration);
+}
+
+/**
  * @brief 현재 애니메이션 시간에서 본 포즈를 샘플링하여 SkeletalMeshComponent에 적용
  * @details 언리얼 표준 흐름: UpdateAnimation (시간 업데이트) -> EvaluateAnimation (포즈 샘플링)
  */

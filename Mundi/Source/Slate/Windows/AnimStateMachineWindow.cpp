@@ -4,6 +4,7 @@
 #include "AnimSequence.h"
 #include "BlendSpace2D.h"
 #include "FBXLoader.h"
+#include "LuaManager.h"
 #include "PlatformProcess.h"
 #include "USlateManager.h"
 #include <commdlg.h>  // Windows 파일 다이얼로그
@@ -1016,6 +1017,133 @@ void SAnimStateMachineWindow::RenderRightPanel(float width, float height)
                     }
                 }
             }
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            // State Notifies
+            if (ActiveState->StateMachine)
+            {
+                FName nodeName(SelectedNode->Name);
+                FAnimStateNode* StateNode = ActiveState->StateMachine->GetNodes().Find(nodeName);
+                if (StateNode)
+                {
+                    ImGui::TextDisabled("State Notifies");
+                    ImGui::Spacing();
+
+                    // Entry Notifies
+                    if (ImGui::TreeNode("Entry Notifies"))
+                    {
+                        int32 notifyToDelete = -1;
+                        for (int32 i = 0; i < StateNode->StateEntryNotifies.Num(); ++i)
+                        {
+                            FAnimNotifyEvent& Notify = StateNode->StateEntryNotifies[i];
+                            ImGui::PushID(i);
+
+                            RenderNotifyCombo("##NotifyName", Notify);
+
+                            ImGui::SameLine();
+                            if (ImGui::SmallButton("X"))
+                            {
+                                notifyToDelete = i;
+                            }
+
+                            ImGui::PopID();
+                        }
+
+                        if (notifyToDelete != -1)
+                        {
+                            StateNode->StateEntryNotifies.RemoveAt(notifyToDelete);
+                        }
+
+                        if (ImGui::Button("Add Entry Notify", ImVec2(-1, 0)))
+                        {
+                            FAnimNotifyEvent NewNotify;
+                            NewNotify.NotifyName = FName("NewEntryNotify");
+                            NewNotify.TriggerTime = 0.0f;
+                            NewNotify.Duration = 0.0f;
+                            StateNode->StateEntryNotifies.Add(NewNotify);
+                        }
+
+                        ImGui::TreePop();
+                    }
+
+                    // Exit Notifies
+                    if (ImGui::TreeNode("Exit Notifies"))
+                    {
+                        int32 notifyToDelete = -1;
+                        for (int32 i = 0; i < StateNode->StateExitNotifies.Num(); ++i)
+                        {
+                            FAnimNotifyEvent& Notify = StateNode->StateExitNotifies[i];
+                            ImGui::PushID(i);
+
+                            RenderNotifyCombo("##NotifyName", Notify);
+
+                            ImGui::SameLine();
+                            if (ImGui::SmallButton("X"))
+                            {
+                                notifyToDelete = i;
+                            }
+
+                            ImGui::PopID();
+                        }
+
+                        if (notifyToDelete != -1)
+                        {
+                            StateNode->StateExitNotifies.RemoveAt(notifyToDelete);
+                        }
+
+                        if (ImGui::Button("Add Exit Notify", ImVec2(-1, 0)))
+                        {
+                            FAnimNotifyEvent NewNotify;
+                            NewNotify.NotifyName = FName("NewExitNotify");
+                            NewNotify.TriggerTime = 0.0f;
+                            NewNotify.Duration = 0.0f;
+                            StateNode->StateExitNotifies.Add(NewNotify);
+                        }
+
+                        ImGui::TreePop();
+                    }
+
+                    // Fully Blended Notifies
+                    if (ImGui::TreeNode("Fully Blended Notifies"))
+                    {
+                        int32 notifyToDelete = -1;
+                        for (int32 i = 0; i < StateNode->StateFullyBlendedNotifies.Num(); ++i)
+                        {
+                            FAnimNotifyEvent& Notify = StateNode->StateFullyBlendedNotifies[i];
+                            ImGui::PushID(i);
+
+                            RenderNotifyCombo("##NotifyName", Notify);
+
+                            ImGui::SameLine();
+                            if (ImGui::SmallButton("X"))
+                            {
+                                notifyToDelete = i;
+                            }
+
+                            ImGui::PopID();
+                        }
+
+                        if (notifyToDelete != -1)
+                        {
+                            StateNode->StateFullyBlendedNotifies.RemoveAt(notifyToDelete);
+                        }
+
+                        if (ImGui::Button("Add Fully Blended Notify", ImVec2(-1, 0)))
+                        {
+                            FAnimNotifyEvent NewNotify;
+                            NewNotify.NotifyName = FName("NewBlendedNotify");
+                            NewNotify.TriggerTime = 0.0f;
+                            NewNotify.Duration = 0.0f;
+                            StateNode->StateFullyBlendedNotifies.Add(NewNotify);
+                        }
+
+                        ImGui::TreePop();
+                    }
+                }
+            }
         }
     }
 	// Transition (Link) 선택 시
@@ -1250,6 +1378,67 @@ ImGui::TextDisabled("Transition Conditions");
             			SelectedLink->Conditions.push_back(NewRealCond);
             		}
             	}
+
+
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                // Transition Notifies
+                ImGui::TextDisabled("Transition Notifies");
+                ImGui::Spacing();
+
+                if (bCanEditData)
+                {
+                    FName fromName(FromNode->Name);
+                    FName toName(ToNode->Name);
+                    FAnimStateTransition* Trans = ActiveState->StateMachine->FindTransition(fromName, toName);
+
+                    if (Trans)
+                    {
+                        int32 notifyToDelete = -1;
+                        for (int32 i = 0; i < Trans->TransitionNotifies.Num(); ++i)
+                        {
+                            FAnimNotifyEvent& Notify = Trans->TransitionNotifies[i];
+                            ImGui::PushID(i);
+
+                            // Notify Name (드롭다운)
+                            RenderNotifyCombo("##NotifyName", Notify);
+
+                            ImGui::SameLine();
+
+                            // Trigger Time (0.0 ~ 1.0)
+                            ImGui::SetNextItemWidth(80);
+                            ImGui::DragFloat("##TriggerTime", &Notify.TriggerTime, 0.01f, 0.0f, 1.0f, "%.2f");
+                            if (ImGui::IsItemHovered())
+                            {
+                                ImGui::SetTooltip("Transition progress (0.0 ~ 1.0)");
+                            }
+
+                            ImGui::SameLine();
+                            if (ImGui::SmallButton("X"))
+                            {
+                                notifyToDelete = i;
+                            }
+
+                            ImGui::PopID();
+                        }
+
+                        if (notifyToDelete != -1)
+                        {
+                            Trans->TransitionNotifies.RemoveAt(notifyToDelete);
+                        }
+
+                        if (ImGui::Button("Add Transition Notify", ImVec2(-1, 0)))
+                        {
+                            FAnimNotifyEvent NewNotify;
+                            NewNotify.NotifyName = FName("NewTransitionNotify");
+                            NewNotify.TriggerTime = 0.5f; // 중간 지점
+                            NewNotify.Duration = 0.0f;
+                            Trans->TransitionNotifies.Add(NewNotify);
+                        }
+                    }
+                }
             } // if (FromNode && ToNode) 끝
         } // if (SelectedLink) 끝
     } // else if (SelectedLinkID) 끝
@@ -1476,4 +1665,57 @@ void SAnimStateMachineWindow::SyncGraphFromStateMachine(FGraphState* State)
     }
 
     ed::SetCurrentEditor(nullptr);
+}
+
+
+void SAnimStateMachineWindow::RefreshNotifyClassList()
+{
+    if (!bNotifyClassListDirty)
+    {
+        return;
+    }
+
+    AvailableNotifyClasses.Empty();
+
+    UWorld* World = GEngine.GetDefaultWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    FLuaManager* LuaMgr = World->GetLuaManager();
+    if (!LuaMgr)
+    {
+        return;
+    }
+
+    AvailableNotifyClasses = LuaMgr->GetRegisteredNotifyClasses();
+    bNotifyClassListDirty = false;
+}
+
+void SAnimStateMachineWindow::RenderNotifyCombo(const char* Label, FAnimNotifyEvent& Notify)
+{
+    RefreshNotifyClassList();
+
+    FString CurrentName = Notify.NotifyName.ToString();
+
+    ImGui::SetNextItemWidth(200);
+    if (ImGui::BeginCombo(Label, CurrentName.c_str()))
+    {
+        for (const FString& ClassName : AvailableNotifyClasses)
+        {
+            bool bIsSelected = (CurrentName == ClassName);
+            if (ImGui::Selectable(ClassName.c_str(), bIsSelected))
+            {
+                Notify.NotifyName = FName(ClassName);
+            }
+
+            if (bIsSelected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+
+        ImGui::EndCombo();
+    }
 }

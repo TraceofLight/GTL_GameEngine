@@ -79,6 +79,8 @@ public:
 	// Pose Evaluation
 	void EvaluateAnimation();
 
+	void TriggerNotify(const FAnimNotifyEvent& NotifyEvent, USkeletalMeshComponent* MeshComp);
+
 protected:
 	USkeletalMeshComponent* OwnerComponent;
 	UAnimSequenceBase* CurrentAnimation;

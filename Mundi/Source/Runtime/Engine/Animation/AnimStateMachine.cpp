@@ -266,6 +266,47 @@ bool UAnimStateMachine::SaveToFile(const FWideString& Path)
             NodeJson["EditorPosX"] = Pos.X;
             NodeJson["EditorPosY"] = Pos.Y;
         }
+
+        // State Notify 저장
+        JSON StateEntryArray = JSON::Make(JSON::Class::Array);
+        for (const FAnimNotifyEvent& Notify : Node.StateEntryNotifies)
+        {
+            JSON NotifyJson = JSON::Make(JSON::Class::Object);
+            NotifyJson["Name"] = Notify.NotifyName.ToString();
+            NotifyJson["Time"] = Notify.TriggerTime;
+            NotifyJson["Duration"] = Notify.Duration;
+            NotifyJson["TrackIndex"] = Notify.TrackIndex;
+            NotifyJson["PropertyData"] = Notify.PropertyData;
+            StateEntryArray.append(NotifyJson);
+        }
+        NodeJson["StateEntryNotifies"] = StateEntryArray;
+
+        JSON StateExitArray = JSON::Make(JSON::Class::Array);
+        for (const FAnimNotifyEvent& Notify : Node.StateExitNotifies)
+        {
+            JSON NotifyJson = JSON::Make(JSON::Class::Object);
+            NotifyJson["Name"] = Notify.NotifyName.ToString();
+            NotifyJson["Time"] = Notify.TriggerTime;
+            NotifyJson["Duration"] = Notify.Duration;
+            NotifyJson["TrackIndex"] = Notify.TrackIndex;
+            NotifyJson["PropertyData"] = Notify.PropertyData;
+            StateExitArray.append(NotifyJson);
+        }
+        NodeJson["StateExitNotifies"] = StateExitArray;
+
+        JSON StateBlendedArray = JSON::Make(JSON::Class::Array);
+        for (const FAnimNotifyEvent& Notify : Node.StateFullyBlendedNotifies)
+        {
+            JSON NotifyJson = JSON::Make(JSON::Class::Object);
+            NotifyJson["Name"] = Notify.NotifyName.ToString();
+            NotifyJson["Time"] = Notify.TriggerTime;
+            NotifyJson["Duration"] = Notify.Duration;
+            NotifyJson["TrackIndex"] = Notify.TrackIndex;
+            NotifyJson["PropertyData"] = Notify.PropertyData;
+            StateBlendedArray.append(NotifyJson);
+        }
+        NodeJson["StateFullyBlendedNotifies"] = StateBlendedArray;
+
         NodesArray.append(NodeJson);
 
         // 3. 이 노드에서 나가는 Transitions 배열 생성
@@ -288,6 +329,21 @@ bool UAnimStateMachine::SaveToFile(const FWideString& Path)
                 CondsArray.append(CondJson);
             }
             TransJson["Conditions"] = CondsArray;
+
+            // 5. Transition Notify 배열 생성
+            JSON TransNotifiesArray = JSON::Make(JSON::Class::Array);
+            for (const FAnimNotifyEvent& Notify : Trans.TransitionNotifies)
+            {
+                JSON NotifyJson = JSON::Make(JSON::Class::Object);
+                NotifyJson["Name"] = Notify.NotifyName.ToString();
+                NotifyJson["Time"] = Notify.TriggerTime;  // Transition 진행률 (0.0 ~ 1.0)
+                NotifyJson["Duration"] = Notify.Duration;
+                NotifyJson["TrackIndex"] = Notify.TrackIndex;
+                NotifyJson["PropertyData"] = Notify.PropertyData;
+                TransNotifiesArray.append(NotifyJson);
+            }
+            TransJson["TransitionNotifies"] = TransNotifiesArray;
+
             TransitionsArray.append(TransJson);
         }
     }
@@ -376,6 +432,68 @@ void UAnimStateMachine::Load(const FString& InFilePath, ID3D11Device* InDevice)
             {
                 NodePositions.Add(FName(NameStr), FVector2D(PosX, PosY));
             }
+
+            // State Notify 로드
+            FAnimStateNode* LoadedNode = Nodes.Find(FName(NameStr));
+            if (LoadedNode)
+            {
+                // State Entry Notifies
+                JSON StateEntryArray;
+                if (FJsonSerializer::ReadArray(NodeJson, "StateEntryNotifies", StateEntryArray))
+                {
+                    for (int32 NotifyIdx = 0; NotifyIdx < StateEntryArray.size(); ++NotifyIdx)
+                    {
+                        JSON NotifyJson = StateEntryArray.at(NotifyIdx);
+                        FAnimNotifyEvent NotifyEvent;
+                        FString NotifyName;
+                        FJsonSerializer::ReadString(NotifyJson, "Name", NotifyName);
+                        FJsonSerializer::ReadFloat(NotifyJson, "Time", NotifyEvent.TriggerTime);
+                        FJsonSerializer::ReadFloat(NotifyJson, "Duration", NotifyEvent.Duration);
+                        FJsonSerializer::ReadInt32(NotifyJson, "TrackIndex", NotifyEvent.TrackIndex);
+                        FJsonSerializer::ReadString(NotifyJson, "PropertyData", NotifyEvent.PropertyData);
+                        NotifyEvent.NotifyName = FName(NotifyName);
+                        LoadedNode->StateEntryNotifies.Add(NotifyEvent);
+                    }
+                }
+
+                // State Exit Notifies
+                JSON StateExitArray;
+                if (FJsonSerializer::ReadArray(NodeJson, "StateExitNotifies", StateExitArray))
+                {
+                    for (int32 NotifyIdx = 0; NotifyIdx < StateExitArray.size(); ++NotifyIdx)
+                    {
+                        JSON NotifyJson = StateExitArray.at(NotifyIdx);
+                        FAnimNotifyEvent NotifyEvent;
+                        FString NotifyName;
+                        FJsonSerializer::ReadString(NotifyJson, "Name", NotifyName);
+                        FJsonSerializer::ReadFloat(NotifyJson, "Time", NotifyEvent.TriggerTime);
+                        FJsonSerializer::ReadFloat(NotifyJson, "Duration", NotifyEvent.Duration);
+                        FJsonSerializer::ReadInt32(NotifyJson, "TrackIndex", NotifyEvent.TrackIndex);
+                        FJsonSerializer::ReadString(NotifyJson, "PropertyData", NotifyEvent.PropertyData);
+                        NotifyEvent.NotifyName = FName(NotifyName);
+                        LoadedNode->StateExitNotifies.Add(NotifyEvent);
+                    }
+                }
+
+                // State Fully Blended Notifies
+                JSON StateBlendedArray;
+                if (FJsonSerializer::ReadArray(NodeJson, "StateFullyBlendedNotifies", StateBlendedArray))
+                {
+                    for (int32 NotifyIdx = 0; NotifyIdx < StateBlendedArray.size(); ++NotifyIdx)
+                    {
+                        JSON NotifyJson = StateBlendedArray.at(NotifyIdx);
+                        FAnimNotifyEvent NotifyEvent;
+                        FString NotifyName;
+                        FJsonSerializer::ReadString(NotifyJson, "Name", NotifyName);
+                        FJsonSerializer::ReadFloat(NotifyJson, "Time", NotifyEvent.TriggerTime);
+                        FJsonSerializer::ReadFloat(NotifyJson, "Duration", NotifyEvent.Duration);
+                        FJsonSerializer::ReadInt32(NotifyJson, "TrackIndex", NotifyEvent.TrackIndex);
+                        FJsonSerializer::ReadString(NotifyJson, "PropertyData", NotifyEvent.PropertyData);
+                        NotifyEvent.NotifyName = FName(NotifyName);
+                        LoadedNode->StateFullyBlendedNotifies.Add(NotifyEvent);
+                    }
+                }
+            }
         }
     }
 
@@ -419,6 +537,27 @@ void UAnimStateMachine::Load(const FString& InFilePath, ID3D11Device* InDevice)
 						FName(ParamStr), static_cast<EAnimConditionOp>(OpInt), Val);
         		}
         	}
+            // Transition Notify 배열 로드
+            if (NewTrans)
+            {
+                JSON TransNotifiesArray;
+                if (FJsonSerializer::ReadArray(TransJson, "TransitionNotifies", TransNotifiesArray))
+                {
+                    for (int32 NotifyIdx = 0; NotifyIdx < TransNotifiesArray.size(); ++NotifyIdx)
+                    {
+                        JSON NotifyJson = TransNotifiesArray.at(NotifyIdx);
+                        FAnimNotifyEvent NotifyEvent;
+                        FString NotifyName;
+                        FJsonSerializer::ReadString(NotifyJson, "Name", NotifyName);
+                        FJsonSerializer::ReadFloat(NotifyJson, "Time", NotifyEvent.TriggerTime);
+                        FJsonSerializer::ReadFloat(NotifyJson, "Duration", NotifyEvent.Duration);
+                        FJsonSerializer::ReadInt32(NotifyJson, "TrackIndex", NotifyEvent.TrackIndex);
+                        FJsonSerializer::ReadString(NotifyJson, "PropertyData", NotifyEvent.PropertyData);
+                        NotifyEvent.NotifyName = FName(NotifyName);
+                        NewTrans->TransitionNotifies.Add(NotifyEvent);
+                    }
+                }
+            }
         }
     }
 

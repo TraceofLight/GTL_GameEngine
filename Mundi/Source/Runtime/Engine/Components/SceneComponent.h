@@ -65,7 +65,10 @@ public:
     FTransform GetWorldTransform() const;
     void SetWorldTransform(const FTransform& W);
 
+    UFUNCTION(LuaBind)
     void SetWorldLocation(const FVector& L);
+
+    UFUNCTION(LuaBind)
     FVector GetWorldLocation() const;
 
     void SetForward(FVector InForward);

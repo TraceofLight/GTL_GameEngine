@@ -133,6 +133,10 @@ protected:
 	FAnimNode_BlendSpace2D CurrentBlendSpaceNode;  // 현재 상태의 BlendSpace2D 노드
 	FAnimNode_BlendSpace2D PreviousBlendSpaceNode; // 이전 상태의 BlendSpace2D 노드 (블렌딩용)
 
+	// ===== Transition Notify 트리거 상태 =====
+	float PreviousFrameTransitionAlpha; // 이전 프레임의 TransitionAlpha (Transition Notify 판정용)
+	bool bHasTriggeredFullyBlended; // FullyBlended Notify가 이미 트리거되었는지
+
 protected:
 	/**
 	 * @brief 트랜지션 조건 검사
@@ -142,4 +146,10 @@ protected:
 
 	// 내부 헬퍼 함수: 비교 연산 수행
 	bool EvaluateCondition(float CurrentValue, EAnimConditionOp Op, float Threshold);
+
+	// State/Transition Notify 트리거 함수
+	void TriggerStateEntryNotifies(const FAnimStateNode* Node);
+	void TriggerStateExitNotifies(const FAnimStateNode* Node);
+	void TriggerStateFullyBlendedNotifies(const FAnimStateNode* Node);
+	void TriggerTransitionNotifies(const FAnimStateTransition* Transition, float PrevAlpha, float CurrentAlpha);
 };
