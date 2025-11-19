@@ -12,6 +12,12 @@ UBlendSpace2D::UBlendSpace2D()
 	, YAxisMax(180.0f)
 	, XAxisName("X")
 	, YAxisName("Y")
+	, XAxisBlendWeight(1.0f)
+	, YAxisBlendWeight(1.0f)
+	, SyncGroupName("Default")
+	, bUseSyncMarkers(false)
+	, EditorPreviewParameter(FVector2D::Zero())
+	, EditorSkeletalMeshPath("")
 {
 }
 
@@ -35,6 +41,15 @@ void UBlendSpace2D::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 		FJsonSerializer::ReadFloat(InOutHandle, "YAxisMax", YAxisMax, 180.0f);
 		FJsonSerializer::ReadString(InOutHandle, "XAxisName", XAxisName, "X");
 		FJsonSerializer::ReadString(InOutHandle, "YAxisName", YAxisName, "Y");
+		FJsonSerializer::ReadFloat(InOutHandle, "XAxisBlendWeight", XAxisBlendWeight, 1.0f);
+		FJsonSerializer::ReadFloat(InOutHandle, "YAxisBlendWeight", YAxisBlendWeight, 1.0f);
+		FJsonSerializer::ReadString(InOutHandle, "SyncGroupName", SyncGroupName, "Default");
+		FJsonSerializer::ReadBool(InOutHandle, "bUseSyncMarkers", bUseSyncMarkers, false);
+
+		// 에디터 설정 로드
+		FJsonSerializer::ReadFloat(InOutHandle, "EditorPreviewParameterX", EditorPreviewParameter.X, 0.0f);
+		FJsonSerializer::ReadFloat(InOutHandle, "EditorPreviewParameterY", EditorPreviewParameter.Y, 0.0f);
+		FJsonSerializer::ReadString(InOutHandle, "EditorSkeletalMeshPath", EditorSkeletalMeshPath, "");
 
 		// 샘플 포인트 로드
 		Samples.Empty();
@@ -51,15 +66,75 @@ void UBlendSpace2D::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 
 				FJsonSerializer::ReadFloat(SampleJson, "PositionX", Sample.Position.X, 0.0f);
 				FJsonSerializer::ReadFloat(SampleJson, "PositionY", Sample.Position.Y, 0.0f);
+				FJsonSerializer::ReadFloat(SampleJson, "RateScale", Sample.RateScale, 1.0f);
 
-				// 애니메이션 경로로 로드 (TODO: ResourceManager 통합)
+				// 애니메이션 경로로 로드
 				FString AnimPath;
 				FJsonSerializer::ReadString(SampleJson, "AnimationPath", AnimPath, "");
-				// Sample.Animation = LoadAnimSequence(AnimPath);
-				// 지금은 nullptr (나중에 ResourceManager에서 로드)
-				Sample.Animation = nullptr;
+
+				if (!AnimPath.empty())
+				{
+					// ResourceManager에서 로드 시도
+					Sample.Animation = UResourceManager::GetInstance().Load<UAnimSequence>(AnimPath);
+
+					if (!Sample.Animation)
+					{
+						UE_LOG("Warning: Failed to load animation '%s' for BlendSpace sample", AnimPath.c_str());
+					}
+					else
+					{
+						// Sync Markers 로드
+						int32 MarkerCount = 0;
+						FJsonSerializer::ReadInt32(SampleJson, "SyncMarkerCount", MarkerCount, 0);
+
+						for (int32 m = 0; m < MarkerCount; ++m)
+						{
+							FString MarkerKey = "SyncMarker_" + std::to_string(m);
+							JSON MarkerJson;
+
+							if (FJsonSerializer::ReadObject(SampleJson, MarkerKey.c_str(), MarkerJson, JSON::Make(JSON::Class::Object)))
+							{
+								FString MarkerName;
+								float MarkerTime = 0.0f;
+
+								FJsonSerializer::ReadString(MarkerJson, "Name", MarkerName, "");
+								FJsonSerializer::ReadFloat(MarkerJson, "Time", MarkerTime, 0.0f);
+
+								Sample.Animation->AddSyncMarker(MarkerName, MarkerTime);
+							}
+						}
+					}
+				}
+				else
+				{
+					Sample.Animation = nullptr;
+				}
 
 				Samples.Add(Sample);
+			}
+		}
+
+		// Triangles 로드
+		Triangles.Empty();
+		int32 TriangleCount = 0;
+		FJsonSerializer::ReadInt32(InOutHandle, "TriangleCount", TriangleCount, 0);
+
+		for (int32 i = 0; i < TriangleCount; ++i)
+		{
+			FString TriKey = "Triangle_" + std::to_string(i);
+			JSON TriJson;
+
+			if (FJsonSerializer::ReadObject(InOutHandle, TriKey.c_str(), TriJson, JSON::Make(JSON::Class::Object)))
+			{
+				FBlendTriangle Tri;
+				FJsonSerializer::ReadInt32(TriJson, "Index0", Tri.Index0, -1);
+				FJsonSerializer::ReadInt32(TriJson, "Index1", Tri.Index1, -1);
+				FJsonSerializer::ReadInt32(TriJson, "Index2", Tri.Index2, -1);
+
+				if (Tri.IsValid())
+				{
+					Triangles.Add(Tri);
+				}
 			}
 		}
 	}
@@ -72,6 +147,15 @@ void UBlendSpace2D::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 		InOutHandle["YAxisMax"] = YAxisMax;
 		InOutHandle["XAxisName"] = XAxisName;
 		InOutHandle["YAxisName"] = YAxisName;
+		InOutHandle["XAxisBlendWeight"] = XAxisBlendWeight;
+		InOutHandle["YAxisBlendWeight"] = YAxisBlendWeight;
+		InOutHandle["SyncGroupName"] = SyncGroupName;
+		InOutHandle["bUseSyncMarkers"] = bUseSyncMarkers;
+
+		// 에디터 설정 저장
+		InOutHandle["EditorPreviewParameterX"] = EditorPreviewParameter.X;
+		InOutHandle["EditorPreviewParameterY"] = EditorPreviewParameter.Y;
+		InOutHandle["EditorSkeletalMeshPath"] = EditorSkeletalMeshPath;
 
 		// 샘플 포인트 저장
 		InOutHandle["SampleCount"] = static_cast<int>(Samples.Num());
@@ -83,19 +167,55 @@ void UBlendSpace2D::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 
 			SampleJson["PositionX"] = Sample.Position.X;
 			SampleJson["PositionY"] = Sample.Position.Y;
+			SampleJson["RateScale"] = Sample.RateScale;
 
-			// 애니메이션 경로 저장
+			// 애니메이션 경로 저장 (파일 경로 전체 저장)
 			if (Sample.Animation)
 			{
-				SampleJson["AnimationPath"] = Sample.Animation->GetName();
+				FString AnimPath = Sample.Animation->GetFilePath();
+				if (AnimPath.empty())
+				{
+					AnimPath = Sample.Animation->GetName(); // Fallback
+				}
+				SampleJson["AnimationPath"] = AnimPath;
+
+				// Sync Markers도 저장
+				const TArray<FAnimSyncMarker>& Markers = Sample.Animation->GetSyncMarkers();
+				SampleJson["SyncMarkerCount"] = static_cast<int>(Markers.Num());
+
+				for (int32 m = 0; m < Markers.Num(); ++m)
+				{
+					JSON MarkerJson = JSON::Make(JSON::Class::Object);
+					MarkerJson["Name"] = Markers[m].MarkerName;
+					MarkerJson["Time"] = Markers[m].Time;
+
+					FString MarkerKey = "SyncMarker_" + std::to_string(m);
+					SampleJson[MarkerKey] = MarkerJson;
+				}
 			}
 			else
 			{
 				SampleJson["AnimationPath"] = "";
+				SampleJson["SyncMarkerCount"] = 0;
 			}
 
 			FString Key = "Sample_" + std::to_string(i);
 			InOutHandle[Key] = SampleJson;
+		}
+
+		// Triangles 저장
+		InOutHandle["TriangleCount"] = static_cast<int>(Triangles.Num());
+		for (int32 i = 0; i < Triangles.Num(); ++i)
+		{
+			const FBlendTriangle& Tri = Triangles[i];
+			JSON TriJson = JSON::Make(JSON::Class::Object);
+
+			TriJson["Index0"] = Tri.Index0;
+			TriJson["Index1"] = Tri.Index1;
+			TriJson["Index2"] = Tri.Index2;
+
+			FString TriKey = "Triangle_" + std::to_string(i);
+			InOutHandle[TriKey] = TriJson;
 		}
 	}
 }
@@ -111,6 +231,9 @@ void UBlendSpace2D::AddSample(FVector2D Position, UAnimSequence* Animation)
 	}
 
 	Samples.Add(FBlendSample(Position, Animation));
+
+	// 삼각분할 재생성
+	GenerateTriangulation();
 }
 
 /**
@@ -121,6 +244,9 @@ void UBlendSpace2D::RemoveSample(int32 Index)
 	if (Index >= 0 && Index < Samples.Num())
 	{
 		Samples.RemoveAt(Index);
+
+		// 삼각분할 재생성
+		GenerateTriangulation();
 	}
 }
 
@@ -130,6 +256,7 @@ void UBlendSpace2D::RemoveSample(int32 Index)
 void UBlendSpace2D::ClearSamples()
 {
 	Samples.Empty();
+	Triangles.Empty();
 }
 
 /**
@@ -218,6 +345,23 @@ void UBlendSpace2D::GetBlendWeights(
 
 	FindClosestTriangle(NormParam, Index0, Index1, Index2, Weight0, Weight1, Weight2);
 
+	// 디버그: 선택된 삼각형 정보
+	static int32 TriDebugCounter = 0;
+	if (TriDebugCounter++ % 60 == 0)
+	{
+		UE_LOG("[FindTriangle] NormParam=(%.3f, %.3f) -> Triangle[%d,%d,%d]",
+			NormParam.X, NormParam.Y, Index0, Index1, Index2);
+		if (Index0 >= 0 && Index0 < Samples.Num() &&
+			Index1 >= 0 && Index1 < Samples.Num() &&
+			Index2 >= 0 && Index2 < Samples.Num())
+		{
+			UE_LOG("  Sample[%d]=(%.1f, %.1f), Sample[%d]=(%.1f, %.1f), Sample[%d]=(%.1f, %.1f)",
+				Index0, Samples[Index0].Position.X, Samples[Index0].Position.Y,
+				Index1, Samples[Index1].Position.X, Samples[Index1].Position.Y,
+				Index2, Samples[Index2].Position.X, Samples[Index2].Position.Y);
+		}
+	}
+
 	// 가중치가 유효한 샘플만 추가
 	if (Weight0 > 0.001f)
 	{
@@ -258,12 +402,31 @@ void UBlendSpace2D::GetBlendWeights(
 			}
 		}
 	}
+
+	// 디버그: 블렌드 가중치 로그 (60프레임마다)
+	static int32 BlendLogCounter = 0;
+	if (BlendLogCounter++ % 60 == 0 && OutWeights.Num() > 0)
+	{
+		UE_LOG("[BlendSpace2D] Param=(%.1f, %.1f) -> %d samples blending:",
+			BlendParameter.X, BlendParameter.Y, OutWeights.Num());
+		for (int32 i = 0; i < OutSampleIndices.Num(); ++i)
+		{
+			int32 Idx = OutSampleIndices[i];
+			float Weight = OutWeights[i];
+			if (Idx >= 0 && Idx < Samples.Num())
+			{
+				UE_LOG("  Sample[%d] at (%.1f, %.1f): Weight=%.3f",
+					Idx, Samples[Idx].Position.X, Samples[Idx].Position.Y, Weight);
+			}
+		}
+	}
 }
 
 /**
  * @brief 삼각형 보간을 위한 가장 가까운 3개 샘플 찾기
  *
- * 단순화된 방법: 거리가 가장 가까운 3개의 샘플을 찾아서 무게중심 좌표로 블렌딩
+ * Delaunay 삼각분할이 존재하면 그것을 사용하고,
+ * 없으면 거리 기반으로 가장 가까운 3개를 찾습니다.
  */
 void UBlendSpace2D::FindClosestTriangle(
 	FVector2D Point,
@@ -274,6 +437,18 @@ void UBlendSpace2D::FindClosestTriangle(
 	float& OutWeight1,
 	float& OutWeight2) const
 {
+	// Delaunay 삼각분할이 존재하면 사용
+	if (Triangles.Num() > 0)
+	{
+		bool bFound = FindContainingTriangle(Point, OutIndex0, OutIndex1, OutIndex2,
+			OutWeight0, OutWeight1, OutWeight2);
+
+		// 삼각형을 찾았으면 그대로 사용
+		// 못 찾았으면 (경계 밖) FindContainingTriangle 내부에서 이미 가장 가까운 삼각형을 찾음
+		return;
+	}
+
+	// Fallback: 삼각분할이 없을 때만 거리 기반으로 가장 가까운 3개 찾기
 	const int32 NumSamples = Samples.Num();
 
 	// 거리 순으로 정렬된 샘플 인덱스
@@ -283,7 +458,12 @@ void UBlendSpace2D::FindClosestTriangle(
 	for (int32 i = 0; i < NumSamples; ++i)
 	{
 		FVector2D NormPos = NormalizeParameter(Samples[i].Position);
-		float Dist = (Point - NormPos).Length();
+
+		// 축별 가중치를 적용한 거리 계산
+		FVector2D Diff = Point - NormPos;
+		float WeightedDiffX = Diff.X * XAxisBlendWeight;
+		float WeightedDiffY = Diff.Y * YAxisBlendWeight;
+		float Dist = std::sqrt(WeightedDiffX * WeightedDiffX + WeightedDiffY * WeightedDiffY);
 
 		SortedIndices.Add(i);
 		Distances.Add(Dist);
@@ -320,6 +500,144 @@ void UBlendSpace2D::FindClosestTriangle(
 	FVector2D C = NormalizeParameter(Samples[OutIndex2].Position);
 
 	CalculateBarycentricWeights(Point, A, B, C, OutWeight0, OutWeight1, OutWeight2);
+}
+
+/**
+ * @brief 점이 포함된 Delaunay 삼각형 찾기
+ *
+ * 모든 삼각형을 순회하며 점이 내부에 있는지 확인합니다.
+ * 무게중심 좌표가 모두 양수이면 점이 삼각형 내부에 있습니다.
+ */
+bool UBlendSpace2D::FindContainingTriangle(
+	FVector2D Point,
+	int32& OutIndex0,
+	int32& OutIndex1,
+	int32& OutIndex2,
+	float& OutWeight0,
+	float& OutWeight1,
+	float& OutWeight2) const
+{
+	static int32 FindDebugCounter = 0;
+	bool bShouldLog = (FindDebugCounter++ % 60 == 0);
+
+	if (bShouldLog)
+	{
+		UE_LOG("[FindContainingTriangle] Searching for Point=(%.3f, %.3f) in %d triangles",
+			Point.X, Point.Y, Triangles.Num());
+	}
+
+	for (int32 TriIdx = 0; TriIdx < Triangles.Num(); ++TriIdx)
+	{
+		const FBlendTriangle& Tri = Triangles[TriIdx];
+		if (!Tri.IsValid())
+		{
+			continue;
+		}
+
+		// 삼각형의 3개 정점
+		FVector2D A = NormalizeParameter(Samples[Tri.Index0].Position);
+		FVector2D B = NormalizeParameter(Samples[Tri.Index1].Position);
+		FVector2D C = NormalizeParameter(Samples[Tri.Index2].Position);
+
+		// 무게중심 좌표 계산 (클램핑 전의 원본 값)
+		float WeightA_Raw, WeightB_Raw, WeightC_Raw;
+
+		// 직접 계산 (CalculateBarycentricWeights는 클램핑을 하므로 여기서 직접 계산)
+		FVector2D v0 = B - A;
+		FVector2D v1 = C - A;
+		FVector2D v2 = Point - A;
+
+		float d00 = v0.X * v0.X + v0.Y * v0.Y;
+		float d01 = v0.X * v1.X + v0.Y * v1.Y;
+		float d11 = v1.X * v1.X + v1.Y * v1.Y;
+		float d20 = v2.X * v0.X + v2.Y * v0.Y;
+		float d21 = v2.X * v1.X + v2.Y * v1.Y;
+
+		float denom = d00 * d11 - d01 * d01;
+
+		// 퇴화된 삼각형 체크
+		if (FMath::Abs(denom) < 0.0001f)
+		{
+			continue; // 다음 삼각형으로
+		}
+
+		WeightB_Raw = (d11 * d20 - d01 * d21) / denom;
+		WeightC_Raw = (d00 * d21 - d01 * d20) / denom;
+		WeightA_Raw = 1.0f - WeightB_Raw - WeightC_Raw;
+
+		if (bShouldLog)
+		{
+			UE_LOG("  Triangle[%d] (%d,%d,%d): Raw Weights=(%.3f, %.3f, %.3f)",
+				TriIdx, Tri.Index0, Tri.Index1, Tri.Index2, WeightA_Raw, WeightB_Raw, WeightC_Raw);
+		}
+
+		// 모든 가중치가 0 이상이면 점이 삼각형 내부에 있음
+		// 약간의 허용 오차를 두어 경계선 케이스 처리
+		const float Epsilon = -0.01f;
+		if (WeightA_Raw >= Epsilon && WeightB_Raw >= Epsilon && WeightC_Raw >= Epsilon)
+		{
+			if (bShouldLog)
+			{
+				UE_LOG("  -> Found! Triangle[%d] contains the point", TriIdx);
+			}
+
+			OutIndex0 = Tri.Index0;
+			OutIndex1 = Tri.Index1;
+			OutIndex2 = Tri.Index2;
+
+			// 가중치를 클램핑하고 정규화해서 반환
+			float WeightA, WeightB, WeightC;
+			CalculateBarycentricWeights(Point, A, B, C, WeightA, WeightB, WeightC);
+			OutWeight0 = WeightA;
+			OutWeight1 = WeightB;
+			OutWeight2 = WeightC;
+			return true;
+		}
+	}
+
+	// 포함하는 삼각형을 못 찾음 (경계 밖)
+	// 가장 가까운 삼각형 찾기
+	float MinDist = FLT_MAX;
+	int32 ClosestTriIndex = -1;
+
+	for (int32 i = 0; i < Triangles.Num(); ++i)
+	{
+		const FBlendTriangle& Tri = Triangles[i];
+		if (!Tri.IsValid())
+		{
+			continue;
+		}
+
+		// 삼각형 중심점까지의 거리
+		FVector2D A = NormalizeParameter(Samples[Tri.Index0].Position);
+		FVector2D B = NormalizeParameter(Samples[Tri.Index1].Position);
+		FVector2D C = NormalizeParameter(Samples[Tri.Index2].Position);
+		FVector2D Center((A.X + B.X + C.X) / 3.0f, (A.Y + B.Y + C.Y) / 3.0f);
+
+		float Dist = (Point - Center).Length();
+		if (Dist < MinDist)
+		{
+			MinDist = Dist;
+			ClosestTriIndex = i;
+		}
+	}
+
+	if (ClosestTriIndex >= 0)
+	{
+		const FBlendTriangle& Tri = Triangles[ClosestTriIndex];
+		FVector2D A = NormalizeParameter(Samples[Tri.Index0].Position);
+		FVector2D B = NormalizeParameter(Samples[Tri.Index1].Position);
+		FVector2D C = NormalizeParameter(Samples[Tri.Index2].Position);
+
+		OutIndex0 = Tri.Index0;
+		OutIndex1 = Tri.Index1;
+		OutIndex2 = Tri.Index2;
+
+		CalculateBarycentricWeights(Point, A, B, C, OutWeight0, OutWeight1, OutWeight2);
+		return true;
+	}
+
+	return false;
 }
 
 /**
@@ -380,15 +698,64 @@ void UBlendSpace2D::CalculateBarycentricWeights(
 		return;
 	}
 
-	// 무게중심 좌표 계산
+	// 무게중심 좌표 계산 (Barycentric Coordinates)
+	// 언리얼 엔진과 동일한 방식
 	OutWeightB = (d11 * d20 - d01 * d21) / denom;
 	OutWeightC = (d00 * d21 - d01 * d20) / denom;
 	OutWeightA = 1.0f - OutWeightB - OutWeightC;
 
-	// 음수 가중치를 0으로 클램핑 (삼각형 외부의 점)
+	// 디버그: 클램핑 전 가중치 확인
+	static int32 BaryDebugCounter = 0;
+	if (BaryDebugCounter++ % 60 == 0)
+	{
+		UE_LOG("[Barycentric] Before clamp: A=%.3f, B=%.3f, C=%.3f (sum=%.3f)",
+			OutWeightA, OutWeightB, OutWeightC, OutWeightA + OutWeightB + OutWeightC);
+		UE_LOG("  Point=(%.3f, %.3f), A=(%.3f, %.3f), B=(%.3f, %.3f), C=(%.3f, %.3f)",
+			Point.X, Point.Y, A.X, A.Y, B.X, B.Y, C.X, C.Y);
+		UE_LOG("  DistToA=%.4f, DistToB=%.4f, DistToC=%.4f",
+			(Point - A).Length(), (Point - B).Length(), (Point - C).Length());
+	}
+
+	// 삼각형 외부의 점인 경우 가중치를 클램핑
+	// 언리얼은 음수 가중치를 허용하지 않음
 	OutWeightA = FMath::Max(0.0f, OutWeightA);
 	OutWeightB = FMath::Max(0.0f, OutWeightB);
 	OutWeightC = FMath::Max(0.0f, OutWeightC);
+
+	// 클램핑 후 정규화 (합 = 1.0)
+	float Sum = OutWeightA + OutWeightB + OutWeightC;
+	if (Sum > 0.001f)
+	{
+		OutWeightA /= Sum;
+		OutWeightB /= Sum;
+		OutWeightC /= Sum;
+	}
+	else
+	{
+		// 모든 가중치가 0이면 가장 가까운 점에 1.0 할당
+		float DistA = (Point - A).Length();
+		float DistB = (Point - B).Length();
+		float DistC = (Point - C).Length();
+
+		if (DistA <= DistB && DistA <= DistC)
+		{
+			OutWeightA = 1.0f;
+			OutWeightB = 0.0f;
+			OutWeightC = 0.0f;
+		}
+		else if (DistB <= DistC)
+		{
+			OutWeightA = 0.0f;
+			OutWeightB = 1.0f;
+			OutWeightC = 0.0f;
+		}
+		else
+		{
+			OutWeightA = 0.0f;
+			OutWeightB = 0.0f;
+			OutWeightC = 1.0f;
+		}
+	}
 }
 
 /**
@@ -430,8 +797,239 @@ UBlendSpace2D* UBlendSpace2D::LoadFromFile(const FString& FilePath)
 
 	// 새 BlendSpace2D 객체 생성 및 역직렬화
 	UBlendSpace2D* BlendSpace = NewObject<UBlendSpace2D>();
+	BlendSpace->SetFilePath(FilePath);
 	BlendSpace->Serialize(true, JsonData);
+
+	// 로드 후 삼각분할 재생성 (저장된 삼각분할이 없거나 잘못된 경우 대비)
+	if (BlendSpace->GetNumSamples() >= 3)
+	{
+		BlendSpace->GenerateTriangulation();
+	}
 
 	UE_LOG("BlendSpace2D loaded from: %s", FilePath.c_str());
 	return BlendSpace;
+}
+
+// ========================================
+// Delaunay 삼각분할 구현
+// ========================================
+
+/**
+ * @brief Delaunay 삼각분할 생성 (Bowyer-Watson 알고리즘)
+ *
+ * 샘플이 3개 미만이면 삼각분할을 생성하지 않습니다.
+ * 3개 이상일 때 Bowyer-Watson 알고리즘으로 최적의 삼각분할을 생성합니다.
+ */
+void UBlendSpace2D::GenerateTriangulation()
+{
+	Triangles.Empty();
+
+	// 샘플이 3개 미만이면 삼각분할 불가능
+	if (Samples.Num() < 3)
+	{
+		UE_LOG("[Triangulation] Not enough samples (%d < 3)", Samples.Num());
+		return;
+	}
+
+	UE_LOG("[Triangulation] Starting with %d samples...", Samples.Num());
+
+	// 정규화된 좌표로 변환된 샘플 포인트 배열
+	TArray<FVector2D> Points;
+	Points.Reserve(Samples.Num() + 3); // +3 for super triangle
+
+	// Super Triangle 생성
+	FBlendTriangle SuperTriangle;
+	CreateSuperTriangle(Points, SuperTriangle);
+
+	// 초기 삼각형 목록 (Super Triangle만 포함)
+	TArray<FBlendTriangle> TempTriangles;
+	TempTriangles.Add(SuperTriangle);
+
+	// 샘플 포인트를 정규화하여 추가
+	for (int32 i = 0; i < Samples.Num(); ++i)
+	{
+		Points.Add(NormalizeParameter(Samples[i].Position));
+	}
+
+	// Bowyer-Watson 알고리즘: 각 샘플 포인트를 하나씩 추가
+	for (int32 PointIndex = 3; PointIndex < Points.Num(); ++PointIndex) // 3부터 시작 (0~2는 Super Triangle)
+	{
+		FVector2D Point = Points[PointIndex];
+
+		// Step 1: 이 점이 외접원 내부에 있는 "불량 삼각형" 찾기
+		TArray<FBlendTriangle> BadTriangles;
+		for (const FBlendTriangle& Tri : TempTriangles)
+		{
+			FVector2D A = Points[Tri.Index0];
+			FVector2D B = Points[Tri.Index1];
+			FVector2D C = Points[Tri.Index2];
+
+			if (IsPointInCircumcircle(Point, A, B, C))
+			{
+				BadTriangles.Add(Tri);
+			}
+		}
+
+		// Step 2: 불량 삼각형의 경계(Edge) 찾기
+		struct FEdge
+		{
+			int32 V0, V1;
+			FEdge(int32 InV0, int32 InV1) : V0(InV0), V1(InV1) {}
+		};
+		TArray<FEdge> Polygon;
+
+		for (const FBlendTriangle& BadTri : BadTriangles)
+		{
+			// 3개의 변 
+			FEdge Edge0(BadTri.Index0, BadTri.Index1);
+			FEdge Edge1(BadTri.Index1, BadTri.Index2);
+			FEdge Edge2(BadTri.Index2, BadTri.Index0);
+
+			// 각 변이 다른 불량 삼각형과 공유되지 않으면 Polygon에 추가
+			auto AddEdgeIfUnique = [&](const FEdge& Edge)
+			{
+				bool bShared = false;
+				for (const FBlendTriangle& OtherTri : BadTriangles)
+				{
+					if (OtherTri.Index0 == BadTri.Index0 &&
+						OtherTri.Index1 == BadTri.Index1 &&
+						OtherTri.Index2 == BadTri.Index2)
+					{
+						continue; // 같은 삼각형은 스킵
+					}
+
+					// 변이 공유되는지 확인 (양방향)
+					if (OtherTri.ContainsEdge(Edge.V0, Edge.V1) ||
+						OtherTri.ContainsEdge(Edge.V1, Edge.V0))
+					{
+						bShared = true;
+						break;
+					}
+				}
+
+				if (!bShared)
+				{
+					Polygon.Add(Edge);
+				}
+			};
+
+			AddEdgeIfUnique(Edge0);
+			AddEdgeIfUnique(Edge1);
+			AddEdgeIfUnique(Edge2);
+		}
+
+		// Step 3: 불량 삼각형 제거
+		for (const FBlendTriangle& BadTri : BadTriangles)
+		{
+			for (int32 i = TempTriangles.Num() - 1; i >= 0; --i)
+			{
+				const FBlendTriangle& Tri = TempTriangles[i];
+				if (Tri.Index0 == BadTri.Index0 &&
+					Tri.Index1 == BadTri.Index1 &&
+					Tri.Index2 == BadTri.Index2)
+				{
+					TempTriangles.RemoveAt(i);
+					break;
+				}
+			}
+		}
+
+		// Step 4: 새 점과 Polygon의 각 변으로 새 삼각형 생성
+		for (const FEdge& Edge : Polygon)
+		{
+			FBlendTriangle NewTri(Edge.V0, Edge.V1, PointIndex);
+			if (NewTri.IsValid())
+			{
+				TempTriangles.Add(NewTri);
+			}
+		}
+	}
+
+	// Step 5: Super Triangle과 연결된 삼각형 제거
+	for (const FBlendTriangle& Tri : TempTriangles)
+	{
+		// Super Triangle의 인덱스는 0, 1, 2
+		if (Tri.ContainsVertex(0) || Tri.ContainsVertex(1) || Tri.ContainsVertex(2))
+		{
+			continue; // Super Triangle 포함 삼각형은 스킵
+		}
+
+		// 샘플 인덱스를 조정 (Points 배열의 3~N을 Samples 배열의 0~N-3으로 매핑)
+		FBlendTriangle FinalTri(
+			Tri.Index0 - 3,
+			Tri.Index1 - 3,
+			Tri.Index2 - 3
+		);
+
+		if (FinalTri.IsValid() &&
+			FinalTri.Index0 >= 0 && FinalTri.Index0 < Samples.Num() &&
+			FinalTri.Index1 >= 0 && FinalTri.Index1 < Samples.Num() &&
+			FinalTri.Index2 >= 0 && FinalTri.Index2 < Samples.Num())
+		{
+			Triangles.Add(FinalTri);
+		}
+	}
+
+	UE_LOG("[Triangulation] Complete: %d samples -> %d triangles", Samples.Num(), Triangles.Num());
+
+	// 디버그: 생성된 모든 삼각형 출력
+	for (int32 i = 0; i < Triangles.Num(); ++i)
+	{
+		const FBlendTriangle& Tri = Triangles[i];
+		UE_LOG("  Triangle[%d]: Indices[%d,%d,%d]", i, Tri.Index0, Tri.Index1, Tri.Index2);
+		if (Tri.Index0 >= 0 && Tri.Index0 < Samples.Num() &&
+			Tri.Index1 >= 0 && Tri.Index1 < Samples.Num() &&
+			Tri.Index2 >= 0 && Tri.Index2 < Samples.Num())
+		{
+			UE_LOG("    Positions: [%.1f,%.1f], [%.1f,%.1f], [%.1f,%.1f]",
+				Samples[Tri.Index0].Position.X, Samples[Tri.Index0].Position.Y,
+				Samples[Tri.Index1].Position.X, Samples[Tri.Index1].Position.Y,
+				Samples[Tri.Index2].Position.X, Samples[Tri.Index2].Position.Y);
+		}
+	}
+}
+
+/**
+ * @brief 점이 삼각형의 외접원 내부에 있는지 확인
+ *
+ * Determinant 방법 사용 (빠르고 정확함)
+ */
+bool UBlendSpace2D::IsPointInCircumcircle(
+	FVector2D Point,
+	FVector2D A,
+	FVector2D B,
+	FVector2D C) const
+{
+	// 행렬식 계산
+	float ax = A.X - Point.X;
+	float ay = A.Y - Point.Y;
+	float bx = B.X - Point.X;
+	float by = B.Y - Point.Y;
+	float cx = C.X - Point.X;
+	float cy = C.Y - Point.Y;
+
+	float det =
+		(ax * ax + ay * ay) * (bx * cy - cx * by) -
+		(bx * bx + by * by) * (ax * cy - cx * ay) +
+		(cx * cx + cy * cy) * (ax * by - bx * ay);
+
+	return det > 0.0f;
+}
+
+/**
+ * @brief Super Triangle 생성
+ *
+ * 모든 샘플을 포함할 수 있을 만큼 큰 삼각형을 생성합니다.
+ * 정규화된 좌표 (0~1)를 사용하므로 (-10, -10), (10, -10), (0, 20) 정도로 충분합니다.
+ */
+void UBlendSpace2D::CreateSuperTriangle(
+	TArray<FVector2D>& OutVertices,
+	FBlendTriangle& OutTriangle) const
+{
+	// Super Triangle의 3개 정점 (매우 큰 삼각형)
+	OutVertices.Add(FVector2D(-10.0f, -10.0f));  // Index 0
+	OutVertices.Add(FVector2D(10.0f, -10.0f));   // Index 1
+	OutVertices.Add(FVector2D(0.0f, 20.0f));     // Index 2
+
+	OutTriangle = FBlendTriangle(0, 1, 2);
 }

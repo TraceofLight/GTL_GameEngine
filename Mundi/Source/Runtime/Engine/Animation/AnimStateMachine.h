@@ -57,6 +57,16 @@ struct FAnimStateTransition
 };
 
 /**
+ * @brief 애니메이션 타입
+ */
+enum class EAnimAssetType : uint8
+{
+	None,
+	AnimSequence,
+	BlendSpace2D
+};
+
+/**
  * @brief 상태 노드 (Data)
  * * 하나의 상태를 정의하는 단위. 이름, 애니메이션, 나가는 연결선(Transition)을 가짐.
  */
@@ -65,8 +75,14 @@ struct FAnimStateNode
 	/** 상태 이름 (고유 ID 역할, 예: "Idle", "Run") */
 	FName StateName;
 
-	/** 이 상태에서 재생할 애니메이션 */
+	/** 애니메이션 타입 */
+	EAnimAssetType AnimAssetType;
+
+	/** 이 상태에서 재생할 애니메이션 (AnimSequence 사용 시) */
 	UAnimSequence* AnimationAsset;
+
+	/** 이 상태에서 사용할 BlendSpace2D (BlendSpace2D 사용 시) */
+	class UBlendSpace2D* BlendSpaceAsset;
 
 	/** 이 상태에서 나갈 수 있는 트랜지션 목록 */
 	TArray<FAnimStateTransition> Transitions;
@@ -75,10 +91,18 @@ struct FAnimStateNode
 	bool bLoop;
 
 	FAnimStateNode()
-		: StateName(), AnimationAsset(nullptr), bLoop(true) {}
+		: StateName()
+		, AnimAssetType(EAnimAssetType::None)
+		, AnimationAsset(nullptr)
+		, BlendSpaceAsset(nullptr)
+		, bLoop(true) {}
 
 	FAnimStateNode(const FName InStateName)
-		: StateName(InStateName), AnimationAsset(nullptr), bLoop(true) {}
+		: StateName(InStateName)
+		, AnimAssetType(EAnimAssetType::None)
+		, AnimationAsset(nullptr)
+		, BlendSpaceAsset(nullptr)
+		, bLoop(true) {}
 };
 
 /**
@@ -97,10 +121,16 @@ public:
 // ===== 에디터/구축 API =====
 public:
 	/**
-	 * @brief 새로운 상태 노드 추가
+	 * @brief 새로운 상태 노드 추가 (AnimSequence)
 	 * @return 추가가 제대로 되었는지 결과 반환 (같은 이름 존재 시 추가 X)
 	 */
 	FAnimStateNode* AddNode(FName NodeName, UAnimSequence* InAnim, bool bInLoop = true);
+
+	/**
+	 * @brief 새로운 상태 노드 추가 (BlendSpace2D)
+	 * @return 추가가 제대로 되었는지 결과 반환 (같은 이름 존재 시 추가 X)
+	 */
+	FAnimStateNode* AddNodeWithBlendSpace(FName NodeName, class UBlendSpace2D* InBlendSpace, bool bInLoop = true);
 
 	/** * @brief 노드 삭제 (중요: 연결된 트랜지션도 정리함)
 	 * @return 삭제 성공 여부

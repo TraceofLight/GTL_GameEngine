@@ -1,59 +1,39 @@
 {
   "EntryState" : "Idle",
   "Nodes" : [{
-      "AnimAsset" : "Data/Animation/XBOT_Slow Run.fbx#mixamo.com",
-      "EditorPosX" : 184.000000,
-      "EditorPosY" : 249.000000,
-      "Loop" : true,
-      "Name" : "Run"
-    }, {
       "AnimAsset" : "Data/Animation/XBOT_Idle.fbx#mixamo.com",
+      "AnimAssetType" : 1,
+      "BlendSpaceAsset" : "",
       "EditorPosX" : 199.000000,
       "EditorPosY" : -71.000000,
       "Loop" : true,
       "Name" : "Idle"
     }, {
-      "AnimAsset" : "Data/Animation/XBOT_Walking.fbx#mixamo.com",
-      "EditorPosX" : 194.000000,
+      "AnimAsset" : "",
+      "AnimAssetType" : 2,
+      "BlendSpaceAsset" : "Data/Animation/BSH_Walk.blend2d",
+      "EditorPosX" : 324.000000,
       "EditorPosY" : 67.000000,
       "Loop" : true,
-      "Name" : "Walk"
+      "Name" : "State_0"
     }],
   "Transitions" : [{
-      "BlendTime" : 0.500000,
-      "Conditions" : [{
-          "Op" : 5,
-          "Param" : "Speed",
-          "Val" : 30.000000
-        }],
-      "From" : "Run",
-      "To" : "Walk"
-    }, {
-      "BlendTime" : 0.500000,
+      "BlendTime" : 0.200000,
       "Conditions" : [{
           "Op" : 2,
           "Param" : "Speed",
-          "Val" : 0.000000
+          "Val" : 0.100000
         }],
       "From" : "Idle",
-      "To" : "Walk"
+      "To" : "State_0"
     }, {
-      "BlendTime" : 0.500000,
+      "BlendTime" : 0.200000,
       "Conditions" : [{
-          "Op" : 5,
+          "Op" : 3,
           "Param" : "Speed",
-          "Val" : 0.000000
+          "Val" : 0.100000
         }],
-      "From" : "Walk",
+      "From" : "State_0",
       "To" : "Idle"
-    }, {
-      "BlendTime" : 0.500000,
-      "Conditions" : [{
-          "Op" : 2,
-          "Param" : "Speed",
-          "Val" : 30.000000
-        }],
-      "From" : "Walk",
-      "To" : "Run"
     }]
 }

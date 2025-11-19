@@ -22,7 +22,7 @@ void FAnimationRuntime::BlendTwoPosesTogether(
 	}
 
 	// 스켈레톤 호환성 체크
-	if (PoseA.Skeleton != PoseB.Skeleton)
+	if (PoseA.Skeleton->Bones.Num() != PoseB.Skeleton->Bones.Num())
 	{
 		// 다른 스켈레톤의 포즈는 블렌딩 불가
 		return;

@@ -5,13 +5,15 @@
 #include "AnimDataModel.h"
 #include "AnimInstance.h"
 #include "SkeletalMeshComponent.h"
+#include "BlendSpace2D.h"
+#include "AnimNode_BlendSpace2D.h"
 #include "Source/Runtime/Engine/GameFramework/Pawn.h"
 #include "Source/Runtime/Engine/GameFramework/Character.h"
 
 FAnimNode_StateMachine::FAnimNode_StateMachine()
 	: StateMachineAsset(nullptr), OwnerPawn(nullptr)
 	  , OwnerAnimInstance(nullptr), ActiveNode(nullptr), PreviousNode(nullptr)
-	  , bIsTransitioning(false), TransitionAlpha(0)
+	  , bIsInterruptedBlend(false), bIsTransitioning(false), TransitionAlpha(0)
 	  , CurrentTransitionDuration(0), CurrentAnimTime(0.0f), PreviousAnimTime(0.0f), PreviousFrameAnimTime(0.0f)
 {
 }
@@ -41,25 +43,60 @@ void FAnimNode_StateMachine::Update(float DeltaSeconds)
 {
 	if (!ActiveNode) return;
 
-	// 이전 프레임 시간 저장 (Notify 구간 판정용)
-	PreviousFrameAnimTime = CurrentAnimTime;
-
-	// 애니메이션 시간 갱신
-	CurrentAnimTime += DeltaSeconds;
-	if (ActiveNode->AnimationAsset && ActiveNode->bLoop)
+	// 현재 노드가 BlendSpace2D인 경우 노드 업데이트
+	if (ActiveNode->AnimAssetType == EAnimAssetType::BlendSpace2D && ActiveNode->BlendSpaceAsset)
 	{
-		// 루프 처리
-		float Length = ActiveNode->AnimationAsset->GetPlayLength();
-		if (Length > 0.f)
+		// AnimInstance에서 BlendSpace2D 파라미터 가져오기
+		if (OwnerAnimInstance)
 		{
-			CurrentAnimTime = fmod(CurrentAnimTime, Length);
+			UBlendSpace2D* BS = ActiveNode->BlendSpaceAsset;
+			float X = OwnerAnimInstance->GetFloat(FName(BS->XAxisName));
+			float Y = OwnerAnimInstance->GetFloat(FName(BS->YAxisName));
+
+			CurrentBlendSpaceNode.SetBlendParameter(FVector2D(X, Y));
+		}
+
+		CurrentBlendSpaceNode.Update(DeltaSeconds);
+	}
+	else if (ActiveNode->AnimAssetType == EAnimAssetType::AnimSequence)
+	{
+		// 이전 프레임 시간 저장 (Notify 구간 판정용)
+		PreviousFrameAnimTime = CurrentAnimTime;
+		// 애니메이션 시간 갱신
+		CurrentAnimTime += DeltaSeconds;
+		if (ActiveNode->AnimationAsset && ActiveNode->bLoop)
+		{
+			// 루프 처리
+			float Length = ActiveNode->AnimationAsset->GetPlayLength();
+			if (Length > 0.f)
+			{
+				CurrentAnimTime = fmod(CurrentAnimTime, Length);
+			}
 		}
 	}
 
-	// 블렌딩 중이라면 이전 애니메이션 시간도 갱신
+	// 블렌딩 중이라면 이전 애니메이션/BlendSpace도 갱신
 	if (bIsTransitioning)
 	{
-		PreviousAnimTime += DeltaSeconds;
+		if (PreviousNode && PreviousNode->AnimAssetType == EAnimAssetType::BlendSpace2D && PreviousNode->BlendSpaceAsset)
+		{
+			// AnimInstance에서 BlendSpace2D 파라미터 가져오기
+			if (OwnerAnimInstance)
+			{
+				UBlendSpace2D* BS = PreviousNode->BlendSpaceAsset;
+				float X = OwnerAnimInstance->GetFloat(FName(BS->XAxisName));
+				float Y = OwnerAnimInstance->GetFloat(FName(BS->YAxisName));
+
+				PreviousBlendSpaceNode.SetBlendParameter(FVector2D(X, Y));
+			}
+
+			PreviousBlendSpaceNode.Update(DeltaSeconds);
+		}
+		else
+		{
+			PreviousAnimTime += DeltaSeconds;
+		}
+
 		TransitionAlpha += DeltaSeconds / CurrentTransitionDuration;
 
 		if (TransitionAlpha >= 1.0f)
@@ -78,13 +115,34 @@ void FAnimNode_StateMachine::Update(float DeltaSeconds)
 }
 
 /**
+ * @brief 헬퍼: 노드에서 포즈 가져오기 (AnimSequence 또는 BlendSpace2D)
+ */
+static void GetPoseFromNode(const FAnimStateNode* Node, float Time, FPoseContext& OutPose, FAnimNode_BlendSpace2D* BlendSpaceNode)
+{
+	if (!Node) { return; }
+
+	if (Node->AnimAssetType == EAnimAssetType::AnimSequence && Node->AnimationAsset)
+	{
+		UAnimSequence* Anim = Node->AnimationAsset;
+		if (Anim->GetDataModel())
+		{
+			Anim->GetDataModel()->SetSkeleton(*OutPose.Skeleton);
+			FAnimationRuntime::GetPoseFromAnimSequence(Anim, Time, OutPose);
+		}
+	}
+	else if (Node->AnimAssetType == EAnimAssetType::BlendSpace2D && Node->BlendSpaceAsset && BlendSpaceNode)
+	{
+		// BlendSpace2D 노드를 통해 실제 블렌딩된 포즈 가져오기
+		BlendSpaceNode->Evaluate(OutPose);
+	}
+}
+
+/**
  * @brief 현재 포즈 평가
  */
 void FAnimNode_StateMachine::Evaluate(FPoseContext& OutPose)
 {
-	if (!ActiveNode) { return; }
-	UAnimSequence* CurrentAnim = ActiveNode->AnimationAsset;
-	CurrentAnim->GetDataModel()->SetSkeleton(*OutPose.Skeleton);
+    if (!ActiveNode) { return; }
 
 	// ==========================================
 	// 1. 타겟 포즈 계산
@@ -92,18 +150,13 @@ void FAnimNode_StateMachine::Evaluate(FPoseContext& OutPose)
 	FPoseContext TargetPose;
 	if (OutPose.Skeleton) { TargetPose.Initialize(OutPose.Skeleton); }
 	else { TargetPose.LocalSpacePose.SetNum(OutPose.LocalSpacePose.Num()); }
-
-	if (CurrentAnim)
-	{
-		FAnimationRuntime::GetPoseFromAnimSequence(CurrentAnim, CurrentAnimTime, TargetPose);
-	}
+	GetPoseFromNode(ActiveNode, CurrentAnimTime, TargetPose, &CurrentBlendSpaceNode);
 
 	// ==========================================
 	// 2. 블렌딩 처리
 	// ==========================================
 	if (!bIsTransitioning)
 	{
-		// 전환 중 아니면 타겟 포즈 그대로 사용
 		OutPose = TargetPose;
 	}
 	else
@@ -123,10 +176,9 @@ void FAnimNode_StateMachine::Evaluate(FPoseContext& OutPose)
 
 			SourcePose.LocalSpacePose = FrozenSnapshotPose;
 		}
-		else if (PreviousNode && PreviousNode->AnimationAsset)
+		else if (PreviousNode)
 		{
-			// 일반 블렌딩
-			FAnimationRuntime::GetPoseFromAnimSequence(PreviousNode->AnimationAsset, PreviousAnimTime, SourcePose);
+			GetPoseFromNode(PreviousNode, PreviousAnimTime, SourcePose, &PreviousBlendSpaceNode);
 		}
 
 		// Source -> Target 블렌딩
@@ -146,14 +198,32 @@ void FAnimNode_StateMachine::TransitionTo(FName NewStateName, float BlendTime)
 	const FAnimStateNode* NextNode = StateMachineAsset->FindNode(NewStateName);
 	if (!NextNode) { return; }
 
+	// 이전 상태 저장
+	PreviousStateName = CurrentStateName;
+	PreviousNode = ActiveNode;
+	PreviousAnimTime = CurrentAnimTime;
+
+	// 이전 BlendSpace2D 노드 백업 (블렌딩용)
+	if (ActiveNode && ActiveNode->AnimAssetType == EAnimAssetType::BlendSpace2D)
+	{
+		PreviousBlendSpaceNode = CurrentBlendSpaceNode;
+	}
+
+	// 새 상태로 전환
+	CurrentStateName = NewStateName;
+	ActiveNode = NextNode;
+	CurrentAnimTime = 0.0f;
+
+	// 새 상태가 BlendSpace2D라면 노드 초기화
+	if (NextNode->AnimAssetType == EAnimAssetType::BlendSpace2D && NextNode->BlendSpaceAsset)
+	{
+		CurrentBlendSpaceNode.SetBlendSpace(NextNode->BlendSpaceAsset);
+		CurrentBlendSpaceNode.Initialize(OwnerPawn);
+	}
+
 	// [Case 1: 인터럽트 발생] (이미 전환 중일 때)
 	if (bIsTransitioning)
 	{
-		// 목적지 변경
-		CurrentStateName = NewStateName;
-		ActiveNode = NextNode;
-		CurrentAnimTime = 0.0f;
-
 		FrozenSnapshotPose = LastFramePose;
 		bIsInterruptedBlend = true;
 
@@ -164,13 +234,6 @@ void FAnimNode_StateMachine::TransitionTo(FName NewStateName, float BlendTime)
 	// [Case 2: 일반 전환]
 	else
 	{
-		PreviousNode = ActiveNode;
-		PreviousAnimTime = CurrentAnimTime;
-
-		CurrentStateName = NewStateName;
-		ActiveNode = NextNode;
-		CurrentAnimTime = 0.0f;
-
 		// 일반 전환이므로 스냅샷 안 씀 (PreviousNode 애니메이션 사용)
 		bIsInterruptedBlend = false;
 

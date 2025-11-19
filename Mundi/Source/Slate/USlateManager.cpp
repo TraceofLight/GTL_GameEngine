@@ -242,8 +242,8 @@ void USlateManager::OpenBlendSpace2DEditor(UBlendSpace2D* BlendSpace)
     // 중앙에 적당한 크기로 열기
     const float toolbarHeight = 50.0f;
     const float availableHeight = Rect.GetHeight() - toolbarHeight;
-    const float w = 1200.0f;
-    const float h = 800.0f;
+    const float w = 1600.0f;  // 1200 -> 1600
+    const float h = 1000.0f;  // 800 -> 1000
     const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
     const float y = Rect.Top + toolbarHeight + (availableHeight - h) * 0.5f;
 

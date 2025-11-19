@@ -21,10 +21,10 @@ public:
 	void SetSkeleton(const FSkeleton& InSkeleton);
 
 private:
-	// 애니메이션 데이터
 	FSkeleton* Skeleton;                              // 이 애니메이션이 소유하는 스켈레톤 (복사본)
 
 public:
+	// 애니메이션 데이터
 	TArray<FBoneAnimationTrack> BoneAnimationTracks; // 본별 애니메이션 트랙
 	float PlayLength;                                 // 애니메이션 재생 시간 (초)
 	FFrameRate FrameRate;                            // 프레임레이트

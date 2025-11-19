@@ -294,3 +294,64 @@ FVector UAnimSequence::InterpolateScale(const TArray<FVector>& Keys, float Alpha
 
 	return FVector::Lerp(Keys[Frame0], Keys[Frame1], Alpha);
 }
+
+// ========================================
+// Sync Markers 구현
+// ========================================
+
+/**
+ * @brief Sync Marker 추가
+ */
+void UAnimSequence::AddSyncMarker(const FString& MarkerName, float Time)
+{
+	SyncMarkers.Add(FAnimSyncMarker(MarkerName, Time));
+
+	// 시간순으로 정렬
+	std::sort(SyncMarkers.begin(), SyncMarkers.end(),
+		[](const FAnimSyncMarker& A, const FAnimSyncMarker& B)
+		{
+			return A.Time < B.Time;
+		});
+}
+
+/**
+ * @brief Sync Marker 제거
+ */
+void UAnimSequence::RemoveSyncMarker(int32 Index)
+{
+	if (Index >= 0 && Index < SyncMarkers.Num())
+	{
+		SyncMarkers.RemoveAt(Index);
+	}
+}
+
+/**
+ * @brief 특정 이름의 Sync Marker 찾기
+ */
+const FAnimSyncMarker* UAnimSequence::FindSyncMarker(const FString& MarkerName) const
+{
+	for (const FAnimSyncMarker& Marker : SyncMarkers)
+	{
+		if (Marker.MarkerName == MarkerName)
+		{
+			return &Marker;
+		}
+	}
+	return nullptr;
+}
+
+/**
+ * @brief 주어진 시간 범위 내의 Sync Marker 찾기
+ */
+void UAnimSequence::FindSyncMarkersInRange(float StartTime, float EndTime, TArray<FAnimSyncMarker>& OutMarkers) const
+{
+	OutMarkers.Empty();
+
+	for (const FAnimSyncMarker& Marker : SyncMarkers)
+	{
+		if (Marker.Time >= StartTime && Marker.Time <= EndTime)
+		{
+			OutMarkers.Add(Marker);
+		}
+	}
+}

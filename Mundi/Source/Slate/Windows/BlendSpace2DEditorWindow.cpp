@@ -15,6 +15,56 @@
 #include"FViewportClient.h"
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
 #include "Math.h"
+#include <commdlg.h>  // Windows 파일 다이얼로그
+
+#include "PlatformProcess.h"
+
+// Helper function to get a clean display name from an animation sequence
+static FString GetDisplayNameForAnimation(UAnimSequence* InAnimation)
+{
+	if (!InAnimation)
+	{
+		return "None";
+	}
+
+	FString FilePath = InAnimation->GetFilePath();
+	FString DisplayName;
+
+	// FBX 파일에 여러 애니메이션 스택이 있는 경우 "FileName#StackName" 형식
+	size_t HashPos = FilePath.find('#');
+	if (HashPos != FString::npos)
+	{
+		FString FullPath = FilePath.substr(0, HashPos);
+		FString AnimStackName = FilePath.substr(HashPos + 1);
+
+		size_t LastSlash = FullPath.find_last_of("/\\");
+		FString FileName = (LastSlash != FString::npos) ? FullPath.substr(LastSlash + 1) : FullPath;
+
+		size_t DotPos = FileName.find_last_of('.');
+		if (DotPos != FString::npos)
+		{
+			FileName = FileName.substr(0, DotPos);
+		}
+
+		DisplayName = FileName + "#" + AnimStackName;
+	}
+	else
+	{
+		// 일반 파일 경로
+		size_t LastSlash = FilePath.find_last_of("/\\");
+		FString FileName = (LastSlash != FString::npos) ? FilePath.substr(LastSlash + 1) : FilePath;
+
+		size_t DotPos = FileName.find_last_of('.');
+		if (DotPos != FString::npos)
+		{
+			FileName = FileName.substr(0, DotPos);
+		}
+
+		DisplayName = FileName;
+	}
+
+	return DisplayName;
+}
 
 SBlendSpace2DEditorWindow::SBlendSpace2DEditorWindow()
 	: CanvasPos(ImVec2(0, 0))
@@ -77,6 +127,47 @@ void SBlendSpace2DEditorWindow::SetBlendSpace(UBlendSpace2D* InBlendSpace)
 	{
 		PreviewParameter.X = (EditingBlendSpace->XAxisMin + EditingBlendSpace->XAxisMax) * 0.5f;
 		PreviewParameter.Y = (EditingBlendSpace->YAxisMin + EditingBlendSpace->YAxisMax) * 0.5f;
+
+		// 저장된 스켈레톤 메시 경로가 있으면 자동으로 로드
+		if (!EditingBlendSpace->EditorSkeletalMeshPath.empty())
+		{
+			USkeletalMesh* SavedMesh = UResourceManager::GetInstance().Get<USkeletalMesh>(EditingBlendSpace->EditorSkeletalMeshPath);
+			if (SavedMesh)
+			{
+				// 애니메이션 목록 초기화
+				AvailableAnimations.clear();
+
+				// 스켈레톤 메시의 애니메이션 추가
+				const TArray<UAnimSequence*>& Animations = SavedMesh->GetAnimations();
+				for (UAnimSequence* Anim : Animations)
+				{
+					if (Anim)
+					{
+						AvailableAnimations.Add(Anim);
+					}
+				}
+
+				// 프리뷰 메시 설정
+				if (PreviewState && PreviewState->PreviewActor)
+				{
+					PreviewState->PreviewActor->SetSkeletalMesh(EditingBlendSpace->EditorSkeletalMeshPath);
+					PreviewState->CurrentMesh = SavedMesh;
+					if (auto* SkelComp = PreviewState->PreviewActor->GetSkeletalMeshComponent())
+					{
+						SkelComp->SetVisibility(true);
+					}
+				}
+
+				UE_LOG("Loaded %d animations from saved SkeletalMesh: %s",
+					Animations.Num(),
+					EditingBlendSpace->EditorSkeletalMeshPath.c_str());
+			}
+			else
+			{
+				UE_LOG("Warning: Failed to load saved SkeletalMesh: %s",
+					EditingBlendSpace->EditorSkeletalMeshPath.c_str());
+			}
+		}
 	}
 }
 
@@ -85,6 +176,15 @@ void SBlendSpace2DEditorWindow::OnRender()
 	if (!bIsOpen)
 	{
 		return;
+	}
+
+	// 첫 프레임에만 윈도우 크기 설정
+	static bool bFirstFrame = true;
+	if (bFirstFrame)
+	{
+		ImGui::SetNextWindowSize(ImVec2(1600.0f, 1000.0f), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowPos(ImVec2(160.0f, 90.0f), ImGuiCond_FirstUseEver);
+		bFirstFrame = false;
 	}
 
 	if (!EditingBlendSpace)
@@ -109,24 +209,49 @@ void SBlendSpace2DEditorWindow::OnRender()
 
 		// 전체 레이아웃 크기 계산
 		ImVec2 ContentRegion = ImGui::GetContentRegionAvail();
-		float TopHeight = ContentRegion.y * 0.6f;  // 상단 60%
-		float BottomHeight = ContentRegion.y * 0.4f; // 하단 40%
+		float TopHeight = ContentRegion.y * 0.55f;     // 상단 55%
+		float BottomHeight = ContentRegion.y * 0.43f;  // 하단 43%
 
-		// ===== 상단: 애니메이션 프리뷰 뷰포트 (60%) =====
+		// ===== 상단: 애니메이션 프리뷰 뷰포트 (55%) =====
 		ImGui::BeginChild("BlendSpace2DViewport", ImVec2(0, TopHeight), true, ImGuiWindowFlags_NoScrollbar);
 		{
 			RenderPreviewViewport();
 		}
 		ImGui::EndChild();
 
-		// ===== 하단: 그리드 에디터 + 애니메이션 리스트 (40%) =====
+		// ===== 하단: 3단 레이아웃 (Properties/Samples | Grid | Animations) (43%) =====
 		ImGui::BeginChild("BottomArea", ImVec2(0, BottomHeight), false, ImGuiWindowFlags_NoScrollbar);
 		{
-			float BottomLeftWidth = ContentRegion.x * 0.65f;  // 왼쪽 65%
-			float BottomRightWidth = ContentRegion.x * 0.35f; // 오른쪽 35%
+			float LeftPanelWidth = ContentRegion.x * 0.22f;    // 왼쪽 22%
+			float CenterPanelWidth = ContentRegion.x * 0.53f;  // 중앙 53%
+			float RightPanelWidth = ContentRegion.x * 0.23f;   // 오른쪽 23%
 
-			// 왼쪽: 2D 블렌드 그리드
-			ImGui::BeginChild("GridEditor", ImVec2(BottomLeftWidth, 0), true);
+			// 왼쪽: Properties (위) + Samples (아래)
+			ImGui::BeginChild("LeftPanel", ImVec2(LeftPanelWidth, 0), false, ImGuiWindowFlags_NoScrollbar);
+			{
+				float PropertiesHeight = BottomHeight * 0.48f;  // 위 48%
+				float SamplesHeight = BottomHeight * 0.48f;     // 아래 48%
+
+				// Properties (위)
+				ImGui::BeginChild("PropertiesPanel", ImVec2(0, PropertiesHeight), true);
+				{
+					RenderProperties();
+				}
+				ImGui::EndChild();
+
+				// Samples (아래)
+				ImGui::BeginChild("SamplesPanel", ImVec2(0, SamplesHeight), true);
+				{
+					RenderSampleList();
+				}
+				ImGui::EndChild();
+			}
+			ImGui::EndChild();
+
+			ImGui::SameLine();
+
+			// 중앙: 2D 블렌드 그리드
+			ImGui::BeginChild("GridEditor", ImVec2(CenterPanelWidth, 0), true);
 			{
 				RenderGridEditor();
 			}
@@ -135,7 +260,7 @@ void SBlendSpace2DEditorWindow::OnRender()
 			ImGui::SameLine();
 
 			// 오른쪽: 애니메이션 시퀀스 목록
-			ImGui::BeginChild("AnimationList", ImVec2(BottomRightWidth, 0), true);
+			ImGui::BeginChild("AnimationsPanel", ImVec2(RightPanelWidth, 0), true);
 			{
 				RenderAnimationList();
 			}
@@ -196,14 +321,13 @@ void SBlendSpace2DEditorWindow::RenderSamplePoints()
 		DrawList->AddCircle(ScreenPos, SamplePointRadius, IM_COL32(255, 255, 255, 255), 0, 2.0f);
 
 		// 샘플 이름 (애니메이션 이름)
-		if (Sample.Animation)
-		{
-			FString AnimName = Sample.Animation->GetName();
-			ImVec2 TextPos(ScreenPos.x + SamplePointRadius + 5, ScreenPos.y - 8);
-			DrawList->AddText(TextPos, IM_COL32(255, 255, 255, 255), AnimName.c_str());
-		}
+		FString DisplayName = GetDisplayNameForAnimation(Sample.Animation);
+
+		ImVec2 TextPos(ScreenPos.x + SamplePointRadius + 5, ScreenPos.y - 8);
+		DrawList->AddText(TextPos, IM_COL32(255, 255, 255, 255), DisplayName.c_str());
 	}
 }
+
 
 void SBlendSpace2DEditorWindow::RenderPreviewMarker()
 {
@@ -254,71 +378,206 @@ void SBlendSpace2DEditorWindow::RenderAxisLabels()
 	DrawList->AddText(YMaxPos, IM_COL32(200, 200, 200, 255), LabelMax);
 }
 
+/**
+ * @brief Delaunay 삼각분할 시각화
+ */
+void SBlendSpace2DEditorWindow::RenderTriangulation()
+{
+	if (!EditingBlendSpace)
+		return;
+
+	ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
+	// 삼각형 렌더링
+	for (const FBlendTriangle& Tri : EditingBlendSpace->Triangles)
+	{
+		if (!Tri.IsValid())
+			continue;
+
+		// 인덱스 유효성 검사
+		if (Tri.Index0 < 0 || Tri.Index0 >= EditingBlendSpace->GetNumSamples() ||
+			Tri.Index1 < 0 || Tri.Index1 >= EditingBlendSpace->GetNumSamples() ||
+			Tri.Index2 < 0 || Tri.Index2 >= EditingBlendSpace->GetNumSamples())
+		{
+			continue;
+		}
+
+		// 3개 정점의 화면 좌표
+		ImVec2 P0 = ParamToScreen(EditingBlendSpace->Samples[Tri.Index0].Position);
+		ImVec2 P1 = ParamToScreen(EditingBlendSpace->Samples[Tri.Index1].Position);
+		ImVec2 P2 = ParamToScreen(EditingBlendSpace->Samples[Tri.Index2].Position);
+
+		// 삼각형 경계선 (얇은 노란색)
+		ImU32 TriColor = IM_COL32(255, 255, 0, 100);  // 반투명 노란색
+		DrawList->AddLine(P0, P1, TriColor, 1.5f);
+		DrawList->AddLine(P1, P2, TriColor, 1.5f);
+		DrawList->AddLine(P2, P0, TriColor, 1.5f);
+
+		// 삼각형 내부 (매우 투명한 채우기 - 선택적)
+		// DrawList->AddTriangleFilled(P0, P1, P2, IM_COL32(255, 255, 0, 20));
+	}
+}
+
+void SBlendSpace2DEditorWindow::RenderSamplePoints_Enhanced(const TArray<int32>& InSampleIndices, const TArray<float>& InWeights)
+{
+	if (!EditingBlendSpace)
+		return;
+
+	ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
+	// 가중치 정보를 빠른 조회를 위해 맵으로 변환
+	TMap<int32, float> WeightMap;
+	for (int32 i = 0; i < InSampleIndices.Num(); ++i)
+	{
+		WeightMap.Add(InSampleIndices[i], InWeights[i]);
+	}
+
+	for (int32 i = 0; i < EditingBlendSpace->GetNumSamples(); ++i)
+	{
+		const FBlendSample& Sample = EditingBlendSpace->Samples[i];
+		ImVec2 ScreenPos = ParamToScreen(Sample.Position);
+
+		ImU32 Color = (i == SelectedSampleIndex) ? SelectedSampleColor : SampleColor;
+
+		// 샘플 포인트 (원)
+		DrawList->AddCircleFilled(ScreenPos, SamplePointRadius, Color);
+		DrawList->AddCircle(ScreenPos, SamplePointRadius, IM_COL32(255, 255, 255, 255), 0, 2.0f);
+
+		// 샘플 이름 (애니메이션 이름)
+		FString DisplayName = GetDisplayNameForAnimation(Sample.Animation);
+		ImVec2 TextPos(ScreenPos.x + SamplePointRadius + 5, ScreenPos.y - 8);
+		DrawList->AddText(TextPos, IM_COL32(255, 255, 255, 255), DisplayName.c_str());
+
+		// 블렌드 가중치 표시
+		if (WeightMap.Contains(i) && WeightMap[i] > 0.001f)
+		{
+			float Weight = WeightMap[i];
+			char WeightText[32];
+			sprintf_s(WeightText, "%.1f%%", Weight * 100.0f);
+
+			ImVec2 WeightTextSize = ImGui::CalcTextSize(WeightText);
+			ImVec2 WeightTextPos(ScreenPos.x - WeightTextSize.x * 0.5f, ScreenPos.y - SamplePointRadius - WeightTextSize.y - 2);
+
+			// 가중치가 클수록 텍스트를 더 밝게 표시
+			ImVec4 TextColor = ImVec4(0.8f, 1.0f, 0.8f, FMath::Lerp(0.5f, 1.0f, Weight));
+
+			DrawList->AddText(WeightTextPos, ImGui::ColorConvertFloat4ToU32(TextColor), WeightText);
+		}
+	}
+}
+
+void SBlendSpace2DEditorWindow::RenderTriangulation_Enhanced(int32 InActiveTriangle)
+{
+	if (!EditingBlendSpace)
+		return;
+
+	ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
+	// 삼각형 렌더링
+	for (int32 i = 0; i < EditingBlendSpace->Triangles.Num(); ++i)
+	{
+		const FBlendTriangle& Tri = EditingBlendSpace->Triangles[i];
+
+		if (!Tri.IsValid())
+			continue;
+
+		// 인덱스 유효성 검사
+		if (Tri.Index0 < 0 || Tri.Index0 >= EditingBlendSpace->GetNumSamples() ||
+			Tri.Index1 < 0 || Tri.Index1 >= EditingBlendSpace->GetNumSamples() ||
+			Tri.Index2 < 0 || Tri.Index2 >= EditingBlendSpace->GetNumSamples())
+		{
+			continue;
+		}
+
+		// 3개 정점의 화면 좌표
+		ImVec2 P0 = ParamToScreen(EditingBlendSpace->Samples[Tri.Index0].Position);
+		ImVec2 P1 = ParamToScreen(EditingBlendSpace->Samples[Tri.Index1].Position);
+		ImVec2 P2 = ParamToScreen(EditingBlendSpace->Samples[Tri.Index2].Position);
+
+		// 활성 삼각형인 경우 채우기 및 강조
+		if (i == InActiveTriangle)
+		{
+			DrawList->AddTriangleFilled(P0, P1, P2, IM_COL32(0, 255, 100, 40));
+			DrawList->AddLine(P0, P1, IM_COL32(150, 255, 150, 200), 2.0f);
+			DrawList->AddLine(P1, P2, IM_COL32(150, 255, 150, 200), 2.0f);
+			DrawList->AddLine(P2, P0, IM_COL32(150, 255, 150, 200), 2.0f);
+		}
+		else
+		{
+			// 삼각형 경계선 (기본 색상)
+			ImU32 TriColor = IM_COL32(255, 255, 0, 80);  // 반투명 노란색
+			DrawList->AddLine(P0, P1, TriColor, 1.0f);
+			DrawList->AddLine(P1, P2, TriColor, 1.0f);
+			DrawList->AddLine(P2, P0, TriColor, 1.0f);
+		}
+	}
+}
+
 void SBlendSpace2DEditorWindow::RenderToolbar()
 {
-	static char SavePath[256] = "Data/Blend/MyBlendSpace.blend2d";
-	static char LoadPath[256] = "Data/Blend/MyBlendSpace.blend2d";
-
 	// 저장 버튼
 	if (ImGui::Button("Save"))
 	{
 		if (EditingBlendSpace)
 		{
-			ImGui::OpenPopup("Save BlendSpace");
-		}
-	}
+			// Windows 파일 저장 다이얼로그
+			OPENFILENAMEA ofn;
+			char szFile[260] = { 0 };
+			ZeroMemory(&ofn, sizeof(ofn));
+			ofn.lStructSize = sizeof(ofn);
+			ofn.hwndOwner = NULL;
+			ofn.lpstrFile = szFile;
+			ofn.nMaxFile = sizeof(szFile);
+			ofn.lpstrFilter = "BlendSpace2D Files (*.blend2d)\0*.blend2d\0All Files (*.*)\0*.*\0";
+			ofn.nFilterIndex = 1;
+			ofn.lpstrFileTitle = NULL;
+			ofn.nMaxFileTitle = 0;
+			ofn.lpstrInitialDir = "Data\\Animation";
+			ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
+			ofn.lpstrDefExt = "blend2d";
 
-	// 저장 팝업
-	if (ImGui::BeginPopupModal("Save BlendSpace", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-	{
-		ImGui::Text("Save BlendSpace2D to file:");
-		ImGui::InputText("Path", SavePath, sizeof(SavePath));
-
-		if (ImGui::Button("Save", ImVec2(120, 0)))
-		{
-			if (EditingBlendSpace)
+			if (GetSaveFileNameA(&ofn) == TRUE)
 			{
-				EditingBlendSpace->SaveToFile(SavePath);
+				// 현재 프리뷰 상태 저장
+				EditingBlendSpace->EditorPreviewParameter = PreviewParameter;
+
+				// 현재 사용 중인 스켈레톤 메시 경로 저장
+				if (PreviewState && PreviewState->CurrentMesh)
+				{
+					EditingBlendSpace->EditorSkeletalMeshPath = PreviewState->CurrentMesh->GetFilePath();
+				}
+
+				EditingBlendSpace->SaveToFile(ofn.lpstrFile);
 			}
-			ImGui::CloseCurrentPopup();
 		}
-		ImGui::SameLine();
-		if (ImGui::Button("Cancel", ImVec2(120, 0)))
-		{
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
 	}
 
 	ImGui::SameLine();
-
 	// 로드 버튼
 	if (ImGui::Button("Load"))
 	{
-		ImGui::OpenPopup("Load BlendSpace");
-	}
+		const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/Animation";
+		const FWideString Extension = L".blend2d";
+		const FWideString Description = L"BlendSpace2D Files";
 
-	// 로드 팝업
-	if (ImGui::BeginPopupModal("Load BlendSpace", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-	{
-		ImGui::Text("Load BlendSpace2D from file:");
-		ImGui::InputText("Path", LoadPath, sizeof(LoadPath));
+		// 2. 플랫폼 공용 다이얼로그 호출 (SelectedPath는 ABSOLUTE PATH)
+		std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(BaseDir, Extension, Description);
 
-		if (ImGui::Button("Load", ImVec2(120, 0)))
+		if (!SelectedPath.empty())
 		{
-			UBlendSpace2D* LoadedBS = UBlendSpace2D::LoadFromFile(LoadPath);
+			FWideString AbsolutePath = SelectedPath.wstring();
+			FString FinalPathStr = ResolveAssetRelativePath(WideToUTF8(AbsolutePath), "");
+			UBlendSpace2D* LoadedBS = UBlendSpace2D::LoadFromFile(FinalPathStr);
+
 			if (LoadedBS)
 			{
 				SetBlendSpace(LoadedBS);
 			}
-			ImGui::CloseCurrentPopup();
+			else
+			{
+				UE_LOG("[Error] Failed to load BlendSpace2D: %S", AbsolutePath.c_str());
+			}
 		}
-		ImGui::SameLine();
-		if (ImGui::Button("Cancel", ImVec2(120, 0)))
-		{
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
 	}
 
 	ImGui::SameLine();
@@ -369,8 +628,10 @@ void SBlendSpace2DEditorWindow::RenderSampleList()
 	{
 		const FBlendSample& Sample = EditingBlendSpace->Samples[i];
 
+		// 헬퍼 함수를 사용하여 애니메이션 이름 가져오기
+		FString AnimName = GetDisplayNameForAnimation(Sample.Animation);
+
 		char Label[256];
-		FString AnimName = Sample.Animation ? Sample.Animation->GetName() : "None";
 		sprintf_s(Label, "[%d] %.1f, %.1f - %s",
 			i,
 			Sample.Position.X,
@@ -390,35 +651,151 @@ void SBlendSpace2DEditorWindow::RenderProperties()
 	if (!EditingBlendSpace)
 		return;
 
-	ImGui::Text("Blend Space Properties");
-	ImGui::Separator();
-
-	// 축 범위 편집
-	ImGui::InputFloat("X Min", &EditingBlendSpace->XAxisMin);
-	ImGui::InputFloat("X Max", &EditingBlendSpace->XAxisMax);
-	ImGui::InputFloat("Y Min", &EditingBlendSpace->YAxisMin);
-	ImGui::InputFloat("Y Max", &EditingBlendSpace->YAxisMax);
-
-	ImGui::Separator();
-
-	// 선택된 샘플 속성
+	// 선택된 샘플이 있으면 샘플 속성 표시
 	if (SelectedSampleIndex >= 0 && SelectedSampleIndex < EditingBlendSpace->GetNumSamples())
 	{
-		ImGui::Text("Selected Sample Properties");
+		ImGui::Text("Sample Properties [%d]", SelectedSampleIndex);
+		ImGui::Separator();
+
 		FBlendSample& Sample = EditingBlendSpace->Samples[SelectedSampleIndex];
 
-		ImGui::InputFloat("Position X", &Sample.Position.X);
-		ImGui::InputFloat("Position Y", &Sample.Position.Y);
+		// 위치
+		ImGui::Text("Position");
+		ImGui::InputFloat("X##SamplePosX", &Sample.Position.X);
+		ImGui::InputFloat("Y##SamplePosY", &Sample.Position.Y);
 
+		ImGui::Separator();
+
+		// RateScale (재생 속도 배율)
+		ImGui::Text("Playback");
+		ImGui::SliderFloat("Rate Scale", &Sample.RateScale, 0.1f, 3.0f, "%.2f");
+		ImGui::SameLine();
+		if (ImGui::Button("Reset##RateScale"))
+		{
+			Sample.RateScale = 1.0f;
+		}
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+			"Playback speed multiplier");
+
+		ImGui::Separator();
+
+		// 애니메이션 정보
+		ImGui::Text("Animation");
 		if (Sample.Animation)
 		{
-			ImGui::Text("Animation: %s", Sample.Animation->GetName().c_str());
+			ImGui::Text("Name: %s", Sample.Animation->GetName().c_str());
+
+			// Sync Markers 섹션
+			ImGui::Separator();
+			ImGui::Text("Sync Markers (%d)", Sample.Animation->GetSyncMarkers().Num());
+
+			// Sync Marker 목록
+			const TArray<FAnimSyncMarker>& Markers = Sample.Animation->GetSyncMarkers();
+			for (int32 m = 0; m < Markers.Num(); ++m)
+			{
+				const FAnimSyncMarker& Marker = Markers[m];
+				ImGui::Text("  [%d] %s @ %.3fs", m, Marker.MarkerName.c_str(), Marker.Time);
+
+				ImGui::SameLine();
+				char DeleteLabel[64];
+				sprintf_s(DeleteLabel, "X##Marker%d", m);
+				if (ImGui::SmallButton(DeleteLabel))
+				{
+					Sample.Animation->RemoveSyncMarker(m);
+				}
+			}
+
+			// Sync Marker 추가
+			static char MarkerNameBuffer[128] = "LeftFoot";
+			static float MarkerTime = 0.0f;
+
+			ImGui::Separator();
+			ImGui::Text("Add Sync Marker");
+			ImGui::InputText("Marker Name##AddMarker", MarkerNameBuffer, 128);
+			ImGui::InputFloat("Time (sec)##AddMarker", &MarkerTime, 0.1f, 1.0f, "%.3f");
+
+			if (ImGui::Button("Add Marker"))
+			{
+				Sample.Animation->AddSyncMarker(MarkerNameBuffer, MarkerTime);
+			}
+
+			ImGui::Separator();
+
+			ImGui::TextColored(ImVec4(0.7f, 0.9f, 0.7f, 1.0f),
+				"%s", Sample.Animation->GetName().c_str());
 			ImGui::Text("Duration: %.2fs", Sample.Animation->GetPlayLength());
+			ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f),
+				"Effective: %.2fs (with RateScale)",
+				Sample.Animation->GetPlayLength() / Sample.RateScale);
 		}
 		else
 		{
-			ImGui::Text("Animation: None");
+			ImGui::TextColored(ImVec4(0.8f, 0.4f, 0.4f, 1.0f), "No Animation");
 		}
+	}
+	else
+	{
+		// 샘플이 선택되지 않았으면 BlendSpace 전체 속성 표시
+		ImGui::Text("Blend Space Properties");
+		ImGui::Separator();
+
+		// 축 범위
+		ImGui::Text("Axis Ranges");
+		ImGui::InputFloat("X Min", &EditingBlendSpace->XAxisMin);
+		ImGui::InputFloat("X Max", &EditingBlendSpace->XAxisMax);
+		ImGui::InputFloat("Y Min", &EditingBlendSpace->YAxisMin);
+		ImGui::InputFloat("Y Max", &EditingBlendSpace->YAxisMax);
+
+		ImGui::Separator();
+
+		// 축별 블렌드 가중치
+		ImGui::Text("Axis Blend Weights");
+		ImGui::SliderFloat("X Weight", &EditingBlendSpace->XAxisBlendWeight, 0.1f, 3.0f, "%.2f");
+		ImGui::SliderFloat("Y Weight", &EditingBlendSpace->YAxisBlendWeight, 0.1f, 3.0f, "%.2f");
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+			"Higher = more important");
+
+		ImGui::Separator();
+
+		// Sync Group 설정
+		ImGui::Text("Sync Group");
+
+		// Sync Marker 사용 체크박스
+		ImGui::Checkbox("Use Sync Markers", &EditingBlendSpace->bUseSyncMarkers);
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+			"Sync animations using markers");
+
+		// Sync Group 이름
+		static char SyncGroupBuffer[128] = "Default";
+		if (EditingBlendSpace->SyncGroupName.length() < 128)
+		{
+			strcpy_s(SyncGroupBuffer, EditingBlendSpace->SyncGroupName.c_str());
+		}
+
+		if (ImGui::InputText("Group Name", SyncGroupBuffer, 128))
+		{
+			EditingBlendSpace->SyncGroupName = SyncGroupBuffer;
+		}
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+			"Animations in same group sync together");
+
+		ImGui::Separator();
+
+		// Delaunay 삼각분할 정보
+		ImGui::Text("Triangulation");
+		ImGui::Text("Triangles: %d", EditingBlendSpace->Triangles.Num());
+		if (ImGui::Button("Regenerate Triangulation"))
+		{
+			EditingBlendSpace->GenerateTriangulation();
+		}
+
+		ImGui::Separator();
+
+		// 통계
+		ImGui::Text("Statistics");
+		ImGui::Text("Total Samples: %d", EditingBlendSpace->GetNumSamples());
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+			"Select a sample to edit");
 	}
 }
 
@@ -545,6 +922,12 @@ void SBlendSpace2DEditorWindow::HandleMouseInput()
 	// 드래그 종료
 	if (ImGui::IsMouseReleased(0))
 	{
+		// 샘플 드래그가 끝났으면 삼각분할 재생성
+		if (bDraggingSample && EditingBlendSpace)
+		{
+			EditingBlendSpace->GenerateTriangulation();
+		}
+
 		bDraggingSample = false;
 		bDraggingPreviewMarker = false;
 	}
@@ -609,66 +992,37 @@ void SBlendSpace2DEditorWindow::RenderPreviewViewport()
 	ImGui::Text("Animation Preview");
 	ImGui::Separator();
 
-	// 뷰포트 렌더링 영역 (타임라인을 위해 하단 여백 확보)
-	float TimelineHeight = 120.0f;  // 타임라인 높이
-	ImGui::BeginChild("ViewportRenderArea", ImVec2(0, -(TimelineHeight + 10)), false, ImGuiWindowFlags_NoScrollbar);
-	ImVec2 childPos = ImGui::GetWindowPos();
-	ImVec2 childSize = ImGui::GetWindowSize();
-	ImVec2 rectMin = childPos;
-	ImVec2 rectMax(childPos.x + childSize.x, childPos.y + childSize.y);
+	// 전체 가용 영역 계산
+	ImVec2 ContentAvail = ImGui::GetContentRegionAvail();
+	float TimelineAndControlsHeight = 0.0f;  // 타임라인 컨트롤 높이 (파라미터 슬라이더 제거로 축소)
+	float ViewportHeight = ContentAvail.y - TimelineAndControlsHeight;
 
-	// 뷰포트 영역 저장 (SkeletalMeshViewer의 CenterRect와 동일)
-	PreviewViewportRect.Left = rectMin.x;
-	PreviewViewportRect.Top = rectMin.y;
-	PreviewViewportRect.Right = rectMax.x;
-	PreviewViewportRect.Bottom = rectMax.y;
-	PreviewViewportRect.UpdateMinMax();
+	// 뷰포트 렌더링 영역
+	ImGui::BeginChild("ViewportRenderArea", ImVec2(0, ViewportHeight), false, ImGuiWindowFlags_NoScrollbar);
+	{
+		ImVec2 childPos = ImGui::GetWindowPos();
+		ImVec2 childSize = ImGui::GetWindowSize();
+		ImVec2 rectMin = childPos;
+		ImVec2 rectMax(childPos.x + childSize.x, childPos.y + childSize.y);
 
+		// 뷰포트 영역 저장
+		PreviewViewportRect.Left = rectMin.x;
+		PreviewViewportRect.Top = rectMin.y;
+		PreviewViewportRect.Right = rectMax.x;
+		PreviewViewportRect.Bottom = rectMax.y;
+		PreviewViewportRect.UpdateMinMax();
+	}
 	ImGui::EndChild();
 
 	ImGui::Separator();
 
-	// 타임라인 렌더링
-	RenderTimelineControls();
-
-	// 재생/일시정지 버튼
-	if (bIsPlaying)
+	// 타임라인과 컨트롤 영역
+	ImGui::BeginChild("TimelineAndControls", ImVec2(0, TimelineAndControlsHeight), true);
 	{
-		if (ImGui::Button("Pause", ImVec2(80, 0)))
-		{
-			bIsPlaying = false;
-		}
+		// 타임라인 렌더링
+		RenderTimelineControls();
 	}
-	else
-	{
-		if (ImGui::Button("Play", ImVec2(80, 0)))
-		{
-			bIsPlaying = true;
-		}
-	}
-
-	ImGui::SameLine();
-
-	// 루프 토글
-	ImGui::Checkbox("Loop", &bLoopAnimation);
-
-	ImGui::SameLine();
-
-	// 재생 속도
-	ImGui::SetNextItemWidth(100);
-	ImGui::DragFloat("Speed", &PlaybackSpeed, 0.1f, 0.1f, 5.0f, "%.1fx");
-
-	ImGui::Spacing();
-
-	// 블렌드 파라미터 슬라이더
-	ImGui::SliderFloat("X Axis", &PreviewParameter.X,
-		EditingBlendSpace->XAxisMin,
-		EditingBlendSpace->XAxisMax);
-
-	// Y축 슬라이더를 별도로 (범위가 다를 수 있음)
-	ImGui::SliderFloat("Y Axis", &PreviewParameter.Y,
-		EditingBlendSpace->YAxisMin,
-		EditingBlendSpace->YAxisMax);
+	ImGui::EndChild();
 }
 
 /**
@@ -690,10 +1044,47 @@ void SBlendSpace2DEditorWindow::RenderGridEditor()
 
 	ImGui::Separator();
 
-	// 그리드 캔버스
+	// 그리드 캔버스 (전체 영역 사용 - 직사각형)
 	CanvasPos = ImGui::GetCursorScreenPos();
 	ImVec2 AvailableSize = ImGui::GetContentRegionAvail();
-	CanvasSize = ImVec2(FMath::Min(AvailableSize.x - 20, 500.0f), FMath::Min(AvailableSize.y - 20, 500.0f));
+
+	// 가용 영역 전체 사용 (정사각형 비율 유지 안 함)
+	CanvasSize = ImVec2(AvailableSize.x - 10, AvailableSize.y - 10);
+
+	// 현재 프리뷰 파라미터로 블렌딩 정보 가져오기
+	TArray<int32> CurrentSampleIndices;
+	TArray<float> CurrentWeights;
+	int32 ActiveTriangle = -1;
+
+	if (EditingBlendSpace && EditingBlendSpace->GetNumSamples() >= 3)
+	{
+		// 1. 블렌딩에 사용할 샘플과 가중치를 가져옵니다.
+		EditingBlendSpace->GetBlendWeights(PreviewParameter, CurrentSampleIndices, CurrentWeights);
+
+		// 2. 반환된 샘플 인덱스들을 사용하여 현재 활성 삼각형을 찾습니다.
+		if (CurrentSampleIndices.Num() > 0)
+		{
+			for (int32 i = 0; i < EditingBlendSpace->Triangles.Num(); ++i)
+			{
+				const FBlendTriangle& Tri = EditingBlendSpace->Triangles[i];
+
+				// GetBlendWeights는 3개의 샘플을 반환하는 것을 가정
+				if (CurrentSampleIndices.Num() == 3)
+				{
+					// 3개의 인덱스가 모두 삼각형의 정점과 일치하는지 확인
+					bool bHasV0 = (CurrentSampleIndices.Contains(Tri.Index0));
+					bool bHasV1 = (CurrentSampleIndices.Contains(Tri.Index1));
+					bool bHasV2 = (CurrentSampleIndices.Contains(Tri.Index2));
+
+					if (bHasV0 && bHasV1 && bHasV2)
+					{
+						ActiveTriangle = i;
+						break;
+					}
+				}
+			}
+		}
+	}
 
 	ImDrawList* DrawList = ImGui::GetWindowDrawList();
 
@@ -708,8 +1099,11 @@ void SBlendSpace2DEditorWindow::RenderGridEditor()
 	// 축 라벨 렌더링
 	RenderAxisLabels();
 
-	// 샘플 포인트 렌더링
-	RenderSamplePoints();
+	// Delaunay 삼각분할 렌더링 (활성 삼각형 전달)
+	RenderTriangulation_Enhanced(ActiveTriangle);
+
+	// 샘플 포인트 렌더링 (가중치 정보 전달)
+	RenderSamplePoints_Enhanced(CurrentSampleIndices, CurrentWeights);
 
 	// 프리뷰 마커 렌더링
 	RenderPreviewMarker();
@@ -862,6 +1256,12 @@ void SBlendSpace2DEditorWindow::RenderAnimationList()
 						}
 					}
 
+					// BlendSpace에 스켈레톤 메시 경로 저장
+					if (EditingBlendSpace)
+					{
+						EditingBlendSpace->EditorSkeletalMeshPath = Mesh->GetFilePath();
+					}
+
 					UE_LOG("Loaded %d animations from SkeletalMesh: %s", Animations.Num(), Mesh->GetName().c_str());
 				}
 			}
@@ -905,46 +1305,8 @@ void SBlendSpace2DEditorWindow::RenderAnimationList()
 
 			bool bIsSelected = (i == SelectedAnimationIndex);
 
-			// FilePath에서 "파일명#애니메이션이름" 형식으로 표시
-			FString FilePath = Anim->GetFilePath();
-			FString DisplayName;
-
-			size_t HashPos = FilePath.find('#');
-			if (HashPos != FString::npos)
-			{
-				FString FullPath = FilePath.substr(0, HashPos); // "path/to/file.fbx"
-				FString AnimStackName = FilePath.substr(HashPos + 1); // "AnimStackName"
-
-				// 파일명만 추출 (경로 제거)
-				size_t LastSlash = FullPath.find_last_of("/\\");
-				FString FileName;
-				if (LastSlash != FString::npos)
-				{
-					FileName = FullPath.substr(LastSlash + 1);
-				}
-				else
-				{
-					FileName = FullPath;
-				}
-
-				// 확장자 제거
-				size_t DotPos = FileName.find_last_of('.');
-				if (DotPos != FString::npos)
-				{
-					FileName = FileName.substr(0, DotPos);
-				}
-
-				DisplayName = FileName + "#" + AnimStackName;
-			}
-			else
-			{
-				// FilePath에 #이 없으면 GetName() 사용
-				DisplayName = Anim->GetName();
-				if (DisplayName.empty())
-				{
-					DisplayName = "Anim " + std::to_string(i);
-				}
-			}
+			// 헬퍼 함수를 사용하여 애니메이션 이름 가져오기
+			FString DisplayName = GetDisplayNameForAnimation(Anim);
 
 			// "애니메이션이름 (재생시간)" 형식으로 표시
 			char LabelBuffer[256];
@@ -1040,55 +1402,44 @@ void SBlendSpace2DEditorWindow::OnUpdate(float DeltaSeconds)
 
 			if (AnimInst)
 			{
-				// 재생 상태 동기화
-				if (bIsPlaying && !AnimInst->IsPlaying())
+				// BlendSpace2D 노드 설정
+				FAnimNode_BlendSpace2D* BlendNode = AnimInst->GetBlendSpace2DNode();
+				if (BlendNode)
 				{
-					AnimInst->ResumeAnimation();
-				}
-				else if (!bIsPlaying && AnimInst->IsPlaying())
-				{
-					AnimInst->StopAnimation();
-				}
-
-				// 재생 속도 동기화
-				if (FMath::Abs(AnimInst->GetPlayRate() - PlaybackSpeed) > 0.001f)
-				{
-					AnimInst->SetPlayRate(PlaybackSpeed);
-				}
-
-				// BlendSpace2D에서 블렌드 가중치 계산
-				TArray<int32> SampleIndices;
-				TArray<float> Weights;
-				EditingBlendSpace->GetBlendWeights(PreviewParameter, SampleIndices, Weights);
-
-				// 블렌딩된 애니메이션 재생
-				if (SampleIndices.Num() > 0)
-				{
-					// 현재는 가장 가중치가 높은 애니메이션만 재생 (단순화)
-					// TODO: 나중에 실제 블렌딩 구현
-					int32 MaxWeightIndex = 0;
-					float MaxWeight = 0.0f;
-					for (int32 i = 0; i < Weights.Num(); ++i)
+					// BlendSpace 설정 (최초 1회)
+					if (BlendNode->GetBlendSpace() != EditingBlendSpace)
 					{
-						if (Weights[i] > MaxWeight)
+						BlendNode->SetBlendSpace(EditingBlendSpace);
+						BlendNode->SetAutoCalculateParameter(false);  // 수동으로 파라미터 설정
+
+						// 첫 번째 유효한 샘플 애니메이션을 재생 (타임라인 표시용)
+						/*for (int32 i = 0; i < EditingBlendSpace->GetNumSamples(); ++i)
 						{
-							MaxWeight = Weights[i];
-							MaxWeightIndex = i;
-						}
+							if (EditingBlendSpace->Samples[i].Animation)
+							{
+								AnimInst->PlayAnimation(EditingBlendSpace->Samples[i].Animation, PlaybackSpeed);
+								break;
+							}
+						}*/
 					}
 
-					int32 BestSampleIndex = SampleIndices[MaxWeightIndex];
-					if (BestSampleIndex >= 0 && BestSampleIndex < EditingBlendSpace->Samples.Num())
-					{
-						UAnimSequence* TargetAnim = EditingBlendSpace->Samples[BestSampleIndex].Animation;
-						if (TargetAnim && AnimInst->GetCurrentAnimation() != TargetAnim)
-						{
-							AnimInst->PlayAnimation(TargetAnim, PlaybackSpeed);
-						}
-					}
+					// 현재 PreviewParameter 설정
+					BlendNode->SetBlendParameter(PreviewParameter);
+
+					// 참고: Update()와 Evaluate()는 SkeletalMeshComponent::TickComponent()에서 자동 호출됨 (Unreal 방식)
 				}
 			}
 		}
+	}
+
+	// PlaybackSpeed를 World TimeDilation으로 적용 (Unreal Engine 방식)
+	if (bIsPlaying)
+	{
+		PreviewState->World->SetTimeDilation(PlaybackSpeed) ;
+	}
+	else
+	{
+		PreviewState->World->SetTimeDilation(PlaybackSpeed);  // 일시정지
 	}
 
 	// PreviewWorld 업데이트 (SkeletalMeshViewer와 동일)
@@ -1170,7 +1521,7 @@ void SBlendSpace2DEditorWindow::RenderTimelineControls()
 		USkeletalMeshComponent* SkelComp = PreviewState->PreviewActor->GetSkeletalMeshComponent();
 		if (SkelComp)
 		{
-			UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+			UAnimInstance* AnimInst = SkelComp->GetAnimInstance(); for (int32 i = 0; i < EditingBlendSpace->GetNumSamples(); ++i)
 			if (AnimInst)
 			{
 				UAnimSequenceBase* AnimBase = AnimInst->GetCurrentAnimation();
@@ -1179,13 +1530,12 @@ void SBlendSpace2DEditorWindow::RenderTimelineControls()
 		}
 	}
 
-	if (!CurrentAnimation)
+	UAnimDataModel* DataModel = nullptr;
+	if (CurrentAnimation)
 	{
-		ImGui::TextDisabled("No animation playing");
-		return;
+		DataModel = CurrentAnimation->GetDataModel();
 	}
 
-	UAnimDataModel* DataModel = CurrentAnimation->GetDataModel();
 	if (!DataModel)
 	{
 		return;
@@ -1195,13 +1545,12 @@ void SBlendSpace2DEditorWindow::RenderTimelineControls()
 	int32 TotalFrames = DataModel->GetNumberOfFrames();
 
 	// === Timeline 렌더링 영역 ===
-	ImGui::BeginChild("TimelineArea", ImVec2(0, -40), true);
+	float TimelineAreaHeight = 100.0f;
+	ImGui::BeginChild("TimelineArea", ImVec2(0, TimelineAreaHeight), true, ImGuiWindowFlags_NoScrollbar);
 	{
 		RenderTimeline();
 	}
 	ImGui::EndChild();
-
-	ImGui::Separator();
 
 	// === 재생 컨트롤 버튼들 ===
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 2));
@@ -1441,6 +1790,7 @@ void SBlendSpace2DEditorWindow::RenderTimeline()
 
 	if (!CurrentAnimation)
 	{
+		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No animation playing");
 		return;
 	}
 
@@ -1492,13 +1842,33 @@ void SBlendSpace2DEditorWindow::RenderTimeline()
 		float NormalizedX = (FrameTime - StartTime) / (EndTime - StartTime);
 		float ScreenX = ScrollTimelineMin.x + NormalizedX * ScrollTimelineWidth;
 
+		// 메이저/마이너 그리드 구분
+		bool bIsMajor = (FrameIndex % 10 == 0);
+		ImU32 LineColor = bIsMajor ? IM_COL32(100, 100, 100, 255) : IM_COL32(60, 60, 60, 255);
+		float LineThickness = bIsMajor ? 1.5f : 1.0f;
+
 		DrawList->AddLine(
 			ImVec2(ScreenX, ScrollTimelineMin.y),
 			ImVec2(ScreenX, ScrollTimelineMax.y),
-			IM_COL32(70, 70, 70, 255),
-			1.0f
+			LineColor,
+			LineThickness
 		);
 	}
+
+	// 현재 시간 표시 (하단)
+	char TimeText[64];
+	sprintf_s(TimeText, "%.2fs / %.2fs", CurrentAnimationTime, MaxTime);
+	ImVec2 TimeTextSize = ImGui::CalcTextSize(TimeText);
+	ImVec2 TimeTextPos = ImVec2(
+		ScrollTimelineMin.x + 5,
+		ScrollTimelineMax.y - TimeTextSize.y - 5
+	);
+	DrawList->AddRectFilled(
+		ImVec2(TimeTextPos.x - 2, TimeTextPos.y - 2),
+		ImVec2(TimeTextPos.x + TimeTextSize.x + 2, TimeTextPos.y + TimeTextSize.y + 2),
+		IM_COL32(0, 0, 0, 180)
+	);
+	DrawList->AddText(TimeTextPos, IM_COL32(255, 255, 255, 255), TimeText);
 
 	// Playhead 렌더링 (빨간 세로 바)
 	DrawTimelinePlayhead(DrawList, ScrollTimelineMin, ScrollTimelineMax, CurrentAnimationTime, StartTime, EndTime);

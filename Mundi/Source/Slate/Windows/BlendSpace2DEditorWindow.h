@@ -76,8 +76,11 @@ private:
 
 	void RenderGrid();
 	void RenderSamplePoints();
+	void RenderSamplePoints_Enhanced(const TArray<int32>& InSampleIndices, const TArray<float>& InWeights);
 	void RenderPreviewMarker();
 	void RenderAxisLabels();
+	void RenderTriangulation();  // Delaunay 삼각분할 시각화
+	void RenderTriangulation_Enhanced(int32 InActiveTriangle);
 	void RenderToolbar();
 	void RenderSampleList();
 	void RenderProperties();

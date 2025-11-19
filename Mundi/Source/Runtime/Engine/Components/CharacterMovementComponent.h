@@ -58,32 +58,32 @@ public:
 	// 이동 설정
 	// ────────────────────────────────────────────────
 
-	/** 최대 걷기 속도 (cm/s) */
+	UPROPERTY(EditAnywhere, Category="[이동]", Tooltip="최대 걷기 속도 (cm/s)")
 	float MaxWalkSpeed;
 
-	/** 최대 가속도 (cm/s²) */
+	UPROPERTY(EditAnywhere, Category="[이동]", Tooltip="최대 가속도 (cm/s²)")
 	float MaxAcceleration;
 
-	/** 마찰력 (감속) */
+	UPROPERTY(EditAnywhere, Category="[이동]", Tooltip="마찰력 (감속)")
 	float GroundFriction;
 
-	/** 공중 제어력 (0.0 ~ 1.0) */
+	UPROPERTY(EditAnywhere, Category="[이동]", Tooltip="공중 제어력 (0.0 ~ 1.0)")
 	float AirControl;
 
-	/** 제동력 (급정지 시) */
-	float BrakingDeceleration;
+	UPROPERTY(EditAnywhere, Category="[이동]", Tooltip="제동력 (급정지 시)")
+	float BreakingDeceleration;
 
 	// ────────────────────────────────────────────────
 	// 중력 설정
 	// ────────────────────────────────────────────────
 
-	/** 중력 가속도 (cm/s², 음수 = 아래로) */
+	UPROPERTY(EditAnywhere, Category="[중력]", Tooltip="중력 가속도 스케일 (cm/s², 음수 = 아래로)")
 	float GravityScale;
 
 	/** 기본 중력 (-980 cm/s² ≈ -9.8 m/s²) */
 	static constexpr float DefaultGravity = 980.0f;
 
-	/** 중력 방향 벡터 (정규화된 방향, 기본값: 아래) */
+	UPROPERTY(EditAnywhere, Category="[중력]", Tooltip="중력 방향 벡터 (정규화된 방향, 기본값: 아래)")
 	FVector GravityDirection;
 
 	/**
@@ -101,13 +101,13 @@ public:
 	// 점프 설정
 	// ────────────────────────────────────────────────
 
-	/** 점프 초기 속도 (cm/s) */
+	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="점프 초기 속도 (cm/s)")
 	float JumpZVelocity;
 
-	/** 공중에 있을 수 있는 최대 시간 (초) */
+	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="공중에 있을 수 있는 최대 시간 (초)")
 	float MaxAirTime;
 
-	/** 점프 가능 여부 */
+	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="점프 가능 여부")
 	bool bCanJump;
 
 	// ────────────────────────────────────────────────

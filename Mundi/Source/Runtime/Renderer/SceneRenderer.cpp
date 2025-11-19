@@ -258,6 +258,13 @@ void FSceneRenderer::RenderShadowMaps()
 			MeshComponent->CollectMeshBatches(ShadowMeshBatches, View);
 		}
 	}
+	for (UMeshComponent* MeshComponent : Proxies.SkinnedMeshes)
+	{
+		if (MeshComponent && MeshComponent->IsCastShadows() && MeshComponent->IsVisible())
+		{
+			MeshComponent->CollectMeshBatches(ShadowMeshBatches, View);
+		}
+	}
 
 	// NOTE: 카메라 오버라이드 기능을 항상 활성화 하기 위해서 그림자를 그릴 곳이 없어도 함수 실행
 	//if (ShadowMeshBatches.IsEmpty()) return;
@@ -467,6 +474,10 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 	FShaderVariant* ShaderVariant = DepthVS->GetOrCompileShaderVariant();
 	if (!ShaderVariant) return;
 
+	TArray<FShaderMacro> ShaderMacros({{"GPU_SKINNING", "1"}});
+	FShaderVariant* SkinningShaderVariant = DepthVS->GetOrCompileShaderVariant(ShaderMacros);
+	if (!SkinningShaderVariant) return;
+
 	// vsm용 픽셀 셰이더
 	UShader* DepthPs = UResourceManager::GetInstance().Load<UShader>("Shaders/Shadows/DepthOnly_PS.hlsl");
 	if (!DepthPs || !DepthPs->GetPixelShader()) return;
@@ -506,7 +517,28 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 
 	for (const FMeshBatchElement& Batch : InShadowBatches)
 	{
-		// 셰이더/픽셀 상태 변경 불필요
+		if (Batch.SkinningMatrices)
+		{
+			TIME_PROFILE(SKINNING_CPU_TASK)
+			RHIDevice->GetDeviceContext()->IASetInputLayout(SkinningShaderVariant->InputLayout);
+			RHIDevice->GetDeviceContext()->VSSetShader(SkinningShaderVariant->VertexShader, nullptr, 0);
+
+			void* pMatrixData = (void*)Batch.SkinningMatrices->GetData();
+			size_t MatrixDataSize = Batch.SkinningMatrices->Num() * sizeof(FMatrix);
+
+			constexpr size_t MaxCBufferSize = sizeof(FSkinningBuffer); // 16384
+			if (MatrixDataSize > MaxCBufferSize)
+			{
+				MatrixDataSize = MaxCBufferSize;
+			}
+
+			RHIDevice->SetAndUpdateConstantBuffer_Pointer_FSkinningBuffer(pMatrixData, MatrixDataSize);
+		}
+		else
+		{
+			RHIDevice->GetDeviceContext()->IASetInputLayout(ShaderVariant->InputLayout);
+			RHIDevice->GetDeviceContext()->VSSetShader(ShaderVariant->VertexShader, nullptr, 0);
+		}
 
 		// IA 상태 변경
 		if (Batch.VertexBuffer != CurrentVertexBuffer ||

@@ -492,6 +492,7 @@ void UResourceManager::InitShaderILMap()
 
 	layout.Add({ "BLENDINDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT, 0, 64, D3D11_INPUT_PER_VERTEX_DATA, 0 });
 	layout.Add({ "BLENDWEIGHTS", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 80, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+	ShaderToInputLayoutMap["Shaders/Shadows/DepthOnly_VS.hlsl#GPU_SKINNING"] = layout;
 	ShaderToInputLayoutMap["Shaders/Materials/UberLit.hlsl#GPU_SKINNING"] = layout;
     layout.clear();
 

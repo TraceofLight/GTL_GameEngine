@@ -1,0 +1,13 @@
+{
+  "EntryState" : "State_0",
+  "Nodes" : [{
+      "AnimAsset" : "Data/Animation/BSH_Walk Backward.fbx#mixamo.com",
+      "AnimAssetType" : 1,
+      "BlendSpaceAsset" : "",
+      "EditorPosX" : 150.000000,
+      "EditorPosY" : 150.000000,
+      "Loop" : true,
+      "Name" : "State_0"
+    }],
+  "Transitions" : []
+}

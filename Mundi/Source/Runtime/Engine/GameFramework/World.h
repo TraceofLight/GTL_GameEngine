@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Object.h"
 #include "Enums.h"
 #include "RenderSettings.h"
@@ -146,6 +146,7 @@ public:
     void RequestHitStop(float Duration ,float Dilation = 0.0f); 
     void RequestSlomo(float Duration, float Dilation = 0.0f);
 
+	void SetTimeDilation(float NewDilation) { TimeDilation = NewDilation; }
 private:
     bool DestroyActor(AActor* Actor);   // 즉시 삭제
 

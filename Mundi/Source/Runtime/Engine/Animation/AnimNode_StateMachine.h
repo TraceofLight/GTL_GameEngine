@@ -2,6 +2,7 @@
 
 #include "AnimStateMachine.h"
 #include "PoseContext.h"
+#include "AnimNode_BlendSpace2D.h"
 
 class APawn;
 class ACharacter;
@@ -128,11 +129,14 @@ protected:
 	float PreviousAnimTime; // 이전 상태 재생 시간 (블렌딩용)
 	float PreviousFrameAnimTime; // 이전 프레임의 CurrentAnimTime (Notify 구간 판정용)
 
-// ===== 내부 로직 =====
+	// ===== BlendSpace2D 노드 (각 상태마다 하나씩) =====
+	FAnimNode_BlendSpace2D CurrentBlendSpaceNode;  // 현재 상태의 BlendSpace2D 노드
+	FAnimNode_BlendSpace2D PreviousBlendSpaceNode; // 이전 상태의 BlendSpace2D 노드 (블렌딩용)
+
 protected:
 	/**
 	 * @brief 트랜지션 조건 검사
-	 * * 현재 노드의 Transitions 배열을 순회하며 조건 만족 시 이동
+	 * * 현재 노드의 Transitions 배열을 순회하며 조건 만족dpd 시 이동
 	 */
 	void CheckTransitions();
 

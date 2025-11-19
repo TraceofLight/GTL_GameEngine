@@ -33,7 +33,7 @@ UCharacterMovementComponent::UCharacterMovementComponent()
 	, MaxAcceleration(15.0f)        // 4.0 m/s²
 	, GroundFriction(8.0f)
 	, AirControl(0.05f)
-	, BrakingDeceleration(20.48f)
+	, BreakingDeceleration(20.48f)
 	// 중력 설정
 	, GravityScale(1.0f)
 	, GravityDirection(0.0f, 0.0f, -1.0f) // 기본값: 아래 방향
@@ -76,7 +76,7 @@ void UCharacterMovementComponent::TickComponent(float DeltaTime)
 	//	{
 	//		return;
 	//	}
-	//} 
+	//}
 	if (!CharacterOwner)
 	{
 		return;
@@ -216,70 +216,77 @@ void UCharacterMovementComponent::SetMovementMode(EMovementMode NewMode)
 
 void UCharacterMovementComponent::UpdateVelocity(float DeltaTime)
 {
-	// 회전 중에는 입력 처리 안 함
-	if (bIsRotating)
-	{
-		return;
-	}
+    float VerticalSpeed = FVector::Dot(Velocity, GravityDirection);
+    FVector HorizontalVelocity = Velocity - (GravityDirection * VerticalSpeed);
 
-	if (PendingInputVector.SizeSquared() > 0.0f)
-	{
-		// 입력이 있으면 가속
-		FVector InputDirection = PendingInputVector.GetNormalized();
-		float CurrentControl = IsGrounded() ? 1.0f : AirControl;
-		float AccelRate = MaxAcceleration * CurrentControl;
+    // 입력 벡터 처리 (회전 중이면 입력 무시)
+    FVector InputVector = (bIsRotating) ? FVector::Zero() : PendingInputVector;
 
-		// 목표 속도
-		FVector TargetVelocity = InputDirection * MaxWalkSpeed;
+    // 입력이 있는 경우 (가속)
+    if (InputVector.SizeSquared() > 0.0f)
+    {
+        FVector InputDirection = InputVector.GetNormalized();
 
-		// 중력 방향에 수직인 평면으로 속도 분리
-		float VerticalSpeed = FVector::Dot(Velocity, GravityDirection);
-		FVector HorizontalVelocity = Velocity - (GravityDirection * VerticalSpeed);
+        // 공중/지상에 따른 제어력 및 가속도 설정
+        float CurrentControl = IsGrounded() ? 1.0f : AirControl;
+        float AccelRate = MaxAcceleration * CurrentControl;
 
-		float TargetVerticalSpeed = FVector::Dot(TargetVelocity, GravityDirection);
-		FVector HorizontalTarget = TargetVelocity - (GravityDirection * TargetVerticalSpeed);
+        // 목표 속도
+        FVector TargetVelocity = InputDirection * MaxWalkSpeed;
 
-		// 가속도 적용
-		FVector Delta = HorizontalTarget - HorizontalVelocity;
-		float DeltaSize = Delta.Size();
+        // 목표 속도도 수평 성분만 추출 (Input이 중력 방향을 포함할 수도 있으므로 안전장치)
+        float TargetVertical = FVector::Dot(TargetVelocity, GravityDirection);
+        FVector HorizontalTarget = TargetVelocity - (GravityDirection * TargetVertical);
 
-		if (DeltaSize > 0.0f)
-		{
-			FVector AccelDir = Delta / DeltaSize;
-			float AccelAmount = FMath::Min(DeltaSize, AccelRate * DeltaTime);
+        // 가속 적용 (목표 속도를 향해 보간)
+        FVector Delta = HorizontalTarget - HorizontalVelocity;
+        float DeltaSize = Delta.Size();
 
-			HorizontalVelocity += AccelDir * AccelAmount;
-		}
+        if (DeltaSize > 0.0f)
+        {
+            FVector AccelDir = Delta / DeltaSize;
+            // DeltaTime 동안 가속할 수 있는 양만큼만 가속 (오버슈팅 방지)
+            float AccelAmount = FMath::Min(DeltaSize, AccelRate * DeltaTime);
 
-		// 최대 속도 제한
-		if (HorizontalVelocity.Size() > MaxWalkSpeed)
-		{
-			HorizontalVelocity = HorizontalVelocity.GetNormalized() * MaxWalkSpeed;
-		}
+            HorizontalVelocity += AccelDir * AccelAmount;
+        }
 
-		// 수평 속도와 수직 속도 결합
-		Velocity = HorizontalVelocity + (GravityDirection * VerticalSpeed);
-	}
-	else if (IsGrounded())
-	{
-		// 입력이 없으면 마찰 적용 (지면에서만)
-		// 중력 방향에 수직인 속도 성분만 추출
-		float VerticalSpeed = FVector::Dot(Velocity, GravityDirection);
-		FVector HorizontalVelocity = Velocity - (GravityDirection * VerticalSpeed);
-		float CurrentSpeed = HorizontalVelocity.Size();
+        // 최대 속도 제한
+        if (HorizontalVelocity.SizeSquared() > (MaxWalkSpeed * MaxWalkSpeed))
+        {
+            HorizontalVelocity = HorizontalVelocity.GetNormalized() * MaxWalkSpeed;
+        }
+    }
+    // 입력이 없는 경우 (감속/마찰)
+    else
+    {
+        float CurrentSpeed = HorizontalVelocity.Size();
 
-		if (CurrentSpeed > 0.0f)
-		{
-			float FrictionAmount = GroundFriction * BrakingDeceleration * DeltaTime;
-			float NewSpeed = FMath::Max(0.0f, CurrentSpeed - FrictionAmount);
-			float SpeedRatio = NewSpeed / CurrentSpeed;
+        if (CurrentSpeed > 0.0f)
+        {
+            float DecelAmount;
+            if (IsGrounded())
+            {
+                // 지상: 마찰력 * 제동력 (Friction이 높으면 더 빨리 멈춤)
+                DecelAmount = BreakingDeceleration * FMath::Max(1.0f, GroundFriction) * DeltaTime;
+            }
+            else
+            {
+                // 공중
+                DecelAmount = AirControl * DeltaTime;
+            }
 
-			HorizontalVelocity *= SpeedRatio;
-		}
+            // 선형 감속 적용 (속도를 0 이하로 떨어뜨리지 않음)
+            float NewSpeed = FMath::Max(0.0f, CurrentSpeed - DecelAmount);
 
-		// 수평 속도와 수직 속도 결합
-		Velocity = HorizontalVelocity + (GravityDirection * VerticalSpeed);
-	}
+            // 벡터 길이 조절
+            HorizontalVelocity = HorizontalVelocity * (NewSpeed / CurrentSpeed);
+        }
+    }
+
+    // 3. 최종 속도 재조립 (수직 속도는 건드리지 않고 그대로 붙임)
+    // 참고: 중력 가속도는 보통 ApplyGravity() 같은 별도 함수에서 VerticalSpeed를 갱신해줘야 함
+    Velocity = HorizontalVelocity + (GravityDirection * VerticalSpeed);
 }
 
 void UCharacterMovementComponent::ApplyGravity(float DeltaTime)

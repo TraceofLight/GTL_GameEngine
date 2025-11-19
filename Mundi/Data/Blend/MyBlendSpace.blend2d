@@ -1,9 +1,43 @@
 {
-  "SampleCount" : 0,
-  "XAxisMax" : 400.000000,
+  "EditorPreviewParameterX" : 100.000000,
+  "EditorPreviewParameterY" : 0.000000,
+  "EditorSkeletalMeshPath" : "Data/X Bot.fbx",
+  "SampleCount" : 3,
+  "Sample_0" : {
+    "AnimationPath" : "Data/Animation/XBOT_Walking.fbx#mixamo.com",
+    "PositionX" : 150.000000,
+    "PositionY" : -85.714279,
+    "RateScale" : 1.000000,
+    "SyncMarkerCount" : 0
+  },
+  "Sample_1" : {
+    "AnimationPath" : "Data/Animation/XBOT_Idle.fbx#mixamo.com",
+    "PositionX" : 42.876526,
+    "PositionY" : -83.265305,
+    "RateScale" : 1.000000,
+    "SyncMarkerCount" : 0
+  },
+  "Sample_2" : {
+    "AnimationPath" : "Data/Animation/XBOT_Slow Run.fbx#mixamo.com",
+    "PositionX" : 100.000000,
+    "PositionY" : 30.000000,
+    "RateScale" : 1.000000,
+    "SyncMarkerCount" : 0
+  },
+  "SyncGroupName" : "Default",
+  "TriangleCount" : 1,
+  "Triangle_0" : {
+    "Index0" : 1,
+    "Index1" : 0,
+    "Index2" : 2
+  },
+  "XAxisBlendWeight" : 1.000000,
+  "XAxisMax" : 200.000000,
   "XAxisMin" : 0.000000,
   "XAxisName" : "Speed",
+  "YAxisBlendWeight" : 1.000000,
   "YAxisMax" : 180.000000,
   "YAxisMin" : -180.000000,
-  "YAxisName" : "Direction"
+  "YAxisName" : "Direction",
+  "bUseSyncMarkers" : false
 }

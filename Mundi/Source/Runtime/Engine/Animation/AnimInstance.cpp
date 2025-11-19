@@ -407,3 +407,19 @@ void UAnimInstance::SetBlendSpace2D(UBlendSpace2D* InBlendSpace)
 		}
 	}
 }
+
+/**
+ * @brief BlendSpace2D 파라미터 설정 (Lua에서 호출)
+ */
+void UAnimInstance::SetBlendSpace2DParameter(float X, float Y)
+{
+	BlendSpace2DNode.SetBlendParameter(FVector2D(X, Y));
+}
+
+/**
+ * @brief BlendSpace2D 자동 파라미터 계산 활성화/비활성화 (Lua에서 호출)
+ */
+void UAnimInstance::SetBlendSpace2DAutoCalculate(bool bEnable)
+{
+	BlendSpace2DNode.SetAutoCalculateParameter(bEnable);
+}

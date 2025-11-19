@@ -139,7 +139,7 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
 {
     Super::TickComponent(DeltaTime);
 
-    // Animation 인스턴스 업데이트
+    // Animation 인스턴스 업데이트 (Unreal Engine 방식)
     if (AnimInstance)
     {
         // BlendSpace2D 노드 우선 체크 (더 우선순위가 높음)
@@ -151,19 +151,20 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
 
             // BlendSpace2D에서 계산된 포즈를 가져와 적용
             FPoseContext PoseContext;
-            PoseContext.LocalSpacePose.SetNum(CurrentLocalSpacePose.Num());
+
+            // Skeleton으로 PoseContext 초기화
+            if (SkeletalMesh && SkeletalMesh->GetSkeleton())
+            {
+                PoseContext.Initialize(SkeletalMesh->GetSkeleton());
+            }
+
             BlendSpace2DNode->Evaluate(PoseContext);
 
-            // 계산된 포즈를 CurrentLocalSpacePose에 적용
-            if (PoseContext.GetNumBones() == CurrentLocalSpacePose.Num())
+            // 계산된 포즈 적용
+            if (PoseContext.IsValid())
             {
-                for (int32 BoneIdx = 0; BoneIdx < PoseContext.GetNumBones(); ++BoneIdx)
-                {
-                    CurrentLocalSpacePose[BoneIdx] = PoseContext.LocalSpacePose[BoneIdx];
-                }
-
-                // 포즈 재계산 강제
-                ForceRecomputePose();
+                PoseContext.EnsureComponentSpaceValid();
+                SetPose(PoseContext.LocalSpacePose, PoseContext.ComponentSpacePose);
             }
         }
         // BlendSpace2D가 없으면 State Machine 체크
@@ -184,19 +185,13 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
                     PoseContext.Initialize(SkeletalMesh->GetSkeleton());
                 }
 
-                PoseContext.LocalSpacePose.SetNum(CurrentLocalSpacePose.Num());
                 StateMachineNode->Evaluate(PoseContext);
 
-                // 계산된 포즈를 CurrentLocalSpacePose에 적용
-                if (PoseContext.GetNumBones() == CurrentLocalSpacePose.Num())
+                // 계산된 포즈 적용
+                if (PoseContext.IsValid())
                 {
-                    for (int32 BoneIdx = 0; BoneIdx < PoseContext.GetNumBones(); ++BoneIdx)
-                    {
-                        CurrentLocalSpacePose[BoneIdx] = PoseContext.LocalSpacePose[BoneIdx];
-                    }
-
-                    // 포즈 재계산 강제
-                    ForceRecomputePose();
+                    PoseContext.EnsureComponentSpaceValid();
+                    SetPose(PoseContext.LocalSpacePose, PoseContext.ComponentSpacePose);
                 }
             }
             else
@@ -288,6 +283,16 @@ void USkeletalMeshComponent::SetBoneLocalTransformDirect(int32 BoneIndex, const 
 void USkeletalMeshComponent::RefreshBoneTransforms()
 {
     ForceRecomputePose();
+}
+
+/**
+ * @brief Pose 전체 설정 (BlendSpace2D 등에서 사용)
+ */
+void USkeletalMeshComponent::SetPose(const TArray<FTransform>& InLocalSpacePose, const TArray<FTransform>& InComponentSpacePose)
+{
+	CurrentLocalSpacePose = InLocalSpacePose;
+	CurrentComponentSpacePose = InComponentSpacePose;
+	RefreshBoneTransforms();
 }
 
 /**

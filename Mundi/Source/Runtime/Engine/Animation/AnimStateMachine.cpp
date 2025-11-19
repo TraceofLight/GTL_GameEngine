@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "AnimStateMachine.h"
 #include "AnimSequence.h"
+#include "BlendSpace2D.h"
+#include <algorithm>
 
 IMPLEMENT_CLASS(UAnimStateMachine)
 
@@ -9,7 +11,21 @@ UAnimStateMachine::UAnimStateMachine() = default;
 FAnimStateNode* UAnimStateMachine::AddNode(FName NodeName, UAnimSequence* InAnim, bool bInLoop)
 {
 	FAnimStateNode NewNode(NodeName);
+	NewNode.AnimAssetType = EAnimAssetType::AnimSequence;
 	NewNode.AnimationAsset = InAnim;
+	NewNode.BlendSpaceAsset = nullptr;
+	NewNode.bLoop = bInLoop;
+
+	Nodes.Add(NodeName, NewNode);
+	return &Nodes[NodeName];
+}
+
+FAnimStateNode* UAnimStateMachine::AddNodeWithBlendSpace(FName NodeName, UBlendSpace2D* InBlendSpace, bool bInLoop)
+{
+	FAnimStateNode NewNode(NodeName);
+	NewNode.AnimAssetType = EAnimAssetType::BlendSpace2D;
+	NewNode.AnimationAsset = nullptr;
+	NewNode.BlendSpaceAsset = InBlendSpace;
 	NewNode.bLoop = bInLoop;
 
 	Nodes.Add(NodeName, NewNode);
@@ -230,7 +246,17 @@ bool UAnimStateMachine::SaveToFile(const FWideString& Path)
         JSON NodeJson = JSON::Make(JSON::Class::Object);
 
         NodeJson["Name"] = Node.StateName.ToString();
-        NodeJson["AnimAsset"] = Node.AnimationAsset ? Node.AnimationAsset->GetFilePath() : "";
+        NodeJson["AnimAssetType"] = static_cast<int32>(Node.AnimAssetType);
+
+        // 경로를 슬래시(/)로 정규화하여 저장
+        FString AnimAssetPath = Node.AnimationAsset ? Node.AnimationAsset->GetFilePath() : "";
+        std::replace(AnimAssetPath.begin(), AnimAssetPath.end(), '\\', '/');
+        NodeJson["AnimAsset"] = AnimAssetPath;
+
+        FString BlendSpacePath = Node.BlendSpaceAsset ? Node.BlendSpaceAsset->GetFilePath() : "";
+        std::replace(BlendSpacePath.begin(), BlendSpacePath.end(), '\\', '/');
+        NodeJson["BlendSpaceAsset"] = BlendSpacePath;
+
         NodeJson["Loop"] = Node.bLoop;
 
         // 에디터 위치 저장
@@ -297,19 +323,50 @@ void UAnimStateMachine::Load(const FString& InFilePath, ID3D11Device* InDevice)
         {
             JSON NodeJson = NodesArray.at(Idx);
 
-            FString NameStr, AnimPathStr;
+            FString NameStr, AnimPathStr, BlendSpacePathStr;
+            int32 AnimAssetType = 0;
             bool bLoop = true;
             FJsonSerializer::ReadString(NodeJson, "Name", NameStr);
+            FJsonSerializer::ReadInt32(NodeJson, "AnimAssetType", AnimAssetType, 0);
             FJsonSerializer::ReadString(NodeJson, "AnimAsset", AnimPathStr);
+            FJsonSerializer::ReadString(NodeJson, "BlendSpaceAsset", BlendSpacePathStr);
             FJsonSerializer::ReadBool(NodeJson, "Loop", bLoop, true);
 
-            UAnimSequence* Anim = nullptr;
-            if (!AnimPathStr.empty())
-            {
-                Anim = UResourceManager::GetInstance().Load<UAnimSequence>(AnimPathStr);
-            }
+            EAnimAssetType AssetType = static_cast<EAnimAssetType>(AnimAssetType);
 
-            AddNode(FName(NameStr), Anim, bLoop);
+            // 타입에 따라 노드 추가
+            if (AssetType == EAnimAssetType::BlendSpace2D && !BlendSpacePathStr.empty())
+            {
+                UE_LOG("[AnimStateMachine] Loading BlendSpace2D: %s", BlendSpacePathStr.c_str());
+                UBlendSpace2D* BlendSpace = UBlendSpace2D::LoadFromFile(BlendSpacePathStr);
+                if (BlendSpace)
+                {
+                    UE_LOG("[AnimStateMachine] BlendSpace2D loaded with %d samples", BlendSpace->GetNumSamples());
+                    for (int32 i = 0; i < BlendSpace->GetNumSamples(); ++i)
+                    {
+                        const FBlendSample& Sample = BlendSpace->Samples[i];
+                        if (Sample.Animation)
+                        {
+                            UE_LOG("[AnimStateMachine]   Sample[%d]: %s (OK)", i, Sample.Animation->GetFilePath().c_str());
+                        }
+                        else
+                        {
+                            UE_LOG("[AnimStateMachine]   Sample[%d]: NULL ANIMATION!", i);
+                        }
+                    }
+                }
+                AddNodeWithBlendSpace(FName(NameStr), BlendSpace, bLoop);
+            }
+            else if (AssetType == EAnimAssetType::AnimSequence && !AnimPathStr.empty())
+            {
+                UAnimSequence* Anim = UResourceManager::GetInstance().Load<UAnimSequence>(AnimPathStr);
+                AddNode(FName(NameStr), Anim, bLoop);
+            }
+            else
+            {
+                // 타입 없거나 애셋 없으면 빈 노드
+                AddNode(FName(NameStr), nullptr, bLoop);
+            }
 
             // 에디터 위치 로드
             float PosX = 0, PosY = 0;
