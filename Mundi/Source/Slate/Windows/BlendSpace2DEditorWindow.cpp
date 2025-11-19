@@ -920,7 +920,7 @@ void SBlendSpace2DEditorWindow::RenderPreviewViewport()
 
 	// 전체 가용 영역 계산
 	ImVec2 ContentAvail = ImGui::GetContentRegionAvail();
-	float TimelineAndControlsHeight = 180.0f;  // 타임라인 + 컨트롤 높이
+	float TimelineAndControlsHeight = 0.0f;  // 타임라인 컨트롤 높이 (파라미터 슬라이더 제거로 축소)
 	float ViewportHeight = ContentAvail.y - TimelineAndControlsHeight;
 
 	// 뷰포트 렌더링 영역
@@ -947,18 +947,6 @@ void SBlendSpace2DEditorWindow::RenderPreviewViewport()
 	{
 		// 타임라인 렌더링
 		RenderTimelineControls();
-
-		ImGui::Separator();
-
-		// 블렌드 파라미터 슬라이더
-		ImGui::Text("Blend Parameters");
-		ImGui::SliderFloat("X Axis", &PreviewParameter.X,
-			EditingBlendSpace->XAxisMin,
-			EditingBlendSpace->XAxisMax);
-
-		ImGui::SliderFloat("Y Axis", &PreviewParameter.Y,
-			EditingBlendSpace->YAxisMin,
-			EditingBlendSpace->YAxisMax);
 	}
 	ImGui::EndChild();
 }
@@ -1471,13 +1459,12 @@ void SBlendSpace2DEditorWindow::RenderTimelineControls()
 		}
 	}
 
-	if (!CurrentAnimation)
+	UAnimDataModel* DataModel = nullptr;
+	if (CurrentAnimation)
 	{
-		ImGui::TextDisabled("No animation playing");
-		return;
+		DataModel = CurrentAnimation->GetDataModel();
 	}
 
-	UAnimDataModel* DataModel = CurrentAnimation->GetDataModel();
 	if (!DataModel)
 	{
 		return;
