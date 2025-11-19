@@ -177,6 +177,12 @@ public:
 	 */
 	bool UpdateConditionInTransition(FName FromState, FName ToState, int32 ConditionIndex, const FAnimCondition& NewCondition);
 
+	// 트랜지션 순서 변경 (Direction: -1 = 위로/우선순위 높임, +1 = 아래로/우선순위 낮춤)
+	bool MoveTransitionPriority(FName FromState, FName ToState, int32 Direction);
+
+	// 현재 트랜지션의 인덱스(우선순위) 가져오기
+	int32 GetTransitionPriority(FName FromState, FName ToState);
+
 	TMap<FName, FAnimStateNode>& GetNodes() { return Nodes; }
 
 	/**

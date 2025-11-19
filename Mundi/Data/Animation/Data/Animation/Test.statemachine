@@ -1,9 +1,9 @@
 {
   "EntryState" : "State_0",
   "Nodes" : [{
-      "AnimAsset" : "",
-      "AnimAssetType" : 2,
-      "BlendSpaceAsset" : "C:\\Users\\Jungle\\KraftonGTL_week11\\Mundi\\Data\\Animation\\BSH_Walk.blend2d",
+      "AnimAsset" : "Data/Animation/BSH_Walk Backward.fbx#mixamo.com",
+      "AnimAssetType" : 1,
+      "BlendSpaceAsset" : "",
       "EditorPosX" : 150.000000,
       "EditorPosY" : 150.000000,
       "Loop" : true,

@@ -94,16 +94,20 @@ void UAnimSequenceBase::GetAnimNotifiesFromDeltaPositions(float PreviousTime, fl
 
 		if (NotifyEvent.Duration > 0.0f)
 		{
+			// NotifyState: 활성 구간 전체에서 반환 (Begin/Tick/End 처리는 AnimInstance에서)
+			// CurrentTime이 [NotifyStartTime, NotifyEndTime) 구간에 있으면 활성화 상태
 			if (bPlayingForward)
 			{
-				if ((NotifyStartTime <= CurrentTime) && (NotifyEndTime > PreviousTime))
+				// Forward 재생: CurrentTime이 활성 구간 내에 있으면 반환
+				if ((CurrentTime >= NotifyStartTime) && (CurrentTime < NotifyEndTime))
 				{
 					OutNotifies.push_back(&NotifyEvent);
 				}
 			}
 			else
 			{
-				if ((NotifyStartTime < PreviousTime) && (NotifyEndTime >= CurrentTime))
+				// Backward 재생: CurrentTime이 활성 구간 내에 있으면 반환
+				if ((CurrentTime >= NotifyStartTime) && (CurrentTime < NotifyEndTime))
 				{
 					OutNotifies.push_back(&NotifyEvent);
 				}
@@ -111,6 +115,7 @@ void UAnimSequenceBase::GetAnimNotifiesFromDeltaPositions(float PreviousTime, fl
 		}
 		else
 		{
+			// 일반 Notify: TriggerTime을 지나는 프레임에서만 반환
 			if (bPlayingForward)
 			{
 				if ((NotifyStartTime > PreviousTime) && (NotifyStartTime <= CurrentTime))
@@ -144,4 +149,23 @@ void UAnimSequenceBase::AddNotify(const FAnimNotifyEvent& NewNotify)
 void UAnimSequenceBase::ClearNotifies()
 {
 	Notifies.clear();
+}
+
+/**
+ * @brief PIE용 SubObject 복제 (Notifies 깊은 복사)
+ */
+void UAnimSequenceBase::DuplicateSubObjects()
+{
+	Super::DuplicateSubObjects();
+
+	// Notifies 배열 깊은 복사 (TArray 대입 연산자가 깊은 복사 수행)
+	TArray<FAnimNotifyEvent> NotifiesCopy = Notifies;
+	Notifies = NotifiesCopy;
+
+	// DataModel 복제 (UObject이므로 Duplicate() 호출)
+	if (DataModel)
+	{
+		UAnimDataModel* NewDataModel = Cast<UAnimDataModel>(DataModel->Duplicate());
+		DataModel = NewDataModel;
+	}
 }

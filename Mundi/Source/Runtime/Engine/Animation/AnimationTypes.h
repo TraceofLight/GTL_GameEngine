@@ -50,6 +50,29 @@ struct FAnimNotifyEvent
 	{
 		return TriggerTime == Other.TriggerTime && NotifyName == Other.NotifyName;
 	}
+
+	friend FArchive& operator<<(FArchive& Ar, FAnimNotifyEvent& Event)
+	{
+		if (Ar.IsSaving())
+		{
+			Ar << Event.TriggerTime;
+			Ar << Event.Duration;
+			Ar << Event.NotifyName;
+			Ar << Event.TriggerWeightThreshold;
+			Ar << Event.TrackIndex;
+			Serialization::WriteString(Ar, Event.PropertyData);
+		}
+		else if (Ar.IsLoading())
+		{
+			Ar << Event.TriggerTime;
+			Ar << Event.Duration;
+			Ar << Event.NotifyName;
+			Ar << Event.TriggerWeightThreshold;
+			Ar << Event.TrackIndex;
+			Serialization::ReadString(Ar, Event.PropertyData);
+		}
+		return Ar;
+	}
 };
 
 /**

@@ -1,0 +1,13 @@
+{
+  "EntryState" : "Idle",
+  "Nodes" : [{
+      "AnimAsset" : "Data/Animation/BSH_Walk Left.fbx#mixamo.com",
+      "AnimAssetType" : 1,
+      "BlendSpaceAsset" : "",
+      "EditorPosX" : 199.000000,
+      "EditorPosY" : -71.000000,
+      "Loop" : true,
+      "Name" : "Idle"
+    }],
+  "Transitions" : []
+}

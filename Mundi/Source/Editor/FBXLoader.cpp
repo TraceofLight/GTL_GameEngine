@@ -1724,6 +1724,15 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 				Serialization::ReadString(Reader, AnimName);
 				AnimSequence->SetName(AnimName);
 
+				// Notifies 로드
+				uint32 NotifyCount = 0;
+				Reader << NotifyCount;
+				AnimSequence->Notifies.resize(NotifyCount);
+				for (uint32 i = 0; i < NotifyCount; ++i)
+				{
+					Reader << AnimSequence->Notifies[i];
+				}
+
 				// DataModel 로드
 				Reader << *DataModel;
 
@@ -1854,6 +1863,14 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 
 				// Name 저장
 				Serialization::WriteString(Writer, AnimSequence->GetName());
+
+				// Notifies 저장
+				uint32 NotifyCount = static_cast<uint32>(AnimSequence->Notifies.Num());
+				Writer << NotifyCount;
+				for (FAnimNotifyEvent& Notify : AnimSequence->Notifies)
+				{
+					Writer << Notify;
+				}
 
 				// DataModel 저장
 				Writer << *DataModel;

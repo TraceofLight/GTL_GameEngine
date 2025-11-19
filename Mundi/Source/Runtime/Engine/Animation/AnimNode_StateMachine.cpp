@@ -14,7 +14,7 @@ FAnimNode_StateMachine::FAnimNode_StateMachine()
 	: StateMachineAsset(nullptr), OwnerPawn(nullptr)
 	  , OwnerAnimInstance(nullptr), ActiveNode(nullptr), PreviousNode(nullptr)
 	  , bIsTransitioning(false), TransitionAlpha(0)
-	  , CurrentTransitionDuration(0), CurrentAnimTime(0.0f), PreviousAnimTime(0.0f)
+	  , CurrentTransitionDuration(0), CurrentAnimTime(0.0f), PreviousAnimTime(0.0f), PreviousFrameAnimTime(0.0f)
 {
 }
 
@@ -60,6 +60,8 @@ void FAnimNode_StateMachine::Update(float DeltaSeconds)
 	}
 	else if (ActiveNode->AnimAssetType == EAnimAssetType::AnimSequence)
 	{
+		// 이전 프레임 시간 저장 (Notify 구간 판정용)
+		PreviousFrameAnimTime = CurrentAnimTime;
 		// 애니메이션 시간 갱신
 		CurrentAnimTime += DeltaSeconds;
 		if (ActiveNode->AnimationAsset && ActiveNode->bLoop)
@@ -101,7 +103,8 @@ void FAnimNode_StateMachine::Update(float DeltaSeconds)
 		{
 			// 전환 완료
 			bIsTransitioning = false;
-			PreviousStateName = FName();
+			//  인터럽트 플래그 해제
+			bIsInterruptedBlend = false;
 			PreviousNode = nullptr;
 			TransitionAlpha = 0.0f;
 		}
@@ -236,7 +239,7 @@ void FAnimNode_StateMachine::TransitionTo(FName NewStateName, float BlendTime)
 
 void FAnimNode_StateMachine::CheckTransitions()
 {
-	if (!ActiveNode || bIsTransitioning) return;
+	if (!ActiveNode) return;
 
 	// AnimInstance가 없으면 변수를 못 읽으니 중단
 	if (!OwnerAnimInstance) return;

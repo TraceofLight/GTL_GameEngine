@@ -59,7 +59,7 @@ static void AddMethodR(sol::table& T, const char* Name, R(C::*Method)(P...))
             }
             // Wrap the returned object pointer in a LuaComponentProxy
             sol::state_view L(s);
-            return MakeCompProxy(L, result, PointeeType::StaticClass());
+            return MakeComponentProxy(L, result, PointeeType::StaticClass());
         });
     }
     else
@@ -100,7 +100,7 @@ static void AddMethodR(sol::table& T, const char* Name, R(C::*Method)(P...) cons
             }
             // Wrap the returned object pointer in a LuaComponentProxy
             sol::state_view L(s);
-            return MakeCompProxy(L, result, PointeeType::StaticClass());
+            return MakeComponentProxy(L, result, PointeeType::StaticClass());
         });
     }
     else

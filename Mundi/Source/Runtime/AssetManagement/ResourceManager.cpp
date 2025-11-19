@@ -50,6 +50,7 @@ void UResourceManager::Initialize(ID3D11Device* InDevice, ID3D11DeviceContext* I
     CreateDefaultShader();
     CreateDefaultMaterial();
 	PreLoadAnimStateMachines();
+	PreLoadAnimSequences();
 }
 
 // 전체 해제
@@ -564,16 +565,15 @@ void UResourceManager::CreateTextBillboardTexture()
 
 void UResourceManager::PreLoadAnimStateMachines()
 {
-	FWideString WDataDir = UTF8ToWide(GDataDir);
-	const fs::path DataDir(WDataDir);
+	FString StateMachineDir = GDataDir + "/StateMachine";
+	FWideString WStateMachineDir = UTF8ToWide(StateMachineDir);
+	const fs::path DataDir(WStateMachineDir);
 
 	if (!fs::exists(DataDir) || !fs::is_directory(DataDir))
 	{
-		UE_LOG("UResourceManager::Preload: Data directory not found: %s", GDataDir.c_str());
 		return;
 	}
 
-	TSet<FWideString> ProcessedFiles;
 	for (const auto& Entry : fs::recursive_directory_iterator(DataDir))
 	{
 		if (!Entry.is_regular_file())
@@ -586,11 +586,40 @@ void UResourceManager::PreLoadAnimStateMachines()
 
 		if (Extension == L".statemachine")
 		{
-			// 변경 (wstring -> WideToUTF8 -> FString)
 			FWideString WPathStr = Path.wstring();
 			FString PathStr = NormalizePath(WideToUTF8(WPathStr));
 
 			Load<UAnimStateMachine>(PathStr);
+		}
+	}
+}
+
+void UResourceManager::PreLoadAnimSequences()
+{
+	FWideString WDataDir = UTF8ToWide(GDataDir);
+	const fs::path DataDir(WDataDir);
+
+	if (!fs::exists(DataDir) || !fs::is_directory(DataDir))
+	{
+		return;
+	}
+
+	for (const auto& Entry : fs::recursive_directory_iterator(DataDir))
+	{
+		if (!Entry.is_regular_file())
+			continue;
+
+		const fs::path& Path = Entry.path();
+
+		FWideString Extension = Path.extension().wstring();
+		std::ranges::transform(Extension, Extension.begin(), ::towlower);
+
+		if (Extension == L".anim")
+		{
+			FWideString WPathStr = Path.wstring();
+			FString PathStr = NormalizePath(WideToUTF8(WPathStr));
+
+			Load<UAnimSequence>(PathStr);
 		}
 	}
 }
@@ -758,3 +787,26 @@ for (auto& ch : ext) ch = static_cast<wchar_t>(::towlower(ch));
     TextureMap[FilePath] = Data;
     return Data;
 }
+
+template<typename T>
+bool UResourceManager::Unload(const FString& InFilePath)
+{
+    EResourceType Type = GetResourceType<T>();
+    auto& Cache = Resources[static_cast<int>(Type)];
+
+    auto It = Cache.find(InFilePath);
+    if (It == Cache.end())
+    {
+        return false;
+    }
+
+    Cache.erase(It);
+    return true;
+}
+
+// 명시적 인스턴스화
+template bool UResourceManager::Unload<UAnimSequence>(const FString&);
+template bool UResourceManager::Unload<UAnimStateMachine>(const FString&);
+template bool UResourceManager::Unload<UStaticMesh>(const FString&);
+template bool UResourceManager::Unload<USkeletalMesh>(const FString&);
+template bool UResourceManager::Unload<UTexture>(const FString&);

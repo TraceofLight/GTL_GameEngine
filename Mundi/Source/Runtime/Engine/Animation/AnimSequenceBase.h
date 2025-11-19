@@ -37,6 +37,9 @@ public:
 	void SetName(const FString& InName) { Name = InName; }
 	void SetLooping(bool bInLoop) { bLoop = bInLoop; }
 
+	// UObject 인터페이스
+	virtual void DuplicateSubObjects() override;
+
 	FString Name;
 	TArray<FAnimNotifyEvent> Notifies;
 

@@ -29,12 +29,37 @@ public:
     class FLuaCoroutineScheduler& GetScheduler() { return CoroutineSchedular; }
 
     bool ExecuteNotify(const FString& NotifyClassName, const FString& PropertyData, class USkeletalMeshComponent* MeshComp, float TriggerTime, float Duration);
+    bool ExecuteNotifyStateBegin(const FString& NotifyClassName, const FString& PropertyData, class USkeletalMeshComponent* MeshComp, float TriggerTime);
+    bool ExecuteNotifyStateTick(const FString& NotifyClassName, const FString& PropertyData, class USkeletalMeshComponent* MeshComp, float CurrentTime, float DeltaTime);
+    bool ExecuteNotifyStateEnd(const FString& NotifyClassName, const FString& PropertyData, class USkeletalMeshComponent* MeshComp, float EndTime);
 
 private:
     sol::state* Lua = nullptr;
     sol::table SharedLib;                         // 공용 유틸 테이블
 
     FLuaCoroutineScheduler CoroutineSchedular;    // 씬 단위 Coroutine Manager
+
+    // NotifyState 인스턴스 캐시 (NotifyName + MeshComp 조합으로 식별)
+    struct FNotifyStateKey
+    {
+        FString NotifyName;
+        void* MeshCompPtr;
+
+        bool operator==(const FNotifyStateKey& Other) const
+        {
+            return NotifyName == Other.NotifyName && MeshCompPtr == Other.MeshCompPtr;
+        }
+    };
+
+    struct FNotifyStateKeyHash
+    {
+        size_t operator()(const FNotifyStateKey& Key) const
+        {
+            return std::hash<FString>()(Key.NotifyName) ^ std::hash<void*>()(Key.MeshCompPtr);
+        }
+    };
+
+    std::unordered_map<FNotifyStateKey, sol::table, FNotifyStateKeyHash> NotifyStateInstanceCache;
 };
 
 // Helper function to wrap C++ object pointers in LuaComponentProxy for Lua

@@ -89,6 +89,10 @@ class Property:
                 return 'ADD_PROPERTY_CURVE'
             return 'ADD_PROPERTY_CURVE'
 
+        # ScriptFileExtension 메타데이터 체크 (가장 먼저 체크하여 우선순위 부여)
+        if 'ScriptFileExtension' in self.metadata:
+            return 'ADD_PROPERTY_SCRIPT'
+
         # SRV (Shader Resource View) 타입 체크
         if 'srv' in type_lower or 'shaderresourceview' in type_lower:
             # MacroParser에서 SRV 매크로 찾기
@@ -543,6 +547,11 @@ class HeaderParser:
         if tooltip_match:
             prop.tooltip = tooltip_match.group(1)
 
+        # ScriptFileExtension 추출
+        script_file_ext_match = re.search(r'ScriptFileExtension\s*=\s*"([^"]+)"', metadata)
+        if script_file_ext_match:
+            prop.metadata['ScriptFileExtension'] = script_file_ext_match.group(1)
+
         return prop
 
     def _parse_function(
@@ -572,6 +581,9 @@ class HeaderParser:
         if params_str.strip():
             params = [p.strip() for p in params_str.split(',')]
             for param in params:
+                # 기본값 제거: "int32 Priority = 0" -> "int32 Priority"
+                param = param.split('=')[0].strip()
+
                 # "const FString& Name" -> type="const FString&", name="Name"
                 parts = param.rsplit(None, 1)
                 if len(parts) == 2:

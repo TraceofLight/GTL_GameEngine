@@ -101,6 +101,8 @@ public:
     void SetEditorCameraActor(ACameraActor* InCamera);
 
     void SetPlayerCameraManager(APlayerCameraManager* InPlayerCameraManager) {  PlayerCameraManager = InPlayerCameraManager; };
+
+    UFUNCTION(LuaBind, DisplayName = "GetPlayerCameraManager")
     APlayerCameraManager* GetPlayerCameraManager() { return PlayerCameraManager; };
 
     // Per-world render settings

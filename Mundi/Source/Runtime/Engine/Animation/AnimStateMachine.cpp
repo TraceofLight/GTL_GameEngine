@@ -181,6 +181,54 @@ bool UAnimStateMachine::UpdateConditionInTransition(FName FromState, FName ToSta
 	return false;
 }
 
+bool UAnimStateMachine::MoveTransitionPriority(FName FromState, FName ToState, int32 Direction)
+{
+	FAnimStateNode* Node = Nodes.Find(FromState);
+	if (!Node) return false;
+
+	// 1. 현재 트랜지션의 인덱스 찾기
+	int32 CurrentIndex = -1;
+	for (int32 i = 0; i < Node->Transitions.Num(); ++i)
+	{
+		if (Node->Transitions[i].TargetStateName == ToState)
+		{
+			CurrentIndex = i;
+			break;
+		}
+	}
+
+	if (CurrentIndex == -1) return false;
+
+	// 2. 이동할 새 인덱스 계산
+	int32 NewIndex = CurrentIndex + Direction;
+
+	// 3. 범위 체크 (맨 위에서 더 올리거나, 맨 아래에서 더 내릴 수 없음)
+	if (NewIndex < 0 || NewIndex >= Node->Transitions.Num())
+	{
+		return false; // 이동 불가
+	}
+
+	// 4. 배열 내에서 위치 교환 (Swap)
+	std::swap(Node->Transitions[CurrentIndex], Node->Transitions[NewIndex]);
+
+	return true;
+}
+
+int32 UAnimStateMachine::GetTransitionPriority(FName FromState, FName ToState)
+{
+	FAnimStateNode* Node = Nodes.Find(FromState);
+	if (!Node) return -1;
+
+	for (int32 i = 0; i < Node->Transitions.Num(); ++i)
+	{
+		if (Node->Transitions[i].TargetStateName == ToState)
+		{
+			return i; // 0이 가장 높은 우선순위
+		}
+	}
+	return -1;
+}
+
 bool UAnimStateMachine::SaveToFile(const FWideString& Path)
 {
     JSON Root = JSON::Make(JSON::Class::Object);

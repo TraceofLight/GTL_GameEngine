@@ -24,7 +24,7 @@ public:
 
     // ===== Lua-Bindable Properties (Auto-moved from protected/private) =====
 
-	UPROPERTY(EditAnywhere, Category="Script", Tooltip="Lua Script 파일 경로입니다")
+	UPROPERTY(EditAnywhere, Category="Script", ScriptFileExtension=".lua", Tooltip="Lua Script 파일 경로입니다")
 	FString ScriptFilePath{};
 	void BeginPlay() override;
 	void TickComponent(float DeltaTime) override;       // 매 프레임

@@ -68,8 +68,8 @@ sol::object LuaComponentProxy::Index(sol::this_state LuaState, LuaComponentProxy
     }
 
     // If it's a function, return it as-is (for methods)
-    UE_LOG("[LuaProxy] Index: Returning method '%s' for class %p\n",
-        Key, Self.Class);
+    // UE_LOG("[LuaProxy] Index: Returning method '%s' for class %p\n",
+    //    Key, Self.Class);
     return Result;
 }
 
