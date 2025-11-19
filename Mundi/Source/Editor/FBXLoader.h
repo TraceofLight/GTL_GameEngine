@@ -123,6 +123,12 @@ private:
 	 */
 	static void PrintBoneRecursive(const FSkeleton* Skeleton, int32 BoneIndex, int32 Depth);
 
+	/**
+	 * @brief 모든 AnimSequence를 .anim 파일로 저장
+	 * PreLoad 끝에서 호출하여 FBX에서 로드한 애니메이션을 .anim으로 변환
+	 */
+	static void SaveAllAnimSequencesToAnimFiles();
+
 	// bin파일 저장용
 	TArray<FMaterialInfo> MaterialInfos;
 	FbxManager* SdkManager = nullptr;

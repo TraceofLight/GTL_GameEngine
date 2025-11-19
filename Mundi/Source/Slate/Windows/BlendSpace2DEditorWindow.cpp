@@ -144,11 +144,11 @@ void SBlendSpace2DEditorWindow::SetBlendSpace(UBlendSpace2D* InBlendSpace)
 				// 애니메이션 목록 초기화
 				AvailableAnimations.clear();
 
-				// 스켈레톤 메시의 애니메이션 추가
+				// 스켈레톤 메시의 애니메이션 추가 (.anim 파일 제한)
 				const TArray<UAnimSequence*>& Animations = SavedMesh->GetAnimations();
 				for (UAnimSequence* Anim : Animations)
 				{
-					if (Anim)
+					if (Anim && Anim->GetFilePath().ends_with(".anim"))
 					{
 						AvailableAnimations.Add(Anim);
 					}
@@ -1674,10 +1674,10 @@ void SBlendSpace2DEditorWindow::RenderAnimationList()
 					// SkeletalMesh에 저장된 애니메이션들을 가져옴
 					const TArray<UAnimSequence*>& Animations = Mesh->GetAnimations();
 
-					// 모든 애니메이션 추가
+					// .anim 파일만 추가
 					for (UAnimSequence* Anim : Animations)
 					{
-						if (Anim)
+						if (Anim && Anim->GetFilePath().ends_with(".anim"))
 						{
 							AvailableAnimations.Add(Anim);
 						}

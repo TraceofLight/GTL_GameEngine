@@ -511,8 +511,19 @@ void UPropertyRenderer::CacheResources()
     // 6. AnimSequence (.anim)
     if (CachedAnimSequencePaths.IsEmpty() && CachedAnimSequenceItems.IsEmpty())
     {
-        CachedAnimSequencePaths = ResMgr.GetAllFilePaths<UAnimSequence>();
+        TArray<FString> AllAnimPaths = ResMgr.GetAllFilePaths<UAnimSequence>();
         CachedAnimSequenceItems.Add("None");
+
+        // 먼저 .anim 파일만 필터링하여 CachedAnimSequencePaths에 추가
+        for (size_t i = 0; i < AllAnimPaths.size(); ++i)
+        {
+            if (AllAnimPaths[i].ends_with(".anim"))
+            {
+                CachedAnimSequencePaths.Add(AllAnimPaths[i]);
+            }
+        }
+
+        // 캐시된 경로에서 c_str() 포인터 생성 (댕글링 포인터 방지)
         for (size_t i = 0; i < CachedAnimSequencePaths.size(); ++i)
         {
             CachedAnimSequenceItems.push_back(CachedAnimSequencePaths[i].c_str());

@@ -98,7 +98,6 @@ public:
 	void CreateTextBillboardMesh();
 	void CreateTextBillboardTexture();
 	void PreLoadAnimStateMachines();
-	void PreLoadAnimSequences();
 
 	// --- 캐시 관리 ---
 	FMeshBVH* GetMeshBVH(const FString& ObjPath);

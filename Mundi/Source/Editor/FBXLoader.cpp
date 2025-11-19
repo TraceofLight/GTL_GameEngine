@@ -35,7 +35,7 @@ void UFbxLoader::PreLoad()
 
     if (!fs::exists(DataDir) || !fs::is_directory(DataDir))
     {
-       UE_LOG("UFbxLoader::Preload: Data directory not found: %s", GDataDir.c_str());
+       UE_LOG("FbxLoader: PreLoad: Data directory not found: %s", GDataDir.c_str());
        return;
     }
 
@@ -79,14 +79,13 @@ void UFbxLoader::PreLoad()
              {
                 // 메시가 없는 애니메이션 전용 FBX인 경우
                 // 표준 Canonical Mixamo 스켈레톤 사용
-                UE_LOG("No mesh found in '%s'. Trying to load as animation-only FBX...", PathStr.c_str());
+                UE_LOG("FbxLoader: PreLoad: No mesh found in '%s', loading as animation-only FBX", PathStr.c_str());
 
                 FSkeleton* CanonicalSkeleton = FMixamoChainMapper::CreateCanonicalSkeleton();
                 if (CanonicalSkeleton)
                 {
                    FbxLoader.LoadAllFbxAnimations(PathStr, *CanonicalSkeleton);
                    delete CanonicalSkeleton;
-                   UE_LOG("  Animation-only FBX loaded successfully with Canonical Skeleton");
                 }
              }
           }
@@ -103,12 +102,18 @@ void UFbxLoader::PreLoad()
     TArray<USkeletalMesh*> AllSkeletalMeshes = RESOURCE.GetAll<USkeletalMesh>();
     TArray<UAnimSequence*> AllAnimSequences = RESOURCE.GetAll<UAnimSequence>();
 
-    UE_LOG("Adding %d animations to %d skeletal meshes...", AllAnimSequences.Num(), AllSkeletalMeshes.Num());
+    UE_LOG("FbxLoader: PreLoad: Adding %d animations to %d skeletal meshes", AllAnimSequences.Num(), AllSkeletalMeshes.Num());
 
     for (UAnimSequence* AnimSeq : AllAnimSequences)
     {
        if (!AnimSeq)
           continue;
+
+       // Name이 비어있는 경우 건너뜀 (로드 실패)
+       if (AnimSeq->Name.empty())
+       {
+          continue;
+       }
 
        for (USkeletalMesh* Mesh : AllSkeletalMeshes)
        {
@@ -117,11 +122,12 @@ void UFbxLoader::PreLoad()
              Mesh->AddAnimation(AnimSeq);
           }
        }
-
-       UE_LOG("  [+] Added animation '%s' to all meshes", AnimSeq->GetName().c_str());
     }
 
-    UE_LOG("UFbxLoader::Preload: Loaded %zu .fbx files from %s", LoadedCount, GDataDir.c_str());
+    UE_LOG("FbxLoader: PreLoad: Loaded %zu .fbx files from %s", LoadedCount, GDataDir.c_str());
+
+   // 모든 AnimSequence를 .anim 파일로 저장
+   SaveAllAnimSequencesToAnimFiles();
 
    // 모든 스켈레톤과 애니메이션의 본 계층 구조 출력
    PrintAllSkeletonHierarchies();
@@ -1675,6 +1681,62 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 		UAnimSequence* AnimSequence = nullptr;
 		UAnimDataModel* DataModel = nullptr;
 
+		// .anim 파일 경로 생성 (FBX경로_AnimStackName.anim)
+		size_t DotPos = NormalizedPath.find_last_of('.');
+		FString AnimFilePath;
+		if (DotPos != FString::npos)
+		{
+			AnimFilePath = NormalizedPath.substr(0, DotPos) + "_" + AnimStackName + ".anim";
+		}
+		else
+		{
+			AnimFilePath = NormalizedPath + "_" + AnimStackName + ".anim";
+		}
+
+		FWideString WAnimFilePath = UTF8ToWide(AnimFilePath);
+		std::filesystem::path AnimFilePathObj(WAnimFilePath);
+
+		// .anim 파일이 존재하고 FBX보다 최신이면 로드
+		if (std::filesystem::exists(AnimFilePathObj))
+		{
+			try
+			{
+				auto animTime = std::filesystem::last_write_time(AnimFilePathObj);
+				auto fbxTime = std::filesystem::last_write_time(FbxPath);
+
+				if (fbxTime <= animTime)
+				{
+					// .anim에서 로드
+					AnimSequence = NewObject<UAnimSequence>();
+					AnimSequence->LoadFromAnimFile(AnimFilePath);
+
+					if (!AnimSequence->GetName().empty())
+					{
+						// 기존 .anim 파일의 이름을 새 형식으로 업데이트 (ImGui ID 충돌 방지)
+						std::filesystem::path FbxFilePath(NormalizedPath);
+						FString FbxFileName = FbxFilePath.stem().string();
+						FString UniqueAnimName = FbxFileName + "_" + AnimStackName;
+						AnimSequence->SetName(UniqueAnimName);
+
+						AnimSequence->SetFilePath(AnimFilePath);
+						AnimSequence->SetLastModifiedTime(animTime);
+						UResourceManager::GetInstance().Add<UAnimSequence>(AnimFilePath, AnimSequence);
+						Results.Add(AnimSequence);
+						continue;
+					}
+					else
+					{
+						ObjectFactory::DeleteObject(AnimSequence);
+						AnimSequence = nullptr;
+					}
+				}
+			}
+			catch (const std::filesystem::filesystem_error& e)
+			{
+				UE_LOG("FbxLoader: LoadAllFbxAnimations: Filesystem error: %s", e.what());
+			}
+		}
+
 #ifdef USE_OBJ_CACHE
 		// 캐시 파일 경로: [MeshName]_[AnimStackName].anim.bin
 		FString CachePath = BaseCachePath + "_" + AnimStackName + ".anim.bin";
@@ -1705,7 +1767,7 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 			}
 			catch (const std::filesystem::filesystem_error& e)
 			{
-				UE_LOG("  Filesystem error during cache validation: %s", e.what());
+				UE_LOG("FbxLoader: LoadAllFbxAnimations: Filesystem error during cache validation: %s", e.what());
 				bShouldRegenerate = true;
 			}
 		}
@@ -1769,11 +1831,19 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 				ApplyArmatureScaleCorrection(DataModel, TargetSkeleton, nullptr, RootNode, AnimLayer, StartTime);
 
 				AnimSequence->SetDataModel(DataModel);
+				AnimSequence->SetFilePath(AnimFilePath);
 				Reader.Close();
+
+				// 캐시에서 로드한 이름을 새 형식으로 업데이트 (ImGui ID 충돌 방지)
+				// 기존 캐시는 AnimStackName만 저장되어 있으므로 FBX파일명_ 접두사 추가
+				std::filesystem::path FbxFilePath(NormalizedPath);
+				FString FbxFileName = FbxFilePath.stem().string();
+				FString UniqueAnimName = FbxFileName + "_" + AnimStackName;
+				AnimSequence->SetName(UniqueAnimName);
 
 				bLoadedFromCache = true;
 				UE_LOG("  Successfully loaded AnimStack '%s' from cache", AnimStackName.c_str());
-				UE_LOG("    Name: %s", AnimName.c_str());
+				UE_LOG("    Name: %s", UniqueAnimName.c_str());
 				UE_LOG("    Duration: %.3f seconds", DataModel->GetPlayLength());
 				UE_LOG("    Bone Tracks: %d", DataModel->GetBoneAnimationTracks().Num());
 			}
@@ -1815,7 +1885,13 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 
 			// AnimSequence 생성
 			AnimSequence = NewObject<UAnimSequence>();
-			AnimSequence->SetName(AnimStackName);
+
+			// 고유한 이름 생성: FBX파일명_AnimStackName (ImGui ID 충돌 방지)
+			std::filesystem::path FbxFilePath(NormalizedPath);
+			FString FbxFileName = FbxFilePath.stem().string();  // 확장자 제외한 파일명
+			FString UniqueAnimName = FbxFileName + "_" + AnimStackName;
+			AnimSequence->SetName(UniqueAnimName);
+			AnimSequence->SetFilePath(AnimFilePath);
 
 			DataModel = NewObject<UAnimDataModel>();
 			AnimSequence->SetDataModel(DataModel);
@@ -1920,6 +1996,8 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 #endif // USE_OBJ_CACHE
 		}
 
+		// .anim 파일 저장은 PreLoad 끝에서 별도로 수행 (SaveAllAnimSequencesToAnimFiles)
+
 		if (AnimSequence)
 		{
 			Results.Add(AnimSequence);
@@ -1935,24 +2013,53 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 		FbxModifiedTime = std::filesystem::last_write_time(FbxPath);
 	}
 
-	// 각 AnimSequence에 FilePath와 LastModifiedTime 설정 후 ResourceManager에 등록
-	for (UAnimSequence* AnimSeq : Results)
+	// 각 AnimSequence에 LastModifiedTime 설정 후 ResourceManager에 등록
+	// FilePath는 이미 .anim 경로로 설정되어 있음
+	for (int32 i = 0; i < Results.Num(); ++i)
 	{
-		if (AnimSeq)
+		UAnimSequence* AnimSeq = Results[i];
+		if (!AnimSeq)
 		{
-			FString AnimName = AnimSeq->GetName();
-			FString AnimResourcePath = NormalizedPath + "#" + AnimName;
+			continue;
+		}
 
-			// FilePath 및 LastModifiedTime 설정
-			AnimSeq->SetFilePath(AnimResourcePath);
-			AnimSeq->SetLastModifiedTime(FbxModifiedTime);
+		try
+		{
+			// FilePath가 비어있으면 건너뜀
+			FString AnimResourcePath = AnimSeq->GetFilePath();
+			if (AnimResourcePath.empty())
+			{
+				continue;
+			}
+
+			// .anim 파일에서 로드한 경우 이미 등록되어 있으므로 건너뜀
+			if (UResourceManager::GetInstance().Get<UAnimSequence>(AnimResourcePath))
+			{
+				continue;
+			}
+
+			// LastModifiedTime 설정 (.anim 파일 시간 사용)
+			FWideString WAnimPath = UTF8ToWide(AnimResourcePath);
+			std::filesystem::path AnimPath(WAnimPath);
+			if (std::filesystem::exists(AnimPath))
+			{
+				AnimSeq->SetLastModifiedTime(std::filesystem::last_write_time(AnimPath));
+			}
+			else
+			{
+				AnimSeq->SetLastModifiedTime(FbxModifiedTime);
+			}
 
 			// ResourceManager에 등록
 			UResourceManager::GetInstance().Add<UAnimSequence>(AnimResourcePath, AnimSeq);
 		}
+		catch (const std::exception& e)
+		{
+			UE_LOG("FbxLoader: LoadAllFbxAnimations: Error registering AnimSequence: %s", e.what());
+		}
 	}
 
-	UE_LOG("UFbxLoader::LoadAllFbxAnimations: Successfully loaded %d animations from %s",
+	UE_LOG("FbxLoader: LoadAllFbxAnimations: Successfully loaded %d animations from %s",
 		Results.Num(), FilePath.c_str());
 
 	return Results;
@@ -2504,19 +2611,20 @@ void UFbxLoader::PrintAllSkeletonHierarchies()
 
 	UE_LOG("\n=== ANIMATIONS (%d) ===\n", AllAnimSequences.Num());
 
-	for (UAnimSequence* AnimSeq : AllAnimSequences)
-	{
-		if (AnimSeq)
-		{
-			UAnimDataModel* DataModel = AnimSeq->GetDataModel();
-			if (DataModel && DataModel->GetSkeleton())
-			{
-				FString Title = "Animation: " + AnimSeq->GetName();
-				PrintSkeletonHierarchy(DataModel->GetSkeleton(), Title);
-				UE_LOG(""); // 빈 줄
-			}
-		}
-	}
+	// TODO: AnimSequence 손상 문제 해결 후 활성화
+	// for (UAnimSequence* AnimSeq : AllAnimSequences)
+	// {
+	// 	if (AnimSeq)
+	// 	{
+	// 		UAnimDataModel* DataModel = AnimSeq->GetDataModel();
+	// 		if (DataModel && DataModel->GetSkeleton())
+	// 		{
+	// 			FString Title = "Animation: " + AnimSeq->GetName();
+	// 			PrintSkeletonHierarchy(DataModel->GetSkeleton(), Title);
+	// 			UE_LOG(""); // 빈 줄
+	// 		}
+	// 	}
+	// }
 
 	UE_LOG("========================================\n");
 }
@@ -2570,5 +2678,140 @@ void UFbxLoader::PrintBoneRecursive(const FSkeleton* Skeleton, int32 BoneIndex, 
 			PrintBoneRecursive(Skeleton, i, Depth + 1);
 		}
 	}
+}
+
+void UFbxLoader::SaveAllAnimSequencesToAnimFiles()
+{
+	UE_LOG("FbxLoader: SaveAllAnimSequencesToAnimFiles: Saving animations to .anim files...");
+
+	TArray<UAnimSequence*> AllAnimSequences = RESOURCE.GetAll<UAnimSequence>();
+	UE_LOG("FbxLoader: SaveAllAnimSequencesToAnimFiles: Found %d AnimSequences", AllAnimSequences.Num());
+
+	int32 SavedCount = 0;
+
+	for (int32 i = 0; i < AllAnimSequences.Num(); ++i)
+	{
+		try
+		{
+			UAnimSequence* AnimSeq = AllAnimSequences[i];
+			if (!AnimSeq)
+			{
+				continue;
+			}
+
+			// Name이 비어있으면 손상된 AnimSequence이므로 건너뜀
+			if (AnimSeq->Name.empty())
+			{
+				continue;
+			}
+
+			// FilePath 직접 접근 (복사 방지)
+			const FString& CurrentPath = AnimSeq->GetFilePath();
+			if (CurrentPath.empty() || CurrentPath.size() > 1024)
+			{
+				continue;
+			}
+
+			// .anim 경로 결정
+			FString AnimFilePath;
+
+			if (CurrentPath.ends_with(".anim"))
+			{
+				// 이미 .anim 경로가 설정되어 있음
+				AnimFilePath = CurrentPath;
+			}
+			else
+			{
+				// FBX 경로에서 .anim 경로 생성
+				// 경로 형식: "FBX경로#AnimStackName" 또는 "FBX경로"
+				FString FbxPath = CurrentPath;
+				FString AnimStackName;
+
+				size_t HashPos = CurrentPath.find('#');
+				if (HashPos != FString::npos)
+				{
+					// "FBX경로#AnimStackName" 형식
+					FbxPath = CurrentPath.substr(0, HashPos);
+					AnimStackName = CurrentPath.substr(HashPos + 1);
+				}
+				else
+				{
+					// "FBX경로" 형식 - Name에서 AnimStackName 추출
+					// Name 형식: "FBX파일명_AnimStackName"
+					std::filesystem::path PathObj(FbxPath);
+					FString FileName = PathObj.stem().string();
+					FString AnimName = AnimSeq->GetName();
+
+					// FBX파일명_ 접두사 제거하여 AnimStackName 추출
+					if (AnimName.find(FileName + "_") == 0)
+					{
+						AnimStackName = AnimName.substr(FileName.size() + 1);
+					}
+					else
+					{
+						AnimStackName = AnimName;
+					}
+				}
+
+				// .anim 경로 생성: FBX경로_AnimStackName.anim
+				size_t DotPos = FbxPath.find_last_of('.');
+				if (DotPos != FString::npos)
+				{
+					AnimFilePath = FbxPath.substr(0, DotPos) + "_" + AnimStackName + ".anim";
+				}
+				else
+				{
+					AnimFilePath = FbxPath + "_" + AnimStackName + ".anim";
+				}
+			}
+
+			// .anim 파일이 이미 존재하면 건너뜀
+			FWideString WAnimFilePath = UTF8ToWide(AnimFilePath);
+			std::filesystem::path AnimFilePathObj(WAnimFilePath);
+			if (std::filesystem::exists(AnimFilePathObj))
+			{
+				continue;
+			}
+
+			// .anim 파일 저장
+			// 디렉토리 생성
+			if (AnimFilePathObj.has_parent_path())
+			{
+				std::filesystem::create_directories(AnimFilePathObj.parent_path());
+			}
+
+			FWindowsBinWriter AnimWriter(AnimFilePath);
+
+			// Name 저장
+			FString AnimName = AnimSeq->GetName();
+			Serialization::WriteString(AnimWriter, AnimName);
+
+			// Notifies 저장
+			uint32 NotifyCount = static_cast<uint32>(AnimSeq->Notifies.Num());
+			AnimWriter << NotifyCount;
+			for (int32 j = 0; j < AnimSeq->Notifies.Num(); ++j)
+			{
+				AnimWriter << AnimSeq->Notifies[j];
+			}
+
+			// DataModel 저장
+			UAnimDataModel* DataModel = AnimSeq->GetDataModel();
+			if (DataModel)
+			{
+				AnimWriter << *DataModel;
+			}
+
+			AnimWriter.Close();
+
+			UE_LOG("FbxLoader: SaveAllAnimSequencesToAnimFiles: Saved %s", AnimFilePath.c_str());
+			++SavedCount;
+		}
+		catch (const std::exception& e)
+		{
+			UE_LOG("FbxLoader: SaveAllAnimSequencesToAnimFiles: Exception at [%d]: %s", i, e.what());
+		}
+	}
+
+	UE_LOG("FbxLoader: SaveAllAnimSequencesToAnimFiles: Completed, saved %d .anim files", SavedCount);
 }
 
