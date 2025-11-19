@@ -8,6 +8,7 @@
 #include "PlatformProcess.h"
 #include "USlateManager.h"
 #include <commdlg.h>  // Windows 파일 다이얼로그
+#include "ImGui/utilities/widgets.h"
 
 namespace ed = ax::NodeEditor;
 
@@ -375,31 +376,26 @@ void SAnimStateMachineWindow::RenderLeftPanel(float width, float height)
 // 아이콘 그리기 헬퍼 함수
 void DrawPinIcon(const ImVec2& size, bool filled, ImU32 color)
 {
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    ImVec2 cursorPos = ImGui::GetCursorScreenPos();
+	// 1. 색상 변환 (ImU32 -> ImColor)
+	ImColor pinColor(color);
 
-    ImRect rect(cursorPos, cursorPos + size);
-    float centerX = (rect.Min.x + rect.Max.x) * 0.5f;
-    float centerY = (rect.Min.y + rect.Max.y) * 0.5f;
+	// 2. 내부 색상 (Inner Color) 계산
+	// (예제 코드처럼 투명도를 사용하여 배경색과 섞거나, 어두운 색으로 지정)
+	int alpha = static_cast<int>(pinColor.Value.w * 255);
+	ImColor innerColor(32, 32, 32, alpha); // 예제 코드의 (32,32,32) 배경색 유지
 
-    // 삼각형 그리기 (Flow 타입)
-    const float triangleSize = size.x * 0.6f;
-    const float halfSize = triangleSize * 0.5f;
+	// 3. 아이콘 타입 (일단 Flow로 고정하겠다고 하셨으므로)
+	ax::Widgets::IconType iconType = ax::Widgets::IconType::Flow;
 
-    ImVec2 p1(centerX - halfSize, centerY - halfSize * 0.866f);
-    ImVec2 p2(centerX + halfSize, centerY);
-    ImVec2 p3(centerX - halfSize, centerY + halfSize * 0.866f);
-
-    if (filled)
-    {
-        drawList->AddTriangleFilled(p1, p2, p3, color);
-    }
-    else
-    {
-        drawList->AddTriangle(p1, p2, p3, color, 2.0f);
-    }
-
-    ImGui::Dummy(size);
+	// 4. [핵심] 요청하신 함수 호출
+	// m_PinIconSize 대신 매개변수로 받은 size를 넘깁니다.
+	ax::Widgets::Icon(
+		size,          // 크기
+		iconType,      // 아이콘 모양 (Flow)
+		filled,     // 연결 여부 (내부를 채울지 말지 결정)
+		pinColor,      // 외곽선 색상
+		innerColor     // 내부 색상
+	);
 }
 
 void SAnimStateMachineWindow::RenderCenterPanel(float width, float height)
@@ -410,6 +406,48 @@ void SAnimStateMachineWindow::RenderCenterPanel(float width, float height)
     {
         ed::SetCurrentEditor(ActiveState->Context);
         ed::Begin("StateGraph", ImVec2(0.0, 0.0f));
+
+    	if (ed::BeginDelete())
+        {
+             ed::LinkId deletedLinkId;
+             while (ed::QueryDeletedLink(&deletedLinkId))
+             {
+                 if (ed::AcceptDeletedItem())
+                 {
+                     // ... 링크 삭제 ...
+                     auto& Links = ActiveState->Links;
+                     FGraphLink* Link = FindLink(ActiveState, deletedLinkId);
+                     if (Link && ActiveState->StateMachine)
+                     {
+                         FGraphNode* FromNode = FindNodeByPin(ActiveState, Link->StartPinID);
+                         FGraphNode* ToNode = FindNodeByPin(ActiveState, Link->EndPinID);
+                         if(FromNode && ToNode) ActiveState->StateMachine->RemoveTransition(FName(FromNode->Name), FName(ToNode->Name));
+                     }
+                     std::erase_if(Links, [deletedLinkId](const FGraphLink& L) { return L.ID == deletedLinkId; });
+                 }
+             }
+             ed::NodeId deletedNodeId;
+             while (ed::QueryDeletedNode(&deletedNodeId))
+             {
+                 if (ed::AcceptDeletedItem())
+                 {
+                     // ... 노드 삭제 ...
+                     FGraphNode* Node = FindNode(ActiveState, deletedNodeId);
+                     if (Node && ActiveState->StateMachine) ActiveState->StateMachine->RemoveNode(FName(Node->Name));
+
+                     // 관련 링크 삭제
+                     std::erase_if(ActiveState->Links, [&](const FGraphLink& L) {
+                        FGraphNode* S = FindNodeByPin(ActiveState, L.StartPinID);
+                        FGraphNode* E = FindNodeByPin(ActiveState, L.EndPinID);
+                        return (S && S->ID == deletedNodeId) || (E && E->ID == deletedNodeId);
+                     });
+
+                     auto& Nodes = ActiveState->Nodes;
+                     std::erase_if(Nodes, [deletedNodeId](const FGraphNode& N) { return N.ID == deletedNodeId; });
+                 }
+             }
+        }
+        ed::EndDelete();
 
         // 스타일 설정: 둥근 모서리, 패딩 제거 (직접 그리기 위해)
         ed::PushStyleVar(ed::StyleVar_NodeRounding, 12.0f);
@@ -668,14 +706,18 @@ void SAnimStateMachineWindow::RenderCenterPanel(float width, float height)
         ed::PopStyleVar(2); // Rounding, Padding 복구
 
         // 2. Draw Transitions (Links) - 곡선 스타일 개선
-        for (auto& Link : ActiveState->Links)
-        {
-            ImColor linkColor = Link.Conditions.empty() ?
-                ImColor(200, 200, 200, 255) : ImColor(100, 200, 255, 255); // 조건 있으면 파란색
+    	// 링크를 직선으로 만들기 위해 스타일을 푸시
+    	ed::PushStyleVar(ed::StyleVar_LinkStrength, 0.0f); // 곡률을 0으로 설정하여 직선으로 만듦
+    	ed::PushStyleVar(ed::StyleVar_SourceDirection, ImVec2(1.0f, 0.0f)); // 핀 방향성 무시 (직선 강제)
+    	ed::PushStyleVar(ed::StyleVar_TargetDirection, ImVec2(-1.0f, 0.0f));
 
-            // 두께를 약간 두껍게
-            ed::Link(Link.ID, Link.StartPinID, Link.EndPinID, linkColor, 3.0f);
-        }
+    	for (auto& Link : ActiveState->Links)
+    	{
+    		ImColor LinkColor = Link.Conditions.empty() ? ImColor(200, 200, 200, 255) : ImColor(100, 200, 255, 255);
+    		ed::Link(Link.ID, Link.StartPinID, Link.EndPinID, LinkColor, 1.0f);
+    		ed::Flow(Link.ID);
+    	}
+    	ed::PopStyleVar(3); // LinkStrength, SourceDirection, TargetDirection 복구
 
         // Handle Creation 부분 예시 (기존 코드 유지)
         if (ed::BeginCreate())
@@ -709,48 +751,6 @@ void SAnimStateMachineWindow::RenderCenterPanel(float width, float height)
         }
         ed::EndCreate();
 
-        if (ed::BeginDelete())
-        {
-             // ... 삭제 로직 (기존 동일) ...
-             ed::LinkId deletedLinkId;
-             while (ed::QueryDeletedLink(&deletedLinkId))
-             {
-                 if (ed::AcceptDeletedItem())
-                 {
-                     // ... 링크 삭제 ...
-                     auto& Links = ActiveState->Links;
-                     FGraphLink* Link = FindLink(ActiveState, deletedLinkId);
-                     if (Link && ActiveState->StateMachine)
-                     {
-                         FGraphNode* FromNode = FindNodeByPin(ActiveState, Link->StartPinID);
-                         FGraphNode* ToNode = FindNodeByPin(ActiveState, Link->EndPinID);
-                         if(FromNode && ToNode) ActiveState->StateMachine->RemoveTransition(FName(FromNode->Name), FName(ToNode->Name));
-                     }
-                     std::erase_if(Links, [deletedLinkId](const FGraphLink& L) { return L.ID == deletedLinkId; });
-                 }
-             }
-             ed::NodeId deletedNodeId;
-             while (ed::QueryDeletedNode(&deletedNodeId))
-             {
-                 if (ed::AcceptDeletedItem())
-                 {
-                     // ... 노드 삭제 ...
-                     FGraphNode* Node = FindNode(ActiveState, deletedNodeId);
-                     if (Node && ActiveState->StateMachine) ActiveState->StateMachine->RemoveNode(FName(Node->Name));
-
-                     // 관련 링크 삭제
-                     std::erase_if(ActiveState->Links, [&](const FGraphLink& L) {
-                        FGraphNode* S = FindNodeByPin(ActiveState, L.StartPinID);
-                        FGraphNode* E = FindNodeByPin(ActiveState, L.EndPinID);
-                        return (S && S->ID == deletedNodeId) || (E && E->ID == deletedNodeId);
-                     });
-
-                     auto& Nodes = ActiveState->Nodes;
-                     std::erase_if(Nodes, [deletedNodeId](const FGraphNode& N) { return N.ID == deletedNodeId; });
-                 }
-             }
-        }
-        ed::EndDelete();
 
         // Selection Logic (기존 동일)
         if (ed::GetSelectedObjectCount() > 0)

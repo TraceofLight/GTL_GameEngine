@@ -563,6 +563,12 @@
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_widgets.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ThirdParty\Include\ImGui\utilities\drawing.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\Include\ImGui\utilities\widgets.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="Generated\USkeletalMesh.generated.cpp" />
     <ClCompile Include="Generated\AActor.generated.cpp" />
     <ClCompile Include="Generated\UActorComponent.generated.cpp" />
