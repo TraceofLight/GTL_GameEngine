@@ -30,9 +30,6 @@ bool SAnimStateMachineWindow::Initialize(float StartX, float StartY, float Width
     Rect.Right = StartX + Width;
     Rect.Bottom = StartY + Height;
 
-    // 기본 탭 하나 생성
-	CreateNewGraphTab("New State Machine", nullptr);
-
     return true;
 }
 
@@ -90,6 +87,35 @@ void SAnimStateMachineWindow::CloseTab(int Index)
         ActiveTabIndex = std::min(Index, (int)Tabs.size() - 1);
         ActiveState = Tabs[ActiveTabIndex];
     }
+}
+
+void SAnimStateMachineWindow::LoadStateMachineFile(const char* FilePath)
+{
+    if (!FilePath || FilePath[0] == '\0')
+        return;
+
+    // Load the asset
+    FString FilePathStr = FilePath;
+    UAnimStateMachine* LoadedAsset = RESOURCE.Load<UAnimStateMachine>(FilePathStr);
+
+    if (LoadedAsset)
+    {
+        // Extract filename for tab name
+        std::filesystem::path fsPath(FilePath);
+        std::string FileName = fsPath.stem().string();
+
+        // Create new tab with loaded asset
+        CreateNewGraphTab(FileName.c_str(), LoadedAsset, UTF8ToWide(FilePathStr));
+    }
+    else
+    {
+        UE_LOG("[Error] Failed to load AnimStateMachine: %s", FilePath);
+    }
+}
+
+void SAnimStateMachineWindow::CreateNewEmptyTab()
+{
+    CreateNewGraphTab("New State Machine", nullptr);
 }
 
 void SAnimStateMachineWindow::OnRender()
@@ -414,7 +440,7 @@ void SAnimStateMachineWindow::RenderCenterPanel(float width, float height)
             // -------------------------------------------------------
             // [Step 2] 헤더 영역 그리기 (제목)
             // -------------------------------------------------------
-            ImGui::PushID(Node.ID.Get());
+            ImGui::PushID(static_cast<int>(Node.ID.Get()));
 
             ImGui::BeginGroup(); // Header Group
             {
@@ -1144,7 +1170,7 @@ void SAnimStateMachineWindow::CreateNode_State(FGraphState* State)
 
     // 위치 설정 (약간씩 떨어뜨려서 생성)
     ed::SetCurrentEditor(State->Context);
-    ed::SetNodePosition(Node.ID, ImVec2(100 + State->StateCounter * 50, 100 + State->StateCounter * 50));
+    ed::SetNodePosition(Node.ID, ImVec2(100.0f + State->StateCounter * 50.0f, 100.0f + State->StateCounter * 50.0f));
     ed::SetCurrentEditor(nullptr);
 }
 
@@ -1264,10 +1290,10 @@ void SAnimStateMachineWindow::SyncGraphFromStateMachine(FGraphState* State)
         else
         {
             // 저장된 위치가 없으면 그리드 형태로 배치
-            int nodeIndex = State->Nodes.size() - 1;
-            int row = nodeIndex / 3;
-            int col = nodeIndex % 3;
-            ed::SetNodePosition(Node.ID, ImVec2(100 + col * 300, 100 + row * 250));
+            int32 nodeIndex = static_cast<int32>(State->Nodes.size() - 1);
+            int32 row = nodeIndex / 3;
+            int32 col = nodeIndex % 3;
+            ed::SetNodePosition(Node.ID, ImVec2(100.0f + col * 300.0f, 100.0f + row * 250.0f));
         }
     }
 

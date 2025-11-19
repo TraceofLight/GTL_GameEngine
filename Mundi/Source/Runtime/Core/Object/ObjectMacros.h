@@ -35,8 +35,10 @@ struct TPropertyTypeTraits
 			return EPropertyType::StaticMesh;
 		//else if constexpr (std::is_same_v<T, USound>)
 		//	return EPropertyType::Sound;
+		else if constexpr (std::is_enum_v<T>)
+			return EPropertyType::Enum;  // Enum 타입
 		else
-			return EPropertyType::Struct;
+			return EPropertyType::Struct;  // 나머지는 Struct
 	}
 };
 
@@ -56,6 +58,10 @@ struct TPropertyTypeTraits
 // 클래스 메타데이터 마커
 // 사용법: UCLASS(DisplayName="방향성 라이트", Description="태양광과 같은 평행광 액터")
 #define UCLASS(...)
+
+// 구조체 메타데이터 마커
+// 사용법: USTRUCT()
+#define USTRUCT(...)
 
 // ===== 리플렉션 매크로 (수동 등록 방식) =====
 
@@ -94,7 +100,7 @@ struct TPropertyTypeTraits
 //     ADD_PROPERTY_RANGE(float, Intensity, "Light", 0.0f, 100.0f, true)
 // END_PROPERTIES()
 
-// StaticRegisterProperties 함수 시작
+// StaticRegisterProperties 함수 시작 (UObject 클래스용)
 #define BEGIN_PROPERTIES(ClassName) \
 	void ClassName::StaticRegisterProperties() \
 	{ \
@@ -102,6 +108,26 @@ struct TPropertyTypeTraits
 
 // StaticRegisterProperties 함수 종료
 #define END_PROPERTIES() \
+	}
+
+// Struct 리플렉션 등록 매크로
+#define BEGIN_STRUCT_PROPERTIES(StructName) \
+	namespace { \
+		static void Register_##StructName##_Properties() { \
+			static UClass StructClass{ #StructName, nullptr, sizeof(StructName) }; \
+			static bool bRegistered = false; \
+			if (bRegistered) return; \
+			bRegistered = true; \
+			UClass::SignUpClass(&StructClass); \
+			UClass* Class = &StructClass; \
+			using ThisClass_t = StructName;
+
+#define END_STRUCT_PROPERTIES(StructName) \
+		} \
+		struct StructName##_ReflectionRegistrar { \
+			StructName##_ReflectionRegistrar() { Register_##StructName##_Properties(); } \
+		}; \
+		static StructName##_ReflectionRegistrar GStructReflectionRegistrar_##StructName; \
 	}
 
 // 범위 제한이 있는 프로퍼티 추가
@@ -179,6 +205,21 @@ struct TPropertyTypeTraits
 		FProperty Prop; \
 		Prop.Name = #VarName; \
 		Prop.Type = EPropertyType::Sound; \
+		Prop.Offset = offsetof(ThisClass_t, VarName); \
+		Prop.Category = CategoryName; \
+		Prop.bIsEditAnywhere = bEditAnywhere; \
+		Prop.Tooltip = "" __VA_ARGS__; \
+		Class->AddProperty(Prop); \
+	}
+
+// AnimSequence 프로퍼티 추가
+#define ADD_PROPERTY_ANIMSEQUENCE(VarType, VarName, CategoryName, bEditAnywhere, ...) \
+	{ \
+		static_assert(std::is_array_v<std::remove_reference_t<decltype(CategoryName)>>, \
+		              "CategoryName must be a string literal!"); \
+		FProperty Prop; \
+		Prop.Name = #VarName; \
+		Prop.Type = EPropertyType::AnimSequence; \
 		Prop.Offset = offsetof(ThisClass_t, VarName); \
 		Prop.Category = CategoryName; \
 		Prop.bIsEditAnywhere = bEditAnywhere; \

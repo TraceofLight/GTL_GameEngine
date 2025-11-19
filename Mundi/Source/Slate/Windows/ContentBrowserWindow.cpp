@@ -446,6 +446,13 @@ void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 		USlateManager::GetInstance().OpenSkeletalMeshViewerWithFile(pathStr.c_str());
 		UE_LOG("Opening SkeletalMeshViewer for: %s", Entry.FileName.c_str());
 	}
+	else if (ext == ".anim")
+	{
+		// SkeletalMeshViewer에서 .anim 파일 열기
+		std::string pathStr = Entry.Path.string();
+		USlateManager::GetInstance().OpenSkeletalMeshViewerWithFile(pathStr.c_str());
+		UE_LOG("Opening SkeletalMeshViewer for animation: %s", Entry.FileName.c_str());
+	}
 	else if (ext == ".blend2d")
 	{
 		// BlendSpace2D 에디터 열기
@@ -492,7 +499,7 @@ const char* UContentBrowserWindow::GetIconForFile(const FFileEntry& Entry) const
 	{
 		return "[MESH]";
 	}
-	else if (ext == ".blend2d")
+	else if (ext == ".blend2d" || ext == ".anim")
 	{
 		return "[ANIM]";
 	}

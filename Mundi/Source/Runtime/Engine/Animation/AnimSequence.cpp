@@ -2,6 +2,8 @@
 #include "AnimSequence.h"
 #include "AnimDataModel.h"
 #include "Source/Editor/FBXLoader.h"
+#include "Source/Runtime/Core/Misc/WindowsBinReader.h"
+#include "Source/Runtime/Core/Misc/Archive.h"
 
 IMPLEMENT_CLASS(UAnimSequence)
 
@@ -16,12 +18,19 @@ UAnimSequence::~UAnimSequence()
 
 void UAnimSequence::Load(const FString& InFilePath, ID3D11Device* InDevice)
 {
+	// 파일 확장자 확인: .anim 파일이면 LoadFromAnimFile 호출
+	if (InFilePath.ends_with(".anim"))
+	{
+		LoadFromAnimFile(InFilePath);
+		return;
+	}
+
 	// 경로 형식: "FBX파일경로#AnimStackName"
 	// '#'를 기준으로 FBX 파일 경로와 AnimStack 이름 분리
 	size_t HashPos = InFilePath.find('#');
 	if (HashPos == FString::npos)
 	{
-		UE_LOG("ERROR: UAnimSequence::Load() - Invalid path format. Expected 'FbxPath#AnimStackName', got: %s", InFilePath.c_str());
+		UE_LOG("AnimSequence: Load: Invalid path format - %s", InFilePath.c_str());
 		return;
 	}
 
@@ -32,7 +41,7 @@ void UAnimSequence::Load(const FString& InFilePath, ID3D11Device* InDevice)
 	FSkeleton* FbxSkeleton = UFbxLoader::GetInstance().ExtractSkeletonFromFbx(FbxFilePath);
 	if (!FbxSkeleton)
 	{
-		UE_LOG("ERROR: UAnimSequence::Load() - Failed to extract skeleton from FBX: %s", FbxFilePath.c_str());
+		UE_LOG("AnimSequence: Load: Failed to extract skeleton from %s", FbxFilePath.c_str());
 		return;
 	}
 
@@ -52,7 +61,7 @@ void UAnimSequence::Load(const FString& InFilePath, ID3D11Device* InDevice)
 
 	if (!FoundAnimSequence)
 	{
-		UE_LOG("ERROR: UAnimSequence::Load() - AnimStack '%s' not found in FBX: %s", AnimStackName.c_str(), FbxFilePath.c_str());
+		UE_LOG("AnimSequence: Load: AnimStack '%s' not found in %s", AnimStackName.c_str(), FbxFilePath.c_str());
 
 		// 생성된 AnimSequence들 정리
 		for (UAnimSequence* AnimSeq : AllAnimSequences)
@@ -94,8 +103,53 @@ void UAnimSequence::Load(const FString& InFilePath, ID3D11Device* InDevice)
 	{
 		SetLastModifiedTime(std::filesystem::last_write_time(FbxPath));
 	}
+}
 
-	UE_LOG("UAnimSequence::Load() - Successfully loaded AnimStack '%s' from %s", AnimStackName.c_str(), FbxFilePath.c_str());
+/**
+ * @brief .anim 파일에서 AnimSequence 로드
+ * @param AnimFilePath .anim 파일 경로
+ */
+void UAnimSequence::LoadFromAnimFile(const FString& AnimFilePath)
+{
+	FWindowsBinReader Reader(AnimFilePath);
+	if (!Reader.IsOpen())
+	{
+		UE_LOG("AnimSequence: LoadFromAnimFile: Failed to open %s", AnimFilePath.c_str());
+		return;
+	}
+
+	// Name 로드
+	FString AnimName;
+	Serialization::ReadString(Reader, AnimName);
+	SetName(AnimName);
+
+	// Notifies 로드
+	uint32 NotifyCount = 0;
+	Reader << NotifyCount;
+	Notifies.resize(NotifyCount);
+	for (uint32 i = 0; i < NotifyCount; ++i)
+	{
+		Reader << Notifies[i];
+	}
+
+	// DataModel 로드
+	if (!DataModel)
+	{
+		DataModel = NewObject<UAnimDataModel>();
+	}
+	Reader << *DataModel;
+
+	Reader.Close();
+
+	// FilePath 설정 (ResourceManager 호환)
+	SetFilePath(AnimFilePath);
+
+	// LastModifiedTime 설정
+	std::filesystem::path FilePath(AnimFilePath);
+	if (std::filesystem::exists(FilePath))
+	{
+		SetLastModifiedTime(std::filesystem::last_write_time(FilePath));
+	}
 }
 
 bool UAnimSequence::GetBoneTransformAtTime(const FString& BoneName, float Time, FVector& OutPosition, FQuat& OutRotation, FVector& OutScale) const

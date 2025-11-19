@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include "Name.h"
 #include "UEContainer.h"
 
 class FArchive
@@ -95,4 +96,21 @@ namespace Serialization
         if (Count > 0)
             Ar.Serialize((void*)Arr.data(), sizeof(T) * Count);
     }
+}
+
+// FName 직렬화 특수화 (FNamePool은 프로그램 재시작 시 초기화되므로 문자열로 저장)
+inline FArchive& operator<<(FArchive& Ar, FName& Name)
+{
+    if (Ar.IsSaving())
+    {
+        FString NameStr = Name.ToString();
+        Serialization::WriteString(Ar, NameStr);
+    }
+    else if (Ar.IsLoading())
+    {
+        FString NameStr;
+        Serialization::ReadString(Ar, NameStr);
+        Name = FName(NameStr);
+    }
+    return Ar;
 }

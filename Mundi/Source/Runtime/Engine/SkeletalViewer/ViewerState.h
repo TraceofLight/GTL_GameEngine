@@ -74,6 +74,10 @@ public:
 	bool bDraggingNotify = false;
 	float NotifyDragOffsetX = 0.0f;
 
+    // Notify 클립보드 (복사/붙여넣기)
+    bool bHasNotifyClipboard = false;  // 클립보드에 Notify가 있는지 여부
+    struct FAnimNotifyEvent NotifyClipboard;  // 클립보드에 복사된 Notify
+
     // View Mode
     EViewerMode ViewMode = EViewerMode::Skeletal;
 };

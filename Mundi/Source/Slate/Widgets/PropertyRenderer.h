@@ -8,7 +8,7 @@
 class UPropertyRenderer
 {
 public:
-	// 단일 프로퍼티 렌더링
+	// 단일 프로퍼티 렌더링 (UObject 체크 포함)
 	static bool RenderProperty(const FProperty& Property, void* ObjectInstance);
 
 	// 객체의 원하는 프로퍼티를 카테고리별로 렌더링
@@ -21,6 +21,9 @@ public:
 	static void RenderAllPropertiesWithInheritance(UObject* Object);
 
 private:
+	// 내부: UObject 체크 없이 프로퍼티만 렌더링 (struct 재귀 호출용)
+	static bool RenderPropertyInternal(const FProperty& Property, void* Instance, bool bSkipUObjectCheck);
+
 	// 타입별 렌더링 함수들
 	static bool RenderBoolProperty(const FProperty& Prop, void* Instance);
 	static bool RenderInt32Property(const FProperty& Prop, void* Instance);
@@ -30,12 +33,15 @@ private:
 	static bool RenderStringProperty(const FProperty& Prop, void* Instance);
 	static bool RenderNameProperty(const FProperty& Prop, void* Instance);
 	static bool RenderObjectPtrProperty(const FProperty& Prop, void* Instance);
+	static bool RenderAssetPtrProperty(const FProperty& Prop, void* Instance);  // 범용 에셋 선택 (UTexture, UAnimSequence 등)
 	static bool RenderStructProperty(const FProperty& Prop, void* Instance);
 	static bool RenderTextureProperty(const FProperty& Prop, void* Instance);
 	static bool RenderSoundProperty(const FProperty& Prop, void* Instance);
+	static bool RenderAnimSequenceProperty(const FProperty& Prop, void* Instance);
 	static bool RenderSRVProperty(const FProperty& Prop, void* Instance);
 	static bool RenderScriptFileProperty(const FProperty& Prop, void* Instance);
 	static bool RenderCurveProperty(const FProperty& Prop, void* Instance);
+	static bool RenderEnumProperty(const FProperty& Prop, void* Instance);
 	static bool RenderPointLightCubeShadowMap(class FLightManager* LightManager, class ULightComponent* LightComp, int32 CubeSliceIndex);
 	static bool RenderSpotLightShadowMap(class FLightManager* LightManager, class ULightComponent* LightComp, ID3D11ShaderResourceView* AtlasSRV);
 	static bool RenderSkeletalMeshProperty(const FProperty& Prop, void* Instance);
@@ -47,6 +53,8 @@ private:
 	static bool RenderSoundSelectionCombo(const char* Label, USound* CurrentSound, USound*& OutNewSound);
 	// Simplified sound combo without thumbnails
 	static bool RenderSoundSelectionComboSimple(const char* Label, USound* CurrentSound, USound*& OutNewSound);
+	// AnimSequence selection combo
+	static bool RenderAnimSequenceSelectionCombo(const char* Label, class UAnimSequence* CurrentAnim, class UAnimSequence*& OutNewAnim);
 
 
 	// Transform 프로퍼티 렌더링 헬퍼 함수
@@ -71,4 +79,8 @@ private:
 	static TArray<const char*> CachedSoundItems;
 	static TArray<FString> CachedScriptPaths;
 	static TArray<const char*> CachedScriptItems;
+	static TArray<FString> CachedAnimSequencePaths;
+	static TArray<const char*> CachedAnimSequenceItems;
+	static TArray<FString> CachedAnimStateMachinePaths;
+	static TArray<const char*> CachedAnimStateMachineItems;
 };

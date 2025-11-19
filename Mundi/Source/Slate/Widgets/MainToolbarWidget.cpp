@@ -107,32 +107,6 @@ void UMainToolbarWidget::RenderToolbar()
         ImGui::SameLine(0, 12.0f);
         RenderLoadPrefabButton();
 
-    	// ============================================================
-    	// [임시] AnimGraph 버튼 추가
-    	// ============================================================
-    	ImGui::SameLine(0, 12.0f);
-
-    	// 버튼 스타일 (파란색 틴트)
-    	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.7f, 0.6f));
-    	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.8f, 0.8f));
-    	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.3f, 0.6f, 1.0f));
-    	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
-
-    	// 높이는 아이콘 사이즈에 맞추고 너비는 텍스트에 맞게
-    	if (ImGui::Button("Anim State Machine", ImVec2(0, IconSize)))
-    	{
-    		SLATE.OpenAnimStateMachineWindow();
-    	}
-
-    	ImGui::PopStyleVar(1);
-    	ImGui::PopStyleColor(3);
-
-    	if (ImGui::IsItemHovered())
-    	{
-    		ImGui::SetTooltip("애니메이션 상태 머신 에디터를 엽니다");
-    	}
-    	// ============================================================
-
         // 구분선
         ImGui::SameLine(0, 12.0f);
         separatorStart = ImGui::GetCursorScreenPos();

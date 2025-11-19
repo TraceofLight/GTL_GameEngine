@@ -7,11 +7,11 @@ class FViewportClient;
 class UWorld;
 struct ID3D11Device;
 
-class SSkeletalMeshViewerWindow : public SWindow
+class SPreviewWindow : public SWindow
 {
 public:
-    SSkeletalMeshViewerWindow();
-    virtual ~SSkeletalMeshViewerWindow();
+    SPreviewWindow();
+    virtual ~SPreviewWindow();
 
     bool Initialize(float StartX, float StartY, float Width, float Height, UWorld* InWorld, ID3D11Device* InDevice);
 
@@ -112,6 +112,9 @@ private:
     void DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime);
     void DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State);
     void DrawNotifyTracksPanel(ViewerState* State, float StartTime, float EndTime);
+
+    // Notify Track 복원 (애니메이션 로드 시)
+    void RebuildNotifyTracks(ViewerState* State);
 
     // Notify 라이브러리 관리
     void ScanNotifyLibrary();

@@ -76,7 +76,6 @@ public:
 	 */
 	FAnimNode_BlendSpace2D* GetBlendSpace2DNode() { return &BlendSpace2DNode; }
 
-protected:
 	// Pose Evaluation
 	void EvaluateAnimation();
 
@@ -91,6 +90,10 @@ protected:
 	// ===== Animation Nodes =====
 	FAnimNode_StateMachine StateMachineNode;
 	FAnimNode_BlendSpace2D BlendSpace2DNode;
+
+	// ===== AnimNotifyState 관리 (UE 표준 방식) =====
+	// 현재 활성화된 AnimNotifyState 목록 (이전 프레임 기준)
+	TArray<FAnimNotifyEvent> ActiveAnimNotifyState;
 
 	virtual void HandleNotify(const FAnimNotifyEvent& NotifyEvent);
 

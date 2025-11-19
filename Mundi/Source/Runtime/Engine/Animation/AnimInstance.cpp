@@ -52,6 +52,18 @@ void UAnimInstance::NativeBeginPlay()
  */
 void UAnimInstance::UpdateAnimation(float DeltaSeconds)
 {
+	// StateMachine 사용 여부 확인
+	UAnimStateMachine* StateMachineAsset = StateMachineNode.GetStateMachine();
+	if (StateMachineAsset)
+	{
+		// StateMachine 모드: StateMachine이 애니메이션 시간 관리
+		// Notify는 StateMachine의 현재 상태 애니메이션으로 처리
+		// (StateMachine은 자체적으로 Update/Evaluate 호출됨)
+		TriggerAnimNotifies(DeltaSeconds);
+		return;
+	}
+
+	// 일반 애니메이션 재생 모드
 	if (!bIsPlaying || !CurrentAnimation)
 	{
 		return;
@@ -101,7 +113,7 @@ void UAnimInstance::UpdateAnimation(float DeltaSeconds)
 		}
 	}
 
-	// Notify Trigger
+	// Notify Trigger (UE 표준 방식: Begin/Tick/End 모두 처리)
 	TriggerAnimNotifies(DeltaSeconds);
 
 	// Pose Evaluation (본 포즈 샘플링 및 적용)
@@ -109,27 +121,129 @@ void UAnimInstance::UpdateAnimation(float DeltaSeconds)
 }
 
 /**
- * @brief Animation Notify Trigger 처리
+ * @brief Animation Notify Trigger 처리 (UE 표준 방식)
  * @param DeltaSeconds 델타 타임
+ * @details UE AnimInstance.cpp:1579-1692 참조
  */
 void UAnimInstance::TriggerAnimNotifies(float DeltaSeconds)
 {
-	if (!CurrentAnimation || !OwnerComponent)
+	if (!OwnerComponent)
 	{
 		return;
 	}
 
-	// 현재 시간 구간에서 트리거되어야 할 Notify 수집
-	TArray<const FAnimNotifyEvent*> TriggeredNotifies;
-	CurrentAnimation->GetAnimNotifiesFromDeltaPositions(PreviousTime, CurrentTime, TriggeredNotifies);
+	// StateMachine 사용 여부에 따라 애니메이션/시간 정보 가져오기
+	UAnimSequenceBase* ActiveAnimation = nullptr;
+	float ActiveCurrentTime = 0.0f;
+	float ActivePreviousTime = 0.0f;
 
-	// 각 Notify 처리
-	for (const FAnimNotifyEvent* NotifyEvent : TriggeredNotifies)
+	UAnimStateMachine* StateMachineAsset = StateMachineNode.GetStateMachine();
+	if (StateMachineAsset)
 	{
-		if (NotifyEvent)
+		// StateMachine 모드: 현재 상태의 애니메이션 정보 사용
+		ActiveAnimation = StateMachineNode.GetCurrentAnimation();
+		ActiveCurrentTime = StateMachineNode.GetCurrentAnimTime();
+		ActivePreviousTime = StateMachineNode.GetPreviousFrameAnimTime();
+	}
+	else
+	{
+		// 일반 재생 모드: AnimInstance의 CurrentAnimation 사용
+		ActiveAnimation = CurrentAnimation;
+		ActiveCurrentTime = CurrentTime;
+		ActivePreviousTime = PreviousTime;
+	}
+
+	if (!ActiveAnimation)
+	{
+		return;
+	}
+
+	AActor* Owner = OwnerComponent->GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+
+	UWorld* World = Owner->GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	FLuaManager* LuaMgr = World->GetLuaManager();
+	if (!LuaMgr)
+	{
+		return;
+	}
+
+	// 1. 현재 프레임에서 활성화되어야 할 Notify 수집 (NotifyQueue 역할)
+	TArray<const FAnimNotifyEvent*> CurrentFrameNotifies;
+	ActiveAnimation->GetAnimNotifiesFromDeltaPositions(ActivePreviousTime, ActiveCurrentTime, CurrentFrameNotifies);
+
+	// 2. NewActiveAnimNotifyState 구축 (이번 프레임에 활성화될 NotifyState 목록)
+	TArray<FAnimNotifyEvent> NewActiveAnimNotifyState;
+	TArray<const FAnimNotifyEvent*> NotifyStateBeginEvents;
+
+	for (const FAnimNotifyEvent* NotifyEvent : CurrentFrameNotifies)
+	{
+		if (!NotifyEvent)
 		{
+			continue;
+		}
+
+		// AnimNotifyState (Duration > 0)
+		if (NotifyEvent->Duration > 0.0f)
+		{
+			// 이미 ActiveAnimNotifyState에 있는지 확인
+			bool bAlreadyActive = false;
+			for (int32 i = 0; i < ActiveAnimNotifyState.Num(); ++i)
+			{
+				if (ActiveAnimNotifyState[i] == *NotifyEvent)
+				{
+					// 이미 활성화된 NotifyState → ActiveAnimNotifyState에서 제거 (NewActive로 이동)
+					ActiveAnimNotifyState.erase(ActiveAnimNotifyState.begin() + i);
+					bAlreadyActive = true;
+					break;
+				}
+			}
+
+			if (!bAlreadyActive)
+			{
+				// 새로 시작하는 NotifyState → NotifyBegin 호출 대기열에 추가
+				NotifyStateBeginEvents.Add(NotifyEvent);
+			}
+
+			// NewActiveAnimNotifyState에 추가 (이번 프레임에도 계속 활성)
+			NewActiveAnimNotifyState.Add(*NotifyEvent);
+		}
+		else
+		{
+			// 일반 Notify (Duration == 0) → 즉시 실행
 			HandleNotify(*NotifyEvent);
 		}
+	}
+
+	// 3. ActiveAnimNotifyState에 남아있는 항목들 → 더 이상 활성화되지 않음 → NotifyEnd 호출
+	for (int32 i = 0; i < ActiveAnimNotifyState.Num(); ++i)
+	{
+		const FAnimNotifyEvent& AnimNotifyEvent = ActiveAnimNotifyState[i];
+		LuaMgr->ExecuteNotifyStateEnd(AnimNotifyEvent.NotifyName.ToString(), AnimNotifyEvent.PropertyData, OwnerComponent, ActiveCurrentTime);
+	}
+
+	// 4. 새로 시작하는 NotifyState → NotifyBegin 호출
+	for (const FAnimNotifyEvent* NotifyEvent : NotifyStateBeginEvents)
+	{
+		LuaMgr->ExecuteNotifyStateBegin(NotifyEvent->NotifyName.ToString(), NotifyEvent->PropertyData, OwnerComponent, ActiveCurrentTime);
+	}
+
+	// 5. ActiveAnimNotifyState 교체
+	ActiveAnimNotifyState = std::move(NewActiveAnimNotifyState);
+
+	// 6. 현재 활성화된 모든 NotifyState → NotifyTick 호출
+	for (int32 i = 0; i < ActiveAnimNotifyState.Num(); ++i)
+	{
+		const FAnimNotifyEvent& AnimNotifyEvent = ActiveAnimNotifyState[i];
+		LuaMgr->ExecuteNotifyStateTick(AnimNotifyEvent.NotifyName.ToString(), AnimNotifyEvent.PropertyData, OwnerComponent, ActiveCurrentTime, DeltaSeconds);
 	}
 }
 
@@ -232,14 +346,7 @@ void UAnimInstance::EvaluateAnimation()
 	UAnimSequence* AnimSequence = Cast<UAnimSequence>(CurrentAnimation);
 	if (!AnimSequence)
 	{
-		UE_LOG("[AnimInstance] EvaluateAnimation: CurrentAnimation is not UAnimSequence!");
 		return;
-	}
-
-	static int32 EvalLogCounter = 0;
-	if (EvalLogCounter++ % 60 == 0)
-	{
-		UE_LOG("[AnimInstance] EvaluateAnimation: Time=%.2f", CurrentTime);
 	}
 
 	// SkeletalMesh에서 Skeleton 정보 가져오기

@@ -38,6 +38,7 @@
 #include "PlayerCameraManager.h"
 #include "Hash.h"
 #include"Character.h"
+#include "LuaBindHelpers.h"
 
 IMPLEMENT_CLASS(UWorld)
 
@@ -817,3 +818,12 @@ void UWorld::PlaySound3D(const FString& SoundPath, const FVector& Location, floa
 		UE_LOG("[World] PlaySound3D: Failed to load sound: %s", SoundPath.c_str());
 	}
 }
+
+// ===== Lua Binding =====
+
+LUA_BIND_BEGIN(UWorld)
+{
+	AddMethodR<APlayerCameraManager*, UWorld>(
+		T, "GetPlayerCameraManager", &UWorld::GetPlayerCameraManager);
+}
+LUA_BIND_END()

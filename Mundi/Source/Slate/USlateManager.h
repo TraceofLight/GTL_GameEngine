@@ -4,7 +4,7 @@
 #include "Windows/SSplitterV.h"
 #include "Windows/SSplitterH.h"
 #include "Windows/SViewportWindow.h"
-#include "Windows/SkeletalMeshViewerWindow.h"
+#include "Windows/PreviewWindow.h"
 #include "Windows/BlendSpace2DEditorWindow.h"
 
 class SSceneIOWindow; // 새로 추가할 UI
@@ -134,7 +134,7 @@ private:
     const float ConsoleHorizontalMargin = 10.0f; // 좌/우 여백 (픽셀 단위)
 
     // Detached skeletal mesh viewer window
-    SSkeletalMeshViewerWindow* SkeletalViewerWindow = nullptr;
+    SPreviewWindow* SkeletalViewerWindow = nullptr;
     SAnimStateMachineWindow* AnimStateMachineWindow = nullptr;
 
     // Blend Space 2D Editor window
@@ -151,4 +151,7 @@ private:
 
     // Shutdown 관련
     bool bIsShutdown = false;
+
+	// Helper to create AnimStateMachineWindow without opening a tab
+	void CreateAnimStateMachineWindowIfNeeded();
 };

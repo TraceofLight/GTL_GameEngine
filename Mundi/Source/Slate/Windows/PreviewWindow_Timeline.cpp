@@ -2,7 +2,7 @@
 
 #include "BoneAnchorComponent.h"
 #include "SkeletalMeshActor.h"
-#include "SkeletalMeshViewerWindow.h"
+#include "PreviewWindow.h"
 #include "ImGui/imgui.h"
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
@@ -10,7 +10,7 @@
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 
 // Timeline 컨트롤 UI 렌더링
-void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
+void SPreviewWindow::RenderTimelineControls(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -494,7 +494,7 @@ void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
 }
 
 // Timeline 헬퍼: 프레임 변경 시 공통 갱신 로직
-void SSkeletalMeshViewerWindow::RefreshAnimationFrame(ViewerState* State)
+void SPreviewWindow::RefreshAnimationFrame(ViewerState* State)
 {
     if (!State)
     {
@@ -542,7 +542,7 @@ void SSkeletalMeshViewerWindow::RefreshAnimationFrame(ViewerState* State)
     }
 }
 
-void SSkeletalMeshViewerWindow::TimelineToFront(ViewerState* State)
+void SPreviewWindow::TimelineToFront(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -554,7 +554,7 @@ void SSkeletalMeshViewerWindow::TimelineToFront(ViewerState* State)
     RefreshAnimationFrame(State);
 }
 
-void SSkeletalMeshViewerWindow::TimelineToPrevious(ViewerState* State)
+void SPreviewWindow::TimelineToPrevious(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -583,7 +583,7 @@ void SSkeletalMeshViewerWindow::TimelineToPrevious(ViewerState* State)
     RefreshAnimationFrame(State);
 }
 
-void SSkeletalMeshViewerWindow::TimelineReverse(ViewerState* State)
+void SPreviewWindow::TimelineReverse(ViewerState* State)
 {
     if (!State)
     {
@@ -617,12 +617,12 @@ void SSkeletalMeshViewerWindow::TimelineReverse(ViewerState* State)
     }
 }
 
-void SSkeletalMeshViewerWindow::TimelineRecord(ViewerState* State)
+void SPreviewWindow::TimelineRecord(ViewerState* State)
 {
     // TODO: 녹화 기능 구현
 }
 
-void SSkeletalMeshViewerWindow::TimelinePlay(ViewerState* State)
+void SPreviewWindow::TimelinePlay(ViewerState* State)
 {
     if (!State)
     {
@@ -656,7 +656,7 @@ void SSkeletalMeshViewerWindow::TimelinePlay(ViewerState* State)
     }
 }
 
-void SSkeletalMeshViewerWindow::TimelineToNext(ViewerState* State)
+void SPreviewWindow::TimelineToNext(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -686,7 +686,7 @@ void SSkeletalMeshViewerWindow::TimelineToNext(ViewerState* State)
     RefreshAnimationFrame(State);
 }
 
-void SSkeletalMeshViewerWindow::TimelineToEnd(ViewerState* State)
+void SPreviewWindow::TimelineToEnd(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -708,7 +708,7 @@ void SSkeletalMeshViewerWindow::TimelineToEnd(ViewerState* State)
 // 새로운 커스텀 타임라인 렌더링
 // ========================================
 
-void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
+void SPreviewWindow::RenderTimeline(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -1090,10 +1090,90 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
                             NotifyColor
                         );
 
-                        // 드래그용 InvisibleButton (박스 전체 영역)
-                        ImGui::SetCursorScreenPos(BoxMin);
+                        // 드래그용 InvisibleButton 2개: 오른쪽 끝(Duration 조정) + 박스 중앙(전체 이동)
                         ImGui::PushID(NotifyIndex * 1000 + TrackIndex);
-                        ImGui::InvisibleButton("##NotifyMarker", ImVec2(EndX - NotifyX, BoxHeight));
+
+                        // 1. 오른쪽 끝 리사이즈 핸들 (EndX ± 8px 범위)
+                        const float ResizeHandleWidth = 16.0f;
+                        ImVec2 ResizeHandleMin = ImVec2(EndX - ResizeHandleWidth * 0.5f, BoxY);
+                        ImVec2 ResizeHandleSize = ImVec2(ResizeHandleWidth, BoxHeight);
+                        ImGui::SetCursorScreenPos(ResizeHandleMin);
+                        ImGui::InvisibleButton("##NotifyResize", ResizeHandleSize);
+
+                        bool bIsResizing = ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left);
+                        bool bIsHoveringResize = ImGui::IsItemHovered();
+
+                        // 리사이즈 호버 시 커서 변경
+                        if (bIsHoveringResize || bIsResizing)
+                        {
+                            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                        }
+
+                        // Duration 조정 (오른쪽 끝 드래그)
+                        if (bIsResizing)
+                        {
+                            ImVec2 MousePos = ImGui::GetMousePos();
+                            float MouseNormalizedX = (MousePos.x - ScrollTimelineMin.x) / ScrollTimelineWidth;
+                            float MouseTime = FMath::Lerp(StartTime, EndTime, FMath::Clamp(MouseNormalizedX, 0.0f, 1.0f));
+
+                            // Playback Range로 제한
+                            UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
+                            if (DataModel)
+                            {
+                                const FFrameRate& FrameRate = DataModel->GetFrameRate();
+                                float TimePerFrame = 1.0f / FrameRate.AsDecimal();
+
+                                int32 PlaybackStartFrame = State->PlaybackRangeStartFrame;
+                                int32 PlaybackEndFrame = (State->PlaybackRangeEndFrame < 0) ? DataModel->GetNumberOfFrames() : State->PlaybackRangeEndFrame;
+                                float PlaybackStartTime = static_cast<float>(PlaybackStartFrame) * TimePerFrame;
+                                float PlaybackEndTime = static_cast<float>(PlaybackEndFrame) * TimePerFrame;
+
+                                MouseTime = FMath::Clamp(MouseTime, PlaybackStartTime, PlaybackEndTime);
+                            }
+
+                            // Duration = MouseTime - TriggerTime (최소 0.01초)
+                            float NewDuration = FMath::Max(0.01f, MouseTime - Notify.TriggerTime);
+                            Notify.Duration = NewDuration;
+                            State->SelectedNotifyIndex = NotifyIndex;
+                        }
+
+                        // 2. 박스 중앙 이동 핸들 (전체 박스 - 리사이즈 핸들 제외)
+                        ImVec2 MoveHandleMin = BoxMin;
+                        ImVec2 MoveHandleSize = ImVec2(EndX - NotifyX - ResizeHandleWidth * 0.5f, BoxHeight);
+                        ImGui::SetCursorScreenPos(MoveHandleMin);
+                        ImGui::InvisibleButton("##NotifyMove", MoveHandleSize);
+
+                        // NotifyState 전체 이동 드래그 (리사이즈 중이 아닐 때만)
+                        if (!bIsResizing && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+                        {
+                            ImVec2 MousePos = ImGui::GetMousePos();
+                            float MouseNormalizedX = (MousePos.x - ScrollTimelineMin.x) / ScrollTimelineWidth;
+                            float MouseTime = FMath::Lerp(StartTime, EndTime, FMath::Clamp(MouseNormalizedX, 0.0f, 1.0f));
+
+                            // Playback Range로 제한
+                            UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
+                            if (DataModel)
+                            {
+                                const FFrameRate& FrameRate = DataModel->GetFrameRate();
+                                float TimePerFrame = 1.0f / FrameRate.AsDecimal();
+
+                                int32 PlaybackStartFrame = State->PlaybackRangeStartFrame;
+                                int32 PlaybackEndFrame = (State->PlaybackRangeEndFrame < 0) ? DataModel->GetNumberOfFrames() : State->PlaybackRangeEndFrame;
+                                float PlaybackStartTime = static_cast<float>(PlaybackStartFrame) * TimePerFrame;
+                                float PlaybackEndTime = static_cast<float>(PlaybackEndFrame) * TimePerFrame;
+
+                                MouseTime = FMath::Clamp(MouseTime, PlaybackStartTime, PlaybackEndTime);
+                            }
+
+                            Notify.TriggerTime = MouseTime;
+                            State->SelectedNotifyIndex = NotifyIndex;
+                        }
+
+                        // Hover 시 플래그 설정 (Timeline 우클릭 메뉴 방지용)
+                        if (ImGui::IsItemHovered() || bIsHoveringResize)
+                        {
+                            bIsHoveringNotify = true;
+                        }
                     }
                     else
                     {
@@ -1128,40 +1208,40 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
                         ImGui::SetCursorScreenPos(ImVec2(NotifyX - DiamondSize, BoxY));
                         ImGui::PushID(NotifyIndex * 1000 + TrackIndex);
                         ImGui::InvisibleButton("##NotifyMarker", ImVec2(BoxWidth + 8.0f + DiamondSize, BoxHeight));
-                    }
 
-                    // 드래그 처리
-                    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
-                    {
-                        ImVec2 MousePos = ImGui::GetMousePos();
-                        float MouseNormalizedX = (MousePos.x - ScrollTimelineMin.x) / ScrollTimelineWidth;
-                        float MouseTime = FMath::Lerp(StartTime, EndTime, FMath::Clamp(MouseNormalizedX, 0.0f, 1.0f));
-
-                        // Playback Range로 제한
-                        UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
-                        if (DataModel)
+                        // 일반 Notify 드래그 처리
+                        if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
                         {
-                            const FFrameRate& FrameRate = DataModel->GetFrameRate();
-                            float TimePerFrame = 1.0f / FrameRate.AsDecimal();
+                            ImVec2 MousePos = ImGui::GetMousePos();
+                            float MouseNormalizedX = (MousePos.x - ScrollTimelineMin.x) / ScrollTimelineWidth;
+                            float MouseTime = FMath::Lerp(StartTime, EndTime, FMath::Clamp(MouseNormalizedX, 0.0f, 1.0f));
 
-                            // Playback Range 시간 범위 계산
-                            int32 PlaybackStartFrame = State->PlaybackRangeStartFrame;
-                            int32 PlaybackEndFrame = (State->PlaybackRangeEndFrame < 0) ? DataModel->GetNumberOfFrames() : State->PlaybackRangeEndFrame;
-                            float PlaybackStartTime = static_cast<float>(PlaybackStartFrame) * TimePerFrame;
-                            float PlaybackEndTime = static_cast<float>(PlaybackEndFrame) * TimePerFrame;
+                            // Playback Range로 제한
+                            UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
+                            if (DataModel)
+                            {
+                                const FFrameRate& FrameRate = DataModel->GetFrameRate();
+                                float TimePerFrame = 1.0f / FrameRate.AsDecimal();
 
-                            // 마우스 시간을 Playback Range 내로 클램프
-                            MouseTime = FMath::Clamp(MouseTime, PlaybackStartTime, PlaybackEndTime);
+                                // Playback Range 시간 범위 계산
+                                int32 PlaybackStartFrame = State->PlaybackRangeStartFrame;
+                                int32 PlaybackEndFrame = (State->PlaybackRangeEndFrame < 0) ? DataModel->GetNumberOfFrames() : State->PlaybackRangeEndFrame;
+                                float PlaybackStartTime = static_cast<float>(PlaybackStartFrame) * TimePerFrame;
+                                float PlaybackEndTime = static_cast<float>(PlaybackEndFrame) * TimePerFrame;
+
+                                // 마우스 시간을 Playback Range 내로 클램프
+                                MouseTime = FMath::Clamp(MouseTime, PlaybackStartTime, PlaybackEndTime);
+                            }
+
+                            Notify.TriggerTime = MouseTime;
+                            State->SelectedNotifyIndex = NotifyIndex;
                         }
 
-                        Notify.TriggerTime = MouseTime;
-                        State->SelectedNotifyIndex = NotifyIndex;
-                    }
-
-                    // Hover 시 플래그 설정 (Timeline 우클릭 메뉴 방지용)
-                    if (ImGui::IsItemHovered())
-                    {
-                        bIsHoveringNotify = true;
+                        // Hover 시 플래그 설정 (Timeline 우클릭 메뉴 방지용)
+                        if (ImGui::IsItemHovered())
+                        {
+                            bIsHoveringNotify = true;
+                        }
                     }
 
                     // 클릭 시 선택
@@ -1236,6 +1316,19 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
                             }
                         }
 
+                        // Duration 수정 (AnimNotifyState만 해당)
+                        if (Notify.Duration > 0.0f)
+                        {
+                            ImGui::Text("Duration");
+                            ImGui::SameLine();
+                            float Duration = Notify.Duration;
+                            ImGui::SetNextItemWidth(100.0f);
+                            if (ImGui::DragFloat("##Duration", &Duration, 0.01f, 0.01f, FLT_MAX, "%.3f"))
+                            {
+                                Notify.Duration = FMath::Max(0.01f, Duration);
+                            }
+                        }
+
                         ImGui::Separator();
 
                         // EDIT 섹션
@@ -1244,11 +1337,27 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
                         // Copy
                         if (ImGui::MenuItem("Copy", "CTRL+C"))
                         {
-                            // TODO: Copy 구현
+                            State->NotifyClipboard = Notify;
+                            State->bHasNotifyClipboard = true;
+                        }
+
+                        // Paste
+                        if (ImGui::MenuItem("Paste", "CTRL+V", false, State->bHasNotifyClipboard))
+                        {
+                            if (State->bHasNotifyClipboard)
+                            {
+                                FAnimNotifyEvent PastedNotify = State->NotifyClipboard;
+                                // 현재 재생 시간 위치에 붙여넣기
+                                PastedNotify.TriggerTime = State->CurrentAnimationTime;
+                                // TrackIndex는 현재 선택된 Notify와 동일하게 유지
+                                PastedNotify.TrackIndex = Notify.TrackIndex;
+                                Notifies.push_back(PastedNotify);
+                                State->SelectedNotifyIndex = Notifies.Num() - 1;
+                            }
                         }
 
                         // Delete
-                        if (ImGui::MenuItem("Delete"))
+                        if (ImGui::MenuItem("Delete", "DEL"))
                         {
                             // Notify 제거 (루프 밖에서 처리하도록 플래그 설정)
                             State->SelectedNotifyIndex = -1;
@@ -1258,7 +1367,10 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
                         // Cut
                         if (ImGui::MenuItem("Cut", "CTRL+X"))
                         {
-                            // TODO: Cut 구현
+                            State->NotifyClipboard = Notify;
+                            State->bHasNotifyClipboard = true;
+                            State->SelectedNotifyIndex = -1;
+                            Notifies.erase(Notifies.begin() + NotifyIndex);
                         }
 
                         // Replace with Notify... (하위 메뉴)
@@ -1450,6 +1562,21 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
     if (ImGui::BeginPopup("##TimelineContextMenu"))
     {
+        // Paste (클립보드에 Notify가 있을 때만 활성화)
+        if (ImGui::MenuItem("Paste", "CTRL+V", false, State->bHasNotifyClipboard))
+        {
+            if (State->bHasNotifyClipboard)
+            {
+                FAnimNotifyEvent PastedNotify = State->NotifyClipboard;
+                PastedNotify.TriggerTime = RightClickTime;
+                PastedNotify.TrackIndex = RightClickTrackIndex;
+                State->CurrentAnimation->AddNotify(PastedNotify);
+                State->SelectedNotifyIndex = State->CurrentAnimation->Notifies.Num() - 1;
+            }
+        }
+
+        ImGui::Separator();
+
         if (ImGui::BeginMenu("Add Notify..."))
         {
             // 메뉴 열릴 때마다 Notify 라이브러리 자동 스캔 (파일 추가/삭제 반영)
@@ -1559,6 +1686,65 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
         State->PlaybackRangeEndFrame = -1; // 전체 범위
     }
 
+    // 키보드 단축키 (Timeline 영역이 호버되어 있을 때만)
+    if (ImGui::IsItemHovered())
+    {
+        bool bCtrlHeld = ImGui::GetIO().KeyCtrl;
+
+        // Ctrl+C: Copy
+        if (bCtrlHeld && ImGui::IsKeyPressed(ImGuiKey_C) && State->SelectedNotifyIndex >= 0)
+        {
+            TArray<FAnimNotifyEvent>& Notifies = State->CurrentAnimation->Notifies;
+            if (State->SelectedNotifyIndex < Notifies.Num())
+            {
+                State->NotifyClipboard = Notifies[State->SelectedNotifyIndex];
+                State->bHasNotifyClipboard = true;
+            }
+        }
+
+        // Ctrl+V: Paste
+        if (bCtrlHeld && ImGui::IsKeyPressed(ImGuiKey_V) && State->bHasNotifyClipboard)
+        {
+            FAnimNotifyEvent PastedNotify = State->NotifyClipboard;
+            PastedNotify.TriggerTime = State->CurrentAnimationTime;
+            // 선택된 Notify가 있으면 같은 트랙에, 없으면 Track 0에 붙여넣기
+            if (State->SelectedNotifyIndex >= 0 && State->SelectedNotifyIndex < State->CurrentAnimation->Notifies.Num())
+            {
+                PastedNotify.TrackIndex = State->CurrentAnimation->Notifies[State->SelectedNotifyIndex].TrackIndex;
+            }
+            else
+            {
+                PastedNotify.TrackIndex = 0;
+            }
+            State->CurrentAnimation->AddNotify(PastedNotify);
+            State->SelectedNotifyIndex = State->CurrentAnimation->Notifies.Num() - 1;
+        }
+
+        // Ctrl+X: Cut
+        if (bCtrlHeld && ImGui::IsKeyPressed(ImGuiKey_X) && State->SelectedNotifyIndex >= 0)
+        {
+            TArray<FAnimNotifyEvent>& Notifies = State->CurrentAnimation->Notifies;
+            if (State->SelectedNotifyIndex < Notifies.Num())
+            {
+                State->NotifyClipboard = Notifies[State->SelectedNotifyIndex];
+                State->bHasNotifyClipboard = true;
+                Notifies.erase(Notifies.begin() + State->SelectedNotifyIndex);
+                State->SelectedNotifyIndex = -1;
+            }
+        }
+
+        // Delete: Delete
+        if (ImGui::IsKeyPressed(ImGuiKey_Delete) && State->SelectedNotifyIndex >= 0)
+        {
+            TArray<FAnimNotifyEvent>& Notifies = State->CurrentAnimation->Notifies;
+            if (State->SelectedNotifyIndex < Notifies.Num())
+            {
+                Notifies.erase(Notifies.begin() + State->SelectedNotifyIndex);
+                State->SelectedNotifyIndex = -1;
+            }
+        }
+    }
+
     // 스크롤 영역 내부 콘텐츠 크기 설정
     // Track이 적으면 스크롤 불필요, 많으면 정확히 ContentHeight만큼만
     if (ContentHeight > ScrollAreaSize.y)
@@ -1576,7 +1762,7 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
     ImGui::PopStyleVar();  // WindowPadding 복원
 }
 
-void SSkeletalMeshViewerWindow::DrawTimelineRuler(ImDrawList* DrawList, const ImVec2& RulerMin, const ImVec2& RulerMax, float StartTime, float EndTime, ViewerState* State)
+void SPreviewWindow::DrawTimelineRuler(ImDrawList* DrawList, const ImVec2& RulerMin, const ImVec2& RulerMax, float StartTime, float EndTime, ViewerState* State)
 {
     // 눈금자 배경
     DrawList->AddRectFilled(RulerMin, RulerMax, IM_COL32(50, 50, 50, 255));
@@ -1665,7 +1851,7 @@ void SSkeletalMeshViewerWindow::DrawTimelineRuler(ImDrawList* DrawList, const Im
     }
 }
 
-void SSkeletalMeshViewerWindow::DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime)
+void SPreviewWindow::DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime)
 {
     float Duration = EndTime - StartTime;
     if (Duration <= 0.0f)
@@ -1699,7 +1885,7 @@ void SSkeletalMeshViewerWindow::DrawTimelinePlayhead(ImDrawList* DrawList, const
     );
 }
 
-void SSkeletalMeshViewerWindow::DrawPlaybackRange(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
+void SPreviewWindow::DrawPlaybackRange(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -1792,7 +1978,7 @@ void SSkeletalMeshViewerWindow::DrawPlaybackRange(ImDrawList* DrawList, const Im
     );
 }
 
-void SSkeletalMeshViewerWindow::DrawNotifyTracksPanel(ViewerState* State, float StartTime, float EndTime)
+void SPreviewWindow::DrawNotifyTracksPanel(ViewerState* State, float StartTime, float EndTime)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -2054,7 +2240,7 @@ void SSkeletalMeshViewerWindow::DrawNotifyTracksPanel(ViewerState* State, float 
     ImGui::Dummy(ImVec2(0, RulerHeight + (State->NotifyTrackNames.Num() * TrackHeight)));
 }
 
-void SSkeletalMeshViewerWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
+void SPreviewWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {

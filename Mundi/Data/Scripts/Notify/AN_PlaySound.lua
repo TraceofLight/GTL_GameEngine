@@ -7,7 +7,7 @@ NotifyClass = {
 
     -- Properties that can be edited in the Timeline UI
     Properties = {
-        { Name = "SoundPath", Type = "String", Default = "Data/Audio/CGC2.wav" },
+        { Name = "SoundPath", Type = "String", Default = "Data/Audio/Die.wav" },
         { Name = "Volume", Type = "Float", Default = 1.0 },
         { Name = "Pitch", Type = "Float", Default = 1.0 }
     }
@@ -19,7 +19,7 @@ function NotifyClass:Notify(MeshComp, Time)
     -- SoundPath가 설정되지 않았으면 기본값 사용
     local SoundPath = self.SoundPath
     if not SoundPath or SoundPath == "" or SoundPath == "None" then
-        SoundPath = "Data/Audio/CGC2.wav"  -- 기본 사운드 (Properties의 Default와 동일)
+        SoundPath = "Data/Audio/Die.wav"  -- 기본 사운드 (Properties의 Default와 동일)
     end
 
     -- Volume 파라미터 (Properties에서 설정 가능)

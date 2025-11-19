@@ -720,7 +720,10 @@ bool FLuaManager::ExecuteNotify(const FString& NotifyClassName, const FString& P
             sol::function NotifyBegin = NotifyClass["NotifyBegin"];
             if (NotifyBegin.valid())
             {
-                sol::protected_function_result Result = NotifyBegin(NotifyInstance, MeshComp, TriggerTime);
+                // MeshComp를 LuaComponentProxy로 래핑하여 전달
+                sol::object MeshCompProxy = MakeComponentProxy(sol::state_view(*Lua), MeshComp, MeshComp->GetClass());
+
+                sol::protected_function_result Result = NotifyBegin(NotifyInstance, MeshCompProxy, TriggerTime);
                 if (!Result.valid())
                 {
                     sol::error Err = Result;
@@ -752,6 +755,197 @@ bool FLuaManager::ExecuteNotify(const FString& NotifyClassName, const FString& P
     catch (const sol::error& e)
     {
         UE_LOG("[LuaManager] Exception in ExecuteNotify for '%s': %s", NotifyClassName.c_str(), e.what());
+        return false;
+    }
+}
+
+bool FLuaManager::ExecuteNotifyStateBegin(const FString& NotifyClassName, const FString& PropertyData, USkeletalMeshComponent* MeshComp, float TriggerTime)
+{
+    if (!Lua || !MeshComp)
+    {
+        return false;
+    }
+
+    FString NotifyPath = "Data/Scripts/NotifyState/" + NotifyClassName + ".lua";
+
+    try
+    {
+        sol::load_result LoadResult = Lua->load_file(NotifyPath.c_str());
+        if (!LoadResult.valid())
+        {
+            sol::error Err = LoadResult;
+            UE_LOG("[LuaManager] Failed to load NotifyState script '%s': %s", NotifyPath.c_str(), Err.what());
+            return false;
+        }
+
+        sol::protected_function_result ExecResult = LoadResult();
+        if (!ExecResult.valid())
+        {
+            sol::error Err = ExecResult;
+            UE_LOG("[LuaManager] Failed to execute NotifyState script '%s': %s", NotifyPath.c_str(), Err.what());
+            return false;
+        }
+
+        sol::table NotifyClass = ExecResult;
+        if (!NotifyClass.valid())
+        {
+            UE_LOG("[LuaManager] NotifyState script '%s' did not return a table", NotifyPath.c_str());
+            return false;
+        }
+
+        sol::table NotifyInstance = Lua->create_table();
+        NotifyInstance[sol::metatable_key] = NotifyClass;
+
+        // PropertyData를 Notify 인스턴스에 복사
+        if (!PropertyData.empty() && PropertyData != "{}")
+        {
+            try
+            {
+                sol::table Props = (*Lua)["json"]["decode"](PropertyData);
+                for (const auto& Pair : Props)
+                {
+                    FString Key = Pair.first.as<FString>();
+                    NotifyInstance[Key] = Pair.second;
+                }
+            }
+            catch (const sol::error& e)
+            {
+                UE_LOG("[LuaManager] Failed to parse PropertyData for NotifyState '%s': %s", NotifyClassName.c_str(), e.what());
+            }
+        }
+
+        // 캐시에 저장 (NotifyName + MeshComp 조합으로 식별)
+        FNotifyStateKey CacheKey;
+        CacheKey.NotifyName = NotifyClassName;
+        CacheKey.MeshCompPtr = MeshComp;
+        NotifyStateInstanceCache[CacheKey] = NotifyInstance;
+
+        sol::function NotifyBegin = NotifyClass["NotifyBegin"];
+        if (NotifyBegin.valid())
+        {
+            sol::object MeshCompProxy = MakeComponentProxy(sol::state_view(*Lua), MeshComp, MeshComp->GetClass());
+            sol::protected_function_result Result = NotifyBegin(NotifyInstance, MeshCompProxy, TriggerTime);
+            if (!Result.valid())
+            {
+                sol::error Err = Result;
+                UE_LOG("[LuaManager] NotifyBegin failed for '%s': %s", NotifyClassName.c_str(), Err.what());
+                return false;
+            }
+        }
+
+        return true;
+    }
+    catch (const sol::error& e)
+    {
+        UE_LOG("[LuaManager] Exception in ExecuteNotifyStateBegin for '%s': %s", NotifyClassName.c_str(), e.what());
+        return false;
+    }
+}
+
+bool FLuaManager::ExecuteNotifyStateTick(const FString& NotifyClassName, const FString& PropertyData, USkeletalMeshComponent* MeshComp, float CurrentTime, float DeltaTime)
+{
+    if (!Lua || !MeshComp)
+    {
+        return false;
+    }
+
+    // 캐시에서 인스턴스 찾기
+    FNotifyStateKey CacheKey;
+    CacheKey.NotifyName = NotifyClassName;
+    CacheKey.MeshCompPtr = MeshComp;
+
+    auto It = NotifyStateInstanceCache.find(CacheKey);
+    if (It == NotifyStateInstanceCache.end())
+    {
+        // 캐시에 없으면 실패 (NotifyBegin이 먼저 호출되어야 함)
+        return false;
+    }
+
+    sol::table NotifyInstance = It->second;
+
+    try
+    {
+        // NotifyClass 가져오기 (metatable)
+        sol::table NotifyClass = NotifyInstance[sol::metatable_key];
+        if (!NotifyClass.valid())
+        {
+            return false;
+        }
+
+        sol::function NotifyTick = NotifyClass["NotifyTick"];
+        if (NotifyTick.valid())
+        {
+            sol::object MeshCompProxy = MakeComponentProxy(sol::state_view(*Lua), MeshComp, MeshComp->GetClass());
+            sol::protected_function_result Result = NotifyTick(NotifyInstance, MeshCompProxy, CurrentTime, DeltaTime);
+            if (!Result.valid())
+            {
+                sol::error Err = Result;
+                UE_LOG("[LuaManager] NotifyTick failed for '%s': %s", NotifyClassName.c_str(), Err.what());
+                return false;
+            }
+        }
+
+        return true;
+    }
+    catch (const sol::error&)
+    {
+        return false;
+    }
+}
+
+bool FLuaManager::ExecuteNotifyStateEnd(const FString& NotifyClassName, const FString& PropertyData, USkeletalMeshComponent* MeshComp, float EndTime)
+{
+    if (!Lua || !MeshComp)
+    {
+        return false;
+    }
+
+    // 캐시에서 인스턴스 찾기
+    FNotifyStateKey CacheKey;
+    CacheKey.NotifyName = NotifyClassName;
+    CacheKey.MeshCompPtr = MeshComp;
+
+    auto It = NotifyStateInstanceCache.find(CacheKey);
+    if (It == NotifyStateInstanceCache.end())
+    {
+        // 캐시에 없으면 실패 (NotifyBegin이 먼저 호출되어야 함)
+        return false;
+    }
+
+    sol::table NotifyInstance = It->second;
+
+    try
+    {
+        // NotifyClass 가져오기 (metatable)
+        sol::table NotifyClass = NotifyInstance[sol::metatable_key];
+        if (!NotifyClass.valid())
+        {
+            return false;
+        }
+
+        sol::function NotifyEnd = NotifyClass["NotifyEnd"];
+        if (NotifyEnd.valid())
+        {
+            sol::object MeshCompProxy = MakeComponentProxy(sol::state_view(*Lua), MeshComp, MeshComp->GetClass());
+            sol::protected_function_result Result = NotifyEnd(NotifyInstance, MeshCompProxy, EndTime);
+            if (!Result.valid())
+            {
+                sol::error Err = Result;
+                UE_LOG("[LuaManager] NotifyEnd failed for '%s': %s", NotifyClassName.c_str(), Err.what());
+                NotifyStateInstanceCache.erase(It);
+                return false;
+            }
+        }
+
+        // NotifyEnd 호출 완료 후 캐시에서 제거
+        NotifyStateInstanceCache.erase(It);
+
+        return true;
+    }
+    catch (const sol::error&)
+    {
+        // 예외 발생 시에도 캐시에서 제거
+        NotifyStateInstanceCache.erase(It);
         return false;
     }
 }

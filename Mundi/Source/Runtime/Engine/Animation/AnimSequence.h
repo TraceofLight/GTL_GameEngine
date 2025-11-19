@@ -17,6 +17,9 @@ public:
 	// ResourceBase 인터페이스 구현
 	void Load(const FString& InFilePath, ID3D11Device* InDevice);
 
+	// .anim 파일에서 직접 로드 (Save와 대칭)
+	void LoadFromAnimFile(const FString& AnimFilePath);
+
 	// 특정 시간의 본 Transform 샘플링
 	bool GetBoneTransformAtTime(const FString& BoneName, float Time, FVector& OutPosition, FQuat& OutRotation, FVector& OutScale) const;
 

@@ -5,6 +5,7 @@
 #include "Color.h"
 #include "SceneComponent.h"
 #include "ResourceManager.h"
+#include "ResourceBase.h"
 #include "Texture.h"
 #include "StaticMesh.h"
 #include "Material.h"
@@ -18,7 +19,10 @@
 #include "PlatformProcess.h"
 #include "SkeletalMeshComponent.h"
 #include "USlateManager.h"
+#include "AnimSequence.h"
 #include "Source/Runtime/Engine/Animation/BlendSpace2D.h"
+#include "Source/Runtime/Core/Misc/Enums.h"
+#include "AnimStateMachine.h"
 
 // Disable warnings for third-party library
 #pragma warning(push)
@@ -42,8 +46,12 @@ TArray<FString> UPropertyRenderer::CachedTexturePaths;
 TArray<const char*> UPropertyRenderer::CachedTextureItems;
 TArray<FString> UPropertyRenderer::CachedSoundPaths;
 TArray<const char*> UPropertyRenderer::CachedSoundItems;
+TArray<FString> UPropertyRenderer::CachedAnimSequencePaths;
+TArray<const char*> UPropertyRenderer::CachedAnimSequenceItems;
 TArray<FString> UPropertyRenderer::CachedScriptPaths;
 TArray<const char*> UPropertyRenderer::CachedScriptItems;
+TArray<FString> UPropertyRenderer::CachedAnimStateMachinePaths;
+TArray<const char*> UPropertyRenderer::CachedAnimStateMachineItems;
 
 static bool ItemsGetter(void* Data, int Index, const char** CItem)
 {
@@ -58,7 +66,25 @@ static bool ItemsGetter(void* Data, int Index, const char** CItem)
 	return true;
 }
 
+static bool ItemsGetterConstChar(void* Data, int Index, const char** CItem)
+{
+	TArray<const char*>* Items = (TArray<const char*>*)Data;
+
+	if (Index < 0 || Index >= Items->Num())
+	{
+		return false;
+	}
+
+	*CItem = (*Items)[Index];
+	return true;
+}
+
 bool UPropertyRenderer::RenderProperty(const FProperty& Property, void* ObjectInstance)
+{
+	return RenderPropertyInternal(Property, ObjectInstance, false);
+}
+
+bool UPropertyRenderer::RenderPropertyInternal(const FProperty& Property, void* Instance, bool bSkipUObjectCheck)
 {
 	// 렌더링에 필요한 리소스가 캐시되었는지 확인하고, 없으면 로드합니다.
 	CacheResources();
@@ -68,79 +94,83 @@ bool UPropertyRenderer::RenderProperty(const FProperty& Property, void* ObjectIn
 	switch (Property.Type)
 	{
 	case EPropertyType::Bool:
-		bChanged = RenderBoolProperty(Property, ObjectInstance);
+		bChanged = RenderBoolProperty(Property, Instance);
 		break;
 
 	case EPropertyType::Int32:
-		bChanged = RenderInt32Property(Property, ObjectInstance);
+		bChanged = RenderInt32Property(Property, Instance);
 		break;
 
 	case EPropertyType::Float:
-		bChanged = RenderFloatProperty(Property, ObjectInstance);
+		bChanged = RenderFloatProperty(Property, Instance);
 		break;
 
 	case EPropertyType::FVector:
-		bChanged = RenderVectorProperty(Property, ObjectInstance);
+		bChanged = RenderVectorProperty(Property, Instance);
 		break;
 
 	case EPropertyType::FLinearColor:
-		bChanged = RenderColorProperty(Property, ObjectInstance);
+		bChanged = RenderColorProperty(Property, Instance);
 		break;
 
 	case EPropertyType::FString:
-		bChanged = RenderStringProperty(Property, ObjectInstance);
+		bChanged = RenderStringProperty(Property, Instance);
 		break;
 
 	case EPropertyType::FName:
-		bChanged = RenderNameProperty(Property, ObjectInstance);
+		bChanged = RenderNameProperty(Property, Instance);
 		break;
 
 	case EPropertyType::ObjectPtr:
-		bChanged = RenderObjectPtrProperty(Property, ObjectInstance);
+		bChanged = RenderObjectPtrProperty(Property, Instance);
 		break;
 
 	case EPropertyType::Struct:
-		bChanged = RenderStructProperty(Property, ObjectInstance);
+		bChanged = RenderStructProperty(Property, Instance);
 		break;
 
 	case EPropertyType::Texture:
-		bChanged = RenderTextureProperty(Property, ObjectInstance);
+		bChanged = RenderTextureProperty(Property, Instance);
 		break;
 
 	case EPropertyType::SkeletalMesh:
-		bChanged = RenderSkeletalMeshProperty(Property, ObjectInstance);
+		bChanged = RenderSkeletalMeshProperty(Property, Instance);
 		break;
 
 	case EPropertyType::StaticMesh:
-		bChanged = RenderStaticMeshProperty(Property, ObjectInstance);
+		bChanged = RenderStaticMeshProperty(Property, Instance);
 		break;
 
 	case EPropertyType::Material:
-		bChanged = RenderMaterialProperty(Property, ObjectInstance);
+		bChanged = RenderMaterialProperty(Property, Instance);
 		break;
 
 	case EPropertyType::SRV:
-		bChanged = RenderSRVProperty(Property, ObjectInstance);
+		bChanged = RenderSRVProperty(Property, Instance);
 		break;
 
 	case EPropertyType::ScriptFile:
-		bChanged = RenderScriptFileProperty(Property, ObjectInstance);
+		bChanged = RenderScriptFileProperty(Property, Instance);
 		break;
 
 	case EPropertyType::Curve:
-		bChanged = RenderCurveProperty(Property, ObjectInstance);
+		bChanged = RenderCurveProperty(Property, Instance);
+		break;
+
+	case EPropertyType::Enum:
+		bChanged = RenderEnumProperty(Property, Instance);
 		break;
 
 	case EPropertyType::Array:
 		switch (Property.InnerType)
 		{
 		case EPropertyType::Material:
-			bChanged = RenderMaterialArrayProperty(Property, ObjectInstance);
+			bChanged = RenderMaterialArrayProperty(Property, Instance);
 			break;
 		case EPropertyType::Sound:
 			// Render array of USound* via simple combo per element
 			{
-				TArray<USound*>* Arr = Property.GetValuePtr<TArray<USound*>>(ObjectInstance);
+				TArray<USound*>* Arr = Property.GetValuePtr<TArray<USound*>>(Instance);
 				if (Arr)
 				{
 					if (ImGui::Button("Add Sound")) { Arr->Add(nullptr); bChanged = true; }
@@ -165,8 +195,13 @@ bool UPropertyRenderer::RenderProperty(const FProperty& Property, void* ObjectIn
 		break;
 
 	case EPropertyType::Sound:
-		bChanged = RenderSoundProperty(Property, ObjectInstance);
+		bChanged = RenderSoundProperty(Property, Instance);
 		break;
+
+	case EPropertyType::AnimSequence:
+		bChanged = RenderAnimSequenceProperty(Property, Instance);
+		break;
+
 	default:
 		ImGui::Text("%s: [Unknown Type]", Property.Name);
 		break;
@@ -177,26 +212,26 @@ bool UPropertyRenderer::RenderProperty(const FProperty& Property, void* ObjectIn
 		ImGui::SetTooltip("%s", Property.Tooltip);
 	}
 
-	// SceneComponent는 Transform 프로퍼티가 변경되면 Setter를 통해 동기화
-	if (bChanged && ObjectInstance)
+	// UObject 전용 체크 (struct 렌더링 시 건너뜀)
+	if (bChanged && Instance && !bSkipUObjectCheck)
 	{
-		UObject* Obj = static_cast<UObject*>(ObjectInstance);
+		UObject* Obj = static_cast<UObject*>(Instance);
 		if (USceneComponent* SceneComponent = Cast<USceneComponent>(Obj))
 		{
 			// 프로퍼티 이름으로 Transform 프로퍼티 판별 후 Setter 호출
 			if (strcmp(Property.Name, "RelativeRotationEuler") == 0)
 			{
-				FVector* EulerValue = Property.GetValuePtr<FVector>(ObjectInstance);
+				FVector* EulerValue = Property.GetValuePtr<FVector>(Instance);
 				SceneComponent->SetRelativeRotationEuler(*EulerValue);
 			}
 			else if (strcmp(Property.Name, "RelativeLocation") == 0)
 			{
-				FVector* LocationValue = Property.GetValuePtr<FVector>(ObjectInstance);
+				FVector* LocationValue = Property.GetValuePtr<FVector>(Instance);
 				SceneComponent->SetRelativeLocation(*LocationValue);
 			}
 			else if (strcmp(Property.Name, "RelativeScale") == 0)
 			{
-				FVector* ScaleValue = Property.GetValuePtr<FVector>(ObjectInstance);
+				FVector* ScaleValue = Property.GetValuePtr<FVector>(Instance);
 				SceneComponent->SetRelativeScale(*ScaleValue);
 			}
 		}
@@ -230,6 +265,28 @@ void UPropertyRenderer::RenderProperties(const TArray<FProperty>& Properties, UO
 	if (Properties.IsEmpty())
 		return;
 
+	// XXX(KHJ): 범용 로직에 예외 처리하는 게 바람직하지 않음. 추후 수정 필요.
+	// SkeletalMeshComponent의 AnimationMode를 읽어서 조건부 필터링
+	EAnimationMode CurrentAnimationMode = EAnimationMode::AnimationSingleNode;
+	bool bIsSkeletalMeshComponent = false;
+
+	if (Object && Object->IsA<class USkeletalMeshComponent>())
+	{
+		bIsSkeletalMeshComponent = true;
+		UClass* Class = Object->GetClass();
+		const TArray<FProperty>& AllProps = Class->GetProperties();
+
+		for (const FProperty& Prop : AllProps)
+		{
+			if (FString(Prop.Name) == "AnimationMode")
+			{
+				uint8* PropPtr = (uint8*)((uint8*)Object + Prop.Offset);
+				CurrentAnimationMode = *(EAnimationMode*)PropPtr;
+				break;
+			}
+		}
+	}
+
 	// 1. 카테고리 (삽입 순서 보장용 TArray)
 	TArray<TPair<FString, TArray<const FProperty*>>> CategorizedProps;
 
@@ -240,6 +297,29 @@ void UPropertyRenderer::RenderProperties(const TArray<FProperty>& Properties, UO
 	{
 		if (Prop.bIsEditAnywhere)
 		{
+			// SkeletalMeshComponent의 AnimationMode 기반 필터링
+			if (bIsSkeletalMeshComponent)
+			{
+				FString PropName = Prop.Name;
+
+				// AnimationMode가 AnimationBlueprint (0)이면 AnimationData 관련 프로퍼티 숨김
+				if (CurrentAnimationMode == EAnimationMode::AnimationBlueprint)
+				{
+					if (PropName == "AnimationData")
+					{
+						continue;
+					}
+				}
+				// AnimationMode가 AnimationSingleNode (1)이면 AnimBlueprint 관련 프로퍼티 숨김
+				else if (CurrentAnimationMode == EAnimationMode::AnimationSingleNode)
+				{
+					if (PropName == "AnimBlueprint")
+					{
+						continue;
+					}
+				}
+			}
+
 			FString CategoryName = Prop.Category ? Prop.Category : "Default";
 
 			// 3. 맵에서 이미 카테고리가 있는지 빠르게 검색
@@ -359,9 +439,9 @@ void UPropertyRenderer::CacheResources()
 	{
 		CachedMaterialPaths = ResMgr.GetAllFilePaths<UMaterial>();
 		CachedMaterialItems.Add("None");
-		for (const FString& path : CachedMaterialPaths)
+		for (size_t i = 0; i < CachedMaterialPaths.size(); ++i)
 		{
-			CachedMaterialItems.push_back(path.c_str());
+			CachedMaterialItems.push_back(CachedMaterialPaths[i].c_str());
 		}
 	}
 
@@ -370,9 +450,9 @@ void UPropertyRenderer::CacheResources()
 	{
 		CachedShaderPaths = ResMgr.GetAllFilePaths<UShader>();
 		CachedShaderItems.Add("None");
-		for (const FString& path : CachedShaderPaths)
+		for (size_t i = 0; i < CachedShaderPaths.size(); ++i)
 		{
-			CachedShaderItems.push_back(path.c_str());
+			CachedShaderItems.push_back(CachedShaderPaths[i].c_str());
 		}
 	}
 
@@ -381,9 +461,9 @@ void UPropertyRenderer::CacheResources()
 	{
 		CachedTexturePaths = ResMgr.GetAllFilePaths<UTexture>();
 		CachedTextureItems.Add("None");
-		for (const FString& path : CachedTexturePaths)
+		for (size_t i = 0; i < CachedTexturePaths.size(); ++i)
 		{
-			CachedTextureItems.push_back(path.c_str());
+			CachedTextureItems.push_back(CachedTexturePaths[i].c_str());
 		}
 	}
 
@@ -422,9 +502,31 @@ void UPropertyRenderer::CacheResources()
     {
         CachedSoundPaths = ResMgr.GetAllFilePaths<USound>();
         CachedSoundItems.Add("None");
-        for (const FString& path : CachedSoundPaths)
+        for (size_t i = 0; i < CachedSoundPaths.size(); ++i)
         {
-            CachedSoundItems.push_back(path.c_str());
+            CachedSoundItems.push_back(CachedSoundPaths[i].c_str());
+        }
+    }
+
+    // 6. AnimSequence (.anim)
+    if (CachedAnimSequencePaths.IsEmpty() && CachedAnimSequenceItems.IsEmpty())
+    {
+        CachedAnimSequencePaths = ResMgr.GetAllFilePaths<UAnimSequence>();
+        CachedAnimSequenceItems.Add("None");
+        for (size_t i = 0; i < CachedAnimSequencePaths.size(); ++i)
+        {
+            CachedAnimSequenceItems.push_back(CachedAnimSequencePaths[i].c_str());
+        }
+    }
+
+    // 7. AnimStateMachine (.statemachine)
+    if (CachedAnimStateMachinePaths.IsEmpty() && CachedAnimStateMachineItems.IsEmpty())
+    {
+        CachedAnimStateMachinePaths = ResMgr.GetAllFilePaths<UAnimStateMachine>();
+        CachedAnimStateMachineItems.Add("None");
+        for (size_t i = 0; i < CachedAnimStateMachinePaths.size(); ++i)
+        {
+            CachedAnimStateMachineItems.push_back(CachedAnimStateMachinePaths[i].c_str());
         }
     }
 }
@@ -445,6 +547,10 @@ void UPropertyRenderer::ClearResourcesCache()
 	CachedSoundItems.Empty();
 	CachedScriptPaths.Empty();
 	CachedScriptItems.Empty();
+	CachedAnimSequencePaths.Empty();
+	CachedAnimSequenceItems.Empty();
+	CachedAnimStateMachinePaths.Empty();
+	CachedAnimStateMachineItems.Empty();
 }
 
 // ===== 타입별 렌더링 구현 =====
@@ -602,6 +708,14 @@ bool UPropertyRenderer::RenderNameProperty(const FProperty& Prop, void* Instance
 
 bool UPropertyRenderer::RenderObjectPtrProperty(const FProperty& Prop, void* Instance)
 {
+	// 에셋 타입인지 확인 (UTexture, UAnimSequence 등)
+	// Metadata에 "AssetType" 키가 있으면 범용 에셋 선택 UI 사용
+	if (Prop.Metadata.find(FName("AssetType")) != Prop.Metadata.end())
+	{
+		return RenderAssetPtrProperty(Prop, Instance);
+	}
+
+	// 일반 ObjectPtr (컴포넌트 등) - 읽기 전용 표시
 	UObject** ObjPtr = Prop.GetValuePtr<UObject*>(Instance);
 
 	if (*ObjPtr)
@@ -620,12 +734,254 @@ bool UPropertyRenderer::RenderObjectPtrProperty(const FProperty& Prop, void* Ins
 	return false; // 읽기 전용
 }
 
+// 범용 에셋 선택 UI (UAnimSequence, UTexture 등)
+bool UPropertyRenderer::RenderAssetPtrProperty(const FProperty& Prop, void* Instance)
+{
+	UObject** ObjPtr = Prop.GetValuePtr<UObject*>(Instance);
+	UObject* CurrentObj = *ObjPtr;
+
+	// Metadata에서 AssetType 가져오기
+	FString AssetTypeName = "";
+	if (Prop.Metadata.find(FName("AssetType")) != Prop.Metadata.end())
+	{
+		AssetTypeName = Prop.Metadata.at(FName("AssetType"));
+	}
+
+	// 타입별로 캐시된 목록 선택
+	TArray<FString>* CachedPaths = nullptr;
+	TArray<const char*>* CachedItems = nullptr;
+
+	if (AssetTypeName == "UAnimSequence")
+	{
+		CachedPaths = &CachedAnimSequencePaths;
+		CachedItems = &CachedAnimSequenceItems;
+	}
+	else if (AssetTypeName == "UTexture")
+	{
+		CachedPaths = &CachedTexturePaths;
+		CachedItems = &CachedTextureItems;
+	}
+	else if (AssetTypeName == "USound")
+	{
+		CachedPaths = &CachedSoundPaths;
+		CachedItems = &CachedSoundItems;
+	}
+	else if (AssetTypeName == "UAnimStateMachine")
+	{
+		CachedPaths = &CachedAnimStateMachinePaths;
+		CachedItems = &CachedAnimStateMachineItems;
+	}
+	// 필요시 추가 타입 지원
+	else
+	{
+		// 알 수 없는 타입 - 읽기 전용 표시
+		ImGui::Text("%s: [Asset - %s]", Prop.Name, AssetTypeName.c_str());
+		return false;
+	}
+
+	// 현재 선택된 인덱스 찾기
+	int32 CurrentIndex = 0;
+	FString CurrentPath = "";
+	if (CurrentObj)
+	{
+		UResourceBase* ResBase = Cast<UResourceBase>(CurrentObj);
+		if (ResBase)
+		{
+			CurrentPath = ResBase->GetFilePath();
+		}
+	}
+
+	if (!CurrentPath.empty() && CachedPaths)
+	{
+		for (size_t i = 0; i < CachedPaths->size(); ++i)
+		{
+			if ((*CachedPaths)[i] == CurrentPath)
+			{
+				CurrentIndex = static_cast<int32>(i) + 1; // +1 for "None" offset
+				break;
+			}
+		}
+	}
+
+	// 콤보박스 렌더링
+	bool bChanged = false;
+	if (CachedItems && ImGui::Combo(Prop.Name, &CurrentIndex, ItemsGetterConstChar, CachedItems, static_cast<int32>(CachedItems->size())))
+	{
+		if (CurrentIndex == 0)
+		{
+			// "None" 선택
+			*ObjPtr = nullptr;
+		}
+		else
+		{
+			// 에셋 선택
+			FString SelectedPath = (*CachedPaths)[CurrentIndex - 1];
+			UResourceManager& ResMgr = UResourceManager::GetInstance();
+
+			if (AssetTypeName == "UAnimSequence")
+			{
+				*ObjPtr = ResMgr.Load<UAnimSequence>(SelectedPath);
+			}
+			else if (AssetTypeName == "UTexture")
+			{
+				*ObjPtr = ResMgr.Load<UTexture>(SelectedPath);
+			}
+			else if (AssetTypeName == "USound")
+			{
+				*ObjPtr = ResMgr.Load<USound>(SelectedPath);
+			}
+			else if (AssetTypeName == "UAnimStateMachine")
+			{
+				*ObjPtr = ResMgr.Load<UAnimStateMachine>(SelectedPath);
+			}
+		}
+		bChanged = true;
+	}
+
+	// Edit 버튼 추가 (AnimStateMachine, SkeletalMesh 등)
+	if (AssetTypeName == "UAnimStateMachine" || AssetTypeName == "USkeletalMesh")
+	{
+		ImGui::SameLine();
+
+		if (ImGui::Button("Edit"))
+		{
+			if (CurrentObj)
+			{
+				UResourceBase* ResBase = Cast<UResourceBase>(CurrentObj);
+				if (ResBase)
+				{
+					FString FilePath = ResBase->GetFilePath();
+
+					if (AssetTypeName == "UAnimStateMachine")
+					{
+						SLATE.OpenAnimStateMachineWindowWithFile(FilePath.c_str());
+					}
+					else if (AssetTypeName == "USkeletalMesh")
+					{
+						SLATE.OpenSkeletalMeshViewerWithFile(FilePath.c_str());
+					}
+				}
+			}
+			else
+			{
+				// None일 때는 새 에디터 창만 열기
+				if (AssetTypeName == "UAnimStateMachine")
+				{
+					SLATE.OpenAnimStateMachineWindow();
+				}
+				else if (AssetTypeName == "USkeletalMesh")
+				{
+					SLATE.OpenSkeletalMeshViewer();
+				}
+			}
+		}
+
+		if (ImGui::IsItemHovered())
+		{
+			if (AssetTypeName == "UAnimStateMachine")
+			{
+				ImGui::SetTooltip("Open AnimStateMachine Editor");
+			}
+			else if (AssetTypeName == "USkeletalMesh")
+			{
+				ImGui::SetTooltip("Open SkeletalMesh Viewer");
+			}
+		}
+	}
+
+	// 더블클릭으로도 에셋 에디터 열기 (기존 기능 유지)
+	if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+	{
+		if (CurrentObj)
+		{
+			UResourceBase* ResBase = Cast<UResourceBase>(CurrentObj);
+			if (ResBase)
+			{
+				FString FilePath = ResBase->GetFilePath();
+
+				if (AssetTypeName == "UAnimStateMachine")
+				{
+					SLATE.OpenAnimStateMachineWindowWithFile(FilePath.c_str());
+				}
+				else if (AssetTypeName == "USkeletalMesh")
+				{
+					SLATE.OpenSkeletalMeshViewerWithFile(FilePath.c_str());
+				}
+			}
+		}
+	}
+
+	return bChanged;
+}
+
 bool UPropertyRenderer::RenderStructProperty(const FProperty& Prop, void* Instance)
 {
-	// Struct는 읽기 전용으로 표시
+	// Struct는 리플렉션으로 내부 필드 자동 렌더링
 	// FVector, FLinearColor 등 주요 타입은 이미 별도로 처리됨
-	ImGui::Text("%s: [Struct]", Prop.Name);
-	return false;
+
+	bool bChanged = false;
+
+	// Struct 타입 이름 가져오기 (Metadata에서)
+	FString StructTypeName = "";
+	if (Prop.Metadata.find(FName("StructType")) != Prop.Metadata.end())
+	{
+		StructTypeName = Prop.Metadata.at(FName("StructType"));
+	}
+
+	if (StructTypeName.empty())
+	{
+		// Struct 타입 정보 없음
+		ImGui::Text("%s: [Struct - No Type Info]", Prop.Name);
+		return false;
+	}
+
+	// Struct의 클래스 정보 가져오기
+	UClass* StructClass = UClass::FindClass(StructTypeName.c_str());
+	if (!StructClass)
+	{
+		// 리플렉션 정보 없는 struct
+		ImGui::Text("%s: [Struct - No Reflection]", Prop.Name);
+		return false;
+	}
+
+	// Struct 인스턴스 포인터
+	void* StructInstance = Prop.GetValuePtr<void>(Instance);
+	if (!StructInstance)
+	{
+		return false;
+	}
+
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Text("%s", Prop.Name);
+	ImGui::Spacing();
+
+	ImGui::Indent();
+
+	// Struct 내부 프로퍼티들을 리플렉션으로 렌더링 (UObject 체크 건너뜀)
+	const TArray<FProperty>& StructProperties = StructClass->GetProperties();
+	for (const FProperty& StructProp : StructProperties)
+	{
+		if (RenderPropertyInternal(StructProp, StructInstance, true))
+		{
+			bChanged = true;
+		}
+	}
+
+	ImGui::Unindent();
+
+	// Struct 필드가 변경되었으면 Owner 객체에 알림
+	if (bChanged && Instance)
+	{
+		if (USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(static_cast<UObject*>(Instance)))
+		{
+			// SkeletalMeshComponent의 AnimationData가 변경된 경우
+			// BeginPlay 시 AnimInstance가 자동 생성되도록 플래그 설정
+			// (에디터에서는 즉시 적용하지 않고, PIE 시작 시 적용)
+		}
+	}
+
+	return bChanged;
 }
 
 bool UPropertyRenderer::RenderTextureProperty(const FProperty& Prop, void* Instance)
@@ -691,6 +1047,23 @@ bool UPropertyRenderer::RenderSoundProperty(const FProperty& Prop, void* Instanc
 			Decal->SetDecalTexture(NewPath);
 		}
 
+		return true;
+	}
+
+	return false;
+}
+
+bool UPropertyRenderer::RenderAnimSequenceProperty(const FProperty& Prop, void* Instance)
+{
+	UAnimSequence** AnimPtr = Prop.GetValuePtr<UAnimSequence*>(Instance);
+	UAnimSequence* CurrentAnim = *AnimPtr;
+	UAnimSequence* NewAnim = nullptr;
+
+	bool bChanged = RenderAnimSequenceSelectionCombo(Prop.Name, CurrentAnim, NewAnim);
+
+	if (bChanged)
+	{
+		*AnimPtr = NewAnim;
 		return true;
 	}
 
@@ -1942,4 +2315,109 @@ bool UPropertyRenderer::RenderTransformProperty(const FProperty& Prop, void* Ins
 	ImGui::PopID();
 
 	return bAnyChanged;
+}
+
+// Enum 타입 렌더링 (일반 Enum 콤보박스)
+bool UPropertyRenderer::RenderEnumProperty(const FProperty& Prop, void* Instance)
+{
+	// Enum 값 포인터 (uint8로 저장됨)
+	uint8* EnumValuePtr = Prop.GetValuePtr<uint8>(Instance);
+	if (!EnumValuePtr)
+	{
+		return false;
+	}
+
+	int32 CurrentValue = static_cast<int32>(*EnumValuePtr);
+	bool bChanged = false;
+
+	// TODO: Enum 이름과 값 목록은 메타데이터에서 가져와야 함
+	// 현재는 EAnimationMode만 하드코딩
+
+	// EnumName 메타데이터 확인
+	FString EnumTypeName = "";
+	if (Prop.Metadata.find(FName("EnumType")) != Prop.Metadata.end())
+	{
+		EnumTypeName = Prop.Metadata.at(FName("EnumType"));
+	}
+
+	if (EnumTypeName == "EAnimationMode")
+	{
+		const char* Items[] = { "AnimationBlueprint", "AnimationSingleNode", "AnimationCustomMode" };
+		int32 ItemCount = 3;
+
+		if (ImGui::Combo(Prop.Name, &CurrentValue, Items, ItemCount))
+		{
+			bChanged = true;
+
+			// AnimationMode 변경 시 Setter 호출 (상호 배타적 처리)
+			UObject* Obj = static_cast<UObject*>(Instance);
+			if (Obj && Obj->IsA<USkeletalMeshComponent>())
+			{
+				USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(Obj);
+				if (SkelMeshComp)
+				{
+					EAnimationMode NewMode = static_cast<EAnimationMode>(CurrentValue);
+					SkelMeshComp->SetAnimationMode(NewMode);
+				}
+			}
+			else
+			{
+				// SkeletalMeshComponent가 아닌 경우 직접 설정
+				*EnumValuePtr = static_cast<uint8>(CurrentValue);
+			}
+		}
+	}
+	else
+	{
+		// 알 수 없는 Enum 타입
+		ImGui::Text("%s: [Enum - %s]", Prop.Name, EnumTypeName.c_str());
+	}
+
+	return bChanged;
+}
+
+// AnimSequence 선택 콤보박스 (Preview처럼 애니메이션 목록 표시)
+bool UPropertyRenderer::RenderAnimSequenceSelectionCombo(const char* Label, UAnimSequence* CurrentAnim, UAnimSequence*& OutNewAnim)
+{
+	UResourceManager& ResMgr = UResourceManager::GetInstance();
+
+	// 현재 선택된 인덱스 찾기
+	int32 CurrentIndex = 0;
+	FString CurrentPath = "";
+	if (CurrentAnim)
+	{
+		CurrentPath = CurrentAnim->GetFilePath();
+	}
+
+	if (!CurrentPath.empty())
+	{
+		for (size_t i = 0; i < CachedAnimSequencePaths.size(); ++i)
+		{
+			if (CachedAnimSequencePaths[i] == CurrentPath)
+			{
+				CurrentIndex = static_cast<int32>(i) + 1; // +1 for "None" offset
+				break;
+			}
+		}
+	}
+
+	// 콤보박스 렌더링
+	bool bChanged = false;
+	if (ImGui::Combo(Label, &CurrentIndex, ItemsGetterConstChar, &CachedAnimSequenceItems, static_cast<int32>(CachedAnimSequenceItems.size())))
+	{
+		if (CurrentIndex == 0)
+		{
+			// "None" 선택
+			OutNewAnim = nullptr;
+		}
+		else
+		{
+			// 애니메이션 선택 (인덱스 조정: -1 for "None" offset)
+			FString SelectedPath = CachedAnimSequencePaths[CurrentIndex - 1];
+			OutNewAnim = ResMgr.Load<UAnimSequence>(SelectedPath);
+		}
+		bChanged = true;
+	}
+
+	return bChanged;
 }

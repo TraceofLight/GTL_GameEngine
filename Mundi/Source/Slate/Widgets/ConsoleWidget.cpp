@@ -106,7 +106,39 @@ void UConsoleWidget::RenderToolbar()
 	}
 	ImGui::SameLine();
 
-	bool copy_to_clipboard = ImGui::SmallButton("Copy");
+	if (ImGui::SmallButton("Copy"))
+	{
+		FString clipboard_text;
+		for (const FString& item : Items)
+		{
+			clipboard_text += item + "\n";
+		}
+
+		if (!clipboard_text.empty())
+		{
+			if (OpenClipboard(nullptr))
+			{
+				EmptyClipboard();
+				HGLOBAL hClipboardData = GlobalAlloc(GMEM_MOVEABLE, clipboard_text.size() + 1);
+				if (hClipboardData)
+				{
+					char* pchData = static_cast<char*>(GlobalLock(hClipboardData));
+					if (pchData)
+					{
+						memcpy(pchData, clipboard_text.c_str(), clipboard_text.size() + 1);
+						GlobalUnlock(hClipboardData);
+						SetClipboardData(CF_TEXT, hClipboardData);
+					}
+				}
+				CloseClipboard();
+				AddLog("[info] Copied %d lines to clipboard", Items.Num());
+			}
+			else
+			{
+				AddLog("[error] Failed to open clipboard");
+			}
+		}
+	}
 
 	ImGui::SameLine();
 

@@ -256,8 +256,8 @@ void SBlendSpace2DEditorWindow::RenderAxisLabels()
 
 void SBlendSpace2DEditorWindow::RenderToolbar()
 {
-	static char SavePath[256] = "Data/Animation/MyBlendSpace.blend2d";
-	static char LoadPath[256] = "Data/Animation/MyBlendSpace.blend2d";
+	static char SavePath[256] = "Data/Blend/MyBlendSpace.blend2d";
+	static char LoadPath[256] = "Data/Blend/MyBlendSpace.blend2d";
 
 	// 저장 버튼
 	if (ImGui::Button("Save"))
