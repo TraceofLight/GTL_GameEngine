@@ -58,6 +58,15 @@ LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS* ExceptionInfo)
 
 void InitializeMiniDump()
 {
+	_CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+	_CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+	_CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+	_CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+	_CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+	_CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+
+	_set_abort_behavior(0, _WRITE_ABORT_MSG);
+
 	SetUnhandledExceptionFilter(UnhandledExceptionHandler);
 }
 
@@ -68,6 +77,7 @@ void CauseCrash()
 	bIsCrashInitialized = true;
 }
 
+#pragma optimize("", off)
 void CrashLoop()
 {
 	if (!bIsCrashInitialized) { return; }
@@ -81,3 +91,4 @@ void CrashLoop()
 		Target->DeleteObjectDirty();
 	}
 }
+#pragma optimize("", on)
