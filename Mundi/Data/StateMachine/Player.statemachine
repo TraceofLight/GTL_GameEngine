@@ -31,7 +31,7 @@
     }, {
       "AnimAsset" : "",
       "AnimAssetType" : 2,
-      "BlendSpaceAsset" : "Data/Blend/BSH_Walk.blend2d",
+      "BlendSpaceAsset" : "Data/Blend/BSH_Walk_Fix1.blend2d",
       "EditorPosX" : 210.000000,
       "EditorPosY" : 83.000000,
       "Loop" : true,

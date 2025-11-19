@@ -349,6 +349,7 @@ void FAnimNode_StateMachine::Evaluate(FPoseContext& OutPose)
 		{
 			GetPoseFromNode(PreviousNode, PreviousAnimTime, SourcePose, &PreviousBlendSpaceNode);
 		}
+		TargetPose.Skeleton = SourcePose.Skeleton;
 
 		// Source -> Target 블렌딩
 		FAnimationRuntime::BlendTwoPosesTogether(SourcePose, TargetPose, TransitionAlpha, OutPose);

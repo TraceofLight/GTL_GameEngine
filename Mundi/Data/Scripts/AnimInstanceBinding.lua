@@ -73,7 +73,7 @@ function Tick(dt)
         local direction = math.atan(rightDot, forwardDot) * (180.0 / math.pi)
 
         -- AnimInstance에 값 설정
-        AnimInstance:SetFloat("Speed", signedSpeed)
+        AnimInstance:SetFloat("Speed", speed)
         AnimInstance:SetFloat("AbsSpeed", speed)  -- 절대값 (항상 양수)
         AnimInstance:SetBool("bIsJumping", bIsJumping)
         AnimInstance:SetFloat("Direction", direction)
