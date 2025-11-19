@@ -36,6 +36,7 @@ end
 function Tick(dt)
     -- AnimInstance가 유효할 때만 로직 수행
     if AnimInstance then
+        local bIsJumping = CharacterMoveComp:IsJumping()
         local velocity = CharacterMoveComp:GetVelocity()
 
         -- V = sqrt(x^2 + y^2 + z^2)
@@ -52,6 +53,7 @@ function Tick(dt)
         -- 디버깅용 (필요시 주석 해제)
         -- print(string.format("Speed: %.2f, Direction: %.2f", speed, direction))
 
+        AnimInstance:SetBool("bIsJumping", bIsJumping)
         AnimInstance:SetFloat("Speed", speed)
         AnimInstance:SetFloat("Direction", direction)
     end

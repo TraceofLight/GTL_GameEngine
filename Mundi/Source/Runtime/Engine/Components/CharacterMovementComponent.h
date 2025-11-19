@@ -252,6 +252,8 @@ public:
 	 * 현재 회전 중인지 확인합니다.
 	 */
 	bool IsRotating() const { return bIsRotating; }
+	UFUNCTION(LuaBind, DisplayName = "IsJumping")
+	bool IsJumping() const { return bIsJumping; }
 
 protected:
 	// ────────────────────────────────────────────────

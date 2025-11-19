@@ -27,9 +27,9 @@ USkeletalMeshComponent::~USkeletalMeshComponent()
     }
 }
 
-void USkeletalMeshComponent::BeginPlay()
+void USkeletalMeshComponent::InitializeComponent()
 {
-	Super::BeginPlay();
+	Super::InitializeComponent();
 
 	// AnimInstance 초기화 (AnimBlueprint와 AnimToPlay는 상호 배타적)
 	if (AnimBlueprint)
@@ -61,6 +61,11 @@ void USkeletalMeshComponent::BeginPlay()
 			AnimationData.Initialize(SingleNodeInstance);
 		}
 	}
+}
+
+void USkeletalMeshComponent::BeginPlay()
+{
+	Super::BeginPlay();
 
 	if (AnimInstance)
 	{

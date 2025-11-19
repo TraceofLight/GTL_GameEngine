@@ -1,5 +1,4 @@
 #include "pch.h"
-
 #include "BoneAnchorComponent.h"
 #include "SkeletalMeshActor.h"
 #include "PreviewWindow.h"
@@ -8,6 +7,7 @@
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
+#include "Source/Runtime/Core/Misc/WindowsBinWriter.h"
 
 // Timeline 컨트롤 UI 렌더링
 void SPreviewWindow::RenderTimelineControls(ViewerState* State)
@@ -37,7 +37,7 @@ void SPreviewWindow::RenderTimelineControls(ViewerState* State)
     }
 
     // === 1. Timeline 통합 영역 (Notify 패널 포함) ===
-    ImGui::BeginChild("TimelineArea", ImVec2(0, -40), true);
+    ImGui::BeginChild("TimelineInner", ImVec2(0, -40), true);
     {
         RenderTimeline(State);
     }
@@ -118,7 +118,15 @@ void SPreviewWindow::RenderTimelineControls(ViewerState* State)
 
     ImGui::SameLine();
 
-    // Record
+    // Record 버튼 (녹화 중이면 빨간색)
+    bool bWasRecording = State->bIsRecording;
+    if (bWasRecording)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.1f, 0.1f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.2f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7f, 0.0f, 0.0f, 1.0f));
+    }
+
     if (IconRecord && IconRecord->GetShaderResourceView())
     {
         if (ImGui::ImageButton("##Record", IconRecord->GetShaderResourceView(), ButtonSizeVec))
@@ -133,9 +141,15 @@ void SPreviewWindow::RenderTimelineControls(ViewerState* State)
             TimelineRecord(State);
         }
     }
+
+    if (bWasRecording)
+    {
+        ImGui::PopStyleColor(3);
+    }
+
     if (ImGui::IsItemHovered())
     {
-        ImGui::SetTooltip("Record");
+        ImGui::SetTooltip(State->bIsRecording ? "Stop Recording" : "Record");
     }
 
     ImGui::SameLine();
@@ -619,7 +633,153 @@ void SPreviewWindow::TimelineReverse(ViewerState* State)
 
 void SPreviewWindow::TimelineRecord(ViewerState* State)
 {
-    // TODO: 녹화 기능 구현
+    if (!State || !State->CurrentMesh)
+    {
+        return;
+    }
+
+    if (State->bIsRecording)
+    {
+        // Stop Recording
+        State->bIsRecording = false;
+
+        // RecordedFrames를 AnimSequence로 변환하고 저장
+        if (State->RecordedFrames.Num() > 0 && !State->RecordedFileName.empty())
+        {
+            // 새 AnimSequence 생성
+            UAnimSequence* NewAnim = new UAnimSequence();
+            NewAnim->SetName(State->RecordedFileName);
+
+            // DataModel 생성 및 Skeleton 설정
+            UAnimDataModel* DataModel = new UAnimDataModel();
+            const FSkeleton* SourceSkeleton = State->CurrentMesh->GetSkeleton();
+            if (SourceSkeleton)
+            {
+                DataModel->SetSkeleton(*SourceSkeleton);
+            }
+
+            // 프레임 정보 설정
+            int32 NumFrames = State->RecordedFrames.Num();
+            float FrameRate = State->RecordFrameRate;
+            DataModel->NumberOfFrames = NumFrames;
+            DataModel->FrameRate = FFrameRate(static_cast<int32>(FrameRate), 1);
+            DataModel->PlayLength = static_cast<float>(NumFrames) / FrameRate;
+            DataModel->NumberOfKeys = NumFrames;
+
+            // 본별 트랙 생성
+            if (SourceSkeleton && NumFrames > 0)
+            {
+                DataModel->BoneAnimationTracks.resize(SourceSkeleton->Bones.size());
+
+                for (size_t BoneIdx = 0; BoneIdx < SourceSkeleton->Bones.size(); ++BoneIdx)
+                {
+                    FBoneAnimationTrack& Track = DataModel->BoneAnimationTracks[BoneIdx];
+                    Track.BoneName = SourceSkeleton->Bones[BoneIdx].Name;
+
+                    // 각 프레임의 트랜스폼 데이터 추출
+                    Track.InternalTrack.PosKeys.reserve(NumFrames);
+                    Track.InternalTrack.RotKeys.reserve(NumFrames);
+                    Track.InternalTrack.ScaleKeys.reserve(NumFrames);
+
+                    for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
+                    {
+                        const TMap<int32, FTransform>& FrameData = State->RecordedFrames[FrameIdx];
+
+                        // 해당 본의 트랜스폼 찾기
+                        auto It = FrameData.find(static_cast<int32>(BoneIdx));
+                        if (It != FrameData.end())
+                        {
+                            const FTransform& BoneTransform = It->second;
+                            Track.InternalTrack.PosKeys.push_back(BoneTransform.Translation);
+                            Track.InternalTrack.RotKeys.push_back(BoneTransform.Rotation);
+                            Track.InternalTrack.ScaleKeys.push_back(BoneTransform.Scale3D);
+                        }
+                        else
+                        {
+                            // 데이터 없으면 기본값 (Identity)
+                            Track.InternalTrack.PosKeys.push_back(FVector(0, 0, 0));
+                            Track.InternalTrack.RotKeys.push_back(FQuat::Identity());
+                            Track.InternalTrack.ScaleKeys.push_back(FVector(1, 1, 1));
+                        }
+                    }
+                }
+            }
+
+            NewAnim->SetDataModel(DataModel);
+
+            // 파일로 저장
+            FString SavePath = "Data/Animation/" + State->RecordedFileName + ".anim";
+
+            // 디렉토리 생성
+            std::filesystem::path FilePathObj(SavePath);
+            std::filesystem::path DirPath = FilePathObj.parent_path();
+            if (!DirPath.empty() && !std::filesystem::exists(DirPath))
+            {
+                std::filesystem::create_directories(DirPath);
+            }
+
+            // 파일 저장
+            try
+            {
+                FWindowsBinWriter Writer(SavePath);
+
+                // Name 저장
+                Serialization::WriteString(Writer, NewAnim->GetName());
+
+                // Notifies 저장 (빈 배열)
+                uint32 NotifyCount = 0;
+                Writer << NotifyCount;
+
+                // DataModel 저장
+                Writer << *DataModel;
+
+                Writer.Close();
+
+                NewAnim->SetFilePath(SavePath);
+
+                // SkeletalMesh의 Animation List에 추가
+                State->CurrentMesh->AddAnimation(NewAnim);
+
+                // 새로 만든 애니메이션을 현재 애니메이션으로 설정
+                const TArray<UAnimSequence*>& Animations = State->CurrentMesh->GetAnimations();
+                for (int32 i = 0; i < Animations.Num(); ++i)
+                {
+                    if (Animations[i] == NewAnim)
+                    {
+                        State->SelectedAnimationIndex = i;
+                        State->CurrentAnimation = NewAnim;
+                        State->CurrentAnimationTime = 0.0f;
+                        State->EditedBoneTransforms.clear();
+                        State->bIsPlaying = false;
+
+                        if (NewAnim->GetDataModel())
+                        {
+                            int32 TotalFrames = NewAnim->GetDataModel()->GetNumberOfFrames();
+                            State->WorkingRangeStartFrame = 0;
+                            State->WorkingRangeEndFrame = TotalFrames;
+                        }
+                        break;
+                    }
+                }
+
+                UE_LOG("[PreviewWindow] Recording saved: %s (%d frames)", SavePath.c_str(), NumFrames);
+            }
+            catch (const std::exception& e)
+            {
+                UE_LOG("[PreviewWindow] Recording save failed: %s", e.what());
+            }
+        }
+        else
+        {
+            UE_LOG("[PreviewWindow] Recording stopped: No frames or filename empty");
+        }
+    }
+    else
+    {
+        // Show dialog to enter filename
+        State->bShowRecordDialog = true;
+        memset(State->RecordFileNameBuffer, 0, sizeof(State->RecordFileNameBuffer));
+    }
 }
 
 void SPreviewWindow::TimelinePlay(ViewerState* State)
@@ -1038,7 +1198,11 @@ void SPreviewWindow::RenderTimeline(ViewerState* State)
                 }
 
                 // 현재 보이는 시간 범위 내에 있는지 확인
-                if (Notify.TriggerTime >= StartTime && Notify.TriggerTime <= EndTime)
+                // NotifyState는 시작이 범위 밖이어도 끝이 범위 안이면 표시
+                float NotifyEndTime = Notify.TriggerTime + Notify.Duration;
+                bool bIsVisible = (Notify.TriggerTime <= EndTime) && (NotifyEndTime >= StartTime);
+
+                if (bIsVisible)
                 {
                     float NormalizedTime = (Notify.TriggerTime - StartTime) / (EndTime - StartTime);
                     float NotifyX = ScrollTimelineMin.x + NormalizedTime * ScrollTimelineWidth;
@@ -1057,38 +1221,48 @@ void SPreviewWindow::RenderTimeline(ViewerState* State)
                         float NormalizedEndTime = (EndTime_Notify - StartTime) / (EndTime - StartTime);
                         float EndX = ScrollTimelineMin.x + NormalizedEndTime * ScrollTimelineWidth;
 
+                        // ViewRange에 맞춰 클리핑
+                        float ClippedStartX = FMath::Max(NotifyX, ScrollTimelineMin.x);
+                        float ClippedEndX = FMath::Min(EndX, ScrollTimelineMin.x + ScrollTimelineWidth);
+
                         // 박스 (Track 라인 상단에 표시)
                         const float BoxHeight = 18.0f;
                         float BoxY = CurrentY + (TrackHeight - BoxHeight) * 0.5f;
-                        ImVec2 BoxMin = ImVec2(NotifyX, BoxY);
-                        ImVec2 BoxMax = ImVec2(EndX, BoxY + BoxHeight);
+                        ImVec2 BoxMin = ImVec2(ClippedStartX, BoxY);
+                        ImVec2 BoxMax = ImVec2(ClippedEndX, BoxY + BoxHeight);
                         DrawList->AddRectFilled(BoxMin, BoxMax, IM_COL32(100, 150, 255, 150));
                         DrawList->AddRect(BoxMin, BoxMax, NotifyColor, 0.0f, 0, 2.0f);
 
                         // 텍스트 (박스 중앙)
-                        ImVec2 TextPos = ImVec2(NotifyX + (EndX - NotifyX - TextSize.x) * 0.5f, BoxY + (BoxHeight - TextSize.y) * 0.5f);
+                        ImVec2 TextPos = ImVec2(ClippedStartX + (ClippedEndX - ClippedStartX - TextSize.x) * 0.5f, BoxY + (BoxHeight - TextSize.y) * 0.5f);
                         DrawList->AddText(TextPos, IM_COL32(255, 255, 255, 255), NotifyNameStr);
 
-                        // 시작 다이아몬드
+                        // 시작 다이아몬드 (ViewRange 안에 있을 때만 표시)
                         const float DiamondSize = 5.0f;
-                        ImVec2 StartCenter = ImVec2(NotifyX, BoxY + BoxHeight * 0.5f);
-                        DrawList->AddQuadFilled(
-                            ImVec2(StartCenter.x, StartCenter.y - DiamondSize),
-                            ImVec2(StartCenter.x + DiamondSize, StartCenter.y),
+                        if (NotifyX >= ScrollTimelineMin.x && NotifyX <= ScrollTimelineMin.x + ScrollTimelineWidth)
+                        {
+                            ImVec2 StartCenter = ImVec2(NotifyX, BoxY + BoxHeight * 0.5f);
+                            DrawList->AddQuadFilled(
+                                ImVec2(StartCenter.x, StartCenter.y - DiamondSize),
+                                ImVec2(StartCenter.x + DiamondSize, StartCenter.y),
                             ImVec2(StartCenter.x, StartCenter.y + DiamondSize),
                             ImVec2(StartCenter.x - DiamondSize, StartCenter.y),
                             NotifyColor
                         );
+                        }
 
-                        // 끝 다이아몬드
-                        ImVec2 EndCenter = ImVec2(EndX, BoxY + BoxHeight * 0.5f);
-                        DrawList->AddQuadFilled(
-                            ImVec2(EndCenter.x, EndCenter.y - DiamondSize),
-                            ImVec2(EndCenter.x + DiamondSize, EndCenter.y),
-                            ImVec2(EndCenter.x, EndCenter.y + DiamondSize),
-                            ImVec2(EndCenter.x - DiamondSize, EndCenter.y),
-                            NotifyColor
-                        );
+                        // 끝 다이아몬드 (ViewRange 안에 있을 때만 표시)
+                        if (EndX >= ScrollTimelineMin.x && EndX <= ScrollTimelineMin.x + ScrollTimelineWidth)
+                        {
+                            ImVec2 EndCenter = ImVec2(EndX, BoxY + BoxHeight * 0.5f);
+                            DrawList->AddQuadFilled(
+                                ImVec2(EndCenter.x, EndCenter.y - DiamondSize),
+                                ImVec2(EndCenter.x + DiamondSize, EndCenter.y),
+                                ImVec2(EndCenter.x, EndCenter.y + DiamondSize),
+                                ImVec2(EndCenter.x - DiamondSize, EndCenter.y),
+                                NotifyColor
+                            );
+                        }
 
                         // 드래그용 InvisibleButton 2개: 오른쪽 끝(Duration 조정) + 박스 중앙(전체 이동)
                         ImGui::PushID(NotifyIndex * 1000 + TrackIndex);

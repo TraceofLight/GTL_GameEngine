@@ -33,7 +33,12 @@ public:
     bool ExecuteNotifyStateTick(const FString& NotifyClassName, const FString& PropertyData, class USkeletalMeshComponent* MeshComp, float CurrentTime, float DeltaTime);
     bool ExecuteNotifyStateEnd(const FString& NotifyClassName, const FString& PropertyData, class USkeletalMeshComponent* MeshComp, float EndTime);
 
+    // 등록된 모든 Notify 클래스 목록 가져오기 (AnimNotify 테이블의 모든 키)
+    TArray<FString> GetRegisteredNotifyClasses() const;
+
 private:
+    // Notifies 폴더의 모든 Lua 파일을 로드하여 AnimNotify 테이블에 등록
+    void LoadNotifyClasses();
     sol::state* Lua = nullptr;
     sol::table SharedLib;                         // 공용 유틸 테이블
 

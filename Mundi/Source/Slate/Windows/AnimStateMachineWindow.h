@@ -138,10 +138,15 @@ private:
     FGraphNode* FindNodeByPin(FGraphState* State, ed::PinId PinID);
     FGraphLink* FindLink(FGraphState* State, ed::LinkId LinkID);
     const char* GetConditionOpString(EAnimConditionOp Op);
+    const char* GetConditionTypeString(EAnimConditionType Type);
     void SaveNodePositions(FGraphState* State);
 
     // Sync Functions
     void SyncGraphFromStateMachine(FGraphState* State);
+
+    // Notify UI Helper Functions
+    void RefreshNotifyClassList();
+    void RenderNotifyCombo(const char* Label, struct FAnimNotifyEvent& Notify);
 
 private:
     bool bIsOpen = true;
@@ -157,4 +162,8 @@ private:
     // Panel Ratios
     float LeftPanelRatio = 0.15f;   // 15%
     float RightPanelRatio = 0.25f;  // 25%
+
+    // Notify Class Registry
+    TArray<FString> AvailableNotifyClasses;
+    bool bNotifyClassListDirty = true;
 };

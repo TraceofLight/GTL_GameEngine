@@ -15,6 +15,7 @@ FAnimNode_StateMachine::FAnimNode_StateMachine()
 	  , OwnerAnimInstance(nullptr), ActiveNode(nullptr), PreviousNode(nullptr)
 	  , bIsInterruptedBlend(false), bIsTransitioning(false), TransitionAlpha(0)
 	  , CurrentTransitionDuration(0), CurrentAnimTime(0.0f), PreviousAnimTime(0.0f), PreviousFrameAnimTime(0.0f)
+	  , PreviousFrameTransitionAlpha(0.0f), bHasTriggeredFullyBlended(false)
 {
 }
 
@@ -97,16 +98,38 @@ void FAnimNode_StateMachine::Update(float DeltaSeconds)
 			PreviousAnimTime += DeltaSeconds;
 		}
 
+		PreviousFrameTransitionAlpha = TransitionAlpha;
 		TransitionAlpha += DeltaSeconds / CurrentTransitionDuration;
+
+		// Transition Notify 트리거 (진행률 기반)
+		const FAnimStateNode* PrevNode = StateMachineAsset->FindNode(PreviousStateName);
+		if (PrevNode)
+		{
+			for (const FAnimStateTransition& Trans : PrevNode->Transitions)
+			{
+				if (Trans.TargetStateName == CurrentStateName)
+				{
+					TriggerTransitionNotifies(&Trans, PreviousFrameTransitionAlpha, TransitionAlpha);
+					break;
+				}
+			}
+		}
 
 		if (TransitionAlpha >= 1.0f)
 		{
-			// 전환 완료
+			// 전환 완료 - State Fully Blended Notify 트리거
+			if (!bHasTriggeredFullyBlended && ActiveNode)
+			{
+				TriggerStateFullyBlendedNotifies(ActiveNode);
+				bHasTriggeredFullyBlended = true;
+			}
+
 			bIsTransitioning = false;
 			//  인터럽트 플래그 해제
 			bIsInterruptedBlend = false;
 			PreviousNode = nullptr;
 			TransitionAlpha = 0.0f;
+			PreviousFrameTransitionAlpha = 0.0f;
 		}
 	}
 
@@ -150,7 +173,28 @@ void FAnimNode_StateMachine::Evaluate(FPoseContext& OutPose)
 	FPoseContext TargetPose;
 	if (OutPose.Skeleton) { TargetPose.Initialize(OutPose.Skeleton); }
 	else { TargetPose.LocalSpacePose.SetNum(OutPose.LocalSpacePose.Num()); }
-	GetPoseFromNode(ActiveNode, CurrentAnimTime, TargetPose, &CurrentBlendSpaceNode);
+
+	if (ActiveNode->AnimAssetType == EAnimAssetType::None)
+	{
+		// None 상태라면: 직전 프레임의 포즈를 유지 (Freeze)
+		// 단, LastFramePose가 유효해야 함 (첫 프레임 제외)
+		if (LastFramePose.Num() > 0)
+		{
+			// 본 개수가 맞는지 안전장치 확인
+			if (TargetPose.LocalSpacePose.Num() != LastFramePose.size())
+			{
+				TargetPose.LocalSpacePose.SetNum(LastFramePose.size());
+			}
+
+			// 스냅샷을 타겟 포즈로 복사 -> 멈춤 효과
+			TargetPose.LocalSpacePose = LastFramePose;
+		}
+		// LastFramePose가 비어있다면(게임 시작 직후 등) 그냥 초기화된 T-Pose 사용
+	}
+	else
+	{
+		GetPoseFromNode(ActiveNode, CurrentAnimTime, TargetPose, &CurrentBlendSpaceNode);
+	}
 
 	// ==========================================
 	// 2. 블렌딩 처리
@@ -198,6 +242,12 @@ void FAnimNode_StateMachine::TransitionTo(FName NewStateName, float BlendTime)
 	const FAnimStateNode* NextNode = StateMachineAsset->FindNode(NewStateName);
 	if (!NextNode) { return; }
 
+	// State Exit Notify 트리거 (이전 상태 나가기)
+	if (ActiveNode)
+	{
+		TriggerStateExitNotifies(ActiveNode);
+	}
+
 	// 이전 상태 저장
 	PreviousStateName = CurrentStateName;
 	PreviousNode = ActiveNode;
@@ -213,6 +263,10 @@ void FAnimNode_StateMachine::TransitionTo(FName NewStateName, float BlendTime)
 	CurrentStateName = NewStateName;
 	ActiveNode = NextNode;
 	CurrentAnimTime = 0.0f;
+	bHasTriggeredFullyBlended = false; // 새 상태 진입 시 초기화
+
+	// State Entry Notify 트리거 (새 상태 진입)
+	TriggerStateEntryNotifies(ActiveNode);
 
 	// 새 상태가 BlendSpace2D라면 노드 초기화
 	if (NextNode->AnimAssetType == EAnimAssetType::BlendSpace2D && NextNode->BlendSpaceAsset)
@@ -230,6 +284,7 @@ void FAnimNode_StateMachine::TransitionTo(FName NewStateName, float BlendTime)
 		// 알파를 0으로 초기화해도, Source가 '방금 전 모습'이라서 튀지 않음
 		CurrentTransitionDuration = BlendTime;
 		TransitionAlpha = 0.0f;
+		PreviousFrameTransitionAlpha = 0.0f;
 	}
 	// [Case 2: 일반 전환]
 	else
@@ -242,10 +297,14 @@ void FAnimNode_StateMachine::TransitionTo(FName NewStateName, float BlendTime)
 			bIsTransitioning = true;
 			CurrentTransitionDuration = BlendTime;
 			TransitionAlpha = 0.0f;
+			PreviousFrameTransitionAlpha = 0.0f;
 		}
 		else
 		{
 			bIsTransitioning = false;
+			// 블렌딩 없으면 즉시 Fully Blended Notify 트리거
+			TriggerStateFullyBlendedNotifies(ActiveNode);
+			bHasTriggeredFullyBlended = true;
 		}
 	}
 }
@@ -265,11 +324,31 @@ void FAnimNode_StateMachine::CheckTransitions()
 		// 트랜지션 내의 모든 조건(AND) 확인
 		for (const FAnimCondition& Condition : Transition.Conditions)
 		{
-			float CurrentVal = OwnerAnimInstance->GetFloat(Condition.ParameterName);
+			float CurrentVal = 0.0f;
+
+			// 타입에 따라 비교할 값(CurrentVal) 결정
+			if (Condition.Type == EAnimConditionType::Parameter)
+			{
+				CurrentVal = OwnerAnimInstance->GetFloat(Condition.ParameterName);
+			}
+			else if (Condition.Type == EAnimConditionType::TimeRemainingRatio)
+			{
+				if (ActiveNode->AnimationAsset)
+				{
+					float Duration = ActiveNode->AnimationAsset->GetPlayLength();
+					if (Duration > 0.0f)
+					{
+						float Ratio = 1.0f - (CurrentAnimTime / Duration);
+						CurrentVal = Ratio;
+					}
+				}
+			}
+
+			// 2. 비교 수행
 			if (!EvaluateCondition(CurrentVal, Condition.Op, Condition.Threshold))
 			{
 				bAllConditionsMet = false;
-				break; // 하나라도 틀리면 이 트랜지션은 실패
+				break;
 			}
 		}
 
@@ -292,5 +371,115 @@ bool FAnimNode_StateMachine::EvaluateCondition(float CurrentValue, EAnimConditio
 		case EAnimConditionOp::GreaterOrEqual:  return CurrentValue >= Threshold;
 		case EAnimConditionOp::LessOrEqual:     return CurrentValue <= Threshold;
 		default: return false;
+	}
+}
+
+void FAnimNode_StateMachine::TriggerStateEntryNotifies(const FAnimStateNode* Node)
+{
+	if (!Node || !OwnerAnimInstance)
+	{
+		return;
+	}
+
+	ACharacter* Character = Cast<ACharacter>(OwnerPawn);
+	if (!Character)
+	{
+		return;
+	}
+
+	USkeletalMeshComponent* MeshComp = Character->GetMesh();
+	if (!MeshComp)
+	{
+		return;
+	}
+
+	UE_LOG("[StateMachine] TriggerStateEntryNotifies: State=%s, Count=%d", Node->StateName.ToString().c_str(), Node->StateEntryNotifies.Num());
+
+	for (const FAnimNotifyEvent& Notify : Node->StateEntryNotifies)
+	{
+		UE_LOG("[StateMachine]   - Triggering Entry Notify: %s", Notify.NotifyName.ToString().c_str());
+		OwnerAnimInstance->TriggerNotify(Notify, MeshComp);
+	}
+}
+
+void FAnimNode_StateMachine::TriggerStateExitNotifies(const FAnimStateNode* Node)
+{
+	if (!Node || !OwnerAnimInstance)
+	{
+		return;
+	}
+
+	ACharacter* Character = Cast<ACharacter>(OwnerPawn);
+	if (!Character)
+	{
+		return;
+	}
+
+	USkeletalMeshComponent* MeshComp = Character->GetMesh();
+	if (!MeshComp)
+	{
+		return;
+	}
+
+	for (const FAnimNotifyEvent& Notify : Node->StateExitNotifies)
+	{
+		OwnerAnimInstance->TriggerNotify(Notify, MeshComp);
+	}
+}
+
+void FAnimNode_StateMachine::TriggerStateFullyBlendedNotifies(const FAnimStateNode* Node)
+{
+	if (!Node || !OwnerAnimInstance)
+	{
+		return;
+	}
+
+	ACharacter* Character = Cast<ACharacter>(OwnerPawn);
+	if (!Character)
+	{
+		return;
+	}
+
+	USkeletalMeshComponent* MeshComp = Character->GetMesh();
+	if (!MeshComp)
+	{
+		return;
+	}
+
+	for (const FAnimNotifyEvent& Notify : Node->StateFullyBlendedNotifies)
+	{
+		OwnerAnimInstance->TriggerNotify(Notify, MeshComp);
+	}
+}
+
+void FAnimNode_StateMachine::TriggerTransitionNotifies(const FAnimStateTransition* Transition, float PrevAlpha, float CurrentAlpha)
+{
+	if (!Transition || !OwnerAnimInstance)
+	{
+		return;
+	}
+
+	ACharacter* Character = Cast<ACharacter>(OwnerPawn);
+	if (!Character)
+	{
+		return;
+	}
+
+	USkeletalMeshComponent* MeshComp = Character->GetMesh();
+	if (!MeshComp)
+	{
+		return;
+	}
+
+	// Transition Notify는 TriggerTime (진행률 0.0~1.0)에 따라 트리거
+	for (const FAnimNotifyEvent& Notify : Transition->TransitionNotifies)
+	{
+		float TriggerTime = Notify.TriggerTime;
+
+		// 이전 프레임과 현재 프레임 사이에 TriggerTime이 있으면 트리거
+		if (PrevAlpha < TriggerTime && CurrentAlpha >= TriggerTime)
+		{
+			OwnerAnimInstance->TriggerNotify(Notify, MeshComp);
+		}
 	}
 }

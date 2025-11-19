@@ -78,6 +78,15 @@ public:
     bool bHasNotifyClipboard = false;  // 클립보드에 Notify가 있는지 여부
     struct FAnimNotifyEvent NotifyClipboard;  // 클립보드에 복사된 Notify
 
+    // Animation Recording
+    bool bIsRecording = false;  // 녹화 중인지 여부
+    bool bShowRecordDialog = false;  // 녹화 파일명 입력 다이얼로그 표시 여부
+    char RecordFileNameBuffer[128] = "";  // 다이얼로그용 파일명 버퍼
+    FString RecordedFileName = "";  // 실제 녹화 중인 파일명
+    TArray<TMap<int32, FTransform>> RecordedFrames;  // 녹화된 프레임 데이터 (프레임별 본 트랜스폼)
+    float RecordStartTime = 0.0f;  // 녹화 시작 시간
+    float RecordFrameRate = 30.0f;  // 녹화 프레임레이트
+
     // View Mode
     EViewerMode ViewMode = EViewerMode::Skeletal;
 };
