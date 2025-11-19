@@ -18,11 +18,11 @@
       "StateExitNotifies" : [],
       "StateFullyBlendedNotifies" : []
     }, {
-      "AnimAsset" : "Data/Animation/XBOT_Idle.fbx#mixamo.com",
+      "AnimAsset" : "Data/Animation/BSH_Idle.fbx#mixamo.com",
       "AnimAssetType" : 1,
       "BlendSpaceAsset" : "",
-      "EditorPosX" : 186.000000,
-      "EditorPosY" : -109.000000,
+      "EditorPosX" : 202.000000,
+      "EditorPosY" : -125.000000,
       "Loop" : true,
       "Name" : "Idle",
       "StateEntryNotifies" : [],
@@ -31,7 +31,7 @@
     }, {
       "AnimAsset" : "",
       "AnimAssetType" : 2,
-      "BlendSpaceAsset" : "Data/Blend/BSH_Walk_Fix1.blend2d",
+      "BlendSpaceAsset" : "Data/Blend/BSH_Walk_Fix2.blend2d",
       "EditorPosX" : 210.000000,
       "EditorPosY" : 83.000000,
       "Loop" : true,
@@ -51,7 +51,7 @@
       "StateExitNotifies" : [],
       "StateFullyBlendedNotifies" : []
     }, {
-      "AnimAsset" : "Data/Animation/CustomizedJumpEnd.anim",
+      "AnimAsset" : "Data/Animation/XBOT_JumpingEnd.fbx#mixamo.com",
       "AnimAssetType" : 1,
       "BlendSpaceAsset" : "",
       "EditorPosX" : 402.000000,
