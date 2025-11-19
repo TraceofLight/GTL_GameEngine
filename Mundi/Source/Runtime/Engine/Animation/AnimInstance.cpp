@@ -232,14 +232,7 @@ void UAnimInstance::EvaluateAnimation()
 	UAnimSequence* AnimSequence = Cast<UAnimSequence>(CurrentAnimation);
 	if (!AnimSequence)
 	{
-		UE_LOG("[AnimInstance] EvaluateAnimation: CurrentAnimation is not UAnimSequence!");
 		return;
-	}
-
-	static int32 EvalLogCounter = 0;
-	if (EvalLogCounter++ % 60 == 0)
-	{
-		UE_LOG("[AnimInstance] EvaluateAnimation: Time=%.2f", CurrentTime);
 	}
 
 	// SkeletalMesh에서 Skeleton 정보 가져오기

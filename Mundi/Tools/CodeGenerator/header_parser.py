@@ -572,6 +572,9 @@ class HeaderParser:
         if params_str.strip():
             params = [p.strip() for p in params_str.split(',')]
             for param in params:
+                # 기본값 제거: "int32 Priority = 0" -> "int32 Priority"
+                param = param.split('=')[0].strip()
+
                 # "const FString& Name" -> type="const FString&", name="Name"
                 parts = param.rsplit(None, 1)
                 if len(parts) == 2:
