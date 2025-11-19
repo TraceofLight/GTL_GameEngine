@@ -69,6 +69,9 @@ public:
 	TArray<FString> GetAllFilePaths();
 
 	template<typename T>
+	bool Unload(const FString& InFilePath);
+
+	template<typename T>
 	EResourceType GetResourceType();
 
 	// --- 헬퍼 및 유틸리티 ---
@@ -95,6 +98,7 @@ public:
 	void CreateTextBillboardMesh();
 	void CreateTextBillboardTexture();
 	void PreLoadAnimStateMachines();
+	void PreLoadAnimSequences();
 
 	// --- 캐시 관리 ---
 	FMeshBVH* GetMeshBVH(const FString& ObjPath);

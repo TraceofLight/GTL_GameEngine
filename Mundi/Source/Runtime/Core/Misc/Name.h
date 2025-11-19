@@ -1,6 +1,4 @@
 ﻿#pragma once
-// Name.h
-#pragma once
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -27,7 +25,7 @@ public:
 // ──────────────────────────────
 struct FName
 {
-	static constexpr uint32 InvalidIndex = std::numeric_limits<uint32>::max();
+	static constexpr uint32 InvalidIndex = (std::numeric_limits<uint32>::max)();
 
     uint32 DisplayIndex = InvalidIndex;
     uint32 ComparisonIndex = InvalidIndex;

@@ -525,8 +525,8 @@
     <ClCompile Include="Source\Slate\Windows\SceneWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SControlPanel.cpp" />
     <ClCompile Include="Source\Slate\Windows\SDetailsWindow.cpp" />
-    <ClCompile Include="Source\Slate\Windows\SkeletalMeshViewerWindow.cpp" />
-    <ClCompile Include="Source\Slate\Windows\SkeletalMeshViewerWindow_Timeline.cpp" />
+    <ClCompile Include="Source\Slate\Windows\PreviewWindow.cpp" />
+    <ClCompile Include="Source\Slate\Windows\PreviewWindow_Timeline.cpp" />
     <ClCompile Include="Source\Slate\Windows\SSplitter.cpp" />
     <ClCompile Include="Source\Slate\Windows\SSplitterH.cpp" />
     <ClCompile Include="Source\Slate\Windows\SSplitterV.cpp" />
@@ -823,7 +823,7 @@
     <ClInclude Include="Source\Slate\Windows\SceneWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SControlPanel.h" />
     <ClInclude Include="Source\Slate\Windows\SDetailsWindow.h" />
-    <ClInclude Include="Source\Slate\Windows\SkeletalMeshViewerWindow.h" />
+    <ClInclude Include="Source\Slate\Windows\PreviewWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SSplitter.h" />
     <ClInclude Include="Source\Slate\Windows\SSplitterH.h" />
     <ClInclude Include="Source\Slate\Windows\SSplitterV.h" />

@@ -1,6 +1,6 @@
 {
   "Actors" : {
-    "952" : {
+    "958" : {
       "ObjectName" : "ADirectionalLightActor_3",
       "OwnedComponents" : [{
           "CascadedAreaColorDebugValue" : 0.000000,
@@ -8,12 +8,12 @@
           "CascadedCount" : 4,
           "CascadedLinearBlendingValue" : 0.500000,
           "CascadedOverlapValue" : 0.200000,
-          "Id" : 954,
+          "Id" : 960,
           "Intensity" : 1.000000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UDirectionalLightComponent_4",
           "ParentId" : 0,
-          "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+          "RelativeLocation" : [0.000000, 0.000000, 5.000000],
           "RelativeRotationEuler" : [-62.900280, 16.769619, -62.900280],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "ShadowBias" : 0.000010,
@@ -29,21 +29,21 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 954,
+      "RootComponentId" : 960,
       "Tag" : "",
       "Type" : "ADirectionalLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true
     },
-    "955" : {
+    "961" : {
       "ObjectName" : "AAmbientLightActor_2",
       "OwnedComponents" : [{
-          "Id" : 957,
+          "Id" : 963,
           "Intensity" : 0.100000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UAmbientLightComponent_2",
           "ParentId" : 0,
-          "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+          "RelativeLocation" : [0.000000, 0.000000, 10.000000],
           "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "ShadowBias" : 0.000010,
@@ -58,16 +58,16 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 957,
+      "RootComponentId" : 963,
       "Tag" : "",
       "Type" : "AAmbientLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true
     },
-    "958" : {
+    "964" : {
       "ObjectName" : "APlayerCameraManager_4",
       "OwnedComponents" : [{
-          "Id" : 959,
+          "Id" : 965,
           "ObjectName" : "USceneComponent_5",
           "ParentId" : 0,
           "RelativeLocation" : [0.000000, 0.000000, 0.000000],
@@ -79,20 +79,19 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 959,
+      "RootComponentId" : 965,
       "Tag" : "",
       "Type" : "APlayerCameraManager",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true
     },
-    "960" : {
+    "966" : {
       "ObjectName" : "스켈레탈 메시_0",
       "OwnedComponents" : [{
           "AnimBlueprintPath" : "",
-          "AnimToPlayPath" : "Data/Animation/Northern_Soul_Spin_Anim.FBX#Unreal Take",
+          "AnimToPlayPath" : "Data/Animation/TestSound.anim",
           "AnimationMode" : 1,
-          "HasAnimInstance" : false,
-          "Id" : 962,
+          "Id" : 968,
           "MaterialSlots" : [{
               "Type" : "None"
             }, {
@@ -104,7 +103,7 @@
             }],
           "ObjectName" : "USkeletalMeshComponent_5",
           "ParentId" : 0,
-          "RelativeLocation" : [3.428964, 0.614845, 0.491169],
+          "RelativeLocation" : [0.000000, 2.228726, 0.000000],
           "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "SavedPlayRate" : 1.000000,
@@ -121,20 +120,20 @@
           "bSavedPlaying" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 962,
+      "RootComponentId" : 968,
       "Tag" : "",
       "Type" : "ASkeletalMeshActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true
     }
   },
-  "NextUUID" : 996,
+  "NextUUID" : 2707,
   "PerspectiveCamera" : {
     "FOV" : [60.000000],
     "FarClip" : [2000.000000],
-    "Location" : [-3.852024, 3.756982, 2.871164],
+    "Location" : [6.659366, 5.858061, 2.066168],
     "NearClip" : [0.100000],
-    "Rotation" : [0.000000, 17.500078, -33.200180]
+    "Rotation" : [0.000000, 2.200102, -150.601669]
   },
   "Version" : 1
 }

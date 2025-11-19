@@ -440,7 +440,7 @@ void SAnimStateMachineWindow::RenderCenterPanel(float width, float height)
             // -------------------------------------------------------
             // [Step 2] 헤더 영역 그리기 (제목)
             // -------------------------------------------------------
-            ImGui::PushID(Node.ID.Get());
+            ImGui::PushID(static_cast<int>(Node.ID.Get()));
 
             ImGui::BeginGroup(); // Header Group
             {

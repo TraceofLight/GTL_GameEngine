@@ -7,11 +7,11 @@ class FViewportClient;
 class UWorld;
 struct ID3D11Device;
 
-class SSkeletalMeshViewerWindow : public SWindow
+class SPreviewWindow : public SWindow
 {
 public:
-    SSkeletalMeshViewerWindow();
-    virtual ~SSkeletalMeshViewerWindow();
+    SPreviewWindow();
+    virtual ~SPreviewWindow();
 
     bool Initialize(float StartX, float StartY, float Width, float Height, UWorld* InWorld, ID3D11Device* InDevice);
 

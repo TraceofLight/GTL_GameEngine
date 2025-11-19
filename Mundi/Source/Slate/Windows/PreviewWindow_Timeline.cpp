@@ -2,7 +2,7 @@
 
 #include "BoneAnchorComponent.h"
 #include "SkeletalMeshActor.h"
-#include "SkeletalMeshViewerWindow.h"
+#include "PreviewWindow.h"
 #include "ImGui/imgui.h"
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
@@ -10,7 +10,7 @@
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 
 // Timeline 컨트롤 UI 렌더링
-void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
+void SPreviewWindow::RenderTimelineControls(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -494,7 +494,7 @@ void SSkeletalMeshViewerWindow::RenderTimelineControls(ViewerState* State)
 }
 
 // Timeline 헬퍼: 프레임 변경 시 공통 갱신 로직
-void SSkeletalMeshViewerWindow::RefreshAnimationFrame(ViewerState* State)
+void SPreviewWindow::RefreshAnimationFrame(ViewerState* State)
 {
     if (!State)
     {
@@ -542,7 +542,7 @@ void SSkeletalMeshViewerWindow::RefreshAnimationFrame(ViewerState* State)
     }
 }
 
-void SSkeletalMeshViewerWindow::TimelineToFront(ViewerState* State)
+void SPreviewWindow::TimelineToFront(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -554,7 +554,7 @@ void SSkeletalMeshViewerWindow::TimelineToFront(ViewerState* State)
     RefreshAnimationFrame(State);
 }
 
-void SSkeletalMeshViewerWindow::TimelineToPrevious(ViewerState* State)
+void SPreviewWindow::TimelineToPrevious(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -583,7 +583,7 @@ void SSkeletalMeshViewerWindow::TimelineToPrevious(ViewerState* State)
     RefreshAnimationFrame(State);
 }
 
-void SSkeletalMeshViewerWindow::TimelineReverse(ViewerState* State)
+void SPreviewWindow::TimelineReverse(ViewerState* State)
 {
     if (!State)
     {
@@ -617,12 +617,12 @@ void SSkeletalMeshViewerWindow::TimelineReverse(ViewerState* State)
     }
 }
 
-void SSkeletalMeshViewerWindow::TimelineRecord(ViewerState* State)
+void SPreviewWindow::TimelineRecord(ViewerState* State)
 {
     // TODO: 녹화 기능 구현
 }
 
-void SSkeletalMeshViewerWindow::TimelinePlay(ViewerState* State)
+void SPreviewWindow::TimelinePlay(ViewerState* State)
 {
     if (!State)
     {
@@ -656,7 +656,7 @@ void SSkeletalMeshViewerWindow::TimelinePlay(ViewerState* State)
     }
 }
 
-void SSkeletalMeshViewerWindow::TimelineToNext(ViewerState* State)
+void SPreviewWindow::TimelineToNext(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -686,7 +686,7 @@ void SSkeletalMeshViewerWindow::TimelineToNext(ViewerState* State)
     RefreshAnimationFrame(State);
 }
 
-void SSkeletalMeshViewerWindow::TimelineToEnd(ViewerState* State)
+void SPreviewWindow::TimelineToEnd(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -708,7 +708,7 @@ void SSkeletalMeshViewerWindow::TimelineToEnd(ViewerState* State)
 // 새로운 커스텀 타임라인 렌더링
 // ========================================
 
-void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
+void SPreviewWindow::RenderTimeline(ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -1576,7 +1576,7 @@ void SSkeletalMeshViewerWindow::RenderTimeline(ViewerState* State)
     ImGui::PopStyleVar();  // WindowPadding 복원
 }
 
-void SSkeletalMeshViewerWindow::DrawTimelineRuler(ImDrawList* DrawList, const ImVec2& RulerMin, const ImVec2& RulerMax, float StartTime, float EndTime, ViewerState* State)
+void SPreviewWindow::DrawTimelineRuler(ImDrawList* DrawList, const ImVec2& RulerMin, const ImVec2& RulerMax, float StartTime, float EndTime, ViewerState* State)
 {
     // 눈금자 배경
     DrawList->AddRectFilled(RulerMin, RulerMax, IM_COL32(50, 50, 50, 255));
@@ -1665,7 +1665,7 @@ void SSkeletalMeshViewerWindow::DrawTimelineRuler(ImDrawList* DrawList, const Im
     }
 }
 
-void SSkeletalMeshViewerWindow::DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime)
+void SPreviewWindow::DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime)
 {
     float Duration = EndTime - StartTime;
     if (Duration <= 0.0f)
@@ -1699,7 +1699,7 @@ void SSkeletalMeshViewerWindow::DrawTimelinePlayhead(ImDrawList* DrawList, const
     );
 }
 
-void SSkeletalMeshViewerWindow::DrawPlaybackRange(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
+void SPreviewWindow::DrawPlaybackRange(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -1792,7 +1792,7 @@ void SSkeletalMeshViewerWindow::DrawPlaybackRange(ImDrawList* DrawList, const Im
     );
 }
 
-void SSkeletalMeshViewerWindow::DrawNotifyTracksPanel(ViewerState* State, float StartTime, float EndTime)
+void SPreviewWindow::DrawNotifyTracksPanel(ViewerState* State, float StartTime, float EndTime)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -2054,7 +2054,7 @@ void SSkeletalMeshViewerWindow::DrawNotifyTracksPanel(ViewerState* State, float 
     ImGui::Dummy(ImVec2(0, RulerHeight + (State->NotifyTrackNames.Num() * TrackHeight)));
 }
 
-void SSkeletalMeshViewerWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
+void SPreviewWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
 {
     if (!State || !State->CurrentAnimation)
     {

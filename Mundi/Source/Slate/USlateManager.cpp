@@ -9,7 +9,7 @@
 #include "Windows/SControlPanel.h"
 #include "Windows/ControlPanelWindow.h"
 #include "Windows/SViewportWindow.h"
-#include "Windows/SkeletalMeshViewerWindow.h"
+#include "Windows/PreviewWindow.h"
 #include "Windows/BlendSpace2DEditorWindow.h"
 #include "Windows/ConsoleWindow.h"
 #include "Windows/ContentBrowserWindow.h"
@@ -185,7 +185,7 @@ void USlateManager::OpenSkeletalMeshViewer()
         return;
     }
 
-    SkeletalViewerWindow = new SSkeletalMeshViewerWindow();
+    SkeletalViewerWindow = new SPreviewWindow();
 
     // Open as a detached window at a default size and position
     const float toolbarHeight = 50.0f;

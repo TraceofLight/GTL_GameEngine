@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "SkeletalMeshViewerWindow.h"
+#include "PreviewWindow.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "Source/Runtime/Engine/SkeletalViewer/SkeletalViewerBootstrap.h"
@@ -21,13 +21,14 @@
 #include "Source/Runtime/Core/Misc/WindowsBinWriter.h"
 #include "Source/Runtime/Core/Misc/Archive.h"
 #include <cmath> // for fmod
+#include <filesystem>
 
-SSkeletalMeshViewerWindow::SSkeletalMeshViewerWindow()
+SPreviewWindow::SPreviewWindow()
 {
     CenterRect = FRect(0, 0, 0, 0);
 }
 
-SSkeletalMeshViewerWindow::~SSkeletalMeshViewerWindow()
+SPreviewWindow::~SPreviewWindow()
 {
     // Clean up tabs if any
     for (int i = 0; i < Tabs.Num(); ++i)
@@ -39,7 +40,7 @@ SSkeletalMeshViewerWindow::~SSkeletalMeshViewerWindow()
     ActiveState = nullptr;
 }
 
-bool SSkeletalMeshViewerWindow::Initialize(float StartX, float StartY, float Width, float Height, UWorld* InWorld, ID3D11Device* InDevice)
+bool SPreviewWindow::Initialize(float StartX, float StartY, float Width, float Height, UWorld* InWorld, ID3D11Device* InDevice)
 {
     World = InWorld;
     Device = InDevice;
@@ -78,7 +79,7 @@ bool SSkeletalMeshViewerWindow::Initialize(float StartX, float StartY, float Wid
     return true;
 }
 
-void SSkeletalMeshViewerWindow::OnRender()
+void SPreviewWindow::OnRender()
 {
     // If window is closed, don't render
     if (!bIsOpen)
@@ -108,7 +109,7 @@ void SSkeletalMeshViewerWindow::OnRender()
         ImGui::SetNextWindowFocus();
     }
     bool bViewerVisible = false;
-    if (ImGui::Begin("Skeletal Mesh Viewer", &bIsOpen, flags))
+    if (ImGui::Begin("Preview", &bIsOpen, flags))
     {
         bViewerVisible = true;
         // Render tab bar and switch active state
@@ -1208,13 +1209,16 @@ void SSkeletalMeshViewerWindow::OnRender()
             ImGui::Text("Animation List");
             ImGui::PopStyleColor();
 
-            // Save Animation 버튼 (Animation List 헤더 우측)
+            // Save/Save As 버튼 (Animation List 헤더 우측)
             ImGui::SameLine();
+
+            bool bCanSave = (ActiveState->CurrentAnimation != nullptr);
+
+            // Save 버튼 (기존 파일 덮어쓰기)
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.50f, 0.70f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.60f, 0.80f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.40f, 0.60f, 1.0f));
 
-            bool bCanSave = (ActiveState->CurrentAnimation != nullptr);
             if (!bCanSave)
             {
                 ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
@@ -1225,80 +1229,49 @@ void SSkeletalMeshViewerWindow::OnRender()
                 UAnimSequence* AnimToSave = ActiveState->CurrentAnimation;
                 if (AnimToSave)
                 {
-                    // 파일명 생성: FilePath에서 추출 (UE 패턴)
                     FString FilePath = AnimToSave->GetFilePath();
-                    FString FileName;
+                    FString SavePath;
 
-                    // FilePath 형식: "path/to/file.fbx#AnimStackName" 또는 "path/to/file.anim"
+                    // 저장 경로 결정
                     if (FilePath.ends_with(".anim"))
                     {
-                        // 이미 .anim 파일에서 로드된 경우: 기존 경로 사용
-                        size_t LastSlash = FilePath.find_last_of("/\\");
-                        if (LastSlash != FString::npos)
-                        {
-                            FileName = FilePath.substr(LastSlash + 1);
-                            // 확장자 제거
-                            size_t DotPos = FileName.find_last_of('.');
-                            if (DotPos != FString::npos)
-                            {
-                                FileName = FileName.substr(0, DotPos);
-                            }
-                        }
-                        else
-                        {
-                            FileName = AnimToSave->GetName();
-                        }
+                        // .anim 파일: 기존 경로에 덮어쓰기
+                        SavePath = FilePath;
                     }
                     else
                     {
-                        // FBX에서 임포트된 경우: BaseName_AnimStackName 형식
+                        // FBX 파일: .anim으로 변환하여 저장
                         size_t HashPos = FilePath.find('#');
                         if (HashPos != FString::npos)
                         {
+                            // "Data/Animation/File.FBX#AnimStack" → "Data/Animation/File.anim"
                             FString FbxPath = FilePath.substr(0, HashPos);
-                            FString AnimStackName = FilePath.substr(HashPos + 1);
-
-                            // FBX 파일명 추출
-                            size_t LastSlash = FbxPath.find_last_of("/\\");
-                            FString BaseName;
-                            if (LastSlash != FString::npos)
+                            size_t DotPos = FbxPath.find_last_of('.');
+                            if (DotPos != FString::npos)
                             {
-                                BaseName = FbxPath.substr(LastSlash + 1);
+                                SavePath = FbxPath.substr(0, DotPos) + ".anim";
                             }
                             else
                             {
-                                BaseName = FbxPath;
+                                SavePath = FbxPath + ".anim";
                             }
-
-                            // 확장자 제거
-                            size_t DotPos = BaseName.find_last_of('.');
-                            if (DotPos != FString::npos)
-                            {
-                                BaseName = BaseName.substr(0, DotPos);
-                            }
-
-                            // UE 패턴: BaseName_AnimStackName
-                            FileName = BaseName + "_" + AnimStackName;
                         }
                         else
                         {
                             // Fallback: AnimSequence 이름 사용
-                            FileName = AnimToSave->GetName();
+                            SavePath = "Data/Animation/" + AnimToSave->GetName() + ".anim";
                         }
                     }
 
-                    // 저장 경로: Data/Animation/{FileName}.anim
-                    FString SaveDirectory = "Data/Animation/";
-                    FString SavePath = SaveDirectory + FileName + ".anim";
-
                     // 디렉토리 생성
-                    std::filesystem::path DirPath(SaveDirectory);
-                    if (!std::filesystem::exists(DirPath))
+                    std::filesystem::path FilePathObj(SavePath);
+                    std::filesystem::path DirPath = FilePathObj.parent_path();
+                    if (!DirPath.empty() && !std::filesystem::exists(DirPath))
                     {
                         std::filesystem::create_directories(DirPath);
                     }
 
-                    // 파일 저장 (FBXLoader 패턴과 동일)
+                    // 파일 저장
                     try
                     {
                         FWindowsBinWriter Writer(SavePath);
@@ -1322,14 +1295,14 @@ void SSkeletalMeshViewerWindow::OnRender()
 
                         Writer.Close();
 
-                        // FilePath를 .anim 파일 경로로 업데이트 (Scene 저장 시 .anim 경로가 저장되도록)
+                        // FilePath 업데이트 (다음 Save는 .anim 경로로)
                         AnimToSave->SetFilePath(SavePath);
 
-                        UE_LOG("SkeletalMeshViewer: SaveAnimation: Saved to %s", SavePath.c_str());
+                        UE_LOG("SkeletalMeshViewer: Save: Saved to %s", SavePath.c_str());
                     }
                     catch (const std::exception& e)
                     {
-                        UE_LOG("SkeletalMeshViewer: SaveAnimation: Failed - %s", e.what());
+                        UE_LOG("SkeletalMeshViewer: Save: Failed - %s", e.what());
                     }
                 }
             }
@@ -1341,12 +1314,143 @@ void SSkeletalMeshViewerWindow::OnRender()
 
             ImGui::PopStyleColor(3);
 
+            // Save As 메뉴 (New Notify Script 스타일)
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.45f, 0.65f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.55f, 0.75f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.10f, 0.35f, 0.55f, 1.0f));
+
+            if (!bCanSave)
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+            }
+
+            static char SaveAsFileName[256] = "";
+
+            if (ImGui::SmallButton("Save As...") && bCanSave)
+            {
+                ImGui::OpenPopup("SaveAsMenu");
+                if (ActiveState->CurrentAnimation)
+                {
+                    FString CurrentName = ActiveState->CurrentAnimation->GetName();
+                    strncpy_s(SaveAsFileName, CurrentName.c_str(), sizeof(SaveAsFileName) - 1);
+                }
+            }
+
+            if (!bCanSave)
+            {
+                ImGui::PopStyleVar();
+            }
+
+            ImGui::PopStyleColor(3);
+
+            // Save As 팝업 메뉴 (옆에 열림)
+            if (ImGui::BeginPopup("SaveAsMenu"))
+            {
+                ImGui::Text("Enter new file name:");
+                ImGui::SetNextItemWidth(250.0f);
+                bool bEnterPressed = ImGui::InputTextWithHint("##SaveAsFileName", "e.g., MyAnimation", SaveAsFileName, sizeof(SaveAsFileName), ImGuiInputTextFlags_EnterReturnsTrue);
+
+                ImGui::Spacing();
+                ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Save to: Data/Animation/%s.anim", SaveAsFileName);
+                ImGui::Spacing();
+
+                if (ImGui::Button("Save", ImVec2(120, 0)) || bEnterPressed)
+                {
+                    if (strlen(SaveAsFileName) > 0 && ActiveState->CurrentAnimation)
+                    {
+                        FString NewFileName = SaveAsFileName;
+                        FString SavePath = "Data/Animation/" + NewFileName + ".anim";
+
+                        std::filesystem::path FilePathObj(SavePath);
+                        std::filesystem::path DirPath = FilePathObj.parent_path();
+                        if (!DirPath.empty() && !std::filesystem::exists(DirPath))
+                        {
+                            std::filesystem::create_directories(DirPath);
+                        }
+
+                        try
+                        {
+                            UAnimSequence* SourceAnim = ActiveState->CurrentAnimation;
+
+                            // 파일 저장
+                            FWindowsBinWriter Writer(SavePath);
+                            Serialization::WriteString(Writer, NewFileName);
+
+                            uint32 NotifyCount = static_cast<uint32>(SourceAnim->Notifies.Num());
+                            Writer << NotifyCount;
+                            for (FAnimNotifyEvent& Notify : SourceAnim->Notifies)
+                            {
+                                Writer << Notify;
+                            }
+
+                            if (UAnimDataModel* DataModel = SourceAnim->GetDataModel())
+                            {
+                                Writer << *DataModel;
+                            }
+
+                            Writer.Close();
+
+                            // 새로운 AnimSequence 객체 생성 및 로드
+                            UAnimSequence* NewAnim = UResourceManager::GetInstance().Load<UAnimSequence>(SavePath);
+
+                            if (NewAnim && ActiveState->CurrentMesh)
+                            {
+                                // SkeletalMesh의 Animation List에 추가
+                                ActiveState->CurrentMesh->AddAnimation(NewAnim);
+
+                                // 새로 만든 애니메이션을 현재 애니메이션으로 설정
+                                const TArray<UAnimSequence*>& Animations = ActiveState->CurrentMesh->GetAnimations();
+                                for (int32 i = 0; i < Animations.Num(); ++i)
+                                {
+                                    if (Animations[i] == NewAnim)
+                                    {
+                                        ActiveState->SelectedAnimationIndex = i;
+                                        ActiveState->CurrentAnimation = NewAnim;
+                                        ActiveState->CurrentAnimationTime = 0.0f;
+                                        ActiveState->EditedBoneTransforms.clear();
+                                        ActiveState->bIsPlaying = true;
+
+                                        if (NewAnim->GetDataModel())
+                                        {
+                                            int32 TotalFrames = NewAnim->GetDataModel()->GetNumberOfFrames();
+                                            ActiveState->WorkingRangeStartFrame = 0;
+                                            ActiveState->WorkingRangeEndFrame = TotalFrames;
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+
+                            UE_LOG("SkeletalMeshViewer: SaveAs: Created new animation %s", SavePath.c_str());
+
+                            memset(SaveAsFileName, 0, sizeof(SaveAsFileName));
+                            ImGui::CloseCurrentPopup();
+                        }
+                        catch (const std::exception& e)
+                        {
+                            UE_LOG("SkeletalMeshViewer: SaveAs: Failed - %s", e.what());
+                        }
+                    }
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel", ImVec2(120, 0)))
+                {
+                    memset(SaveAsFileName, 0, sizeof(SaveAsFileName));
+                    ImGui::CloseCurrentPopup();
+                }
+
+                ImGui::EndPopup();
+            }
+
+
             ImGui::Separator();
             ImGui::Spacing();
 
             if (ActiveState->CurrentMesh)
             {
-                const TArray<UAnimSequence*>& Animations = ActiveState->CurrentMesh->GetAnimations();
+                // 복사본을 만들어 순회 (삭제 시 원본 배열이 변경되어도 안전)
+                TArray<UAnimSequence*> Animations = ActiveState->CurrentMesh->GetAnimations();
 
                 if (Animations.Num() > 0)
                 {
@@ -1460,9 +1564,53 @@ void SSkeletalMeshViewerWindow::OnRender()
                                 }
                             }
                         }
+
+                        // 우클릭 컨텍스트 메뉴
+                        if (ImGui::BeginPopupContextItem())
+                        {
+                            if (ImGui::MenuItem("Delete"))
+                            {
+                                if (ActiveState->CurrentMesh && Anim)
+                                {
+                                    FString FilePath = Anim->GetFilePath();
+
+                                    // 현재 재생 중이면 상태 초기화
+                                    if (ActiveState->CurrentAnimation == Anim)
+                                    {
+                                        ActiveState->CurrentAnimation = nullptr;
+                                        ActiveState->SelectedAnimationIndex = -1;
+                                        ActiveState->bIsPlaying = false;
+                                        ActiveState->CurrentAnimationTime = 0.0f;
+                                    }
+
+                                    // 리스트에서 제거
+                                    ActiveState->CurrentMesh->RemoveAnimation(Anim);
+
+                                    // .anim 파일인 경우에만 실제 파일 삭제
+                                    if (FilePath.ends_with(".anim"))
+                                    {
+                                        if (std::filesystem::exists(FilePath))
+                                        {
+                                            std::filesystem::remove(FilePath);
+                                        }
+                                        UResourceManager::GetInstance().Unload<UAnimSequence>(FilePath);
+                                    }
+
+                                    // 선택 인덱스 조정
+                                    if (ActiveState->SelectedAnimationIndex >= ActiveState->CurrentMesh->GetAnimations().Num())
+                                    {
+                                        ActiveState->SelectedAnimationIndex = -1;
+                                    }
+                                }
+                            }
+                            ImGui::EndPopup();
+                        }
                     }
 
+
+
                     ImGui::EndChild();
+
                 }
                 else
                 {
@@ -1494,7 +1642,7 @@ void SSkeletalMeshViewerWindow::OnRender()
     bRequestFocus = false;
 }
 
-void SSkeletalMeshViewerWindow::OnUpdate(float DeltaSeconds)
+void SPreviewWindow::OnUpdate(float DeltaSeconds)
 {
     if (!ActiveState || !ActiveState->Viewport)
         return;
@@ -1611,7 +1759,7 @@ void SSkeletalMeshViewerWindow::OnUpdate(float DeltaSeconds)
     }
 }
 
-void SSkeletalMeshViewerWindow::OnMouseMove(FVector2D MousePos)
+void SPreviewWindow::OnMouseMove(FVector2D MousePos)
 {
     if (!ActiveState || !ActiveState->Viewport) return;
 
@@ -1622,7 +1770,7 @@ void SSkeletalMeshViewerWindow::OnMouseMove(FVector2D MousePos)
     }
 }
 
-void SSkeletalMeshViewerWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
+void SPreviewWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
     if (!ActiveState || !ActiveState->Viewport) return;
 
@@ -1710,7 +1858,7 @@ void SSkeletalMeshViewerWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
     }
 }
 
-void SSkeletalMeshViewerWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
+void SPreviewWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 {
     if (!ActiveState || !ActiveState->Viewport) return;
 
@@ -1721,7 +1869,7 @@ void SSkeletalMeshViewerWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
     }
 }
 
-void SSkeletalMeshViewerWindow::OnRenderViewport()
+void SPreviewWindow::OnRenderViewport()
 {
     if (ActiveState && ActiveState->Viewport && CenterRect.GetWidth() > 0 && CenterRect.GetHeight() > 0)
     {
@@ -1766,7 +1914,7 @@ void SSkeletalMeshViewerWindow::OnRenderViewport()
     }
 }
 
-void SSkeletalMeshViewerWindow::OpenNewTab(const char* Name)
+void SPreviewWindow::OpenNewTab(const char* Name)
 {
     ViewerState* State = SkeletalViewerBootstrap::CreateViewerState(Name, World, Device);
     if (!State) return;
@@ -1776,7 +1924,7 @@ void SSkeletalMeshViewerWindow::OpenNewTab(const char* Name)
     ActiveState = State;
 }
 
-void SSkeletalMeshViewerWindow::CloseTab(int Index)
+void SPreviewWindow::CloseTab(int Index)
 {
     if (Index < 0 || Index >= Tabs.Num()) return;
 
@@ -1796,7 +1944,7 @@ void SSkeletalMeshViewerWindow::CloseTab(int Index)
     }
 }
 
-void SSkeletalMeshViewerWindow::LoadSkeletalMesh(const FString& Path)
+void SPreviewWindow::LoadSkeletalMesh(const FString& Path)
 {
     if (!ActiveState || Path.empty())
         return;
@@ -1849,7 +1997,7 @@ void SSkeletalMeshViewerWindow::LoadSkeletalMesh(const FString& Path)
     }
 }
 
-void SSkeletalMeshViewerWindow::UpdateBoneTransformFromSkeleton(ViewerState* State)
+void SPreviewWindow::UpdateBoneTransformFromSkeleton(ViewerState* State)
 {
     if (!State || !State->CurrentMesh || State->SelectedBoneIndex < 0)
         return;
@@ -1861,7 +2009,7 @@ void SSkeletalMeshViewerWindow::UpdateBoneTransformFromSkeleton(ViewerState* Sta
     State->EditBoneScale = BoneTransform.Scale3D;
 }
 
-void SSkeletalMeshViewerWindow::ApplyBoneTransform(ViewerState* State)
+void SPreviewWindow::ApplyBoneTransform(ViewerState* State)
 {
     if (!State || !State->CurrentMesh || State->SelectedBoneIndex < 0)
         return;
@@ -1875,7 +2023,7 @@ void SSkeletalMeshViewerWindow::ApplyBoneTransform(ViewerState* State)
     State->PreviewActor->GetSkeletalMeshComponent()->SetBoneLocalTransform(State->SelectedBoneIndex, NewTransform);
 }
 
-void SSkeletalMeshViewerWindow::ExpandToSelectedBone(ViewerState* State, int32 BoneIndex)
+void SPreviewWindow::ExpandToSelectedBone(ViewerState* State, int32 BoneIndex)
 {
     if (!State || !State->CurrentMesh)
         return;
@@ -1893,7 +2041,7 @@ void SSkeletalMeshViewerWindow::ExpandToSelectedBone(ViewerState* State, int32 B
     }
 }
 
-void SSkeletalMeshViewerWindow::ScanNotifyLibrary()
+void SPreviewWindow::ScanNotifyLibrary()
 {
     AvailableNotifyClasses.clear();
     AvailableNotifyStateClasses.clear();
@@ -1941,7 +2089,7 @@ void SSkeletalMeshViewerWindow::ScanNotifyLibrary()
         AvailableNotifyClasses.Num(), AvailableNotifyStateClasses.Num());
 }
 
-void SSkeletalMeshViewerWindow::CreateNewNotifyScript(const FString& ScriptName, bool bIsNotifyState)
+void SPreviewWindow::CreateNewNotifyScript(const FString& ScriptName, bool bIsNotifyState)
 {
     // 대상 폴더 및 접두사
     FString DestDir = bIsNotifyState ? "Data/Scripts/NotifyState/" : "Data/Scripts/Notify/";
@@ -2048,7 +2196,7 @@ void SSkeletalMeshViewerWindow::CreateNewNotifyScript(const FString& ScriptName,
     FPlatformProcess::OpenFileInDefaultEditor(WideDestPath);
 }
 
-void SSkeletalMeshViewerWindow::OpenNotifyScriptInEditor(const FString& NotifyClassName, bool bIsNotifyState)
+void SPreviewWindow::OpenNotifyScriptInEditor(const FString& NotifyClassName, bool bIsNotifyState)
 {
     if (NotifyClassName.empty())
     {
