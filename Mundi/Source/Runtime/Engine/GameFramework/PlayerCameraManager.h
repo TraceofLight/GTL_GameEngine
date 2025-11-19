@@ -49,8 +49,14 @@ public:
 
 	UFUNCTION(LuaBind, DisplayName = "StartVignette")
 	int StartVignette(float InDuration, float Radius, float Softness, float Intensity, float Roundness, const FLinearColor& InColor = FLinearColor::Zero(), int32 InPriority = 0);
+
+	UFUNCTION(LuaBind, DisplayName = "UpdateVignette")
 	int UpdateVignette(int Idx, float InDuration, float Radius, float Softness, float Intensity, float Roundness, const FLinearColor& InColor = FLinearColor::Zero(), int32 InPriority = 0);
+
+	UFUNCTION(LuaBind, DisplayName = "AdjustVignette")
 	void AdjustVignette(float InDuration, float Radius, float Softness, float Intensity, float Roundness, const FLinearColor& InColor = FLinearColor::Zero(), int32 InPriority = 0);
+
+	UFUNCTION(LuaBind, DisplayName = "DeleteVignette")
 	void DeleteVignette();
 
 	UFUNCTION(LuaBind, DisplayName = "StartGamma")

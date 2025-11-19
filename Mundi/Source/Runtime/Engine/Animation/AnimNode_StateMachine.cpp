@@ -12,7 +12,7 @@ FAnimNode_StateMachine::FAnimNode_StateMachine()
 	: StateMachineAsset(nullptr), OwnerPawn(nullptr)
 	  , OwnerAnimInstance(nullptr), ActiveNode(nullptr), PreviousNode(nullptr)
 	  , bIsTransitioning(false), TransitionAlpha(0)
-	  , CurrentTransitionDuration(0), CurrentAnimTime(0.0f), PreviousAnimTime(0.0f)
+	  , CurrentTransitionDuration(0), CurrentAnimTime(0.0f), PreviousAnimTime(0.0f), PreviousFrameAnimTime(0.0f)
 {
 }
 
@@ -40,6 +40,9 @@ void FAnimNode_StateMachine::Initialize(APawn* InPawn)
 void FAnimNode_StateMachine::Update(float DeltaSeconds)
 {
 	if (!ActiveNode) return;
+
+	// 이전 프레임 시간 저장 (Notify 구간 판정용)
+	PreviousFrameAnimTime = CurrentAnimTime;
 
 	// 애니메이션 시간 갱신
 	CurrentAnimTime += DeltaSeconds;

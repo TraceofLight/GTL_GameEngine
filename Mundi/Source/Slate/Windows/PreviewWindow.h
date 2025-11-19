@@ -113,6 +113,9 @@ private:
     void DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State);
     void DrawNotifyTracksPanel(ViewerState* State, float StartTime, float EndTime);
 
+    // Notify Track 복원 (애니메이션 로드 시)
+    void RebuildNotifyTracks(ViewerState* State);
+
     // Notify 라이브러리 관리
     void ScanNotifyLibrary();
     void CreateNewNotifyScript(const FString& ScriptName, bool bIsNotifyState);

@@ -65,6 +65,27 @@ public:
 	 */
 	FName GetCurrentStateName() const { return CurrentStateName; }
 
+	/**
+	 * @brief 현재 재생 중인 애니메이션 가져오기
+	 */
+	UAnimSequence* GetCurrentAnimation() const
+	{
+		return ActiveNode ? ActiveNode->AnimationAsset : nullptr;
+	}
+
+	/**
+	 * @brief 현재 애니메이션 재생 시간 가져오기
+	 */
+	float GetCurrentAnimTime() const { return CurrentAnimTime; }
+
+	/**
+	 * @brief 이전 프레임 애니메이션 시간 가져오기 (Notify 구간 판정용)
+	 */
+	float GetPreviousFrameAnimTime() const
+	{
+		return PreviousFrameAnimTime;
+	}
+
 // ===== 데이터 참조 =====
 protected:
 	/** 실행할 State Machine 에셋 데이터 */
@@ -99,6 +120,7 @@ protected:
 	// ===== 애니메이션 재생 시간 =====
 	float CurrentAnimTime;  // 현재 상태 재생 시간
 	float PreviousAnimTime; // 이전 상태 재생 시간 (블렌딩용)
+	float PreviousFrameAnimTime; // 이전 프레임의 CurrentAnimTime (Notify 구간 판정용)
 
 // ===== 내부 로직 =====
 protected:

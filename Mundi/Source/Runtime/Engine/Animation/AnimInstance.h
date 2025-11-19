@@ -91,6 +91,10 @@ protected:
 	FAnimNode_StateMachine StateMachineNode;
 	FAnimNode_BlendSpace2D BlendSpace2DNode;
 
+	// ===== AnimNotifyState 관리 (UE 표준 방식) =====
+	// 현재 활성화된 AnimNotifyState 목록 (이전 프레임 기준)
+	TArray<FAnimNotifyEvent> ActiveAnimNotifyState;
+
 	virtual void HandleNotify(const FAnimNotifyEvent& NotifyEvent);
 
 // ===== 파라미터(Blackboard) 시스템 =====

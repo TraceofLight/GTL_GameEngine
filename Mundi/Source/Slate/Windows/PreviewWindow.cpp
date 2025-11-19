@@ -422,6 +422,9 @@ void SPreviewWindow::OnRender()
                                         // 편집된 bone transform 캐시 클리어 (새로운 메시/애니메이션 로드)
                                         ActiveState->EditedBoneTransforms.clear();
 
+                                        // Notify Track 복원
+                                        RebuildNotifyTracks(ActiveState);
+
                                         // Working Range 초기화 (0 ~ TotalFrames)
                                         if (ActiveState->CurrentAnimation && ActiveState->CurrentAnimation->GetDataModel())
                                         {
@@ -818,6 +821,7 @@ void SPreviewWindow::OnRender()
                         ActiveState->CurrentAnimation = Animations[0];
                         ActiveState->CurrentAnimationTime = 0.0f;
                         ActiveState->EditedBoneTransforms.clear();
+                        RebuildNotifyTracks(ActiveState);
                         ActiveState->bIsPlaying = true;
                     }
                 }
@@ -1517,6 +1521,7 @@ void SPreviewWindow::OnRender()
                             ActiveState->CurrentAnimation = Anim;
                             ActiveState->CurrentAnimationTime = 0.0f;
                             ActiveState->EditedBoneTransforms.clear();
+                            RebuildNotifyTracks(ActiveState);
                             ActiveState->bIsPlaying = true;
 
                             // Working Range 초기화 (0 ~ TotalFrames)
@@ -1986,6 +1991,7 @@ void SPreviewWindow::LoadSkeletalMesh(const FString& Path)
             ActiveState->CurrentAnimation = Animations[0];
             ActiveState->CurrentAnimationTime = 0.0f;
             ActiveState->EditedBoneTransforms.clear();
+            RebuildNotifyTracks(ActiveState);
             ActiveState->bIsPlaying = true;
         }
 
@@ -2231,4 +2237,47 @@ void SPreviewWindow::OpenNotifyScriptInEditor(const FString& NotifyClassName, bo
     std::wstring WideAbsolutePath = AbsolutePath.wstring();
     FPlatformProcess::OpenFileInDefaultEditor(WideAbsolutePath);
     UE_LOG("[SkeletalMeshViewer] OpenNotifyScriptInEditor: Opened file: %s", AbsolutePath.string().c_str());
+}
+
+/**
+ * @brief 애니메이션의 Notify들을 스캔하여 NotifyTrackNames 복원
+ * @details .anim 파일 로드 시 Notify의 TrackIndex 정보로부터 Track 목록 재구성
+ */
+void SPreviewWindow::RebuildNotifyTracks(ViewerState* State)
+{
+    if (!State || !State->CurrentAnimation)
+    {
+        return;
+    }
+
+    // 기존 Track 정보 초기화
+    State->NotifyTrackNames.clear();
+    State->UsedTrackNumbers.clear();
+
+    // 현재 애니메이션의 모든 Notify에서 TrackIndex 수집
+    std::set<int32> TrackIndices;
+    const TArray<FAnimNotifyEvent>& Notifies = State->CurrentAnimation->Notifies;
+    for (const FAnimNotifyEvent& Notify : Notifies)
+    {
+        TrackIndices.insert(Notify.TrackIndex);
+    }
+
+    // Track이 하나도 없으면 기본 Track 1 생성
+    if (TrackIndices.empty())
+    {
+        State->NotifyTrackNames.push_back("Track 1");
+        State->UsedTrackNumbers.insert(1);
+        return;
+    }
+
+    // TrackIndex에 맞게 Track 생성 (인덱스 순서대로)
+    for (int32 TrackIdx : TrackIndices)
+    {
+        // TrackIndex는 0부터 시작하지만, Track 이름은 1부터 시작
+        int32 TrackNumber = TrackIdx + 1;
+        char TrackNameBuf[64];
+        snprintf(TrackNameBuf, sizeof(TrackNameBuf), "Track %d", TrackNumber);
+        State->NotifyTrackNames.push_back(TrackNameBuf);
+        State->UsedTrackNumbers.insert(TrackNumber);
+    }
 }
