@@ -101,6 +101,11 @@ public:
         return Properties;
     }
 
+    TArray<FProperty>& GetProperties()
+    {
+        return Properties;
+    }
+
     // 모든 프로퍼티 가져오기 (부모 클래스 포함, 캐싱됨)
     const TArray<FProperty>& GetAllProperties() const
     {

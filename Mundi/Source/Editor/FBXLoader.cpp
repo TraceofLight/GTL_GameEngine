@@ -10,6 +10,7 @@
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
 #include "Source/Runtime/Engine/Animation/AnimationTypes.h"
+#include "Source/Runtime/Engine/Animation/MixamoChainMapper.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include <filesystem>
 #include <cmath>
@@ -73,6 +74,20 @@ void UFbxLoader::PreLoad()
                 // 메시 추가는 나중에 일괄 처리 (95-115줄)
                 FbxLoader.LoadAllFbxAnimations(PathStr, *TargetSkeleton);
              }
+             else
+             {
+                // 메시가 없는 애니메이션 전용 FBX인 경우
+                // 표준 Canonical Mixamo 스켈레톤 사용
+                UE_LOG("No mesh found in '%s'. Trying to load as animation-only FBX...", PathStr.c_str());
+
+                FSkeleton* CanonicalSkeleton = FMixamoChainMapper::CreateCanonicalSkeleton();
+                if (CanonicalSkeleton)
+                {
+                   FbxLoader.LoadAllFbxAnimations(PathStr, *CanonicalSkeleton);
+                   delete CanonicalSkeleton;
+                   UE_LOG("  Animation-only FBX loaded successfully with Canonical Skeleton");
+                }
+             }
           }
        }
        else if (Extension == L".dds" || Extension == L".jpg" || Extension == L".png")
@@ -106,6 +121,9 @@ void UFbxLoader::PreLoad()
     }
 
     UE_LOG("UFbxLoader::Preload: Loaded %zu .fbx files from %s", LoadedCount, GDataDir.c_str());
+
+   // 모든 스켈레톤과 애니메이션의 본 계층 구조 출력
+   PrintAllSkeletonHierarchies();
 }
 
 UFbxLoader::~UFbxLoader()
@@ -524,7 +542,8 @@ void UFbxLoader::LoadSkeletonFromNode(FbxNode* InNode, FSkeletalMeshData& MeshDa
 		{
 			FBone BoneInfo{};
 
-			BoneInfo.Name = FString(InNode->GetName());
+			// Mixamo 접두사 제거 (mixamorig:, mixamorig9: 등)
+			BoneInfo.Name = FMixamoChainMapper::RemovePrefix(FString(InNode->GetName()));
 
 			BoneInfo.ParentIndex = ParentNodeIndex;
 
@@ -1629,6 +1648,12 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 			continue;
 
 		FString AnimStackName = AnimStack->GetName();
+		UE_LOG("AnimStackName Begin: %s", AnimStackName.c_str());
+
+		// "|" 문자를 "_"로 변경 (파일 경로에 유효하지 않은 문자 처리)
+		std::replace(AnimStackName.begin(), AnimStackName.end(), '|', '_');
+
+		UE_LOG("AnimStackName End  : %s", AnimStackName.c_str());
 
 		// "Take 001" 애니메이션 필터링 (길이 무관)
 		if (AnimStackName == "Take 001")
@@ -1702,8 +1727,8 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 				// DataModel 로드
 				Reader << *DataModel;
 
-				// CRITICAL FIX: Skeleton 레퍼런스 저장 (캐시 로드 시)
-				DataModel->Skeleton = const_cast<FSkeleton*>(&TargetSkeleton);
+				// CRITICAL FIX: Skeleton 복사본 생성 (캐시 로드 시)
+				DataModel->SetSkeleton(TargetSkeleton);
 
 				AnimSequence->SetDataModel(DataModel);
 				Reader.Close();
@@ -1775,15 +1800,16 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 			DataModel = NewObject<UAnimDataModel>();
 			AnimSequence->SetDataModel(DataModel);
 
-			// CRITICAL FIX: Skeleton 레퍼런스 저장
-			DataModel->Skeleton = const_cast<FSkeleton*>(&TargetSkeleton);
+			// CRITICAL FIX: Skeleton 복사본 생성
+			DataModel->SetSkeleton(TargetSkeleton);
 
 			DataModel->BoneAnimationTracks.Reserve(TargetSkeleton.Bones.Num());
 
-			// 본 애니메이션 추출
+			// 본 애니메이션 추출 (Mixamo ChainMapping 적용)
 			for (const FBone& Bone : TargetSkeleton.Bones)
 			{
-				FbxNode* BoneNode = FindNodeByName(RootNode, Bone.Name.c_str());
+				// Canonical 이름으로 노드 찾기 (Mixamo 접두사 고려)
+				FbxNode* BoneNode = FindNodeByCanonicalName(RootNode, Bone.Name.c_str());
 				if (!BoneNode)
 					continue;
 
@@ -2005,6 +2031,35 @@ FbxNode* UFbxLoader::FindNodeByName(FbxNode* RootNode, const char* NodeName)
 	return nullptr;
 }
 
+FbxNode* UFbxLoader::FindNodeByCanonicalName(FbxNode* RootNode, const char* CanonicalName)
+{
+	if (!RootNode || !CanonicalName)
+	{
+		return nullptr;
+	}
+
+	// 현재 노드의 이름에서 접두사 제거 후 비교
+	FString NodeName = RootNode->GetName();
+	FString NodeCanonicalName = FMixamoChainMapper::RemovePrefix(NodeName);
+
+	if (NodeCanonicalName == CanonicalName)
+	{
+		return RootNode;
+	}
+
+	// 자식 노드 재귀 탐색
+	for (int32 i = 0; i < RootNode->GetChildCount(); ++i)
+	{
+		FbxNode* Found = FindNodeByCanonicalName(RootNode->GetChild(i), CanonicalName);
+		if (Found)
+		{
+			return Found;
+		}
+	}
+
+	return nullptr;
+}
+
 FSkeleton* UFbxLoader::ExtractSkeletonFromFbx(const FString& FilePath)
 {
 	if (!SdkManager)
@@ -2083,7 +2138,8 @@ FSkeleton* UFbxLoader::ExtractSkeletonFromFbx(const FString& FilePath)
 			if (Attribute && Attribute->GetAttributeType() == FbxNodeAttribute::eSkeleton)
 			{
 				FBone Bone;
-				Bone.Name = Node->GetName();
+				// Mixamo 접두사 제거 (mixamorig:, mixamorig9: 등)
+				Bone.Name = FMixamoChainMapper::RemovePrefix(FString(Node->GetName()));
 				Bone.ParentIndex = ParentIndex;
 
 				// BindPose Transform (Global 변환)
@@ -2133,6 +2189,103 @@ FSkeleton* UFbxLoader::ExtractSkeletonFromFbx(const FString& FilePath)
 	// 캐시 데이터 초기화 (CRITICAL FIX)
 	ExtractedSkeleton->InitializeCachedData();
 
+	// Mixamo 접두사는 이미 본 읽기 단계에서 제거됨 (line 2142)
+	UE_LOG("Extracted skeleton from '%s' (%d bones)", FilePath.c_str(), ExtractedSkeleton->Bones.Num());
+
 	return ExtractedSkeleton;
+}
+
+void UFbxLoader::PrintAllSkeletonHierarchies()
+{
+	UE_LOG("\n========================================");
+	UE_LOG("SKELETAL MESHES & ANIMATIONS BONE HIERARCHY");
+	UE_LOG("========================================\n");
+
+	// 모든 SkeletalMesh 출력
+	TArray<USkeletalMesh*> AllSkeletalMeshes = RESOURCE.GetAll<USkeletalMesh>();
+
+	UE_LOG("=== SKELETAL MESHES (%d) ===\n", AllSkeletalMeshes.Num());
+
+	for (USkeletalMesh* Mesh : AllSkeletalMeshes)
+	{
+		if (Mesh && Mesh->GetSkeleton())
+		{
+			FString Title = "SkeletalMesh: " + Mesh->GetName();
+			PrintSkeletonHierarchy(Mesh->GetSkeleton(), Title);
+			UE_LOG(""); // 빈 줄
+		}
+	}
+
+	// 모든 AnimSequence 출력
+	TArray<UAnimSequence*> AllAnimSequences = RESOURCE.GetAll<UAnimSequence>();
+
+	UE_LOG("\n=== ANIMATIONS (%d) ===\n", AllAnimSequences.Num());
+
+	for (UAnimSequence* AnimSeq : AllAnimSequences)
+	{
+		if (AnimSeq)
+		{
+			UAnimDataModel* DataModel = AnimSeq->GetDataModel();
+			if (DataModel && DataModel->Skeleton)
+			{
+				FString Title = "Animation: " + AnimSeq->GetName();
+				PrintSkeletonHierarchy(DataModel->Skeleton, Title);
+				UE_LOG(""); // 빈 줄
+			}
+		}
+	}
+
+	UE_LOG("========================================\n");
+}
+
+void UFbxLoader::PrintSkeletonHierarchy(const FSkeleton* Skeleton, const FString& Title)
+{
+	if (!Skeleton)
+		return;
+
+	UE_LOG("--- %s ---", Title.c_str());
+	UE_LOG("Total Bones: %d", Skeleton->Bones.Num());
+
+	// 루트 본 찾기 (ParentIndex == -1)
+	for (int32 i = 0; i < Skeleton->Bones.Num(); ++i)
+	{
+		const FBone& Bone = Skeleton->Bones[i];
+		if (Bone.ParentIndex == -1)
+		{
+			// 루트 본부터 재귀적으로 출력
+			PrintBoneRecursive(Skeleton, i, 0);
+		}
+	}
+}
+
+void UFbxLoader::PrintBoneRecursive(const FSkeleton* Skeleton, int32 BoneIndex, int32 Depth)
+{
+	if (!Skeleton || BoneIndex < 0 || BoneIndex >= Skeleton->Bones.Num())
+		return;
+
+	const FBone& Bone = Skeleton->Bones[BoneIndex];
+
+	// 들여쓰기 생성
+	FString Indent = "";
+	for (int32 i = 0; i < Depth; ++i)
+	{
+		if (i == Depth - 1)
+			Indent += "  ㄴ";
+		else
+			Indent += "  ";
+	}
+
+	// 본 이름 출력
+	UE_LOG("%s%s", Indent.c_str(), Bone.Name.c_str());
+
+	// 자식 본 찾기
+	for (int32 i = 0; i < Skeleton->Bones.Num(); ++i)
+	{
+		const FBone& ChildBone = Skeleton->Bones[i];
+		if (ChildBone.ParentIndex == BoneIndex)
+		{
+			PrintBoneRecursive(Skeleton, i, Depth + 1);
+		}
+	}
 }
 

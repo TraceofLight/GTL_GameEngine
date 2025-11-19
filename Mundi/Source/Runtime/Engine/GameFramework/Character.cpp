@@ -53,15 +53,6 @@ ACharacter::ACharacter()
 		// X Bot 스켈레탈 메시 로드
 		SkeletalMeshComponent->SetSkeletalMesh(GDataDir + "/X Bot.fbx");
 
-		// AnimInstance 생성 및 초기화
-		UAnimInstance* AnimInstance = NewObject<UAnimInstance>();
-		if (AnimInstance)
-		{
-			AnimInstance->Initialize(SkeletalMeshComponent);
-			SkeletalMeshComponent->SetAnimInstance(AnimInstance);
-			UE_LOG("[Character] AnimInstance created in constructor!");
-		}
-
 		UE_LOG("[Character] SkeletalMeshComponent created!");
 	}
 
@@ -91,6 +82,8 @@ ACharacter::~ACharacter()
 
 void ACharacter::BeginPlay()
 {
+	UE_LOG("[Character] BeginPlay called!");
+
 	Super::BeginPlay();
 
 	// AnimationStateMachine 생성 및 초기화

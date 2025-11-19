@@ -24,6 +24,13 @@ enum class EGizmoSpace : uint8
     Local
 };
 
+enum class EAnimationMode : uint8
+{
+    AnimationBlueprint,    // AnimBlueprint 사용 (복잡한 로직, State Machine 등)
+    AnimationSingleNode,   // 단일 애니메이션 사용 (간단한 프리뷰, 소품)
+    AnimationCustomMode    // 커스텀 AnimInstance 사용
+};
+
 enum class EKeyInput : uint8
 {
     // Keyboard Keys

@@ -151,4 +151,7 @@ private:
 
     // Shutdown 관련
     bool bIsShutdown = false;
+
+	// Helper to create AnimStateMachineWindow without opening a tab
+	void CreateAnimStateMachineWindowIfNeeded();
 };

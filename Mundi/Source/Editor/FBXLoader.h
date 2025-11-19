@@ -68,6 +68,34 @@ private:
 
 	FbxNode* FindNodeByName(FbxNode* RootNode, const char* NodeName);
 
+	/**
+	 * @brief Canonical 이름으로 노드 찾기 (Mixamo 접두사 제거 후 매칭)
+	 * @param RootNode 검색 시작 노드
+	 * @param CanonicalName 찾을 Canonical 이름 (접두사 없는 이름)
+	 * @return 찾은 노드 (없으면 nullptr)
+	 */
+	FbxNode* FindNodeByCanonicalName(FbxNode* RootNode, const char* CanonicalName);
+
+	/**
+	 * @brief 모든 스켈레탈 메시와 애니메이션의 본 계층 구조 출력
+	 */
+	static void PrintAllSkeletonHierarchies();
+
+	/**
+	 * @brief 스켈레톤의 본 계층 구조 출력
+	 * @param Skeleton 출력할 스켈레톤
+	 * @param Title 출력 제목
+	 */
+	static void PrintSkeletonHierarchy(const FSkeleton* Skeleton, const FString& Title);
+
+	/**
+	 * @brief 본을 재귀적으로 출력 (계층 구조)
+	 * @param Skeleton 스켈레톤
+	 * @param BoneIndex 출력할 본 인덱스
+	 * @param Depth 들여쓰기 깊이
+	 */
+	static void PrintBoneRecursive(const FSkeleton* Skeleton, int32 BoneIndex, int32 Depth);
+
 	// bin파일 저장용
 	TArray<FMaterialInfo> MaterialInfos;
 	FbxManager* SdkManager = nullptr;

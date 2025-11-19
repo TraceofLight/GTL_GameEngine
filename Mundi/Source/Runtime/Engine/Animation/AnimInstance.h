@@ -76,7 +76,6 @@ public:
 	 */
 	FAnimNode_BlendSpace2D* GetBlendSpace2DNode() { return &BlendSpace2DNode; }
 
-protected:
 	// Pose Evaluation
 	void EvaluateAnimation();
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "../Animation/SingleAnimationPlayData.h"
 #include "SkinnedMeshComponent.h"
 #include "Source/Runtime/Core/Misc/Delegates.h"
 #include "USkeletalMeshComponent.generated.h"
@@ -53,6 +54,7 @@ public:
 
 	// Setters
 	void SetAnimInstance(UAnimInstance* InAnimInstance);
+	void SetAnimationMode(EAnimationMode NewMode);
 	void SetBoneLocalTransform(int32 BoneIndex, const FTransform& NewLocalTransform);
 	void SetBoneWorldTransform(int32 BoneIndex, const FTransform& NewWorldTransform);
 
@@ -87,6 +89,15 @@ public:
 
 	// AnimNotify 델리게이트
 	FOnAnimNotify OnAnimNotify;
+
+	UPROPERTY(EditAnywhere, Category="Animation")
+	EAnimationMode AnimationMode = EAnimationMode::AnimationSingleNode;
+
+	UPROPERTY(EditAnywhere, Category="Animation")
+	class UAnimStateMachine* AnimBlueprint = nullptr;
+
+	UPROPERTY(EditAnywhere, Category="Animation")
+	FSingleAnimationPlayData AnimationData;
 
 protected:
 	TArray<FTransform> CurrentLocalSpacePose;

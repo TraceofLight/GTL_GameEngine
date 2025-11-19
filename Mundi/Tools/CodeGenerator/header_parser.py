@@ -116,6 +116,12 @@ class Property:
                     return 'ADD_PROPERTY_MATERIAL'
                 elif 'usound' in type_lower:
                     return 'ADD_PROPERTY_AUDIO'
+                else:
+                    # UObject 파생 포인터 타입 (UAnimSequence* 등)
+                    # AssetType 메타데이터 추가
+                    clean_type = self.type.replace('*', '').replace('const', '').replace('class', '').strip()
+                    if clean_type.startswith('U') or clean_type.startswith('A'):
+                        self.metadata['AssetType'] = clean_type
 
             # Component 타입이거나 일반 ObjectPtr
             return 'ADD_PROPERTY'
@@ -123,6 +129,18 @@ class Property:
         # 범위가 있는 프로퍼티
         if self.has_range:
             return 'ADD_PROPERTY_RANGE'
+
+        # Enum 타입 체크 (E로 시작하는 타입)
+        if self.type.startswith('E'):
+            # Enum 타입 이름을 metadata에 저장
+            self.metadata['EnumType'] = self.type
+            return 'ADD_PROPERTY'
+
+        # Struct 타입 체크 (F로 시작하는 타입)
+        if self.type.startswith('F'):
+            # Struct 타입 이름을 metadata에 저장
+            self.metadata['StructType'] = self.type
+            return 'ADD_PROPERTY'
 
         return 'ADD_PROPERTY'
 
@@ -176,6 +194,14 @@ class Function:
 
 
 @dataclass
+class StructInfo:
+    """구조체 정보"""
+    name: str
+    header_file: Path
+    properties: List[Property] = field(default_factory=list)
+    ustruct_metadata: Dict[str, str] = field(default_factory=dict)
+
+@dataclass
 class ClassInfo:
     """클래스 정보"""
     name: str
@@ -188,6 +214,7 @@ class ClassInfo:
     display_name: str = ""
     description: str = ""
     uclass_metadata: Dict[str, str] = field(default_factory=dict)
+    structs: List['StructInfo'] = field(default_factory=list)  # 클래스 내부 struct들
 
 
 class HeaderParser:
@@ -219,6 +246,9 @@ class HeaderParser:
     # UCLASS 시작 패턴
     UCLASS_START = re.compile(r'UCLASS\s*\(')
 
+    # USTRUCT 시작 패턴
+    USTRUCT_START = re.compile(r'USTRUCT\s*\(')
+
     # 기존 패턴들
     UFUNCTION_PATTERN = re.compile(
         r'UFUNCTION\s*\((.*?)\)\s*'
@@ -228,6 +258,11 @@ class HeaderParser:
 
     CLASS_PATTERN = re.compile(
         r'class\s+(\w+)\s*:\s*public\s+(\w+)'
+    )
+
+    STRUCT_PATTERN = re.compile(
+        r'struct\s+(\w+)\s*\{',
+        re.MULTILINE
     )
 
     GENERATED_REFLECTION_PATTERN = re.compile(
@@ -385,7 +420,89 @@ class HeaderParser:
             # 맨 앞에 추가
             class_info.properties.insert(0, object_name_prop)
 
+        # USTRUCT 파싱 (클래스와 별도로 파일에서 찾기)
+        class_info.structs = self._parse_structs(content_no_comments, header_path)
+
+        # Include된 헤더에서 USTRUCT 찾기
+        self._parse_included_structs(content, header_path, class_info)
+
         return class_info
+
+    def _parse_included_structs(self, content: str, header_path: Path, class_info: ClassInfo):
+        """Include된 헤더에서 USTRUCT 찾기"""
+        # #include "..." 패턴 찾기 (로컬 include만)
+        include_pattern = re.compile(r'#include\s+"([^"]+)"')
+
+        for include_match in include_pattern.finditer(content):
+            include_file = include_match.group(1)
+
+            # 헤더 파일 경로 계산 (현재 헤더 파일 기준 상대 경로)
+            include_path = header_path.parent / include_file
+
+            if not include_path.exists():
+                continue
+
+            # Include된 파일 읽기
+            try:
+                included_content = include_path.read_text(encoding='utf-8')
+                included_content_no_comments = self._remove_comments(included_content)
+
+                # USTRUCT 파싱
+                included_structs = self._parse_structs(included_content_no_comments, include_path)
+
+                # 클래스에 추가
+                class_info.structs.extend(included_structs)
+
+            except Exception as e:
+                # 에러 무시 (디버그용 출력만)
+                pass
+
+    def _parse_structs(self, content: str, header_path: Path) -> List[StructInfo]:
+        """USTRUCT 파싱"""
+        structs = []
+
+        # USTRUCT() 찾기
+        for ustruct_match in self.USTRUCT_START.finditer(content):
+            metadata_start = ustruct_match.end()
+            metadata_str, metadata_end = self._extract_balanced_parens(content, metadata_start)
+
+            # struct 이름 찾기
+            struct_match = self.STRUCT_PATTERN.search(content, metadata_end)
+            if not struct_match:
+                continue
+
+            struct_name = struct_match.group(1)
+            struct_start = struct_match.end()
+
+            # struct 본문 찾기 (여는 중괄호부터 닫는 중괄호까지)
+            brace_count = 1
+            pos = struct_start
+            while pos < len(content) and brace_count > 0:
+                if content[pos] == '{':
+                    brace_count += 1
+                elif content[pos] == '}':
+                    brace_count -= 1
+                pos += 1
+
+            struct_body = content[struct_start:pos-1]
+
+            # StructInfo 생성
+            struct_info = StructInfo(
+                name=struct_name,
+                header_file=header_path,
+                ustruct_metadata=self._parse_metadata(metadata_str)
+            )
+
+            # struct 내부 UPROPERTY 파싱
+            uproperty_decls = self._parse_uproperty_declarations(struct_body)
+            for prop_metadata_str, prop_type, prop_name in uproperty_decls:
+                prop = self._parse_property(prop_name, prop_type, prop_metadata_str)
+                struct_info.properties.append(prop)
+
+            structs.append(struct_info)
+            print(f"[OK] Found USTRUCT: {struct_name} with {len(struct_info.properties)} properties")
+
+        return structs
 
     def _parse_metadata(self, metadata: str) -> Dict[str, str]:
         """메타데이터 문자열을 파싱하여 딕셔너리로 반환"""

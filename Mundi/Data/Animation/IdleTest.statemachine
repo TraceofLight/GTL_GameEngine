@@ -1,9 +1,9 @@
 {
   "EntryState" : "Idle",
   "Nodes" : [{
-      "AnimAsset" : "Data/Animation/XBOT_Idle.fbx#mixamo.com",
-      "AnimAssetType" : 1,
-      "BlendSpaceAsset" : "",
+      "AnimAsset" : "",
+      "AnimAssetType" : 2,
+      "BlendSpaceAsset" : "Data/Animation/BSH_Walk.blend2d",
       "EditorPosX" : 150.000000,
       "EditorPosY" : 150.000000,
       "Loop" : true,

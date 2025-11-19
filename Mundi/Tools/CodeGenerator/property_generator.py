@@ -22,6 +22,24 @@ BEGIN_PROPERTIES({{ class_name }})
     {%- else %}
     {{ prop.get_property_type_macro() }}({{ prop.type }}, {{ prop.name }}, "{{ prop.category }}", {{ 'true' if prop.editable else 'false' }}{% if prop.tooltip %}, "{{ prop.tooltip }}"{% endif %})
     {%- endif %}
+    {%- if 'EnumType' in prop.metadata %}
+    {
+        auto& Props = Class->GetProperties();
+        Props[Props.size() - 1].Metadata[FName("EnumType")] = "{{ prop.metadata['EnumType'] }}";
+    }
+    {%- endif %}
+    {%- if 'StructType' in prop.metadata %}
+    {
+        auto& Props = Class->GetProperties();
+        Props[Props.size() - 1].Metadata[FName("StructType")] = "{{ prop.metadata['StructType'] }}";
+    }
+    {%- endif %}
+    {%- if 'AssetType' in prop.metadata %}
+    {
+        auto& Props = Class->GetProperties();
+        Props[Props.size() - 1].Metadata[FName("AssetType")] = "{{ prop.metadata['AssetType'] }}";
+    }
+    {%- endif %}
 {%- endfor %}
 END_PROPERTIES()
 """
@@ -89,10 +107,54 @@ BEGIN_PROPERTIES({class_info.name})
 END_PROPERTIES()
 """
 
-        return self.template.render(
+        class_properties_code = self.template.render(
             class_name=class_info.name,
             mark_type=mark_type,
             display_name=class_info.display_name or class_info.name,
             description=class_info.description or f"Auto-generated {class_info.name}",
             properties=class_info.properties
+        )
+
+        # Struct 리플렉션 코드 생성
+        struct_code = ""
+        for struct_info in class_info.structs:
+            struct_code += self.generate_struct(struct_info)
+
+        return class_properties_code + struct_code
+
+    def generate_struct(self, struct_info) -> str:
+        """StructInfo로부터 BEGIN_STRUCT_PROPERTIES 블록 생성 (struct용)"""
+        if not struct_info.properties:
+            return ""
+
+        # Struct 전용 템플릿 (BEGIN_STRUCT_PROPERTIES 사용)
+        struct_template = Template("""
+BEGIN_STRUCT_PROPERTIES({{ struct_name }})
+{%- for prop in properties %}
+    {{ prop.get_property_type_macro() }}({{ prop.type }}, {{ prop.name }}, "{{ prop.category }}", {{ 'true' if prop.editable else 'false' }}{% if prop.tooltip %}, "{{ prop.tooltip }}"{% endif %})
+    {%- if 'EnumType' in prop.metadata %}
+    {
+        auto& Props = Class->GetProperties();
+        Props[Props.size() - 1].Metadata[FName("EnumType")] = "{{ prop.metadata['EnumType'] }}";
+    }
+    {%- endif %}
+    {%- if 'StructType' in prop.metadata %}
+    {
+        auto& Props = Class->GetProperties();
+        Props[Props.size() - 1].Metadata[FName("StructType")] = "{{ prop.metadata['StructType'] }}";
+    }
+    {%- endif %}
+    {%- if 'AssetType' in prop.metadata %}
+    {
+        auto& Props = Class->GetProperties();
+        Props[Props.size() - 1].Metadata[FName("AssetType")] = "{{ prop.metadata['AssetType'] }}";
+    }
+    {%- endif %}
+{%- endfor %}
+END_STRUCT_PROPERTIES({{ struct_name }})
+""")
+
+        return struct_template.render(
+            struct_name=struct_info.name,
+            properties=struct_info.properties
         )
