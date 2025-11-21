@@ -244,7 +244,7 @@
                 robocopy '$(ProjectDir)Shaders' '$(OutDir)Shaders' /E /XO /MT:8 /NFL /NDL /NJH /NJS /nc /ns /np;
                 $exitCode = $LASTEXITCODE;
                 if ($exitCode -ge 8) { Write-Error 'Robocopy Shaders failed.' ; exit $exitCode };
-
+    
                 if (Test-Path '$(ProjectDir)editor.ini') {
                 Write-Host '[BuildEvent] Copying editor.ini...';
                 Copy-Item -Path '$(ProjectDir)editor.ini' -Destination '$(OutDir)' -Force
@@ -253,7 +253,7 @@
                 Write-Host '[BuildEvent] Copying imgui.ini...';
                 Copy-Item -Path '$(ProjectDir)imgui.ini' -Destination '$(OutDir)' -Force
                 };
-
+    
                 Write-Host '[BuildEvent] Asset copy successful.';
                 exit 0
             </PowerShellScript>
@@ -264,12 +264,12 @@
                 robocopy '$(ProjectDir)Data' '$(OutDir)Data' /E /XO /MT:8 /NFL /NDL /NJH /NJS /nc /ns /np;
                 $exitCode = $LASTEXITCODE;
                 if ($exitCode -ge 8) { Write-Error 'Robocopy Data failed.' ; exit $exitCode };
-
+    
                 Write-Host '[BuildEvent] Copying Shaders files (Debug)...';
                 robocopy '$(ProjectDir)Shaders' '$(OutDir)Shaders' /E /XO /MT:8 /NFL /NDL /NJH /NJS /nc /ns /np;
                 $exitCode = $LASTEXITCODE;
                 if ($exitCode -ge 8) { Write-Error 'Robocopy Shaders failed.' ; exit $exitCode };
-
+    
                 if (Test-Path '$(ProjectDir)editor.ini') {
                 Write-Host '[BuildEvent] Copying editor.ini...';
                 Copy-Item -Path '$(ProjectDir)editor.ini' -Destination '$(OutDir)' -Force
@@ -278,7 +278,7 @@
                 Write-Host '[BuildEvent] Copying imgui.ini...';
                 Copy-Item -Path '$(ProjectDir)imgui.ini' -Destination '$(OutDir)' -Force
                 };
-
+    
                 Write-Host '[BuildEvent] Asset copy successful.';
                 exit 0
             </PowerShellScript>
@@ -289,12 +289,12 @@
                 robocopy '$(ProjectDir)Data' '$(OutDir)Data' /E /XO /MT:8 /NFL /NDL /NJH /NJS /nc /ns /np;
                 $exitCode = $LASTEXITCODE;
                 if ($exitCode -ge 8) { Write-Error 'Robocopy Data failed.' ; exit $exitCode };
-
+    
                 Write-Host '[BuildEvent] Copying Shaders files (Release)...';
                 robocopy '$(ProjectDir)Shaders' '$(OutDir)Shaders' /E /XO /MT:8 /NFL /NDL /NJH /NJS /nc /ns /np;
                 $exitCode = $LASTEXITCODE;
                 if ($exitCode -ge 8) { Write-Error 'Robocopy Shaders failed.' ; exit $exitCode };
-
+    
                 if (Test-Path '$(ProjectDir)editor.ini') {
                 Write-Host '[BuildEvent] Copying editor.ini...';
                 Copy-Item -Path '$(ProjectDir)editor.ini' -Destination '$(OutDir)' -Force
@@ -303,7 +303,7 @@
                 Write-Host '[BuildEvent] Copying imgui.ini...';
                 Copy-Item -Path '$(ProjectDir)imgui.ini' -Destination '$(OutDir)' -Force
                 };
-
+    
                 Write-Host '[BuildEvent] Asset copy successful.';
                 exit 0
             </PowerShellScript>
@@ -314,12 +314,12 @@
                 robocopy '$(ProjectDir)Data' '$(OutDir)Data' /E /XO /MT:8 /NFL /NDL /NJH /NJS /nc /ns /np;
                 $exitCode = $LASTEXITCODE;
                 if ($exitCode -ge 8) { Write-Error 'Robocopy Data failed.' ; exit $exitCode };
-
+    
                 Write-Host '[BuildEvent] Copying Shaders files (Release)...';
                 robocopy '$(ProjectDir)Shaders' '$(OutDir)Shaders' /E /XO /MT:8 /NFL /NDL /NJH /NJS /nc /ns /np;
                 $exitCode = $LASTEXITCODE;
                 if ($exitCode -ge 8) { Write-Error 'Robocopy Shaders failed.' ; exit $exitCode };
-
+    
                 if (Test-Path '$(ProjectDir)editor.ini') {
                 Write-Host '[BuildEvent] Copying editor.ini...';
                 Copy-Item -Path '$(ProjectDir)editor.ini' -Destination '$(OutDir)' -Force
@@ -328,7 +328,7 @@
                 Write-Host '[BuildEvent] Copying imgui.ini...';
                 Copy-Item -Path '$(ProjectDir)imgui.ini' -Destination '$(OutDir)' -Force
                 };
-
+    
                 Write-Host '[BuildEvent] Asset copy successful.';
                 exit 0
             </PowerShellScript>
@@ -623,6 +623,7 @@
     <ClCompile Include="Generated\ASkeletalMeshActor.generated.cpp" />
     <ClCompile Include="Generated\ASpotLightActor.generated.cpp" />
     <ClCompile Include="Generated\AStaticMeshActor.generated.cpp" />
+    <ClCompile Include="Generated\UParticleSystemComponent.generated.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -760,6 +761,9 @@
     <ClInclude Include="Source\Runtime\Engine\GameFramework\SpotLightActor.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\StaticMeshActor.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\World.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\Particle.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleDataContainer.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleEmitterInstance.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\GameObject.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\LuaBindHelpers.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\LuaBindingRegistry.h" />
@@ -916,6 +920,7 @@
     <ClInclude Include="Generated\ASkeletalMeshActor.generated.h" />
     <ClInclude Include="Generated\ASpotLightActor.generated.h" />
     <ClInclude Include="Generated\AStaticMeshActor.generated.h" />
+    <ClInclude Include="Generated\UParticleSystemComponent.generated.h" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Shaders\Common\LightingBuffers.hlsl" />

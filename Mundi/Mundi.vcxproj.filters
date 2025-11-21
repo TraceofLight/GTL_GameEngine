@@ -653,8 +653,6 @@
       <Filter>Generated</Filter>
     </ClCompile>
     <ClCompile Include="Source\Runtime\Core\Misc\MiniDump.cpp" />
-    <ClCompile Include="Source\Slate\Windows\SkeletalMeshViewerWindow.cpp" />
-    <ClCompile Include="Source\Slate\Windows\SkeletalMeshViewerWindow_Timeline.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Animation\AnimNode_StateMachine.cpp">
       <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClCompile>
@@ -665,6 +663,21 @@
       <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClCompile>
     <ClCompile Include="Generated\UAnimInstance.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Runtime\Engine\Animation\MixamoChainMapper.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Animation\SingleAnimationPlayData.cpp" />
+    <ClCompile Include="Source\Slate\Windows\BlendSpace2DEditorWindow.cpp" />
+    <ClCompile Include="Source\Slate\Windows\AnimStateMachineWindow.cpp" />
+    <ClCompile Include="Source\Slate\Windows\PreviewWindow.cpp" />
+    <ClCompile Include="Source\Slate\Windows\PreviewWindow_Timeline.cpp" />
+    <ClCompile Include="ThirdParty\Include\ImGui\crude_json.cpp" />
+    <ClCompile Include="ThirdParty\Include\ImGui\imgui_canvas.cpp" />
+    <ClCompile Include="ThirdParty\Include\ImGui\imgui_node_editor.cpp" />
+    <ClCompile Include="ThirdParty\Include\ImGui\imgui_node_editor_api.cpp" />
+    <ClCompile Include="ThirdParty\Include\ImGui\utilities\drawing.cpp" />
+    <ClCompile Include="ThirdParty\Include\ImGui\utilities\widgets.cpp" />
+    <ClCompile Include="Generated\UParticleSystemComponent.generated.cpp">
       <Filter>Generated</Filter>
     </ClCompile>
   </ItemGroup>
@@ -1396,7 +1409,6 @@
       <Filter>Generated</Filter>
     </ClInclude>
     <ClInclude Include="Source\Runtime\Core\Misc\MiniDump.h" />
-    <ClInclude Include="Source\Slate\Windows\SkeletalMeshViewerWindow.h" />
     <ClInclude Include="Source\Runtime\Engine\Animation\AnimNode_StateMachine.h">
       <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClInclude>
@@ -1407,6 +1419,18 @@
       <Filter>Source\Runtime\Engine\Animation</Filter>
     </ClInclude>
     <ClInclude Include="Generated\UAnimInstance.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\Engine\Animation\MixamoChainMapper.h" />
+    <ClInclude Include="Source\Runtime\Engine\Animation\SingleAnimationPlayData.h" />
+    <ClInclude Include="Source\Slate\Windows\BlendSpace2DEditorWindow.h" />
+    <ClInclude Include="Source\Slate\Windows\AnimStateMachineWindow.h" />
+    <ClInclude Include="Source\Slate\Windows\PreviewWindow.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\Particle.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleDataContainer.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleEmitterInstance.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleSystemComponent.h" />
+    <ClInclude Include="Generated\UParticleSystemComponent.generated.h">
       <Filter>Generated</Filter>
     </ClInclude>
   </ItemGroup>
