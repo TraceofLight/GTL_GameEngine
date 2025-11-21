@@ -1,5 +1,6 @@
 @echo off
 REM Visual Studio Pre-Build Event용 코드 생성 스크립트
+REM 프로젝트 전용 Python만 사용
 
 setlocal
 
@@ -12,24 +13,17 @@ if exist "%EMBEDDED_PYTHON%" (
     exit /b %ERRORLEVEL%
 )
 
-REM 2. 시스템 Python 체크
-py --version >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    py "%~dp0generate.py" %*
-    exit /b %ERRORLEVEL%
-)
-
-REM 3. Python 없음 - 자동 다운로드 시도
-echo [CodeGen] Python not found. Attempting automatic setup...
+REM 2. Python 없음 - 자동 다운로드 및 설치
+echo [CodeGen] Project Python not found. Attempting automatic setup...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0EnsurePython.ps1"
 
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Failed to setup Python automatically.
-    echo Please install Python manually or check network connection.
+    echo Please check network connection and try again.
     exit /b 1
 )
 
-REM 4. 다운로드된 Python으로 재시도
+REM 3. 다운로드된 Python으로 실행
 if exist "%EMBEDDED_PYTHON%" (
     "%EMBEDDED_PYTHON%" "%~dp0generate.py" %*
     exit /b %ERRORLEVEL%
