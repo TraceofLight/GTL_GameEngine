@@ -705,7 +705,7 @@ void SBlendSpace2DEditorWindow::RenderToolbar()
 			}
 			else
 			{
-				UE_LOG("[Error] Failed to load BlendSpace2D: %S", AbsolutePath.c_str());
+				UE_LOG("[Error] Failed to load BlendSpace2D: %s", WideToUTF8(AbsolutePath).c_str());
 			}
 		}
 	}

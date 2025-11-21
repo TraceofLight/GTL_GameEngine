@@ -190,7 +190,7 @@ void SAnimStateMachineWindow::OnRender()
                         if (ActiveState->StateMachine->SaveToFile(SavePath))
                         {
                         	RESOURCE.Reload<UAnimStateMachine>(SavePath);
-                            UE_LOG("StateMachine saved: %S", SavePath.c_str());
+                            UE_LOG("StateMachine saved: %s", WideToUTF8(SavePath).c_str());
                         }
                         else
                         {
@@ -895,7 +895,7 @@ void SAnimStateMachineWindow::RenderRightPanel(float width, float height)
                             }
                             else
                             {
-                                UE_LOG("[Error] Failed to load BlendSpace2D from file: %S", AbsolutePath.c_str());
+                                UE_LOG("[Error] Failed to load BlendSpace2D from file: %s", WideToUTF8(AbsolutePath).c_str());
                             }
                         }
                     }

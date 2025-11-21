@@ -61,7 +61,6 @@ public:
     void InitializeGrid();
     void InitializeGizmo();
 
-    bool TryLoadLastUsedLevel();
     bool LoadLevelFromFile(const FWideString& Path);
 
     template<class T>
