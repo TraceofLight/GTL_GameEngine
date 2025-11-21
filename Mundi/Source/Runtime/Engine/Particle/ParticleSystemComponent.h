@@ -1,6 +1,7 @@
 #pragma once
 
-#include "PrimitiveComponent.h"
+#include "Source/Runtime/Engine/Components/PrimitiveComponent.h"
+#include "UParticleSystemComponent.generated.h"
 
 // Forward declarations
 class UParticleSystem;
@@ -13,7 +14,7 @@ struct FDynamicEmitterDataBase;
  */
 class UParticleSystemComponent : public UPrimitiveComponent
 {
-	GENERATED_REFLECTION_BODY();
+	GENERATED_REFLECTION_BODY()
 
 public:
 	UParticleSystemComponent();
