@@ -10,6 +10,9 @@ struct FBaseParticle
 	/** Current location of the particle in world space */
 	FVector Location;
 
+	/** Previous frame location for interpolation */
+	FVector OldLocation;
+
 	/** Current velocity of the particle */
 	FVector Velocity;
 
@@ -38,6 +41,7 @@ struct FBaseParticle
 
 	FBaseParticle()
 		: Location(FVector::Zero())
+		, OldLocation(FVector::Zero())
 		, Velocity(FVector::Zero())
 		, RelativeTime(0.0f)
 		, Lifetime(0.0f)

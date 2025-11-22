@@ -1,7 +1,5 @@
 #pragma once
 
-#include "pch.h"
-
 // Forward declarations
 class UParticleEmitter;
 class UParticleSystemComponent;
