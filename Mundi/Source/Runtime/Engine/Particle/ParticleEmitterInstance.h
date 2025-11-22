@@ -1,19 +1,13 @@
 #pragma once
 #include "pch.h"
-#define DECLARE_PARTICLE_PTR \
-	/* 지금 활성화된 개수(ActivateParticles)가 곧 새로운 파티클이 들어갈 자리 */ \
-	int32 CurrentIndex = ParticleIndices[ActivateParticles]; \
-	\
-	/* Stride를 곱해서 정확한 메모리 번지로 점프 */ \
-	uint8* Ptr = ParticleData + (CurrentIndex * ParticleStride); \
-	\
-	/* FBaseParticle 타입으로 캐스팅해서 Particle이라는 이름의 참조 변수 생성 */\
-	FBaseParticle& Particle = *((FBaseParticle*)Ptr); 
+#include "Particle.h"
+#include "ParticleHelper.h"
+#include "ParticleLODLevel.h"
+#include "ParticleModule.h"
+#include "ParticleEmitter.h"
 
 // Forward declarations
-class UParticleEmitter;
 class UParticleSystemComponent;
-class UParticleLODLevel;
 struct FParticleEventInstancePayload;
 
 /**
@@ -23,82 +17,82 @@ struct FParticleEventInstancePayload;
 struct FParticleEmitterInstance
 {
 	/** Template emitter that this instance is based on */
-	// �� �ν��Ͻ��� ����� �� ���赵 (���� ����)
+	// 이 인스턴스가 따라야 할 설계도 (원본 에셋)
 	UParticleEmitter* SpriteTemplate;
 
 	/** Owner particle system component */
-	// ���� ���� ���(Location) �ִ��� �˷��� Component�� ������� ��.
+	// 내가 지금 어디에(Location) 있는지 알려면 Component에 물어봐야 함.
 	UParticleSystemComponent* Component;
 
 	// ============== LOD ==============
 	/** Current LOD level index being used */
-	// ���� ��� ���� LOD �ܰ� �ε���
+	// 현재 사용 중인 LOD 단계 인덱스
 	int32 CurrentLODLevelIndex;
 
 	/** Current LOD level being used */
-	// ���� LOD �ܰ��� �������� (���⿡ ����� ��� ����Ʈ�� �������)
-	// ex) ���� ī�޶�� �Ӵϱ� LOD 1�� �Ŵ���(��� 2���� ���)��� �۾��Ѵ�.
+	// 현재 LOD 단계의 설정값들 (여기에 사용할 모듈 리스트가 들어있음)
+	// ex) 지금 카메라랑 머니까 LOD 1번 매뉴얼(모듈 2개만 사용)대로 작업한다.
 	UParticleLODLevel* CurrentLODLevel;
 
-	// ============== �޸� ���� ==============
-	// FParticleDataContainer ���� �����͵� ĳ��: ���ټӵ� ����ȭ
+	// ============== 메모리 접근 ==============
+	// FParticleDataContainer 안의 포인터들 캐싱: 접근속도 최적화
 
 	/** Pointer to the particle data array */
-	// ���� ��ƼŬ �����͵��� ����� �޸� ����� ���� �ּ�
+	// 실제 파티클 데이터들이 저장된 메모리 블록의 시작 주소
 	uint8* ParticleData;
 
 	/** Pointer to the particle index array */
-	// ����ִ� ��ƼŬ���� ��ȣ(Index)�� ���� �迭
-	// ex) 3, 7, 9�� ��ƼŬ�� ��������ϱ� ��׸� ������Ʈ
+	// 살아있는 파티클들의 번호(Index)가 적힌 배열
+	// ex) 3, 7, 9번 파티클이 살아있으니까 얘네만 업데이트
 	uint16* ParticleIndices;
 
 	/** Pointer to the instance data array */
-	// �ν��Ͻ��� ������ (��ƼŬ ���� ������ ����, ������ ��ü ���� �� ��)
+	// 인스턴스별 데이터 (파티클 개별 데이터 말고, 에미터 자체 변수 값 등)
 	uint8* InstanceData;
 
-	// ============== �޸� ���� ==============
-	// uint8* �����Ϳ��� ��Ȯ�� ��ġ�� ã�� ���� ������
+	// ============== 메모리 계산기 ==============
+	// uint8* 포인터에서 정확한 위치를 찾기 위한 변수들
 
 	/** The size of the Instance data array in bytes */
-	// �ν��Ͻ� ������ ũ��
+	// 인스턴스 데이터 크기
 	int32 InstancePayloadSize;
 
 	/** The offset to the particle data in bytes */
-	// ��ƼŬ ������ ������ ��� ������(Payload)�� ���۵Ǵ� ������
+	// 파티클 데이터 내에서 모듈 데이터(Payload)가 시작되는 오프셋
 	int32 PayloadOffset;
 
 	/** The total size of a single particle in bytes */
-	// �⺻ ��ƼŬ(FBaseParticle) �ϳ��� ũ�� (������)
+	// 기본 파티클(FBaseParticle) 하나의 크기 (고정값)
 	int32 ParticleSize;
 
 	/** The stride between particles in the ParticleData array in bytes */
-	// ��ƼŬ �ϳ��� �����ϴ� ��¥ �� ũ�� (�⺻ + ��� ������)
-	// �̹��� �ν��Ͻ� ������ ��ƼŬ���� Stride�� ����
-	// ex) �̹� ��ƼŬ�� �⺻ 50 ����Ʈ�� �÷� ��� 16����Ʈ �߰��ؼ� �� 66����Ʈ ����(Stride)
+	// 파티클 하나가 차지하는 진짜 총 크기 (기본 + 모듈 데이터)
+	// 이미터 인스턴스 내에서 파티클들의 Stride는 같음
+	// ex) 이번 파티클은 기본 50 바이트에 컬러 모듈 16바이트 추가해서 총 66바이트 간격(Stride)
 	// Data + (Index * ParticleStride)
 	int32 ParticleStride;
 
-	// ============== ���� ����(State) ==============
+	// ============== 상태 관리(State) ==============
 	/** The number of particles currently active in the emitter */
-	// Ȱ��ȭ�� ��ƼŬ�� ����, Loop ����ȭ
+	// 활성화된 파티클들 개수, Loop 최적화
 	int32 ActiveParticles;
 
 	/** Monotonically increasing counter for particle IDs */
-	// ��ƼŬ ���� ID �ο��� ���� ī���� (��� ������ ��)
+	// 파티클 고유 ID 부여를 위한 카운터 (계속 증가만 함)
 	uint32 ParticleCounter;
 
 	/** The maximum number of active particles that can be held in the particle data array */
-	// �޸� Ǯ���� ���� ������ �ִ� ��ƼŬ ����
+	// 메모리 풀에서 수용 가능한 최대 파티클 개수
 	int32 MaxActiveParticles;
 
 	/** The fraction of time left over from spawning (for sub-frame spawning accuracy) */
-	// ���� ������ ������ ���� �ð� ��� ���� ����
-	// �ʴ� 30 ������ �����Ѵٰ� ��������. �ٵ� �������� 60FPS (DeltaTime = 0.016s)
-	// �̹� �����ӿ� �����ؾ� �� ���� = 30 x 0.016 = 0.48����
-	// 0.48������ ������ �� �����Ƿ� �� ������ 0.48 ����
-	// ���� �����ӿ��� 0.96 ���̶� ������ �� ��� �� ����
-	// �ٴ��� �����ӿ� 1.44�� �Ǿ 1���� �����ϰ� 0.44�� ����� ���
-	// �̰� �־�� ��ƼŬ�� �ε巴�� �̾����� ����
+	// 서브 프레임 스폰을 위한 시간 찌꺼기 저장 변수
+	// 초당 30 마리를 생성한다고 가정하자. 근데 프레임이 60FPS (DeltaTime = 0.016s)
+	// 이번 프레임에 생성해야 할 개수 = 30 x 0.016 = 0.48마리
+	// 0.48마리를 생성할 수 없으므로 이 변수에 0.48 저장
+	// 다음 프레임에도 0.96 값이라 생성할 수 없어서 또 저장
+	// 다다음 프레임에 1.44가 되어서 1마리 생성하고 0.44를 남기는 방식
+	// 이게 있어야 파티클이 부드럽게 이어져서 나옴
 	float SpawnFraction;
 
 	FParticleEmitterInstance()
@@ -127,12 +121,17 @@ struct FParticleEmitterInstance
 
 	/**
 	 * Spawns particles in the emitter
-	 * @param Count - Number of particles to spawn
-	 * @param StartTime - Starting time for the first particle
-	 * @param Increment - Time increment between each particle spawn
-	 * @param InitialLocation - Initial location for spawned particles
-	 * @param InitialVelocity - Initial velocity for spawned particles
-	 * @param EventPayload - Event payload data (optional)
+	 * 에미터에서 파티클을 생성하는 핵심 함수
+	 *
+	 * @param Count - Number of particles to spawn (생성할 파티클 개수)
+	 * @param StartTime - Starting time for the first particle (첫 파티클의 시작 시간, 서브프레임 보정용)
+	 * @param Increment - Time increment between each particle spawn (파티클 간 시간 간격)
+	 * @param InitialLocation - Initial location for spawned particles (초기 위치, 컴포넌트 월드 위치)
+	 * @param InitialVelocity - Initial velocity for spawned particles (초기 속도, 모듈에서 덮어쓸 수 있음)
+	 * @param EventPayload - Event payload data (optional) (이벤트 데이터, 현재 미사용)
+	 *
+	 * @note MaxActiveParticles를 초과하면 생성이 중단됨
+	 * @note DECLARE_PARTICLE_PTR 매크로로 파티클 메모리 주소 계산
 	 */
 	void SpawnParticles(
 		int32 Count,
@@ -143,95 +142,109 @@ struct FParticleEmitterInstance
 		FParticleEventInstancePayload* EventPayload = nullptr
 	)
 	{
-		// ������ üũ
+		// 안전성 체크 
 		if (!CurrentLODLevel || !ParticleData || !ParticleIndices)
 		{
 			return;
 		}
 
-		// ���� ����
+		// 생성 루프
 		for (int32 i = 0; i < Count; i++)
 		{
-			// �� ���� �� �̻� ���� �� �ǵ���
+			// 꽉 차면 더 이상 생성 안 되도록
 			if (ActiveParticles >= MaxActiveParticles)
 			{
 				break;
 			}
 
-			// ��ũ�θ� ����ؼ� Particle ���� ����
+			// 매크로를 사용해서 Particle 참조 생성
 			DECLARE_PARTICLE_PTR
 
-			// �̹� ��ƼŬ�� ���� �ð� ���
+			// 이번 파티클의 스폰 시간 계산
 			float SpawnTime = StartTime + (i * Increment);
-			float Interp = 0.0f; // ������ (���������ӿ�)
+			float Interp = 0.0f; // 보간값 (서브프레임용)
 
-			// PreSpawn: �⺻�� �ʱ�ȭ
+			// PreSpawn: 기본값 초기화
 			Particle.Location = InitialLocation;
 			Particle.Velocity = InitialVelocity;
 			Particle.BaseVelocity = InitialVelocity;
 			Particle.RelativeTime = 0.0f;
-			Particle.Lifetime = 1.0f; // �⺻ 1�� (��⿡�� ���)
+			Particle.Lifetime = 1.0f; // 기본 1초 (모듈에서 덮어씀)
 			Particle.Rotation = 0.0f;
 			Particle.RotationRate = 0.0f;
 			Particle.Size = FVector::One();
 			Particle.Color = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-			// TODO: Spawn ���� ���� (���߿� UParticleLODLevel ���� �� Ȱ��ȭ)
-			// for (int32 ModuleIndex = 0; ModuleIndex < CurrentLODLevel->SpawnModules.Num(); ModuleIndex++)
-			// {
-			//     UParticleModule* Module = CurrentLODLevel->SpawnModules[ModuleIndex];
-			//     if (Module && Module->bEnabled)
-			//     {
-			//         Module->Spawn(this, PayloadOffset, SpawnTime);
-			//     }
-			// }
+			// Spawn 모듈 실행
+			for (int32 ModuleIndex = 0; ModuleIndex < CurrentLODLevel->SpawnModules.Num(); ModuleIndex++)
+			{
+			    UParticleModule* Module = CurrentLODLevel->SpawnModules[ModuleIndex];
+			    if (Module && Module->IsSpawnModule())
+			    {
+			        Module->Spawn(this, PayloadOffset, SpawnTime, &Particle);
+			    }
+			}
 
-			// PostSpawn: ���������� ���� �� ���
-			// ������ �߰��� �¾�ٸ� �̵�������
+			// PostSpawn: 서브프레임 보정 및 등록
+			// 프레임 중간에 태어났다면 이동시켜줌
 			if (SpawnTime > 0.0f)
 			{
 				Particle.Location += Particle.Velocity * SpawnTime;
 			}
 
-			// Ȱ�� ��ƼŬ ���� ���� (�߿�!)
+			// 활성 파티클 개수 증가 (중요!)
 			ActiveParticles++;
 
-			// ���� ID ����
+			// 고유 ID 증가
 			ParticleCounter++;
 		}
 	}
 
 	/**
 	 * Kills a particle at the specified index
-	 * @param Index - Index of the particle to kill
+	 * 지정된 인덱스의 파티클을 제거 (Swap-and-Pop 기법 사용)
+	 *
+	 * @param Index - Index of the particle to kill (제거할 파티클의 활성 인덱스, 0 ~ ActiveParticles-1)
+	 *
+	 * @note 마지막 파티클과 자리를 바꾼 뒤 ActiveParticles를 감소시킴
+	 * @note 이 방식으로 중간에 빈 구멍이 생기지 않아 메모리 효율적
+	 * @warning 순회 중 호출 시 역순으로 순회해야 인덱스 꼬임 방지
 	 */
 	void KillParticle(int32 Index)
 	{
-		// ���� üũ
+		// 범위 체크
 		if (Index < 0 || Index >= ActiveParticles)
 		{
 			return;
 		}
 
-		// [�ٽ� ���̵��] �迭�� ������ ��ƼŬ�� �ڸ��� �ٲٰ� ActiveParticles�� ����
-		// ��: [0, 1, 2, 3, 4] ���� 2���� ���̸� -> [0, 1, 4, 3] �� �ǰ� ActiveParticles = 4
-		// �̷��� �ϸ� �߰��� �� ������ �� ���� (�޸� ȿ��)
+		// [핵심 아이디어] 배열의 마지막 파티클과 자리를 바꾸고 ActiveParticles를 줄임
+		// 예: [0, 1, 2, 3, 4] 에서 2번을 죽이면 -> [0, 1, 4, 3] 이 되고 ActiveParticles = 4
+		// 이렇게 하면 중간에 빈 구멍이 안 생김 (메모리 효율)
 
 		if (Index < ActiveParticles - 1)
 		{
-			// ���� ��ƼŬ�� �ε����� ������ ��ƼŬ�� �ε����� ��ȯ
+			// 죽일 파티클의 인덱스와 마지막 파티클의 인덱스를 교환
 			uint16 Temp = ParticleIndices[Index];
 			ParticleIndices[Index] = ParticleIndices[ActiveParticles - 1];
 			ParticleIndices[ActiveParticles - 1] = Temp;
 		}
 
-		// Ȱ�� ��ƼŬ ���� ����
+		// 활성 파티클 개수 감소
+		// 더 이상 ActiveParticles 범위 안에 포함되지 않아서 Update 루프에서 처리되지 않음, 즉 렌더링되지 않음
+		// 오브젝트 풀 패턴이라 생각하자.
 		ActiveParticles--;
 	}
 
 	/**
 	 * Update all active particles
-	 * @param DeltaTime - Time elapsed since last update
+	 * 모든 활성 파티클의 수명, 위치, 회전을 업데이트
+	 *
+	 * @param DeltaTime - Time elapsed since last update (이전 프레임으로부터 경과 시간, 초 단위)
+	 *
+	 * @note Pass 1 & 2: 수명 관리 및 기본 물리 이동 (역순 순회로 안전한 Kill 처리)
+	 * @note Pass 3: 모듈 업데이트 실행 (모듈마다 모든 파티클을 한 번에 처리, O(M*N) 복잡도)
+	 * @note RelativeTime이 1.0 이상이면 자동으로 KillParticle 호출
 	 */
 	void Tick(float DeltaTime)
 	{
@@ -240,54 +253,91 @@ struct FParticleEmitterInstance
 			return;
 		}
 
-		// �������� ��ȸ (�߰��� ���̸� �ε����� ���̴ϱ�)
-		for (int32 i = ActiveParticles - 1; i >= 0; i--)
+		// --- Pass 1 & 2: 수명 관리 및 기본 물리 이동 ---
+		// BEGIN_UPDATE_LOOP 매크로 사용 (역순 순회로 안전한 Kill 처리)
+		BEGIN_UPDATE_LOOP
+
+		// 수명 업데이트
+		Particle.RelativeTime += DeltaTime / Particle.Lifetime;
+
+		// 죽었는지 체크
+		if (Particle.RelativeTime >= 1.0f)
 		{
-			// ��ƼŬ ������ ��������
-			int32 ParticleIndex = ParticleIndices[i];
-			uint8* ParticlePtr = ParticleData + (ParticleIndex * ParticleStride);
-			FBaseParticle& Particle = *((FBaseParticle*)ParticlePtr);
+			KillParticle(i);
+			continue; // 죽었으면 물리 연산 할 필요 없음
+		}
 
-			// ���� ������Ʈ
-			Particle.RelativeTime += DeltaTime / Particle.Lifetime;
+		// 기본 물리 업데이트 (위치 이동)
+		Particle.Location += Particle.Velocity * DeltaTime;
+		Particle.Rotation += Particle.RotationRate * DeltaTime;
 
-			// �׾����� üũ
-			if (Particle.RelativeTime >= 1.0f)
-			{
-				KillParticle(i);
-				continue;
-			}
+		END_UPDATE_LOOP
 
-			// ���� ������Ʈ
-			Particle.Location += Particle.Velocity * DeltaTime;
-			Particle.Rotation += Particle.RotationRate * DeltaTime;
-
-			// TODO: Update ���� ���� (���߿� UParticleLODLevel ���� �� Ȱ��ȭ)
-			// for (UParticleModule* Module : CurrentLODLevel->UpdateModules)
-			// {
-			//     if (Module && Module->bEnabled)
-			//     {
-			//         Module->Update(this, PayloadOffset, DeltaTime);
-			//     }
-			// }
+		// --- Pass 3: 모듈 업데이트 (파티클 루프 밖으로!) ---
+		// 모듈 하나가 "살아있는 모든 파티클"을 한 번에 처리 (Instruction Cache 효율 극대화)
+		// 각 모듈 내부에서 BEGIN_UPDATE_LOOP 매크로를 통해 다시 루프를 돔
+		for (int32 ModuleIndex = 0; ModuleIndex < CurrentLODLevel->UpdateModules.Num(); ModuleIndex++)
+		{
+		    UParticleModule* Module = CurrentLODLevel->UpdateModules[ModuleIndex];
+		    if (Module && Module->IsUpdateModule())
+		    {
+		        Module->Update(this, PayloadOffset, DeltaTime);
+		    }
 		}
 	}
 
 	/**
 	 * Initialize the emitter instance
-	 * @param InTemplate - Template emitter to use
-	 * @param InComponent - Owner component
+	 * 에미터 인스턴스를 초기화 (템플릿 연결 및 상태 초기화)
+	 *
+	 * @param InTemplate - Template emitter to use (사용할 에미터 템플릿, 설계도 역할)
+	 * @param InComponent - Owner component (소유자 컴포넌트, 월드 위치 정보 제공)
+	 *
+	 * @note LOD 레벨 설정, Stride 계산, 메모리 할당 수행
 	 */
 	void Init(UParticleEmitter* InTemplate, UParticleSystemComponent* InComponent)
 	{
 		SpriteTemplate = InTemplate;
 		Component = InComponent;
 
-		// TODO: ���߿� ���ø����� MaxParticles ������ �����ͼ� �޸� �Ҵ�
-		// MaxActiveParticles = InTemplate->GetMaxParticleCount();
-		// ParticleSize = sizeof(FBaseParticle);
-		// ParticleStride = ParticleSize; // ��� ������ �⺻ ũ�⸸
+		// 1. LOD 레벨 설정 (일단 0번 LOD 사용)
+		CurrentLODLevelIndex = 0;
+		if (InTemplate && InTemplate->GetNumLODs() > 0)
+		{
+			CurrentLODLevel = InTemplate->GetLODLevel(0);
+		}
 
+		// 2. Stride 계산 (가장 중요!)
+		// 기본 파티클 크기
+		ParticleSize = sizeof(FBaseParticle);
+		ParticleStride = ParticleSize;
+
+		// TODO: 모듈들이 요구하는 추가 메모리(Payload) 계산
+		if (CurrentLODLevel)
+		{
+		    for (int32 i = 0; i < CurrentLODLevel->Modules.Num(); i++)
+		    {
+		        UParticleModule* Module = CurrentLODLevel->Modules[i];
+		        ParticleStride += Module->RequiredBytes(CurrentLODLevel->TypeDataModule);
+		    }
+		}
+
+		// 3. PayloadOffset 계산 (기본 파티클 뒤에 모듈 데이터가 시작됨)
+		PayloadOffset = ParticleSize;
+
+		// 4. 최대 파티클 개수 설정
+		if (InTemplate)
+		{
+			MaxActiveParticles = InTemplate->GetPeakActiveParticles();
+		}
+
+		// 5. 메모리 할당
+		// TODO: FParticleDataContainer를 사용하거나 직접 메모리 할당
+		//ParticleDataContainer.Allocate(MaxActiveParticles, ParticleStride);
+		// ParticleData = ParticleDataContainer.ParticleData;
+		// ParticleIndices = ParticleDataContainer.ParticleIndices;
+
+		// 6. 상태 초기화
 		ActiveParticles = 0;
 		ParticleCounter = 0;
 		SpawnFraction = 0.0f;

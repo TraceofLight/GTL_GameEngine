@@ -982,6 +982,7 @@
     <Content Include="Shaders\Utility\FullScreenTriangle_VS.hlsl" />
     <Content Include="Shaders\Utility\SceneDepth_PS.hlsl" />
     <Content Include="Tools\CodeGenerator\cache_manager.py" />
+    <None Include="..\.editorconfig" />
     <None Include="Tools\CodeGenerator\generate.py" />
     <None Include="Tools\CodeGenerator\lua_generator.py" />
     <Content Include="Tools\CodeGenerator\parallel_parser.py" />
