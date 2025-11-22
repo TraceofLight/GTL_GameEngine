@@ -1,7 +1,6 @@
 #include "pch.h"
-#include "FDynamicEmitterDataBase.h"
+#include "DynamicEmitterDataBase.h"
 
-#include "FDynamicEmitterReplayDataBase.h"
 #include "ParticleTypes.h"
 #include "VertexData.h"
 

@@ -481,7 +481,7 @@
     <ClCompile Include="Source\Runtime\Engine\Particle\Size\ParticleModuleSize.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Spawn\ParticleModuleSpawn.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\TypeData\ParticleModuleTypeDataBase.cpp" />
-    <ClCompile Include="Source\Runtime\Engine\Particle\FDynamicEmitterDataBase.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\DynamicEmitterDataBase.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Scripting\GameObject.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Scripting\LuaBindHelpers.cpp" />
@@ -782,7 +782,7 @@
     <ClInclude Include="Source\Runtime\Engine\GameFramework\StaticMeshActor.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\World.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Color\ParticleModuleColor.h" />
-    <ClInclude Include="Source\Runtime\Engine\Particle\FDynamicEmitterDataBase.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\DynamicEmitterDataBase.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Lifetime\ParticleModuleLifetime.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Location\ParticleModuleLocation.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Particle.h" />
@@ -793,7 +793,7 @@
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleModule.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleModuleRequired.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleSystem.h" />
-    <ClInclude Include="Source\Runtime\Engine\Particle\FDynamicEmitterReplayDataBase.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\DynamicEmitterReplayDataBase.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleSystemComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleTypes.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Size\ParticleModuleSize.h" />

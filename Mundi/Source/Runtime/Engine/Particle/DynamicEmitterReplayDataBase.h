@@ -112,3 +112,55 @@ struct FDynamicSpriteEmitterReplayDataBase : public FDynamicEmitterReplayDataBas
 	/** Serialization */
 	virtual void Serialize(FArchive& Ar);
 };
+
+// 발제에는 없는 구조체
+/** Source data for Mesh emitters */
+struct FDynamicMeshEmitterReplayData
+	: public FDynamicSpriteEmitterReplayDataBase
+{
+	int32	SubUVInterpMethod;
+	int32	SubUVDataOffset;
+	int32	SubImages_Horizontal;
+	int32	SubImages_Vertical;
+	bool	bScaleUV;
+	int32	MeshRotationOffset;
+	int32	MeshMotionBlurOffset;
+	uint8	MeshAlignment;
+	bool	bMeshRotationActive;
+	FVector	LockedAxis;
+
+	/** Constructor */
+	FDynamicMeshEmitterReplayData() :
+		SubUVInterpMethod(0),
+		SubUVDataOffset(0),
+		SubImages_Horizontal(0),
+		SubImages_Vertical(0),
+		bScaleUV(false),
+		MeshRotationOffset(0),
+		MeshMotionBlurOffset(0),
+		MeshAlignment(0),
+		bMeshRotationActive(false),
+		LockedAxis(1.0f, 0.0f, 0.0f)
+	{
+	}
+
+
+	/** Serialization */
+	//virtual void Serialize(FArchive& Ar)
+	//{
+	//	// Call parent implementation
+	//	FDynamicSpriteEmitterReplayDataBase::Serialize(Ar);
+
+	//	Ar << SubUVInterpMethod;
+	//	Ar << SubUVDataOffset;
+	//	Ar << SubImages_Horizontal;
+	//	Ar << SubImages_Vertical;
+	//	Ar << bScaleUV;
+	//	Ar << MeshRotationOffset;
+	//	Ar << MeshMotionBlurOffset;
+	//	Ar << MeshAlignment;
+	//	Ar << bMeshRotationActive;
+	//	Ar << LockedAxis;
+	//}
+
+};
