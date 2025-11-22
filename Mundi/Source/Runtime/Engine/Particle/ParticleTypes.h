@@ -7,11 +7,13 @@
 // 동적 이미터 타입
 enum class EDynamicEmitterType : uint8
 {
+	Unknown = 0,
 	Sprite,
 	Mesh,
-	Beam,
-	Trail,
-	AnimTrail
+	Beam2,
+	Ribbon,
+	AnimTrail,
+	Custom
 };
 
 // 파티클 축 잠금

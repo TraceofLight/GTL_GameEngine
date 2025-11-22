@@ -1,6 +1,7 @@
-﻿#pragma once
+#pragma once
 #include "Archive.h"
 #include "Vector.h"
+#include "Color.h"
 
 // 직렬화 포맷 (FVertexDynamic와 역할이 달라서 분리됨)
 struct FNormalVertex
@@ -39,6 +40,51 @@ struct FVertexSimple
     void FillFrom(const FMeshData& mesh, size_t i);
     void FillFrom(const FNormalVertex& src);
 };
+
+/**
+* 파티클용 정점 구조체
+*/
+struct FParticleSpriteVertex
+{
+	/** The position of the particle. */
+	FVector Position;
+	/** The relative time of the particle. */
+	float RelativeTime;
+	/** The previous position of the particle. */
+	FVector	OldPosition;
+	/** Value that remains constant over the lifetime of a particle. */
+	float ParticleId;
+	/** The size of the particle. */
+	FVector2D Size;
+	/** The rotation of the particle. */
+	float Rotation;
+	/** The sub-image index for the particle. */
+	float SubImageIndex;
+	/** The color of the particle. */
+	FLinearColor Color;
+};
+
+struct FMeshParticleInstanceVertex
+{
+	/** The color of the particle. */
+	FLinearColor Color;
+
+	/** The instance to world transform of the particle. Translation vector is packed into W components. */
+	FVector4 Transform[3];
+
+	/** The velocity of the particle, XYZ: direction, W: speed. */
+	FVector4 Velocity;
+
+	/** The sub-image texture offsets for the particle. */
+	int16 SubUVParams[4];
+
+	/** The sub-image lerp value for the particle. */
+	float SubUVLerp;
+
+	/** The relative time of the particle. */
+	float RelativeTime;
+};
+
 
 /**
 * 스키닝용 정점 구조체
