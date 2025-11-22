@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -791,6 +791,7 @@
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleModule.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleModuleRequired.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleSystem.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleHelper.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleSystemComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleTypes.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Size\ParticleModuleSize.h" />
