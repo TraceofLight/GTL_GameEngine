@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -113,17 +113,19 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTK_debug.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
-      <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>$(ProjectDir)Mundi.manifest</AdditionalManifestFiles>
     </Manifest>
     <PreBuildEvent>
-      <Command>"$(ProjectDir)Tools\CodeGenerator\RunCodeGen.bat" --source-dir "$(ProjectDir)Source\Runtime" --output-dir "$(ProjectDir)Generated" --vcxproj "$(ProjectDir)Mundi.vcxproj"</Command>
+      <Command>call "$(ProjectDir)Tools\CodeGenerator\RunCodeGen.bat" --source-dir "$(ProjectDir)Source\Runtime" --output-dir "$(ProjectDir)Generated" --vcxproj "$(ProjectDir)Mundi.vcxproj"
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\GenerateSourceLink.ps1" -ProjectDir "$(ProjectDir)." -OutDir "$(OutDir)."</Command>
       <Message>[CodeGen] Generating Lua binding code...</Message>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>IF EXIST "$(ProjectDir)ThirdParty\Bin\$(Configuration)\*" xcopy "$(ProjectDir)ThirdParty\Bin\$(Configuration)\*.dll" "$(OutDir)" /Y /D</Command>
+      <Command>IF EXIST "$(ProjectDir)ThirdParty\Bin\$(Configuration)\*" xcopy "$(ProjectDir)ThirdParty\Bin\$(Configuration)\*.dll" "$(OutDir)" /Y /D
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\UploadSymbols.ps1" -OutDir "$(OutDir)." -Configuration "$(Configuration)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -148,17 +150,19 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
-      <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>$(ProjectDir)Mundi.manifest</AdditionalManifestFiles>
     </Manifest>
     <PreBuildEvent>
-      <Command>"$(ProjectDir)Tools\CodeGenerator\RunCodeGen.bat" --source-dir "$(ProjectDir)Source\Runtime" --output-dir "$(ProjectDir)Generated" --vcxproj "$(ProjectDir)Mundi.vcxproj"</Command>
+      <Command>call "$(ProjectDir)Tools\CodeGenerator\RunCodeGen.bat" --source-dir "$(ProjectDir)Source\Runtime" --output-dir "$(ProjectDir)Generated" --vcxproj "$(ProjectDir)Mundi.vcxproj"
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\GenerateSourceLink.ps1" -ProjectDir "$(ProjectDir)." -OutDir "$(OutDir)."</Command>
       <Message>[CodeGen] Generating Lua binding code...</Message>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>IF EXIST "$(ProjectDir)ThirdParty\Bin\$(Configuration)\*" xcopy "$(ProjectDir)ThirdParty\Bin\$(Configuration)\*.dll" "$(OutDir)" /Y /D</Command>
+      <Command>IF EXIST "$(ProjectDir)ThirdParty\Bin\$(Configuration)\*" xcopy "$(ProjectDir)ThirdParty\Bin\$(Configuration)\*.dll" "$(OutDir)" /Y /D
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\UploadSymbols.ps1" -OutDir "$(OutDir)." -Configuration "$(Configuration)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug_StandAlone|x64'">
@@ -179,14 +183,16 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\Debug\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\Debug\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\Debug\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTK_debug.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
-      <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
-      <Command>"$(ProjectDir)Tools\CodeGenerator\RunCodeGen.bat" --source-dir "$(ProjectDir)Source\Runtime" --output-dir "$(ProjectDir)Generated" --vcxproj "$(ProjectDir)Mundi.vcxproj"</Command>
+      <Command>call "$(ProjectDir)Tools\CodeGenerator\RunCodeGen.bat" --source-dir "$(ProjectDir)Source\Runtime" --output-dir "$(ProjectDir)Generated" --vcxproj "$(ProjectDir)Mundi.vcxproj"
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\GenerateSourceLink.ps1" -ProjectDir "$(ProjectDir)." -OutDir "$(OutDir)."</Command>
       <Message>[CodeGen] Generating Lua binding code...</Message>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>IF EXIST "$(ProjectDir)ThirdParty\Bin\Debug\*" xcopy "$(ProjectDir)ThirdParty\Bin\Debug\*.dll" "$(OutDir)" /Y /D</Command>
+      <Command>IF EXIST "$(ProjectDir)ThirdParty\Bin\Debug\*" xcopy "$(ProjectDir)ThirdParty\Bin\Debug\*.dll" "$(OutDir)" /Y /D
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\UploadSymbols.ps1" -OutDir "$(OutDir)." -Configuration "Debug_StandAlone"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release_StandAlone|x64'">
@@ -211,14 +217,16 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\Release\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\Release\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\Release\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
-      <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
-      <Command>"$(ProjectDir)Tools\CodeGenerator\RunCodeGen.bat" --source-dir "$(ProjectDir)Source\Runtime" --output-dir "$(ProjectDir)Generated" --vcxproj "$(ProjectDir)Mundi.vcxproj"</Command>
+      <Command>call "$(ProjectDir)Tools\CodeGenerator\RunCodeGen.bat" --source-dir "$(ProjectDir)Source\Runtime" --output-dir "$(ProjectDir)Generated" --vcxproj "$(ProjectDir)Mundi.vcxproj"
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\GenerateSourceLink.ps1" -ProjectDir "$(ProjectDir)." -OutDir "$(OutDir)."</Command>
       <Message>[CodeGen] Generating Lua binding code...</Message>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>IF EXIST "$(ProjectDir)ThirdParty\Bin\Release\*" xcopy "$(ProjectDir)ThirdParty\Bin\Release\*.dll" "$(OutDir)" /Y /D</Command>
+      <Command>IF EXIST "$(ProjectDir)ThirdParty\Bin\Release\*" xcopy "$(ProjectDir)ThirdParty\Bin\Release\*.dll" "$(OutDir)" /Y /D
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\UploadSymbols.ps1" -OutDir "$(OutDir)." -Configuration "Release_StandAlone"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
@@ -231,9 +239,9 @@
     </ParameterGroup>
     <Task>
       <Code Type="Fragment" Language="cs">
-                // PowerShell이 요구하는 UTF-16LE 인코딩으로 변환
+                // PowerShell? ???? UTF-16LE ????? ??
                 byte[] bytes = System.Text.Encoding.Unicode.GetBytes(Input);
-                // Base64 문자열로 출력
+                // Base64 ???? ??
                 Output = System.Convert.ToBase64String(bytes);
             </Code>
     </Task>
