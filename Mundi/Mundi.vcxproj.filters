@@ -1623,10 +1623,14 @@
     <None Include="Tools\CodeGenerator\property_generator.py">
       <Filter>Tools</Filter>
     </None>
+    <None Include="..\.editorconfig" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Tools\CodeGenerator\requirements.txt">
       <Filter>Tools</Filter>
     </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Shaders\Effects\Particle.hlsl" />
   </ItemGroup>
 </Project>
