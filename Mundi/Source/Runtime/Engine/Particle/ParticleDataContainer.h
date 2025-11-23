@@ -63,6 +63,7 @@ struct FParticleDataContainer
 		{
 			return;
 		}
+
 		// Calculate required memory
 		ParticleDataNumBytes = InMaxParticles * InParticleStride;
 		ParticleIndicesNumShorts = InMaxParticles;
@@ -70,7 +71,9 @@ struct FParticleDataContainer
 		MemBlockSize = ParticleDataNumBytes + IndicesBytes;
 
 		// Allocate single block for both particle data and indices
-		ParticleData = new uint8[MemBlockSize];
+		// 주소가 무조건 16의 배수(0x...0)로 시작함.
+		const int32 Alignment = 16;
+		ParticleData = (uint8*)_aligned_malloc(MemBlockSize, Alignment);
 		memset(ParticleData, 0, MemBlockSize); // 메모리 잡자마자 0으로 초기화
 
 		// ParticleIndices points to the end of ParticleData
@@ -89,7 +92,8 @@ struct FParticleDataContainer
 	{
 		if (ParticleData)
 		{
-			delete[] ParticleData;
+			_aligned_free(ParticleData);
+
 			ParticleData = nullptr;
 			ParticleIndices = nullptr; // Don't delete separtely - same memory block
 		}
