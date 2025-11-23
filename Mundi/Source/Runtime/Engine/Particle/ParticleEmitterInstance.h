@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "Particle.h"
 #include "ParticleHelper.h"
+#include "Source/Runtime/Core/Memory/Memory.h"
 #include "ParticleLODLevel.h"
 #include "ParticleModule.h"
 #include "ParticleEmitter.h"
@@ -35,10 +36,11 @@ struct FParticleEmitterInstance
 	UParticleLODLevel* CurrentLODLevel;
 
 	// ============== 메모리 접근 ==============
-	// FParticleDataContainer 안의 포인터들 캐싱: 접근속도 최적화
+	// 언리얼 엔진 방식: 직접 메모리 관리 (FParticleDataContainer 사용 안 함)
 
 	/** Pointer to the particle data array */
 	// 실제 파티클 데이터들이 저장된 메모리 블록의 시작 주소
+	// FMemory::Realloc으로 동적 리사이징 가능
 	uint8* ParticleData;
 
 	/** Pointer to the particle index array */
@@ -116,7 +118,24 @@ struct FParticleEmitterInstance
 
 	~FParticleEmitterInstance()
 	{
-		// TODO: Implement cleanup logic
+		// 메모리 해제 (언리얼 방식)
+		if (ParticleData)
+		{
+			FMemory::Free(ParticleData);
+			ParticleData = nullptr;
+		}
+
+		if (ParticleIndices)
+		{
+			FMemory::Free(ParticleIndices);
+			ParticleIndices = nullptr;
+		}
+
+		if (InstanceData)
+		{
+			FMemory::Free(InstanceData);
+			InstanceData = nullptr;
+		}
 	}
 
 	/**
@@ -287,6 +306,53 @@ struct FParticleEmitterInstance
 	}
 
 	/**
+	 * Resize particle memory (Unreal Engine style)
+	 * 파티클 메모리 리사이징 (언리얼 엔진 방식)
+	 *
+	 * @param NewMaxActiveParticles - New maximum particle count
+	 * @param bSetMaxActiveCount - If true, update peak active particles
+	 * @return true if successful
+	 */
+	bool Resize(int32 NewMaxActiveParticles, bool bSetMaxActiveCount = true)
+	{
+		// 이미 충분한 크기면 리턴
+		if (NewMaxActiveParticles <= MaxActiveParticles)
+		{
+			return true;
+		}
+
+		// Reallocate particle data (preserves existing data)
+		ParticleData = (uint8*)FMemory::Realloc(ParticleData, ParticleStride * NewMaxActiveParticles);
+		if (!ParticleData)
+		{
+			return false;
+		}
+
+		// Reallocate particle indices
+		if (ParticleIndices == nullptr)
+		{
+			// First allocation - clear max count
+			MaxActiveParticles = 0;
+		}
+		ParticleIndices = (uint16*)FMemory::Realloc(ParticleIndices, sizeof(uint16) * (NewMaxActiveParticles + 1));
+		if (!ParticleIndices)
+		{
+			return false;
+		}
+
+		// Fill in default 1:1 mapping for new indices
+		for (int32 i = MaxActiveParticles; i < NewMaxActiveParticles; i++)
+		{
+			ParticleIndices[i] = static_cast<uint16>(i);
+		}
+
+		// Update max count
+		MaxActiveParticles = NewMaxActiveParticles;
+
+		return true;
+	}
+
+	/**
 	 * Initialize the emitter instance
 	 * 에미터 인스턴스를 초기화 (템플릿 연결 및 상태 초기화)
 	 *
@@ -299,6 +365,11 @@ struct FParticleEmitterInstance
 	{
 		SpriteTemplate = InTemplate;
 		Component = InComponent;
+
+		MaxActiveParticles = 0;
+		ActiveParticles = 0;
+		ParticleCounter = 0;
+		SpawnFraction = 0.0f;
 
 		// 1. LOD 레벨 설정 (일단 0번 LOD 사용)
 		CurrentLODLevelIndex = 0;
@@ -322,24 +393,40 @@ struct FParticleEmitterInstance
 		    }
 		}
 
+		// 2-1. Stride 16바이트 정렬 (SIMD 최적화)
+		// InParticleStride가 50이면 -> 64로, 100이면 -> 112로
+		const int32 Alignment = 16;
+		ParticleStride = (ParticleStride + (Alignment - 1)) & ~(Alignment - 1);
+
 		// 3. PayloadOffset 계산 (기본 파티클 뒤에 모듈 데이터가 시작됨)
 		PayloadOffset = ParticleSize;
 
-		// 4. 최대 파티클 개수 설정
+		// 3. 메모리 할당 목표치 설정
+		int32 TargetMaxParticles = 1000; // 기본값
 		if (InTemplate)
 		{
-			MaxActiveParticles = InTemplate->GetPeakActiveParticles();
+			TargetMaxParticles = InTemplate->GetPeakActiveParticles();
 		}
 
-		// 5. 메모리 할당
-		// TODO: FParticleDataContainer를 사용하거나 직접 메모리 할당
-		//ParticleDataContainer.Allocate(MaxActiveParticles, ParticleStride);
-		// ParticleData = ParticleDataContainer.ParticleData;
-		// ParticleIndices = ParticleDataContainer.ParticleIndices;
+		// 4. 초기 할당 (Resize 호출)
+		if (TargetMaxParticles > 0)
+		{
+			int32 InitialCount = 10;
+			if (InTemplate && InTemplate->InitialAllocationCount > 0)
+			{
+				InitialCount = InTemplate->InitialAllocationCount;
+			}
+			else if (CurrentLODLevel && CurrentLODLevel->PeakActiveParticles > 0)
+			{
+				InitialCount = CurrentLODLevel->PeakActiveParticles;
+			}
 
-		// 6. 상태 초기화
-		ActiveParticles = 0;
-		ParticleCounter = 0;
-		SpawnFraction = 0.0f;
+			// 최소 10개, 최대 100개로 초기 할당 제한 (실무적 최적화)
+			InitialCount = FMath::Clamp(InitialCount, 10, 100);
+
+			Resize(InitialCount);
+		}
+
+		
 	}
 };
