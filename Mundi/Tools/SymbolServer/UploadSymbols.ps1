@@ -50,6 +50,9 @@ if (-not (Test-Path $KeyPath)) {
     exit 0
 }
 
+# SSH/SCP common options (timeout in seconds)
+$SshOptions = "-o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=NUL"
+
 # Search for PDB files
 $PdbFiles = Get-ChildItem -Path $OutDir -Filter "*.pdb" -File -ErrorAction SilentlyContinue
 
@@ -60,8 +63,16 @@ if ($PdbFiles.Count -eq 0) {
 
 Write-Host "[SymbolServer] Found $($PdbFiles.Count) PDB files"
 
+# Test server connection first
+$TestResult = ssh -i "$KeyPath" $SshOptions.Split(' ') ${ServerUser}@${ServerIP} "echo ok" 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[SymbolServer] Server connection failed - skipping upload (keeping local PDB)"
+    Write-Host "[SymbolServer] Error: $TestResult"
+    exit 0
+}
+
 # Create temp directory on server
-ssh -i "$KeyPath" ${ServerUser}@${ServerIP} "mkdir -p $TempPath" 2>$null
+ssh -i "$KeyPath" $SshOptions.Split(' ') ${ServerUser}@${ServerIP} "mkdir -p $TempPath" 2>$null
 
 $UploadedCount = 0
 $FailedCount = 0
@@ -73,11 +84,11 @@ foreach ($Pdb in $PdbFiles) {
     Write-Host "[SymbolServer] Uploading: $PdbName"
 
     # Upload PDB to server
-    $ScpResult = scp -i "$KeyPath" -q "$PdbPath" "${ServerUser}@${ServerIP}:${TempPath}/" 2>&1
+    $ScpResult = scp -i "$KeyPath" $SshOptions.Split(' ') -q "$PdbPath" "${ServerUser}@${ServerIP}:${TempPath}/" 2>&1
 
     if ($LASTEXITCODE -eq 0) {
         # Index with symstore on server
-        $SshResult = ssh -i "$KeyPath" ${ServerUser}@${ServerIP} "/usr/local/bin/symstore -s $SymbolsPath ${TempPath}/${PdbName} && rm ${TempPath}/${PdbName}" 2>&1
+        $SshResult = ssh -i "$KeyPath" $SshOptions.Split(' ') ${ServerUser}@${ServerIP} "/usr/local/bin/symstore -s $SymbolsPath ${TempPath}/${PdbName} && rm ${TempPath}/${PdbName}" 2>&1
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "[SymbolServer] Indexed: $PdbName"
@@ -100,7 +111,7 @@ foreach ($Pdb in $PdbFiles) {
 }
 
 # Clean up server temp directory
-ssh -i "$KeyPath" ${ServerUser}@${ServerIP} "rmdir $TempPath 2>/dev/null" 2>$null
+ssh -i "$KeyPath" $SshOptions.Split(' ') ${ServerUser}@${ServerIP} "rmdir $TempPath 2>/dev/null" 2>$null
 
 # Delete sourcelink.json (already embedded in PDB)
 $SourcelinkPath = Join-Path $OutDir "sourcelink.json"
