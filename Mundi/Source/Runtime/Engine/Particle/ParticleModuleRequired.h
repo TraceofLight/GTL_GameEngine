@@ -6,6 +6,26 @@
 class UMaterial;
 
 /**
+ * 렌더 스레드용 Required Module 데이터 (최소 버전)
+ */
+struct FParticleRequiredModule
+{
+	/** Number of SubUV animation frames */
+	uint32 NumFrames;
+
+	/** Alpha cutout threshold */
+	float AlphaThreshold;
+
+	/** Constructor */
+	FParticleRequiredModule()
+		: NumFrames(1)
+		, AlphaThreshold(0.0f)
+	{
+	}
+};
+
+
+/**
  * @brief 이미터에 필수적인 설정을 포함하는 모듈
  * @details 파티클의 기본 속성들을 정의 (Material, Duration, ScreenAlignment 등)
  *
@@ -101,21 +121,3 @@ protected:
 	EParticleAxisLock AxisLockOption;
 };
 
-/**
- * 렌더 스레드용 Required Module 데이터 (최소 버전)
- */
-struct FParticleRequiredModule
-{
-	/** Number of SubUV animation frames */
-	uint32 NumFrames;
-
-	/** Alpha cutout threshold */
-	float AlphaThreshold;
-
-	/** Constructor */
-	FParticleRequiredModule()
-		: NumFrames(1)
-		, AlphaThreshold(0.0f)
-	{
-	}
-};
