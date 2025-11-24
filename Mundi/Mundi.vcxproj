@@ -110,7 +110,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTK_debug.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
@@ -147,7 +147,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
@@ -180,7 +180,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\Debug\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\Debug\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\Debug\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTK_debug.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
@@ -214,7 +214,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\Release\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\Release\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\Release\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
