@@ -40,14 +40,14 @@ void UMainToolbarWidget::RenderWidget()
 void UMainToolbarWidget::LoadToolbarIcons()
 {
     // 아이콘 로딩 (사용자가 파일을 제공할 예정)
-    IconNew = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Toolbar_New.png");
-    IconSave = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Toolbar_Save.png");
-    IconLoad = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Toolbar_Load.png");
-    IconPlay = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Toolbar_Play.png");
-    IconStop = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Toolbar_Stop.png");
-    IconAddActor = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Toolbar_AddActor.png");
-    IconPrefab = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Toolbar_Prefab.png");
-    LogoTexture = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Mundi_Logo.png");
+    IconNew = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_New.png");
+    IconSave = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Save.png");
+    IconLoad = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Load.png");
+    IconPlay = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Play.png");
+    IconStop = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Stop.png");
+    IconAddActor = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_AddActor.png");
+    IconPrefab = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Prefab.png");
+    LogoTexture = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Mundi_Logo.png");
 }
 
 void UMainToolbarWidget::RenderToolbar()

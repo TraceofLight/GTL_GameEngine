@@ -157,7 +157,7 @@ void USpotLightComponent::OnRegister(UWorld* InWorld)
 	
 	if (SpriteComponent)
 	{
-		SpriteComponent->SetTexture(GDataDir + "/UI/Icons/SpotLight_64x.png");
+		SpriteComponent->SetTexture(GDataDir + "/Default/UI/Icons/SpotLight_64x.png");
 	}
 
 	// Create Direction Gizmo if not already created
@@ -168,7 +168,7 @@ void USpotLightComponent::OnRegister(UWorld* InWorld)
 		// DirectionGizmo->SetCanEverPick(false);
 
 		// Set gizmo mesh (using the same mesh as GizmoActor's arrow)
-		DirectionGizmo->SetStaticMesh(GDataDir + "/Gizmo/TranslationHandle.obj");
+		DirectionGizmo->SetStaticMesh(GDataDir + "/Default/Gizmo/TranslationHandle.obj");
 		DirectionGizmo->SetMaterialByName(0, "Shaders/UI/Gizmo.hlsl");
 
 		// Use world-space scale (not screen-constant scale like typical gizmos)

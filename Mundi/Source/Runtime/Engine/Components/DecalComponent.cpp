@@ -60,11 +60,11 @@ void UDecalComponent::OnRegister(UWorld* InWorld)
 	if (!SpriteComponent && !InWorld->bPie)
 	{
 		CREATE_EDITOR_COMPONENT(SpriteComponent, UBillboardComponent);
-		SpriteComponent->SetTexture(GDataDir + "/UI/Icons/S_DecalActorIcon.dds");
+		SpriteComponent->SetTexture(GDataDir + "/Default/UI/Icons/S_DecalActorIcon.dds");
 
 		CREATE_EDITOR_COMPONENT(DirectionGizmo, UGizmoArrowComponent);
 		// Set gizmo mesh (using the same mesh as GizmoActor's arrow)
-		DirectionGizmo->SetStaticMesh(GDataDir + "/Gizmo/TranslationHandle.obj");
+		DirectionGizmo->SetStaticMesh(GDataDir + "/Default/Gizmo/TranslationHandle.obj");
 		DirectionGizmo->SetMaterialByName(0, "Shaders/UI/Gizmo.hlsl");
 
 		// Use world-space scale (not screen-constant scale like typical gizmos)

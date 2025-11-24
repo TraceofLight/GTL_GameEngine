@@ -48,7 +48,7 @@ void UCameraComponent::OnRegister(UWorld* InWorld)
             CREATE_EDITOR_COMPONENT(CameraGizmo, UStaticMeshComponent);
 
             // Set gizmo mesh (using the same mesh as GizmoActor's arrow)
-            CameraGizmo->SetStaticMesh(GDataDir + "/Gizmo/Camera.obj");
+            CameraGizmo->SetStaticMesh(GDataDir + "/Default/Gizmo/Camera.obj");
             CameraGizmo->SetMaterialByName(0, "Shaders/UI/Gizmo.hlsl");
 
             // Set default scale

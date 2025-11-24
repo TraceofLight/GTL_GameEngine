@@ -179,7 +179,7 @@ void UDirectionalLightComponent::OnRegister(UWorld* InWorld)
 
 	if (SpriteComponent)
 	{
-		SpriteComponent->SetTexture(GDataDir + "/UI/Icons/S_LightDirectional.dds");
+		SpriteComponent->SetTexture(GDataDir + "/Default/UI/Icons/S_LightDirectional.dds");
 	}
 
 	// Create Direction Gizmo if not already created
@@ -188,7 +188,7 @@ void UDirectionalLightComponent::OnRegister(UWorld* InWorld)
 		CREATE_EDITOR_COMPONENT(DirectionGizmo, UGizmoArrowComponent);
 
 		// Set gizmo mesh (using the same mesh as GizmoActor's arrow)
-		DirectionGizmo->SetStaticMesh(GDataDir + "/Gizmo/TranslationHandle.obj");
+		DirectionGizmo->SetStaticMesh(GDataDir + "/Default/Gizmo/TranslationHandle.obj");
 		DirectionGizmo->SetMaterialByName(0, "Shaders/UI/Gizmo.hlsl");
 
 		// Use world-space scale (not screen-constant scale like typical gizmos)

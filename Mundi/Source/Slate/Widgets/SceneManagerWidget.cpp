@@ -40,8 +40,8 @@ void USceneManagerWidget::Initialize()
 
 void USceneManagerWidget::LoadIcons()
 {
-	IconVisible = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Eye_Visible.png");
-	IconHidden = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Eye_Hidden.png");
+	IconVisible = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Eye_Visible.png");
+	IconHidden = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Eye_Hidden.png");
 }
 
 void USceneManagerWidget::Update()

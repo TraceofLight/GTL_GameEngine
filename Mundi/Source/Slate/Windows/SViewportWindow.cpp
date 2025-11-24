@@ -321,134 +321,134 @@ void SViewportWindow::LoadToolbarIcons(ID3D11Device* Device)
 
 	// 기즈모 아이콘 텍스처 생성 및 로드
 	IconSelect = NewObject<UTexture>();
-	IconSelect->Load(GDataDir + "/Icon/Viewport_Toolbar_Select.png", Device);
+	IconSelect->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_Select.png", Device);
 
 	IconMove = NewObject<UTexture>();
-	IconMove->Load(GDataDir + "/Icon/Viewport_Toolbar_Move.png", Device);
+	IconMove->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_Move.png", Device);
 
 	IconRotate = NewObject<UTexture>();
-	IconRotate->Load(GDataDir + "/Icon/Viewport_Toolbar_Rotate.png", Device);
+	IconRotate->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_Rotate.png", Device);
 
 	IconScale = NewObject<UTexture>();
-	IconScale->Load(GDataDir + "/Icon/Viewport_Toolbar_Scale.png", Device);
+	IconScale->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_Scale.png", Device);
 
 	IconWorldSpace = NewObject<UTexture>();
-	IconWorldSpace->Load(GDataDir + "/Icon/Viewport_Toolbar_WorldSpace.png", Device);
+	IconWorldSpace->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_WorldSpace.png", Device);
 
 	IconLocalSpace = NewObject<UTexture>();
-	IconLocalSpace->Load(GDataDir + "/Icon/Viewport_Toolbar_LocalSpace.png", Device);
+	IconLocalSpace->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_LocalSpace.png", Device);
 
 	// 뷰포트 모드 아이콘 텍스처 로드
 	IconCamera = NewObject<UTexture>();
-	IconCamera->Load(GDataDir + "/Icon/Viewport_Mode_Camera.png", Device);
+	IconCamera->Load(GDataDir + "/Default/Icon/Viewport_Mode_Camera.png", Device);
 
 	IconPerspective = NewObject<UTexture>();
-	IconPerspective->Load(GDataDir + "/Icon/Viewport_Mode_Perspective.png", Device);
+	IconPerspective->Load(GDataDir + "/Default/Icon/Viewport_Mode_Perspective.png", Device);
 
 	IconTop = NewObject<UTexture>();
-	IconTop->Load(GDataDir + "/Icon/Viewport_Mode_Top.png", Device);
+	IconTop->Load(GDataDir + "/Default/Icon/Viewport_Mode_Top.png", Device);
 
 	IconBottom = NewObject<UTexture>();
-	IconBottom->Load(GDataDir + "/Icon/Viewport_Mode_Bottom.png", Device);
+	IconBottom->Load(GDataDir + "/Default/Icon/Viewport_Mode_Bottom.png", Device);
 
 	IconLeft = NewObject<UTexture>();
-	IconLeft->Load(GDataDir + "/Icon/Viewport_Mode_Left.png", Device);
+	IconLeft->Load(GDataDir + "/Default/Icon/Viewport_Mode_Left.png", Device);
 
 	IconRight = NewObject<UTexture>();
-	IconRight->Load(GDataDir + "/Icon/Viewport_Mode_Right.png", Device);
+	IconRight->Load(GDataDir + "/Default/Icon/Viewport_Mode_Right.png", Device);
 
 	IconFront = NewObject<UTexture>();
-	IconFront->Load(GDataDir + "/Icon/Viewport_Mode_Front.png", Device);
+	IconFront->Load(GDataDir + "/Default/Icon/Viewport_Mode_Front.png", Device);
 
 	IconBack = NewObject<UTexture>();
-	IconBack->Load(GDataDir + "/Icon/Viewport_Mode_Back.png", Device);
+	IconBack->Load(GDataDir + "/Default/Icon/Viewport_Mode_Back.png", Device);
 
 	// 뷰포트 설정 아이콘 텍스처 로드
 	IconSpeed = NewObject<UTexture>();
-	IconSpeed->Load(GDataDir + "/Icon/Viewport_Mode_Camera.png", Device);
+	IconSpeed->Load(GDataDir + "/Default/Icon/Viewport_Mode_Camera.png", Device);
 
 	IconFOV = NewObject<UTexture>();
-	IconFOV->Load(GDataDir + "/Icon/Viewport_Setting_FOV.png", Device);
+	IconFOV->Load(GDataDir + "/Default/Icon/Viewport_Setting_FOV.png", Device);
 
 	IconNearClip = NewObject<UTexture>();
-	IconNearClip->Load(GDataDir + "/Icon/Viewport_Setting_NearClip.png", Device);
+	IconNearClip->Load(GDataDir + "/Default/Icon/Viewport_Setting_NearClip.png", Device);
 
 	IconFarClip = NewObject<UTexture>();
-	IconFarClip->Load(GDataDir + "/Icon/Viewport_Setting_FarClip.png", Device);
+	IconFarClip->Load(GDataDir + "/Default/Icon/Viewport_Setting_FarClip.png", Device);
 
 	// 뷰모드 아이콘 텍스처 로드
 	IconViewMode_Lit = NewObject<UTexture>();
-	IconViewMode_Lit->Load(GDataDir + "/Icon/Viewport_ViewMode_Lit.png", Device);
+	IconViewMode_Lit->Load(GDataDir + "/Default/Icon/Viewport_ViewMode_Lit.png", Device);
 
 	IconViewMode_Unlit = NewObject<UTexture>();
-	IconViewMode_Unlit->Load(GDataDir + "/Icon/Viewport_ViewMode_Unlit.png", Device);
+	IconViewMode_Unlit->Load(GDataDir + "/Default/Icon/Viewport_ViewMode_Unlit.png", Device);
 
 	IconViewMode_Wireframe = NewObject<UTexture>();
-	IconViewMode_Wireframe->Load(GDataDir + "/Icon/Viewport_Toolbar_WorldSpace.png", Device);
+	IconViewMode_Wireframe->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_WorldSpace.png", Device);
 
 	IconViewMode_BufferVis = NewObject<UTexture>();
-	IconViewMode_BufferVis->Load(GDataDir + "/Icon/Viewport_ViewMode_BufferVis.png", Device);
+	IconViewMode_BufferVis->Load(GDataDir + "/Default/Icon/Viewport_ViewMode_BufferVis.png", Device);
 
 	// ShowFlag 아이콘 텍스처 로드
 	IconShowFlag = NewObject<UTexture>();
-	IconShowFlag->Load(GDataDir + "/Icon/Viewport_ShowFlag.png", Device);
+	IconShowFlag->Load(GDataDir + "/Default/Icon/Viewport_ShowFlag.png", Device);
 
 	IconRevert = NewObject<UTexture>();
-	IconRevert->Load(GDataDir + "/Icon/Viewport_Revert.png", Device);
+	IconRevert->Load(GDataDir + "/Default/Icon/Viewport_Revert.png", Device);
 
 	IconStats = NewObject<UTexture>();
-	IconStats->Load(GDataDir + "/Icon/Viewport_Stats.png", Device);
+	IconStats->Load(GDataDir + "/Default/Icon/Viewport_Stats.png", Device);
 
 	IconHide = NewObject<UTexture>();
-	IconHide->Load(GDataDir + "/Icon/Viewport_Hide.png", Device);
+	IconHide->Load(GDataDir + "/Default/Icon/Viewport_Hide.png", Device);
 
 	IconBVH = NewObject<UTexture>();
-	IconBVH->Load(GDataDir + "/Icon/Viewport_BVH.png", Device);
+	IconBVH->Load(GDataDir + "/Default/Icon/Viewport_BVH.png", Device);
 
 	IconGrid = NewObject<UTexture>();
-	IconGrid->Load(GDataDir + "/Icon/Viewport_Grid.png", Device);
+	IconGrid->Load(GDataDir + "/Default/Icon/Viewport_Grid.png", Device);
 
 	IconDecal = NewObject<UTexture>();
-	IconDecal->Load(GDataDir + "/Icon/Viewport_Decal.png", Device);
+	IconDecal->Load(GDataDir + "/Default/Icon/Viewport_Decal.png", Device);
 
 	IconStaticMesh = NewObject<UTexture>();
-	IconStaticMesh->Load(GDataDir + "/Icon/Viewport_StaticMesh.png", Device);
+	IconStaticMesh->Load(GDataDir + "/Default/Icon/Viewport_StaticMesh.png", Device);
 
 	IconSkeletalMesh = NewObject<UTexture>();
-	IconSkeletalMesh->Load(GDataDir + "/Icon/Viewport_SkeletalMesh.png", Device);
+	IconSkeletalMesh->Load(GDataDir + "/Default/Icon/Viewport_SkeletalMesh.png", Device);
 
 	IconBillboard = NewObject<UTexture>();
-	IconBillboard->Load(GDataDir + "/Icon/Viewport_Billboard.png", Device);
+	IconBillboard->Load(GDataDir + "/Default/Icon/Viewport_Billboard.png", Device);
 
 	IconEditorIcon = NewObject<UTexture>();
-	IconEditorIcon->Load(GDataDir + "/Icon/Viewport_EditorIcon.png", Device);
+	IconEditorIcon->Load(GDataDir + "/Default/Icon/Viewport_EditorIcon.png", Device);
 
 	IconFog = NewObject<UTexture>();
-	IconFog->Load(GDataDir + "/Icon/Viewport_Fog.png", Device);
+	IconFog->Load(GDataDir + "/Default/Icon/Viewport_Fog.png", Device);
 
 	IconCollision = NewObject<UTexture>();
-	IconCollision->Load(GDataDir + "/Icon/Viewport_Collision.png", Device);
+	IconCollision->Load(GDataDir + "/Default/Icon/Viewport_Collision.png", Device);
 
 	IconAntiAliasing = NewObject<UTexture>();
-	IconAntiAliasing->Load(GDataDir + "/Icon/Viewport_AntiAliasing.png", Device);
+	IconAntiAliasing->Load(GDataDir + "/Default/Icon/Viewport_AntiAliasing.png", Device);
 
 	IconTile = NewObject<UTexture>();
-	IconTile->Load(GDataDir + "/Icon/Viewport_Tile.png", Device);
+	IconTile->Load(GDataDir + "/Default/Icon/Viewport_Tile.png", Device);
 
 	IconShadow = NewObject<UTexture>();
-	IconShadow->Load(GDataDir + "/Icon/Viewport_Shadow.png", Device);
+	IconShadow->Load(GDataDir + "/Default/Icon/Viewport_Shadow.png", Device);
 
 	IconShadowAA = NewObject<UTexture>();
-	IconShadowAA->Load(GDataDir + "/Icon/Viewport_ShadowAA.png", Device);
+	IconShadowAA->Load(GDataDir + "/Default/Icon/Viewport_ShadowAA.png", Device);
 
 	IconSkinning = NewObject<UTexture>();
-	IconSkinning->Load(GDataDir + "/Icon/Viewport_Skinning.png", Device);
+	IconSkinning->Load(GDataDir + "/Default/Icon/Viewport_Skinning.png", Device);
 
 	// 뷰포트 레이아웃 전환 아이콘 로드
 	IconSingleToMultiViewport = NewObject<UTexture>();
-	IconSingleToMultiViewport->Load(GDataDir + "/Icon/Viewport_SingleToMultiViewport.png", Device);
+	IconSingleToMultiViewport->Load(GDataDir + "/Default/Icon/Viewport_SingleToMultiViewport.png", Device);
 	IconMultiToSingleViewport = NewObject<UTexture>();
-	IconMultiToSingleViewport->Load(GDataDir + "/Icon/Viewport_MultiToSingleViewport.png", Device);
+	IconMultiToSingleViewport->Load(GDataDir + "/Default/Icon/Viewport_MultiToSingleViewport.png", Device);
 }
 
 void SViewportWindow::RenderGizmoModeButtons()

@@ -95,23 +95,23 @@ bool SBlendSpace2DEditorWindow::Initialize(float StartX, float StartY, float Wid
 	}
 
 	// 타임라인 아이콘 로드
-	IconGoToFront = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_Front_24x.png");
-	IconGoToFrontOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_Front_24x_OFF.png");
-	IconStepBackwards = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Backwards_24x.png");
-	IconStepBackwardsOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Backwards_24x_OFF.png");
-	IconBackwards = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Backwards_24x.png");
-	IconBackwardsOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Backwards_24x_OFF.png");
-	IconRecord = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Record_24x.png");
-	IconPause = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Pause_24x.png");
-	IconPauseOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Pause_24x_OFF.png");
-	IconPlay = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Play_24x.png");
-	IconPlayOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Play_24x_OFF.png");
-	IconStepForward = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Forward_24x.png");
-	IconStepForwardOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Step_Forward_24x_OFF.png");
-	IconGoToEnd = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_End_24x.png");
-	IconGoToEndOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Go_To_End_24x_OFF.png");
-	IconLoop = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Loop_24x.png");
-	IconLoopOff = UResourceManager::GetInstance().Load<UTexture>("Data/Icon/Loop_24x_OFF.png");
+	IconGoToFront = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Go_To_Front_24x.png");
+	IconGoToFrontOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Go_To_Front_24x_OFF.png");
+	IconStepBackwards = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Step_Backwards_24x.png");
+	IconStepBackwardsOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Step_Backwards_24x_OFF.png");
+	IconBackwards = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Backwards_24x.png");
+	IconBackwardsOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Backwards_24x_OFF.png");
+	IconRecord = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Record_24x.png");
+	IconPause = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Pause_24x.png");
+	IconPauseOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Pause_24x_OFF.png");
+	IconPlay = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Play_24x.png");
+	IconPlayOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Play_24x_OFF.png");
+	IconStepForward = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Step_Forward_24x.png");
+	IconStepForwardOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Step_Forward_24x_OFF.png");
+	IconGoToEnd = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Go_To_End_24x.png");
+	IconGoToEndOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Go_To_End_24x_OFF.png");
+	IconLoop = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Loop_24x.png");
+	IconLoopOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Loop_24x_OFF.png");
 
 	return true;
 }

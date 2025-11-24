@@ -78,7 +78,7 @@ void UImGuiHelper::Initialize(HWND InWindowHandle, ID3D11Device* InDevice, ID3D1
 		따라서 베이크 시간/메모리 비용이 아깝다면 내릴 것
 	*/
 	Cfg.OversampleH = Cfg.OversampleV = 2;
-	FString FontPath = GDataDir + "/UI/Fonts/malgun.ttf";
+	FString FontPath = GDataDir + "/Default/UI/Fonts/malgun.ttf";
 	IO.Fonts->AddFontFromFileTTF(FontPath.c_str(), 18.0f, &Cfg, IO.Fonts->GetGlyphRangesKorean());
 
 	// Use default ImGui font
