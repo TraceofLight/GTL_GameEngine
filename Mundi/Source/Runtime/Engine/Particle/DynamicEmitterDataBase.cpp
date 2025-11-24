@@ -146,9 +146,10 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 	for (int32 ParticleIndex = 0; ParticleIndex < ParticleCount; ++ParticleIndex)
 	{
 		// 정렬된 인덱스 사용
+		// 주의: FillReplayData에서 ActiveParticles만큼만 연속으로 복사했으므로
+		// ParticleIndices를 사용하지 않고 SortedParticleIndex를 직접 사용해야 함
 		const int32 SortedParticleIndex = ParticleOrder[ParticleIndex].ParticleIndex;
-		const int32 CurrentIndex = ParticleIndices[SortedParticleIndex];
-		const uint8* ParticlePtr = ParticleData + (CurrentIndex * ParticleStride);
+		const uint8* ParticlePtr = ParticleData + (SortedParticleIndex * ParticleStride);
 		const FBaseParticle& Particle = *reinterpret_cast<const FBaseParticle*>(ParticlePtr);
 
 		// 정점 인덱스 계산
@@ -171,7 +172,7 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 			Vertex.Position = Particle.Location;
 			Vertex.OldPosition = Particle.OldLocation;
 			Vertex.RelativeTime = Particle.RelativeTime;
-			Vertex.ParticleId = static_cast<float>(CurrentIndex);
+			Vertex.ParticleId = static_cast<float>(SortedParticleIndex);
 			Vertex.Size = FVector2D(Particle.Size.X, Particle.Size.Y);
 			Vertex.Rotation = Particle.Rotation;
 			Vertex.SubImageIndex = 0.0f; // TODO: SubUV support
