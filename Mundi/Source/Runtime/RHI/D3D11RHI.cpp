@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "StatsOverlayD2D.h"
 #include "Color.h"
 
@@ -109,6 +109,7 @@ void D3D11RHI::CreateBlendState()
 
     D3D11_RENDER_TARGET_BLEND_DESC& Rt0 = BlendDesc.RenderTarget[0];
 
+    // BlendStateTransparent 생성
     Rt0.BlendEnable = TRUE;
     Rt0.SrcBlend = D3D11_BLEND_SRC_ALPHA;
     Rt0.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
@@ -125,6 +126,7 @@ void D3D11RHI::CreateBlendState()
 
     Device->CreateBlendState(&BlendDesc, &BlendStateTransparent);
 
+    // BlendStateOpaque 생성
     BlendDesc = {};
     BlendDesc.IndependentBlendEnable = TRUE;
     Rt0 = BlendDesc.RenderTarget[0];
@@ -135,16 +137,24 @@ void D3D11RHI::CreateBlendState()
     Rt1.BlendEnable = FALSE;
     Rt1.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
     Device->CreateBlendState(&BlendDesc, &BlendStateOpaque);
-    //auto& rt = bd.RenderTarget[0];
-    //rt.BlendEnable = TRUE;
-    //rt.SrcBlend = D3D11_BLEND_SRC_ALPHA;      // 스트레이트 알파
-    //rt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;  // (프리멀티면 ONE / INV_SRC_ALPHA)
-    //rt.BlendOp = D3D11_BLEND_OP_ADD;
-    //rt.SrcBlendAlpha = D3D11_BLEND_ONE;
-    //rt.DestBlendAlpha = D3D11_BLEND_ZERO;
-    //rt.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-    //rt.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-    //Device->CreateBlendState(&bd, &BlendState);
+
+    // BlendStateAccumulate 생성 (가산 블렌딩)
+    BlendDesc = {};
+    BlendDesc.IndependentBlendEnable = TRUE;
+    Rt0 = BlendDesc.RenderTarget[0];
+    Rt0.BlendEnable = TRUE;
+    Rt0.SrcBlend = D3D11_BLEND_BLEND_FACTOR;
+    Rt0.DestBlend = D3D11_BLEND_BLEND_FACTOR; 
+    Rt0.BlendOp = D3D11_BLEND_OP_ADD;         // 더하기 연산
+    Rt0.SrcBlendAlpha = D3D11_BLEND_ONE;
+    Rt0.DestBlendAlpha = D3D11_BLEND_ONE;
+    Rt0.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    Rt0.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+    Rt1 = BlendDesc.RenderTarget[1];
+    Rt1.BlendEnable = FALSE;
+    Rt1.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    Device->CreateBlendState(&BlendDesc, &BlendStateAccumulate);
 }
 
 void D3D11RHI::CreateDepthStencilState()
@@ -468,12 +478,20 @@ void D3D11RHI::OMSetRenderTargets(ERTVMode RTVMode)
     }
 }
 
-void D3D11RHI::OMSetBlendState(bool bIsBlendMode)
+void D3D11RHI::OMSetBlendState(bool bIsBlendMode, bool bAccumulate)
 {
     if (bIsBlendMode == true)
     {
-        float blendFactor[4] = { 0, 0, 0, 0 };
-        DeviceContext->OMSetBlendState(BlendStateTransparent, blendFactor, 0xffffffff);
+		if (bAccumulate)
+		{
+			const float blendColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+			DeviceContext->OMSetBlendState(BlendStateAccumulate, blendColor, 0xffffffff);
+		}
+		else
+		{
+			float blendFactor[4] = { 0, 0, 0, 0 };
+			DeviceContext->OMSetBlendState(BlendStateTransparent, blendFactor, 0xffffffff);
+		}
     }
     else
     {
@@ -812,6 +830,11 @@ void D3D11RHI::ReleaseBlendState()
         BlendStateTransparent->Release();
         BlendStateTransparent = nullptr;
     }
+    if (BlendStateAccumulate)
+    {
+        BlendStateAccumulate->Release();
+        BlendStateAccumulate = nullptr;
+    }
 }
 
 void D3D11RHI::ReleaseRasterizerState()
@@ -1103,7 +1126,7 @@ void D3D11RHI::CreateBackBufferAndDepthStencil(UINT width, UINT height)
 
     hr = Device->CreateTexture2D(&depthDesc, nullptr, &depthTex);
     if (FAILED(hr) || !depthTex) {
-        UE_LOG("CreateTexture2D(depth) failed.\n");
+        UE_LOG("CreateTexture2D(depth)Failed.\n");
         return;
     }
 

@@ -956,8 +956,8 @@ void FSceneRenderer::RenderParticlesPass()
 
 	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "ParticlePass", OwnerRenderer->GetGPUTimer());
 
-	// 파티클은 반투명이므로 블렌딩 활성화
-	RHIDevice->OMSetBlendState(true);
+	// 파티클은 반투명이므로 add 블렌딩 활성화
+	RHIDevice->OMSetBlendState(true, true);
 	// 깊이 쓰기는 OFF, 깊이 테스트는 ON (다른 오브젝트 뒤에 가려지도록)
 	RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
 
@@ -1015,7 +1015,6 @@ void FSceneRenderer::RenderParticlesPass()
 				BatchElement.InputLayout = ShaderVariant->InputLayout;
 			}
 
-			// 파티클 렌더링 (정렬하지 않음 - 추후 뎁스 소팅 추가 가능)
 			DrawMeshBatches(ParticleBatchElements, true);
 		}
 	}

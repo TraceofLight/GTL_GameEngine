@@ -162,7 +162,7 @@ public:
 	void RSSetState(ERasterizerMode ViewMode);
 	void RSSetViewport();
 
-	void OMSetBlendState(bool bIsBlendMode);
+	void OMSetBlendState(bool bIsBlendMode, bool bAccumulate = false);
 	void PSSetDefaultSampler(UINT StartSlot);
 	void PSSetClampSampler(UINT StartSlot);
 
@@ -280,6 +280,7 @@ private:
 	ID3D11DepthStencilState* DepthStencilStateStencilRejectOverlay = nullptr;  // draw only where stencil==0
 
 	ID3D11BlendState* BlendStateTransparent{};
+	ID3D11BlendState* BlendStateAccumulate{};
 	ID3D11BlendState* BlendStateOpaque{};
 
 	ID3D11Texture2D* FrameBuffer{};

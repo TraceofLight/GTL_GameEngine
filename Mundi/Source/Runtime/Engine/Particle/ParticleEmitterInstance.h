@@ -143,6 +143,18 @@ struct FParticleEmitterInstance
 			FMemory::Free(InstanceData);
 			InstanceData = nullptr;
 		}
+
+		if (VertexBuffer)
+		{
+			VertexBuffer->Release();
+			VertexBuffer = nullptr;
+		}
+
+		if(IndexBuffer)
+		{
+			IndexBuffer->Release();
+			IndexBuffer = nullptr;
+		}
 	}
 
 	/**
