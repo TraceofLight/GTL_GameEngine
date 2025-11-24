@@ -76,6 +76,13 @@ private:
 	// Include 파일 파싱 및 추적
 	void ParseIncludeFiles(const FString& ShaderPath);
 	void UpdateIncludeTimestamps();
+
+	// CSO 캐시 관련
+	FString GetCSOCachePath(const FString& ShaderPath, uint64 MacroKey, bool bIsVS) const;
+	bool IsCSOCacheValid(const FString& CSOPath) const;
+	bool LoadFromCSOCache(const FString& CSOPath, ID3DBlob** OutBlob);
+	bool SaveToCSOCache(ID3DBlob* Blob, const FString& CSOPath);
+	std::filesystem::file_time_type GetLatestSourceTimestamp() const;
 };
 
 struct FVertexPositionColor

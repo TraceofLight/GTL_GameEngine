@@ -232,20 +232,53 @@ bool UShader::CompileVariantInternal(ID3D11Device* InDevice, const FString& InSh
 	// 3. 핫 리로드용 매크로 저장
 	OutVariant.SourceMacros = InMacros;
 
-	// --- 4. 컴파일 결과를 OutVariant에 저장 ---
+	// 4. CSO 캐시 키 생성
+	uint64 MacroKey = GenerateShaderKey(InMacros);
+
+	// 5. 컴파일 결과를 OutVariant에 저장 (CSO 캐시 활용)
 	if (EndsWith(InShaderPath, "_VS.hlsl"))
 	{
-		bVsCompiled = CompileShaderInternal(WFilePath, "mainVS", "vs_5_0", CompileFlags, Defines.data(), &OutVariant.VSBlob);
+		// VS only
+		FString VSCachePath = GetCSOCachePath(InShaderPath, MacroKey, true);
+
+		if (IsCSOCacheValid(VSCachePath) && LoadFromCSOCache(VSCachePath, &OutVariant.VSBlob))
+		{
+			bVsCompiled = true;
+		}
+		else
+		{
+			bVsCompiled = CompileShaderInternal(WFilePath, "mainVS", "vs_5_0", CompileFlags, Defines.data(), &OutVariant.VSBlob);
+			if (bVsCompiled)
+			{
+				SaveToCSOCache(OutVariant.VSBlob, VSCachePath);
+			}
+		}
+
 		if (bVsCompiled)
 		{
 			Hr = InDevice->CreateVertexShader(OutVariant.VSBlob->GetBufferPointer(), OutVariant.VSBlob->GetBufferSize(), nullptr, &OutVariant.VertexShader);
 			assert(SUCCEEDED(Hr));
-			CreateInputLayout(InDevice, InShaderPath, OutVariant); // OutVariant 전달
+			CreateInputLayout(InDevice, InShaderPath, OutVariant);
 		}
 	}
 	else if (EndsWith(InShaderPath, "_PS.hlsl"))
 	{
-		bPsCompiled = CompileShaderInternal(WFilePath, "mainPS", "ps_5_0", CompileFlags, Defines.data(), &OutVariant.PSBlob);
+		// PS only
+		FString PSCachePath = GetCSOCachePath(InShaderPath, MacroKey, false);
+
+		if (IsCSOCacheValid(PSCachePath) && LoadFromCSOCache(PSCachePath, &OutVariant.PSBlob))
+		{
+			bPsCompiled = true;
+		}
+		else
+		{
+			bPsCompiled = CompileShaderInternal(WFilePath, "mainPS", "ps_5_0", CompileFlags, Defines.data(), &OutVariant.PSBlob);
+			if (bPsCompiled)
+			{
+				SaveToCSOCache(OutVariant.PSBlob, PSCachePath);
+			}
+		}
+
 		if (bPsCompiled)
 		{
 			Hr = InDevice->CreatePixelShader(OutVariant.PSBlob->GetBufferPointer(), OutVariant.PSBlob->GetBufferSize(), nullptr, &OutVariant.PixelShader);
@@ -254,8 +287,36 @@ bool UShader::CompileVariantInternal(ID3D11Device* InDevice, const FString& InSh
 	}
 	else // (VS + PS)
 	{
-		bVsCompiled = CompileShaderInternal(WFilePath, "mainVS", "vs_5_0", CompileFlags, Defines.data(), &OutVariant.VSBlob);
-		bPsCompiled = CompileShaderInternal(WFilePath, "mainPS", "ps_5_0", CompileFlags, Defines.data(), &OutVariant.PSBlob);
+		FString VSCachePath = GetCSOCachePath(InShaderPath, MacroKey, true);
+		FString PSCachePath = GetCSOCachePath(InShaderPath, MacroKey, false);
+
+		// VS 처리
+		if (IsCSOCacheValid(VSCachePath) && LoadFromCSOCache(VSCachePath, &OutVariant.VSBlob))
+		{
+			bVsCompiled = true;
+		}
+		else
+		{
+			bVsCompiled = CompileShaderInternal(WFilePath, "mainVS", "vs_5_0", CompileFlags, Defines.data(), &OutVariant.VSBlob);
+			if (bVsCompiled)
+			{
+				SaveToCSOCache(OutVariant.VSBlob, VSCachePath);
+			}
+		}
+
+		// PS 처리
+		if (IsCSOCacheValid(PSCachePath) && LoadFromCSOCache(PSCachePath, &OutVariant.PSBlob))
+		{
+			bPsCompiled = true;
+		}
+		else
+		{
+			bPsCompiled = CompileShaderInternal(WFilePath, "mainPS", "ps_5_0", CompileFlags, Defines.data(), &OutVariant.PSBlob);
+			if (bPsCompiled)
+			{
+				SaveToCSOCache(OutVariant.PSBlob, PSCachePath);
+			}
+		}
 
 		if (bVsCompiled)
 		{
@@ -270,7 +331,7 @@ bool UShader::CompileVariantInternal(ID3D11Device* InDevice, const FString& InSh
 		}
 	}
 
-	// 5. 컴파일 성공 여부 반환 (VS 또는 PS 둘 중 하나라도 성공 시)
+	// 6. 컴파일 성공 여부 반환 (VS 또는 PS 둘 중 하나라도 성공 시)
 	return bVsCompiled || bPsCompiled;
 }
 
@@ -484,7 +545,8 @@ bool UShader::Reload(ID3D11Device* InDevice)
 		try
 		{
 			SetLastModifiedTime(std::filesystem::last_write_time(FilePath));
-			UpdateIncludeTimestamps(); // Include 파일 타임스탬프도 갱신
+			// Include 파일 재파싱 (새 include 추가 감지)
+			ParseIncludeFiles(FilePath);
 		}
 		catch (...) { /* 무시 */ }
 
@@ -630,5 +692,176 @@ void UShader::UpdateIncludeTimestamps()
 		{
 			// 파일 타임스탬프 읽기 실패 - 무시
 		}
+	}
+}
+
+// ======================== CSO 캐시 관련 함수들 ========================
+
+FString UShader::GetCSOCachePath(const FString& ShaderPath, uint64 MacroKey, bool bIsVS) const
+{
+	// ShaderPath: "Shaders/Materials/UberLit.hlsl"
+	// → CachePath: "Intermediate/ShaderCache/Materials/UberLit_12345678_VS.cso"
+
+	std::filesystem::path SrcPath(ShaderPath);
+
+	// 상대 경로 추출 (Shaders/ 이후 부분)
+	FString RelativePath;
+	FString PathStr = SrcPath.string();
+	size_t ShadersPos = PathStr.find("Shaders");
+	if (ShadersPos != FString::npos)
+	{
+		RelativePath = PathStr.substr(ShadersPos + 8); // "Shaders/" 이후
+	}
+	else
+	{
+		RelativePath = SrcPath.filename().string();
+	}
+
+	// 확장자 제거
+	std::filesystem::path RelPath(RelativePath);
+	FString BaseName = RelPath.stem().string();
+	FString ParentDir = RelPath.parent_path().string();
+
+	// 캐시 파일명 생성
+	char CacheFileName[256];
+	snprintf(CacheFileName, sizeof(CacheFileName), "%s_%llX_%s.cso",
+		BaseName.c_str(), MacroKey, bIsVS ? "VS" : "PS");
+
+	// 최종 캐시 경로 (DerivedDataCache/Shaders/)
+	std::filesystem::path CachePath = GCacheDir + "/Shaders";
+	if (!ParentDir.empty())
+	{
+		CachePath /= ParentDir;
+	}
+	CachePath /= CacheFileName;
+
+	return CachePath.string();
+}
+
+std::filesystem::file_time_type UShader::GetLatestSourceTimestamp() const
+{
+	// 메인 셰이더 파일과 모든 include 파일 중 가장 최신 timestamp 반환
+	std::filesystem::file_time_type LatestTime = GetLastModifiedTime();
+
+	for (const auto& Pair : IncludedFileTimestamps)
+	{
+		if (Pair.second > LatestTime)
+		{
+			LatestTime = Pair.second;
+		}
+	}
+
+	return LatestTime;
+}
+
+bool UShader::IsCSOCacheValid(const FString& CSOPath) const
+{
+	try
+	{
+		// CSO 파일 존재 여부 확인
+		if (!std::filesystem::exists(CSOPath))
+		{
+			return false;
+		}
+
+		// CSO 타임스탬프 가져오기
+		auto CSOTime = std::filesystem::last_write_time(CSOPath);
+
+		// 소스 파일들의 최신 타임스탬프 가져오기
+		auto LatestSourceTime = GetLatestSourceTimestamp();
+
+		// CSO가 소스보다 최신이어야 유효
+		// (소스 수정 시 핫리로드 트리거됨)
+		return CSOTime > LatestSourceTime;
+	}
+	catch (...)
+	{
+		return false;
+	}
+}
+
+bool UShader::LoadFromCSOCache(const FString& CSOPath, ID3DBlob** OutBlob)
+{
+	if (!OutBlob)
+	{
+		return false;
+	}
+
+	try
+	{
+		// 파일을 바이너리로 읽기
+		std::ifstream File(CSOPath, std::ios::binary | std::ios::ate);
+		if (!File.is_open())
+		{
+			return false;
+		}
+
+		std::streamsize Size = File.tellg();
+		File.seekg(0, std::ios::beg);
+
+		if (Size <= 0)
+		{
+			return false;
+		}
+
+		// D3DBlob 생성
+		HRESULT Hr = D3DCreateBlob(static_cast<SIZE_T>(Size), OutBlob);
+		if (FAILED(Hr))
+		{
+			return false;
+		}
+
+		// 데이터 읽기
+		if (!File.read(static_cast<char*>((*OutBlob)->GetBufferPointer()), Size))
+		{
+			(*OutBlob)->Release();
+			*OutBlob = nullptr;
+			return false;
+		}
+
+		return true;
+	}
+	catch (...)
+	{
+		if (*OutBlob)
+		{
+			(*OutBlob)->Release();
+			*OutBlob = nullptr;
+		}
+		return false;
+	}
+}
+
+bool UShader::SaveToCSOCache(ID3DBlob* Blob, const FString& CSOPath)
+{
+	if (!Blob)
+	{
+		return false;
+	}
+
+	try
+	{
+		// 디렉토리 생성
+		std::filesystem::path ParentDir = std::filesystem::path(CSOPath).parent_path();
+		if (!ParentDir.empty() && !std::filesystem::exists(ParentDir))
+		{
+			std::filesystem::create_directories(ParentDir);
+		}
+
+		// 파일 쓰기
+		std::ofstream File(CSOPath, std::ios::binary);
+		if (!File.is_open())
+		{
+			return false;
+		}
+
+		File.write(static_cast<const char*>(Blob->GetBufferPointer()),
+			static_cast<std::streamsize>(Blob->GetBufferSize()));
+
+		return File.good();
+	}
+	catch (...)
+	{
+		return false;
 	}
 }
