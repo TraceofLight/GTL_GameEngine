@@ -104,8 +104,13 @@ foreach ($Pdb in $PdbFiles) {
         # Index with symstore on server
         $SshResult = ssh -i "$KeyPath" $SshOptions.Split(' ') ${ServerUser}@${ServerIP} "/usr/local/bin/symstore -s $SymbolsPath ${TempPath}/${PdbName} && rm ${TempPath}/${PdbName}" 2>&1
 
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SymbolServer] Indexed: $PdbName"
+        # Check if already indexed (no new files) or success
+        if ($LASTEXITCODE -eq 0 -or $SshResult -match "no new files") {
+            if ($SshResult -match "no new files") {
+                Write-Host "[SymbolServer] Already indexed: $PdbName"
+            } else {
+                Write-Host "[SymbolServer] Indexed: $PdbName"
+            }
 
             # Delete local PDB
             Remove-Item -Path $PdbPath -Force
@@ -141,8 +146,13 @@ foreach ($Binary in $BinaryFiles) {
         # Index with symstore on server
         $SshResult = ssh -i "$KeyPath" $SshOptions.Split(' ') ${ServerUser}@${ServerIP} "/usr/local/bin/symstore -s $SymbolsPath ${TempPath}/${BinaryName} && rm ${TempPath}/${BinaryName}" 2>&1
 
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "[SymbolServer] Indexed: $BinaryName"
+        # Check if already indexed (no new files) or success
+        if ($LASTEXITCODE -eq 0 -or $SshResult -match "no new files") {
+            if ($SshResult -match "no new files") {
+                Write-Host "[SymbolServer] Already indexed: $BinaryName"
+            } else {
+                Write-Host "[SymbolServer] Indexed: $BinaryName"
+            }
             # NOTE: Do NOT delete local binary - needed for execution
             $BinaryUploadedCount++
         } else {
