@@ -50,3 +50,23 @@ int32 UParticleModuleRequired::GetTotalSubImages() const
 {
 	return SubImages_Horizontal * SubImages_Vertical;
 }
+
+/**
+ * Create renderer resource (render thread copy)
+ * 렌더러 리소스 생성 (렌더 스레드용 복사본)
+ *
+ * @return FParticleRequiredModule* - Allocated render thread data (caller must delete)
+ */
+FParticleRequiredModule* UParticleModuleRequired::CreateRendererResource() const
+{
+	FParticleRequiredModule* FReqMod = new FParticleRequiredModule();
+
+	// SubUV 프레임 개수
+	FReqMod->NumFrames = GetTotalSubImages();
+
+	// 알파 임계값 (현재 UParticleModuleRequired에 없으므로 기본값)
+	// TODO: 필요하면 UParticleModuleRequired에 AlphaThreshold 멤버 추가
+	FReqMod->AlphaThreshold = 0.0f;
+
+	return FReqMod;
+}

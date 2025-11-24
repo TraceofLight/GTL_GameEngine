@@ -38,6 +38,14 @@ public:
 	float GetEmitterDuration() const;
 	int32 GetTotalSubImages() const;
 
+	/**
+	 * Create renderer resource (render thread copy)
+	 * 렌더러 리소스 생성 (렌더 스레드용 복사본)
+	 *
+	 * @return FParticleRequiredModule* - Allocated render thread data (caller must delete)
+	 */
+	FParticleRequiredModule* CreateRendererResource() const;
+
 	// Getters
 	UMaterial* GetMaterial() const { return Material; }
 	float GetEmitterDurationValue() const { return EmitterDuration; }
@@ -91,4 +99,23 @@ protected:
 	EEmitterNormalsMode EmitterNormalsMode;
 	EParticleSubUVInterpMethod InterpolationMethod;
 	EParticleAxisLock AxisLockOption;
+};
+
+/**
+ * 렌더 스레드용 Required Module 데이터 (최소 버전)
+ */
+struct FParticleRequiredModule
+{
+	/** Number of SubUV animation frames */
+	uint32 NumFrames;
+
+	/** Alpha cutout threshold */
+	float AlphaThreshold;
+
+	/** Constructor */
+	FParticleRequiredModule()
+		: NumFrames(1)
+		, AlphaThreshold(0.0f)
+	{
+	}
 };
