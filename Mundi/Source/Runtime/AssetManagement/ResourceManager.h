@@ -80,6 +80,7 @@ public:
 	               EAssetLoadPriority Priority = EAssetLoadPriority::Normal);
 
 	void ProcessLoadQueue(float MaxTimeMs = 5.0f);
+	void PreloadAllAssets();
 	EAssetLoadState GetLoadState(const FString& FilePath) const;
 	float GetLoadProgress() const;
 	int32 GetPendingLoadCount() const;

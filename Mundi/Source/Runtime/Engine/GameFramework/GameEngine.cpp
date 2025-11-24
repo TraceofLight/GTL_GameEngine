@@ -194,10 +194,8 @@ bool UGameEngine::Startup(HINSTANCE hInstance)
     // 매니저 초기화
     INPUT.Initialize(HWnd);
 
-    FObjManager::Preload();
-
-    // Preload audio assets
-    FAudioDevice::Preload();
+    // 통합 에셋 프리로드
+    UResourceManager::GetInstance().PreloadAllAssets();
 
     ///////////////////////////////////
     WorldContexts.Add(FWorldContext(NewObject<UWorld>(), EWorldType::Game));
@@ -206,7 +204,7 @@ bool UGameEngine::Startup(HINSTANCE hInstance)
     GWorld->bPie = true;
     ///////////////////////////////////
 
-    // 시작 scene(level)을 직접 로드 
+    // 시작 scene(level)을 직접 로드
     const FString StartupScenePath = GDataDir + "/Scenes/PlayScene.scene";
     if (!GWorld->LoadLevelFromFile(UTF8ToWide(StartupScenePath)))
     {

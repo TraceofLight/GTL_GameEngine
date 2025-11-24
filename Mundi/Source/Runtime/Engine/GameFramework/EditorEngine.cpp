@@ -194,9 +194,8 @@ bool UEditorEngine::Startup(HINSTANCE hInstance)
     UI.Initialize(HWnd, RHIDevice.GetDevice(), RHIDevice.GetDeviceContext());
     INPUT.Initialize(HWnd);
 
-    FObjManager::Preload();
-    UFbxLoader::PreLoad();
-    FAudioDevice::Preload();
+    // 통합 에셋 프리로드
+    UResourceManager::GetInstance().PreloadAllAssets();
 
     ///////////////////////////////////
     WorldContexts.Add(FWorldContext(NewObject<UWorld>(), EWorldType::Editor));

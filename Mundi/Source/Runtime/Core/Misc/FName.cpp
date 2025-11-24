@@ -1,8 +1,16 @@
 ﻿#include "pch.h"
 #include "Name.h"
+#include <mutex>
 
 namespace
 {
+    // 스레드 안전성을 위한 뮤텍스
+    static std::mutex& GetNamePoolMutex()
+    {
+        static std::mutex GNamePoolMutex;
+        return GNamePoolMutex;
+    }
+
     // NameMap을 안전하게 가져오는 getter
     static TMap<FString, uint32>& GetNameMap()
     {
@@ -33,6 +41,8 @@ uint32 FNamePool::Add(const FString& InStr)
 {
     FString Lower = ToLower(InStr);
 
+    std::lock_guard<std::mutex> Lock(GetNamePoolMutex());
+
     // 전역 변수 대신 getter를 통해 접근
     TMap<FString, uint32>& NameMap = GetNameMap();
     TArray<FNameEntry>& Entries = GetEntries();
@@ -51,6 +61,8 @@ uint32 FNamePool::Add(const FString& InStr)
 
 const FNameEntry& FNamePool::Get(uint32 Index)
 {
+    std::lock_guard<std::mutex> Lock(GetNamePoolMutex());
+
     // 전역 변수 대신 getter를 통해 접근
     TArray<FNameEntry>& Entries = GetEntries();
 

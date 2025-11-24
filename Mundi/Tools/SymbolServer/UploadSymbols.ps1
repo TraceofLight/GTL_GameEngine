@@ -112,10 +112,6 @@ foreach ($Pdb in $PdbFiles) {
                 Write-Host "[SymbolServer] Indexed: $PdbName"
             }
 
-            # Delete local PDB
-            Remove-Item -Path $PdbPath -Force
-            Write-Host "[SymbolServer] Deleted local: $PdbName"
-
             $UploadedCount++
         } else {
             Write-Host "[SymbolServer] Indexing failed: $PdbName"

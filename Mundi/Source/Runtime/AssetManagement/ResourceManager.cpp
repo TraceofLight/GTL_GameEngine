@@ -45,6 +45,9 @@ void UResourceManager::Initialize(ID3D11Device* InDevice, ID3D11DeviceContext* I
 
     InitTexToShaderMap();
 
+    // AsyncLoader 먼저 초기화
+    FAsyncLoader::Get().Initialize(Device);
+
     CreateTextBillboardMesh();//"TextBillboard"
     CreateBillboardMesh(); // Billboard
     CreateTextBillboardTexture();
@@ -53,8 +56,6 @@ void UResourceManager::Initialize(ID3D11Device* InDevice, ID3D11DeviceContext* I
     CreateDefaultStaticMesh();
     CreateDefaultSkeletalMesh();
 	PreLoadAnimStateMachines();
-
-    FAsyncLoader::Get().Initialize(Device);
 }
 
 // 전체 해제
@@ -836,6 +837,110 @@ void UResourceManager::RegisterOnAllLoadsComplete(std::function<void()> Callback
 	}
 }
 
+void UResourceManager::PreloadAllAssets()
+{
+	namespace fs = std::filesystem;
+
+	const FWideString WDataDir = UTF8ToWide(GDataDir);
+	const fs::path DataDir(WDataDir);
+
+	if (!fs::exists(DataDir) || !fs::is_directory(DataDir))
+	{
+		UE_LOG("ResourceManager::PreloadAllAssets: Data directory not found: %s", GDataDir.c_str());
+		return;
+	}
+
+	size_t MeshCount = 0;
+	size_t TextureCount = 0;
+	size_t SoundCount = 0;
+	std::unordered_set<FWideString> ProcessedFiles;
+
+	// 단일 디렉토리 순회로 모든 에셋 타입 처리
+	for (const auto& Entry : fs::recursive_directory_iterator(DataDir))
+	{
+		if (!Entry.is_regular_file())
+		{
+			continue;
+		}
+
+		const fs::path& Path = Entry.path();
+		FWideString WPathStr = Path.wstring();
+
+		// 중복 방지
+		if (ProcessedFiles.find(WPathStr) != ProcessedFiles.end())
+		{
+			continue;
+		}
+		ProcessedFiles.insert(WPathStr);
+
+		FWideString Extension = Path.extension().wstring();
+		std::transform(Extension.begin(), Extension.end(), Extension.begin(), ::towlower);
+
+		FString PathStr = NormalizePath(WideToUTF8(WPathStr));
+
+		if (Extension == L".obj")
+		{
+			// OBJ는 StaticMesh로 비동기 로드
+			AsyncLoad<UStaticMesh>(PathStr, nullptr, EAssetLoadPriority::Low);
+			++MeshCount;
+		}
+		else if (Extension == L".fbx")
+		{
+			// FBX는 SkeletalMesh로 비동기 로드 (워커 스레드 단일이라 안전)
+			AsyncLoad<USkeletalMesh>(PathStr, nullptr, EAssetLoadPriority::Low);
+			++MeshCount;
+		}
+		else if (Extension == L".dds" || Extension == L".jpg" || Extension == L".png")
+		{
+			AsyncLoad<UTexture>(PathStr, nullptr, EAssetLoadPriority::Low);
+			++TextureCount;
+		}
+		else if (Extension == L".wav")
+		{
+			AsyncLoad<USound>(PathStr, nullptr, EAssetLoadPriority::Low);
+			++SoundCount;
+		}
+	}
+
+	// 모든 로드 완료 시 후처리 콜백 등록
+	RegisterOnAllLoadsComplete([]()
+	{
+		auto& RM = UResourceManager::GetInstance();
+
+		// 메시 후처리
+		RM.SetStaticMeshes();
+		RM.SetSkeletalMeshes();
+		RM.SetAnimSequences();
+		RM.SetAudioFiles();
+
+		// SkeletalMesh에 AnimSequence 연결
+		TArray<USkeletalMesh*> AllSkeletalMeshes = RM.GetAll<USkeletalMesh>();
+		TArray<UAnimSequence*> AllAnimSequences = RM.GetAll<UAnimSequence>();
+
+		UE_LOG("ResourceManager: Adding %d animations to %d skeletal meshes",
+			AllAnimSequences.Num(), AllSkeletalMeshes.Num());
+
+		for (UAnimSequence* AnimSeq : AllAnimSequences)
+		{
+			if (!AnimSeq || AnimSeq->Name.empty())
+			{
+				continue;
+			}
+
+			for (USkeletalMesh* Mesh : AllSkeletalMeshes)
+			{
+				if (Mesh)
+				{
+					Mesh->AddAnimation(AnimSeq);
+				}
+			}
+		}
+	});
+
+	UE_LOG("ResourceManager::PreloadAllAssets: Queued %zu meshes, %zu textures, %zu sounds",
+		MeshCount, TextureCount, SoundCount);
+}
+
 EAssetLoadState UResourceManager::GetLoadState(const FString& FilePath) const
 {
 	FString NormalizedPath = NormalizePath(FilePath);
@@ -883,42 +988,48 @@ TArray<FString> UResourceManager::GetCurrentlyLoadingAssets() const
 
 void UResourceManager::CreateDefaultStaticMesh()
 {
-	// 프로그램 시작 시 Cube.obj를 Default StaticMesh로 로드 (동기)
+	// Default StaticMesh 비동기 로드 (시작 시간 단축)
 	const FString DefaultStaticMeshPath = GDataDir + "/Default/StaticMesh/Cube.obj";
 
-	DefaultStaticMeshInstance = Load<UStaticMesh>(DefaultStaticMeshPath);
-
-	if (DefaultStaticMeshInstance)
-	{
-		DefaultStaticMeshInstance->SetFilePath("__DefaultCube__");
-		Add<UStaticMesh>("__DefaultCube__", DefaultStaticMeshInstance);
-		UE_LOG("ResourceManager: Created Default StaticMesh (Cube)");
-	}
-	else
-	{
-		UE_LOG("[warning] ResourceManager: Failed to load Default StaticMesh from %s", DefaultStaticMeshPath.c_str());
-		DefaultStaticMeshInstance = nullptr;
-	}
+	AsyncLoad<UStaticMesh>(DefaultStaticMeshPath,
+		[this](UStaticMesh* LoadedMesh)
+		{
+			if (LoadedMesh)
+			{
+				DefaultStaticMeshInstance = LoadedMesh;
+				LoadedMesh->SetFilePath("__DefaultCube__");
+				Add<UStaticMesh>("__DefaultCube__", LoadedMesh);
+				UE_LOG("ResourceManager: Created Default StaticMesh (Cube)");
+			}
+			else
+			{
+				UE_LOG("[warning] ResourceManager: Failed to load Default StaticMesh");
+			}
+		},
+		EAssetLoadPriority::High);
 }
 
 void UResourceManager::CreateDefaultSkeletalMesh()
 {
-	// 프로그램 시작 시 X Bot을 Default SkeletalMesh로 로드 (동기)
+	// Default SkeletalMesh 비동기 로드 (워커 스레드 단일이라 FBX도 안전)
 	const FString DefaultSkeletalMeshPath = GDataDir + "/Default/SkeletalMesh/X Bot.fbx";
 
-	DefaultSkeletalMeshInstance = Load<USkeletalMesh>(DefaultSkeletalMeshPath);
-
-	if (DefaultSkeletalMeshInstance)
-	{
-		DefaultSkeletalMeshInstance->SetFilePath("__DefaultSkeletalMesh__");
-		Add<USkeletalMesh>("__DefaultSkeletalMesh__", DefaultSkeletalMeshInstance);
-		UE_LOG("ResourceManager: Created Default SkeletalMesh (X Bot)");
-	}
-	else
-	{
-		UE_LOG("[warning] ResourceManager: Failed to load Default SkeletalMesh from %s", DefaultSkeletalMeshPath.c_str());
-		DefaultSkeletalMeshInstance = nullptr;
-	}
+	AsyncLoad<USkeletalMesh>(DefaultSkeletalMeshPath,
+		[this](USkeletalMesh* LoadedMesh)
+		{
+			if (LoadedMesh)
+			{
+				DefaultSkeletalMeshInstance = LoadedMesh;
+				LoadedMesh->SetFilePath("__DefaultSkeletalMesh__");
+				Add<USkeletalMesh>("__DefaultSkeletalMesh__", LoadedMesh);
+				UE_LOG("ResourceManager: Created Default SkeletalMesh (X Bot)");
+			}
+			else
+			{
+				UE_LOG("[warning] ResourceManager: Failed to load Default SkeletalMesh");
+			}
+		},
+		EAssetLoadPriority::High);
 }
 
 UStaticMesh* UResourceManager::GetDefaultStaticMesh()
