@@ -25,7 +25,7 @@ struct FDynamicEmitterDataBase
 	//...
 
 	FParticleEmitterInstance* OwnerInstance; // 이 데이터를 생성한 이미터 인스턴스
-	
+
 
 	FDynamicEmitterDataBase()
 		: bSelected(false)
@@ -44,7 +44,7 @@ struct FDynamicEmitterDataBase
 	virtual void GetDynamicMeshElementsEmitter(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) const {}
 };
 
-class FParticleOrder;
+struct FParticleOrder;
 struct FDynamicSpriteEmitterDataBase : public FDynamicEmitterDataBase
 {
 	/**

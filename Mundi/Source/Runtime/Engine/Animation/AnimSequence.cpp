@@ -316,7 +316,8 @@ bool UAnimSequence::SaveToFile(const FString& SavePath)
 		for (const FAnimSyncMarker& Marker : SyncMarkers)
 		{
 			Serialization::WriteString(Writer, Marker.MarkerName);
-			Writer << Marker.Time;
+			float Time = Marker.Time;
+			Writer << Time;
 		}
 
 		// DataModel 저장
