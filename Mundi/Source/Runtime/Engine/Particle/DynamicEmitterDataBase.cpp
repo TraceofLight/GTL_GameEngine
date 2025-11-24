@@ -91,6 +91,140 @@ int32 FDynamicSpriteEmitterData::GetDynamicVertexStride() const
 	return sizeof(FParticleSpriteVertex);
 }
 
+void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
+	TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) const
+{
+	// 1. 유효성 검사
+	if (!bValid || Source.ActiveParticleCount <= 0)
+	{
+		return;
+	}
+
+	// 2. Source 데이터 가져오기
+	const FDynamicSpriteEmitterReplayDataBase& SourceData = Source;
+	const int32 ParticleCount = SourceData.ActiveParticleCount;
+	const uint8* ParticleData = SourceData.DataContainer.ParticleData;
+	const uint16* ParticleIndices = SourceData.DataContainer.ParticleIndices;
+	const int32 ParticleStride = SourceData.ParticleStride;
+
+	if (!ParticleData || !ParticleIndices)
+	{
+		return;
+	}
+
+	// 3. 파티클 정렬 (필요한 경우)
+	TArray<FParticleOrder> ParticleOrder;
+	ParticleOrder.reserve(ParticleCount);
+
+	// 기본 순서로 초기화
+	for (int32 i = 0; i < ParticleCount; ++i)
+	{
+		ParticleOrder.Add(FParticleOrder(i, 0.0f));
+	}
+
+	// 정렬 모드에 따라 정렬 수행
+	if (SourceData.SortMode != EParticleSortMode::None)
+	{
+		FMatrix LocalToWorld = FMatrix::Identity(); // TODO: Get actual LocalToWorld from component
+		bool bLocalSpace = false; // TODO: Get from emitter settings
+		SortSpriteParticles(SourceData.SortMode, bLocalSpace, ParticleCount, 
+			ParticleData, ParticleStride, ParticleIndices, View, LocalToWorld, ParticleOrder.GetData());
+	}
+
+	// 4. 정점 데이터 생성 (각 파티클당 4개의 정점)
+	const int32 VertexCount = ParticleCount * 4;
+	const int32 IndexCount = ParticleCount * 6; // 2 triangles per quad
+
+	TArray<FParticleSpriteVertex> Vertices;
+	Vertices.reserve(VertexCount);
+
+	TArray<uint32> Indices;
+	Indices.reserve(IndexCount);
+
+	// 5. 각 파티클에 대해 쿼드 생성
+	for (int32 ParticleIndex = 0; ParticleIndex < ParticleCount; ++ParticleIndex)
+	{
+		// 정렬된 인덱스 사용
+		const int32 SortedParticleIndex = ParticleOrder[ParticleIndex].ParticleIndex;
+		const int32 CurrentIndex = ParticleIndices[SortedParticleIndex];
+		const uint8* ParticlePtr = ParticleData + (CurrentIndex * ParticleStride);
+		const FBaseParticle& Particle = *reinterpret_cast<const FBaseParticle*>(ParticlePtr);
+
+		// 정점 인덱스 계산
+		const int32 BaseVertexIndex = ParticleIndex * 4;
+
+		// UV 좌표 (쿼드의 4개 코너)
+		const FVector2D UVs[4] = {
+			FVector2D(0.0f, 0.0f), // 좌상단
+			FVector2D(1.0f, 0.0f), // 우상단
+			FVector2D(0.0f, 1.0f), // 좌하단
+			FVector2D(1.0f, 1.0f)  // 우하단
+		};
+
+		// 각 코너에 대해 정점 생성
+		for (int32 CornerIndex = 0; CornerIndex < 4; ++CornerIndex)
+		{
+			FParticleSpriteVertex Vertex;
+
+			// 파티클 기본 정보 복사
+			Vertex.Position = Particle.Location;
+			Vertex.OldPosition = Particle.OldLocation;
+			Vertex.RelativeTime = Particle.RelativeTime;
+			Vertex.ParticleId = static_cast<float>(CurrentIndex);
+			Vertex.Size = FVector2D(Particle.Size.X, Particle.Size.Y);
+			Vertex.Rotation = Particle.Rotation;
+			Vertex.SubImageIndex = 0.0f; // TODO: SubUV support
+			Vertex.Color = Particle.Color;
+			Vertex.TexCoord = UVs[CornerIndex];
+
+			Vertices.Add(Vertex);
+		}
+
+		// 인덱스 생성 (2개의 삼각형)
+		Indices.Add(BaseVertexIndex + 0); // Triangle 1
+		Indices.Add(BaseVertexIndex + 1);
+		Indices.Add(BaseVertexIndex + 2);
+		Indices.Add(BaseVertexIndex + 2); // Triangle 2
+		Indices.Add(BaseVertexIndex + 1);
+		Indices.Add(BaseVertexIndex + 3);
+	}
+
+	// 6. GPU 버퍼 생성 (동적 버퍼)
+	// TODO: RHI 시스템을 통해 동적 버퍼 생성
+	// 현재는 임시로 정적 버퍼처럼 처리하되, 실제로는 매 프레임 업데이트 가능한 동적 버퍼여야 함
+	
+	// 7. FMeshBatchElement 생성
+	FMeshBatchElement BatchElement;
+
+	// 머티리얼과 셰이더는 렌더러에서 설정됨 (RenderParticlesPass)
+	// 여기서는 기하 데이터만 설정
+	
+	// TODO: 실제 GPU 버퍼 생성 및 할당
+	// BatchElement.VertexBuffer = CreateDynamicVertexBuffer(...);
+	// BatchElement.IndexBuffer = CreateDynamicIndexBuffer(...);
+	
+	// 임시: nullptr로 설정 (실제 구현에서는 동적 버퍼 생성 필요)
+	BatchElement.VertexBuffer = nullptr; // TODO: Implement dynamic buffer creation
+	BatchElement.IndexBuffer = nullptr;  // TODO: Implement dynamic buffer creation
+	
+	BatchElement.VertexStride = sizeof(FParticleSpriteVertex);
+	BatchElement.IndexCount = IndexCount;
+	BatchElement.StartIndex = 0;
+	BatchElement.BaseVertexIndex = 0;
+	BatchElement.WorldMatrix = FMatrix::Identity(); // TODO: Get from component transform
+	BatchElement.ObjectID = 0; // TODO: Get from component
+	BatchElement.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+	// 머티리얼 설정
+	if (SourceData.MaterialInterface)
+	{
+		BatchElement.Material = SourceData.MaterialInterface;
+	}
+
+	// 출력 배열에 추가
+	OutMeshBatchElements.Add(BatchElement);
+}
+
 int32 FDynamicMeshEmitterData::GetDynamicVertexStride() const
 {
 	return sizeof(FMeshParticleInstanceVertex);

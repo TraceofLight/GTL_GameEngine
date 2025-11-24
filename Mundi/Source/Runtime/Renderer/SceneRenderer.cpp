@@ -51,6 +51,9 @@
 #include "FbxLoader.h"
 #include "SkinnedMeshComponent.h"
 #include "ParticleSystemComponent.h"
+#include "ParticleTypes.h"
+#include "DynamicEmitterDataBase.h"
+#include "DynamicEmitterReplayDataBase.h"
 
 FSceneRenderer::FSceneRenderer(UWorld* InWorld, FSceneView* InView, URenderer* InOwnerRenderer)
 	: World(InWorld)
@@ -951,19 +954,75 @@ void FSceneRenderer::RenderParticlesPass()
 	if (Proxies.Particles.empty())
 		return;
 
-	// Particle 렌더링
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "ParticlePass", OwnerRenderer->GetGPUTimer());
+
+	// 파티클은 반투명이므로 블렌딩 활성화
+	RHIDevice->OMSetBlendState(true);
+	// 깊이 쓰기는 OFF, 깊이 테스트는 ON (다른 오브젝트 뒤에 가려지도록)
+	RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
+
+	// 파티클 전용 셰이더 매크로 생성 (ViewShaderMacros 기반으로 PARTICLE 매크로 추가)
+	TArray<FShaderMacro> ParticleShaderMacros = View->ViewShaderMacros;
+	ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE", "1" });
+
+	// 파티클용 셰이더 로드 (UberLit 셰이더를 PARTICLE 매크로와 함께 로드)
+	FString ShaderPath = "Shaders/Materials/UberLit.hlsl";
+	UShader* ParticleShader = UResourceManager::GetInstance().Load<UShader>(ShaderPath, ParticleShaderMacros);
+	FShaderVariant* ShaderVariant = ParticleShader->GetOrCompileShaderVariant(ParticleShaderMacros);
+	
+	if (!ParticleShader || !ShaderVariant)
+	{
+		UE_LOG("RenderParticlesPass: Failed to load Particle shader with macros!");
+		RHIDevice->OMSetBlendState(false);
+		RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+		return;
+	}
+
+	// 파티클 메시 배치 수집
+	TArray<FMeshBatchElement> ParticleBatchElements;
 	for (UParticleSystemComponent* ParticleComponent : Proxies.Particles)
 	{
 		if (!ParticleComponent || !ParticleComponent->IsVisible())
 			continue;
 
-		FString ShaderPath = "Shaders/Effects/Particle.hlsl";
-
+		// 파티클 동적 데이터 업데이트
 		ParticleComponent->UpdateDynamicData();
 		FParticleDynamicData* DynamicData = ParticleComponent->GetCurrentDynamicData();
+		
+		if (!DynamicData)
+			continue;
 
+		for(FDynamicEmitterDataBase* EmitterData : DynamicData->DynamicEmitterDataArray)
+		{
+			EmitterData->GetDynamicMeshElementsEmitter(ParticleBatchElements, View);
 
+			// 각 파티클 컴포넌트의 메시 배치 수집
+			//ParticleComponent->CollectMeshBatches(ParticleBatchElements, View);
+		}
 	}
+
+	// 수집된 파티클이 없으면 리턴
+	if (ParticleBatchElements.IsEmpty())
+	{
+		RHIDevice->OMSetBlendState(false);
+		RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+		return;
+	}
+
+	// 파티클 배치에 셰이더 설정
+	for (FMeshBatchElement& BatchElement : ParticleBatchElements)
+	{
+		BatchElement.VertexShader = ShaderVariant->VertexShader;
+		BatchElement.PixelShader = ShaderVariant->PixelShader;
+		BatchElement.InputLayout = ShaderVariant->InputLayout;
+	}
+
+	// 파티클 렌더링 (정렬하지 않음 - 추후 뎁스 소팅 추가 가능)
+	DrawMeshBatches(ParticleBatchElements, true);
+
+	// 상태 복구
+	RHIDevice->OMSetBlendState(false);
+	RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
 }
 
 void FSceneRenderer::RenderDecalPass()

@@ -2,6 +2,8 @@
 #include "UEContainer.h"
 #include "DynamicEmitterReplayDataBase.h"
 
+#include "MeshBatchElement.h"
+
 /**
  * @brief 이미터 렌더 데이터의 기본 구조체
  * @details 렌더링 스레드로 전달되는 파티클 이미터 데이터
@@ -32,6 +34,8 @@ struct FDynamicEmitterDataBase
 
 	virtual const FDynamicEmitterReplayDataBase& GetSource() const = 0;
 	//...
+
+	virtual void GetDynamicMeshElementsEmitter(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) const {}
 };
 
 class FParticleOrder;
@@ -86,6 +90,9 @@ struct FDynamicSpriteEmitterData : public FDynamicSpriteEmitterDataBase
 		bSelected = bInSelected;
 		bValid = (Source.ActiveParticleCount > 0);
 	}
+
+	virtual void GetDynamicMeshElementsEmitter(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) const override;
+
 
 	/** The frame source data for this particle system.  This is everything needed to represent this
 		this particle system frame.  It does not include any transient rendering thread data.  Also, for
