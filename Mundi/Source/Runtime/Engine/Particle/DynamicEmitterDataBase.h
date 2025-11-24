@@ -21,6 +21,8 @@ struct FDynamicEmitterDataBase
 	int32 EmitterIndex;
 	//...
 
+	
+
 	FDynamicEmitterDataBase()
 		: bSelected(false)
 		, bValid(false)

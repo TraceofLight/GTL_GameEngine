@@ -998,27 +998,27 @@ void FSceneRenderer::RenderParticlesPass()
 
 			// 각 파티클 컴포넌트의 메시 배치 수집
 			//ParticleComponent->CollectMeshBatches(ParticleBatchElements, View);
+
+			// 수집된 파티클이 없으면 리턴
+			if (ParticleBatchElements.IsEmpty())
+			{
+				RHIDevice->OMSetBlendState(false);
+				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+				return;
+			}
+
+			// 파티클 배치에 셰이더 설정
+			for (FMeshBatchElement& BatchElement : ParticleBatchElements)
+			{
+				BatchElement.VertexShader = ShaderVariant->VertexShader;
+				BatchElement.PixelShader = ShaderVariant->PixelShader;
+				BatchElement.InputLayout = ShaderVariant->InputLayout;
+			}
+
+			// 파티클 렌더링 (정렬하지 않음 - 추후 뎁스 소팅 추가 가능)
+			DrawMeshBatches(ParticleBatchElements, true);
 		}
 	}
-
-	// 수집된 파티클이 없으면 리턴
-	if (ParticleBatchElements.IsEmpty())
-	{
-		RHIDevice->OMSetBlendState(false);
-		RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
-		return;
-	}
-
-	// 파티클 배치에 셰이더 설정
-	for (FMeshBatchElement& BatchElement : ParticleBatchElements)
-	{
-		BatchElement.VertexShader = ShaderVariant->VertexShader;
-		BatchElement.PixelShader = ShaderVariant->PixelShader;
-		BatchElement.InputLayout = ShaderVariant->InputLayout;
-	}
-
-	// 파티클 렌더링 (정렬하지 않음 - 추후 뎁스 소팅 추가 가능)
-	DrawMeshBatches(ParticleBatchElements, true);
 
 	// 상태 복구
 	RHIDevice->OMSetBlendState(false);

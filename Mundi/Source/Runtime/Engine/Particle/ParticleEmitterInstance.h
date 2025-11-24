@@ -100,6 +100,10 @@ struct FParticleEmitterInstance
 	// 이게 있어야 파티클이 부드럽게 이어져서 나옴
 	float SpawnFraction;
 
+	// GPU 리소스
+	ID3D11Buffer* VertexBuffer = nullptr;
+	ID3D11Buffer* IndexBuffer = nullptr;
+
 	FParticleEmitterInstance()
 		: SpriteTemplate(nullptr)
 		, Component(nullptr)

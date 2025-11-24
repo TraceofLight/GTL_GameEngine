@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "RHIDevice.h"
 #include "ResourceManager.h"
 #include "VertexData.h"
@@ -95,6 +95,10 @@ public:
 
 	template<typename TVertex>
 	static HRESULT CreateVertexBuffer(ID3D11Device* device, const std::vector<FSkinnedVertex>& srcVertices, ID3D11Buffer** outBuffer, bool bIsGPUSkinning);
+
+	// Particle Sprite Vertex Buffer creation
+	template<typename TVertex>
+	static HRESULT CreateVertexBuffer(ID3D11Device* device, const std::vector<FParticleSpriteVertex>& srcVertices, ID3D11Buffer** outBuffer);
 
 	static HRESULT CreateIndexBuffer(ID3D11Device* device, const FMeshData* meshData, ID3D11Buffer** outBuffer);
 
@@ -449,6 +453,62 @@ inline HRESULT D3D11RHI::CreateVertexBuffer(ID3D11Device* Device, const std::vec
 
 	D3D11_SUBRESOURCE_DATA InitData = {};
 	InitData.pSysMem = VertexArray.data();
+
+	return Device->CreateBuffer(&BufferDesc, &InitData, OutBuffer);
+}
+
+// Particle Sprite Vertex Buffer creation template
+template<typename TVertex>
+inline HRESULT D3D11RHI::CreateVertexBuffer(ID3D11Device* Device, const std::vector<FParticleSpriteVertex>& SrcVertices, ID3D11Buffer** OutBuffer)
+{
+	if (SrcVertices.empty())
+	{
+		return E_INVALIDARG;
+	}
+
+	std::vector<TVertex> VertexArray;
+	VertexArray.reserve(SrcVertices.size());
+
+	for (const FParticleSpriteVertex& SrcVertex : SrcVertices)
+	{
+		TVertex Vertex{};
+		// Direct copy for FParticleSpriteVertex, or implement FillFrom if conversion needed
+		if constexpr (std::is_same_v<TVertex, FParticleSpriteVertex>)
+		{
+			Vertex = SrcVertex;
+		}
+		VertexArray.push_back(Vertex);
+	}
+
+	D3D11_BUFFER_DESC BufferDesc = {};
+	BufferDesc.Usage = D3D11_USAGE_DYNAMIC;  // Dynamic for particle updates
+	BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	BufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;  // Allow CPU writes
+	BufferDesc.ByteWidth = static_cast<UINT>(sizeof(TVertex) * VertexArray.size());
+
+	D3D11_SUBRESOURCE_DATA InitData = {};
+	InitData.pSysMem = VertexArray.data();
+
+	return Device->CreateBuffer(&BufferDesc, &InitData, OutBuffer);
+}
+
+// Specialized version for FParticleSpriteVertex
+template<>
+inline HRESULT D3D11RHI::CreateVertexBuffer<FParticleSpriteVertex>(ID3D11Device* Device, const std::vector<FParticleSpriteVertex>& SrcVertices, ID3D11Buffer** OutBuffer)
+{
+	if (SrcVertices.empty())
+	{
+		return E_INVALIDARG;
+	}
+
+	D3D11_BUFFER_DESC BufferDesc = {};
+	BufferDesc.Usage = D3D11_USAGE_DYNAMIC;  // Dynamic for particle updates every frame
+	BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	BufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;  // Allow CPU writes for particle updates
+	BufferDesc.ByteWidth = static_cast<UINT>(sizeof(FParticleSpriteVertex) * SrcVertices.size());
+
+	D3D11_SUBRESOURCE_DATA InitData = {};
+	InitData.pSysMem = SrcVertices.data();
 
 	return Device->CreateBuffer(&BufferDesc, &InitData, OutBuffer);
 }
