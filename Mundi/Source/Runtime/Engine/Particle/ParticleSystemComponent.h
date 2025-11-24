@@ -31,10 +31,6 @@ public:
 	// World Matrix를 인스턴스에게 넘겨서 파티클이 원하는 월드 위치에 표시되게 함.
 	TArray<FParticleEmitterInstance*> EmitterInstances;
 
-	/** Array of render data for each emitter, used by the rendering system */
-	// 렌더 스레드로 보낼 데이터 캐시
-	TArray<FDynamicEmitterDataBase*> EmitterRenderData;
-
 	// ============== Lifecycle ==============
 	/**
 	 * Initialize the component
@@ -93,7 +89,20 @@ public:
 	void UpdateEmitters(float DeltaTime);
 
 	// ============== Rendering Data ==============
+	/**
+	 * Update dynamic render data for all emitters
+	 * 모든 에미터의 동적 렌더 데이터 업데이트 (렌더쪽에서 호출)
+	 *
+	 * @note Called by render thread to get latest particle data
+	 */
 	void UpdateDynamicData();
+
+	/**
+	 * Get current dynamic data for rendering
+	 * 렌더링을 위한 현재 동적 데이터 가져오기
+	 *
+	 * @return FParticleDynamicData* - Current render data (can be nullptr)
+	 */
 	FParticleDynamicData* GetCurrentDynamicData() const { return CurrentDynamicData; }
 
 	// ============== State ==============
