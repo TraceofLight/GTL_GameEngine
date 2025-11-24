@@ -75,11 +75,23 @@ struct FDynamicSpriteEmitterData : public FDynamicSpriteEmitterDataBase
 		return Source;
 	}
 
+	/**
+	 * Initialize the dynamic sprite emitter data
+	 * 동적 스프라이트 이미터 데이터 초기화
+	 *
+	 * @param bInSelected - Whether this emitter is selected in the editor
+	 */
+	void Init(bool bInSelected)
+	{
+		bSelected = bInSelected;
+		bValid = (Source.ActiveParticleCount > 0);
+	}
+
 	/** The frame source data for this particle system.  This is everything needed to represent this
 		this particle system frame.  It does not include any transient rendering thread data.  Also, for
 		non-simulating 'replay' particle systems, this data may have come straight from disk! */
-	// UE에서는 FDynamicSpriteEmitterReplayData지만, 실질적으로 그 타입은 상속만 받고 추가 데이터가 없으므로 그냥 DataBase타입으로 사용 
-	FDynamicSpriteEmitterReplayDataBase Source; 
+	// UE에서는 FDynamicSpriteEmitterReplayData지만, 실질적으로 그 타입은 상속만 받고 추가 데이터가 없으므로 그냥 DataBase타입으로 사용
+	FDynamicSpriteEmitterReplayDataBase Source;
 };
 
 struct FDynamicMeshEmitterData : public FDynamicSpriteEmitterData
