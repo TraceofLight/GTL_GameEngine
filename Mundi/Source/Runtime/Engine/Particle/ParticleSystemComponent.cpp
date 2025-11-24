@@ -160,6 +160,11 @@ void UParticleSystemComponent::UpdateEmitters(float DeltaTime)
 	}
 }
 
+void UParticleSystemComponent::UpdateDynamicData()
+{
+	// CurrentDynamicData 업데이트
+}
+
 // ============== Protected Helpers ==============
 
 void UParticleSystemComponent::CreateEmitterInstances()

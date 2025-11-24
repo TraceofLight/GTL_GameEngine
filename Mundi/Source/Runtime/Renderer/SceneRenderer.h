@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Frustum.h"
 
 // TODO : Post Processing 떼어내기, 전방선언으로라든지...
@@ -26,6 +26,7 @@ class USkinnedMeshComponent;
 class UBillboardComponent;
 class UTextRenderComponent;
 class UGizmoArrowComponent;
+class UParticleSystemComponent;
 class FSceneView;
 class FTileLightCuller;
 class ULineComponent;
@@ -49,6 +50,8 @@ struct FVisibleRenderProxySet
 
 	// --- Type 3: Overlay (PP X, Depth-Test X) ---
 	TArray<UPrimitiveComponent*> OverlayPrimitives; // 트랜스폼 기즈모
+
+	TArray<UParticleSystemComponent*> Particles;
 };
 
 struct FSceneLocals
