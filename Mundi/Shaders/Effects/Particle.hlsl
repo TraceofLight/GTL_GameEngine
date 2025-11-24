@@ -32,6 +32,33 @@ cbuffer ViewProjBuffer : register(b1)
 	row_major float4x4 InverseProjectionMatrix;
 }
 
+// --- Material 구조체 (OBJ 머티리얼 정보) ---
+// 주의: SPECULAR_COLOR 매크로에서 사용하므로 include 전에 정의 필요
+struct FMaterial
+{
+	float3 DiffuseColor; // Kd - Diffuse 색상
+	float OpticalDensity; // Ni - 광학 밀도 (굴절률)
+	float3 AmbientColor; // Ka - Ambient 색상
+	float Transparency; // Tr or d - 투명도 (0=불투명, 1=투명)
+	float3 SpecularColor; // Ks - Specular 색상
+	float SpecularExponent; // Ns - Specular 지수 (광택도)
+	float3 EmissiveColor; // Ke - 자체발광 색상
+	uint IlluminationModel; // illum - 조명 모델
+	float3 TransmissionFilter; // Tf - 투과 필터 색상
+	float Padding; // 정렬을 위한 패딩
+};
+
+// b4: PixelConstBuffer (VS+PS) - OBJ 파일의 머티리얼 정보
+// FPixelConstBufferType과 정확히 일치해야 함!
+// 주의: GOURAUD 조명 모델에서는 Vertex Shader에서 사용됨
+cbuffer PixelConstBuffer : register(b4)
+{
+	FMaterial Material; // 64 bytes
+	uint bHasMaterial; // 4 bytes (HLSL)
+	uint bHasTexture; // 4 bytes (HLSL)
+	uint bHasNormalTexture;
+};
+
 //cbuffer DecalBuffer : register(b6)
 //{
 //	row_major float4x4 DecalMatrix;
@@ -40,7 +67,8 @@ cbuffer ViewProjBuffer : register(b1)
 
 // --- 텍스처 리소스 ---
 //Texture2D g_DecalTexColor : register(t0);
-Texture2D g_SpriteTexture : register(t0);
+Texture2D g_DiffuseTexColor : register(t0);
+Texture2D g_NormalTexColor : register(t1);
 TextureCubeArray g_ShadowAtlasCube : register(t8);
 Texture2D g_ShadowAtlas2D : register(t9);
 Texture2D<float2> g_VSMShadowAtlas : register(t10);
@@ -82,10 +110,7 @@ struct PS_INPUT
 #if defined(LIGHTING_MODEL_GOURAUD) || defined(LIGHTING_MODEL_LAMBERT) || defined(LIGHTING_MODEL_PHONG)
     float3 WorldPos : POSITION1;    // 조명 계산용
     float3 Normal : NORMAL0;        // 조명 계산용
-
-	#ifdef LIGHTING_MODEL_GOURAUD
-			float4 LitColor : COLOR0;   // Pre-calculated lighting (Gouraud)
-	#endif
+	row_major float3x3 TBN : TBN;
 #endif
 };
 
@@ -99,47 +124,6 @@ void GetTangents(float3 TranslatedWorldPosition, float3 OldTranslatedWorldPositi
 	float3 CameraDirection = normalize(InverseViewMatrix[3].xyz - TranslatedWorldPosition);
 	float3 RightVector = CameraRight.xyz;
 	float3 UpVector = CameraUp.xyz;
-
-	//float4 LocalTangentSelector = SpriteVF.TangentSelector;
-
-	//BRANCH
-
-	//if (SpriteVF.CameraFacingBlend.x > 0.f)
-	//{
-	//	// Blend between PSA_FacingCamera and PSA_Square over distance
-	//	float CameraDistanceSq = GetDistanceToCameraFromViewVectorSqr(ResolvedView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
-	//	float AlignmentMode = saturate(CameraDistanceSq * SpriteVF.CameraFacingBlend.y - SpriteVF.CameraFacingBlend.z);
-
-	//	float3 CameraFacingRight = SafeNormalize(cross(CameraDirection, float3(0, 0, 1)));
-	//	float3 CameraFacingUp = cross(CameraDirection, CameraFacingRight);
-
-	//	RightVector = normalize(lerp(RightVector, CameraFacingRight, AlignmentMode));
-	//	UpVector = normalize(lerp(UpVector, CameraFacingUp, AlignmentMode));
-	//}
-	//else
-	//{
-	//	FLATTEN
-
-	//	if (LocalTangentSelector.y > 0)
-	//	{
-	//		// Tangent vectors for PSA_Velocity.
-	//		float3 ParticleDirection = SafeNormalize(TranslatedWorldPosition - OldTranslatedWorldPosition);
-	//		RightVector = SafeNormalize(cross(CameraDirection, ParticleDirection));
-	//		UpVector = -ParticleDirection;
-	//	}
-	//	else if (LocalTangentSelector.z > 0)
-	//	{
-	//		// Tangent vectors for rotation locked about an axis.
-	//		RightVector = SpriteVF.AxisLockRight.xyz;
-	//		UpVector = -SafeNormalize(cross(RightVector, CameraDirection));
-	//	}
-	//	else if (LocalTangentSelector.w > 0)
-	//	{
-	//		// Tangent vectors for camera facing position.
-	//		RightVector = SafeNormalize(cross(CameraDirection, float3(0, 0, 1)));
-	//		UpVector = cross(CameraDirection, RightVector);
-	//	}
-	//}
 
 	// Determine the angle of rotation.
 	float SinRotation; // = 0
@@ -236,7 +220,7 @@ PS_INPUT mainVS(VS_INPUT Input)
             g_VSMShadowCube
         );
 
-        Output.LitColor = float4(LitColor, 1.0f);
+        Output.Color = float4(LitColor, 1.0f);
 #endif
 #endif
 
@@ -248,6 +232,34 @@ PS_INPUT mainVS(VS_INPUT Input)
 //================================================================================================
 float4 mainPS(PS_INPUT Input) : SV_TARGET
 {
+	//CSM 구간 시각화
+	float3 Color[2] =
+	{
+		float3(1, 0, 0),
+        float3(0, 1, 0)
+	};
+	int CascadeCount = DirectionalLight.CascadeCount;
+
+	float4 ViewPos = mul(float4(Input.WorldPos, 1), ViewMatrix);
+
+	float3 CascadeAreaDebugColor;
+	float CascadeAreaDebugBlendValue = DirectionalLight.bCascaded ? DirectionalLight.CascadedAreaColorDebugValue : 0;
+	for (int i = 0; i < CascadeCount; i++)
+	{
+		if (ViewPos.z < DirectionalLight.CascadedSliceDepth[(i + 1) / 4][(i + 1) % 4])
+		{
+			CascadeAreaDebugColor = Color[i % 2];
+			break;
+		}
+	}
+
+	// UV 스크롤링 적용 (활성화된 경우)
+	float2 uv = Input.Texcoord;
+    //if (bHasMaterial && bHasTexture)
+    //{
+    //    uv += UVScrollSpeed * UVScrollTime;
+    //}
+	
 	float4 SpriteTextureColor = g_SpriteTexture.Sample(g_Sample, Uv);
 
     // 3. 조명 계산 (매크로에 따라)

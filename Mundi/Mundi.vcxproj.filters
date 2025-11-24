@@ -1632,5 +1632,6 @@
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shaders\Effects\Particle.hlsl" />
+    <FxCompile Include="Shaders\Common\ParticleCommon.hlsl" />
   </ItemGroup>
 </Project>

@@ -171,6 +171,7 @@ void FSceneRenderer::RenderLitPath()
 
 	// Base Pass
 	RenderOpaquePass(View->RenderSettings->GetViewMode());
+	RenderParticlesPass();
 	RenderDecalPass();
 }
 
@@ -943,6 +944,26 @@ void FSceneRenderer::RenderOpaquePass(EViewMode InRenderViewMode)
 		DrawMeshBatches(SkinnedMeshBatchElements, true);
 	}
 	DrawMeshBatches(MeshBatchElements, true);
+}
+
+void FSceneRenderer::RenderParticlesPass()
+{
+	if (Proxies.Particles.empty())
+		return;
+
+	// Particle 렌더링
+	for (UParticleSystemComponent* ParticleComponent : Proxies.Particles)
+	{
+		if (!ParticleComponent || !ParticleComponent->IsVisible())
+			continue;
+
+		FString ShaderPath = "Shaders/Effects/Particle.hlsl";
+
+		ParticleComponent->UpdateDynamicData();
+		FParticleDynamicData* DynamicData = ParticleComponent->GetCurrentDynamicData();
+
+
+	}
 }
 
 void FSceneRenderer::RenderDecalPass()

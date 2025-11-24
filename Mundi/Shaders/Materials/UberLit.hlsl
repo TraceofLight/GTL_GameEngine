@@ -94,18 +94,28 @@ SamplerState g_VSMSampler : register(s3);
 #include "../Common/LightingBuffers.hlsl"
 #include "../Common/LightingCommon.hlsl"
 
+#if PARTICLE
+#include "../Common/ParticleCommon.hlsl"
+#endif
+
 // --- 셰이더 입출력 구조체 ---
 struct VS_INPUT
 {
-    float3 Position : POSITION;
-    float3 Normal : NORMAL0;
-    float2 TexCoord : TEXCOORD0;
-    float4 Tangent : TANGENT0;
-    float4 Color : COLOR;
+#if PARTICLE
+	PARTICLE_VS_INPUT ParticleInput;
+#else
+	float3 Position : POSITION;
+	float3 Normal : NORMAL0;
+	float2 TexCoord : TEXCOORD0;
+	float4 Tangent : TANGENT0;
+	float4 Color : COLOR;
 #if GPU_SKINNING
 	uint4 BlendIndices : BLENDINDICES;
 	float4 BlendWeights : BLENDWEIGHTS;
 #endif
+	
+#endif
+
 };
 
 struct PS_INPUT
@@ -129,6 +139,59 @@ struct PS_OUTPUT
 //================================================================================================
 PS_INPUT mainVS(VS_INPUT Input)
 {
+
+    PS_INPUT Out;
+	float3 worldNormal = float3(0, 0, 0);
+
+#if PARTICLE
+	PARTICLE_VS_INPUT ParticleInput = Input.ParticleInput;
+	
+    // World position
+	float4 WorldPos = mul(float4(ParticleInput.Position, 1.0f), WorldMatrix);
+
+	float3 ParticleTranslatedWorldPosition = mul(float4(ParticleInput.Position, 1.0f), WorldMatrix).xyz;
+	float3 ParticleOldTranslatedWorldPosition = mul(float4(ParticleInput.OldPosition, 1.0f), WorldMatrix).xyz;
+
+	const float SpriteRotation = ParticleInput.Rotation;
+
+	// Tangents.
+	float3 Right, Up;
+	GetTangents(InverseViewMatrix, ParticleTranslatedWorldPosition, ParticleOldTranslatedWorldPosition, SpriteRotation, Right, Up);
+
+
+	float2 UVForPosition;
+	float2 UVForTexturing;
+	float2 UVForTexturingUnflipped;
+	ComputeBillboardUVs(ParticleInput, UVForPosition, UVForTexturing, UVForTexturingUnflipped);
+
+	// Vertex position.
+	float4 VertexWorldPosition = float4(ParticleTranslatedWorldPosition, 1);
+	float2 Size = abs(ParticleInput.Size);
+	float2 PivotOffset = float2(-0.5f, -0.5f); // Center pivot
+	VertexWorldPosition += Size.x * (UVForPosition.x + PivotOffset.x) * float4(Right, 0);
+	VertexWorldPosition += Size.y * (UVForPosition.y + PivotOffset.y) * float4(Up, 0) * -1.0f; // Invert Y. dx11에서는 좌측 상단이 (0,0)이므로.
+	Out.WorldPos = VertexWorldPosition.xyz;
+	
+	//Intermediates.TangentToLocal = CalcTangentBasis(Intermediates);
+
+	float4 ViewPos = mul(VertexWorldPosition, ViewMatrix);
+	// Screen position
+	float4x4 VP = mul(ViewMatrix, ProjectionMatrix);
+	Out.Position = mul(VertexWorldPosition, VP);
+	Out.TexCoord = UVForTexturing;
+	Out.Color = ParticleInput.Color;
+
+	worldNormal = normalize(CameraPosition - ParticleTranslatedWorldPosition);
+	Out.Normal = worldNormal;
+	
+	row_major float3x3 TBN;
+	TBN._m00_m01_m02 = Right;
+	TBN._m10_m11_m12 = Up;
+	TBN._m20_m21_m22 = cross(Right, Up);
+
+	Out.TBN = TBN;
+#else
+
 #if GPU_SKINNING
 	float3 BlendPosition = float3(0, 0, 0);
 	float3 BlendNormal = float3(0, 0, 0);
@@ -149,9 +212,6 @@ PS_INPUT mainVS(VS_INPUT Input)
 	Input.Normal = normalize(BlendNormal);
 	Input.Tangent.xyz = normalize(BlendTangent);
 #endif
-
-    PS_INPUT Out;
-
     // 위치를 월드 공간으로 먼저 변환
     float4 worldPos = mul(float4(Input.Position, 1.0f), WorldMatrix);
     Out.WorldPos = worldPos.xyz;
@@ -165,7 +225,7 @@ PS_INPUT mainVS(VS_INPUT Input)
     // 노멀을 월드 공간으로 변환
     // 비균등 스케일에서 올바른 노멀 변환을 위해 WorldInverseTranspose 사용
     // 노멀 벡터는 transpose(inverse(WorldMatrix))로 변환됨
-    float3 worldNormal = normalize(mul(Input.Normal, (float3x3) WorldInverseTranspose));
+    worldNormal = normalize(mul(Input.Normal, (float3x3) WorldInverseTranspose));
     Out.Normal = worldNormal;
     float3 Tangent = normalize(mul(Input.Tangent.xyz, (float3x3) WorldMatrix));
     float3 BiTangent = normalize(cross(Tangent, worldNormal) * Input.Tangent.w);
@@ -177,10 +237,11 @@ PS_INPUT mainVS(VS_INPUT Input)
     Out.TBN = TBN;
 
     Out.TexCoord = Input.TexCoord;
+#endif
 
-    // 머티리얼의 SpecularExponent 사용, 머티리얼이 없으면 기본값 사용
-    float specPower = bHasMaterial ? Material.SpecularExponent : 32.0f;
-
+	// 머티리얼의 SpecularExponent 사용, 머티리얼이 없으면 기본값 사용
+	float specPower = bHasMaterial ? Material.SpecularExponent : 32.0f;
+	
 #if LIGHTING_MODEL_GOURAUD
     // Gouraud Shading: 정점별 조명 계산 (diffuse + specular)
     float3 finalColor = float3(0.0f, 0.0f, 0.0f);
