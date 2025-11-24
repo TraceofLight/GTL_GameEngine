@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "Shader.h"
 #include "Hash.h"
 
@@ -319,6 +319,10 @@ void UShader::CreateInputLayout(ID3D11Device* Device, const FString& InShaderPat
 		if (Macro.Name == "GPU_SKINNING" && Macro.Definition == "1")
 		{
 			FinalKey += "#GPU_SKINNING";
+		}
+		else if (Macro.Name == "PARTICLE")
+		{
+			FinalKey += "#PARTICLE";
 		}
 	}
 

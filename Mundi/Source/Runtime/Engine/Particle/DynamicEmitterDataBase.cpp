@@ -5,6 +5,7 @@
 #include "VertexData.h"
 #include "ParticleHelper.h"
 #include "SceneView.h"
+#include "ParticleEmitterInstance.h"
 
 void FDynamicSpriteEmitterDataBase::SortSpriteParticles(EParticleSortMode SortMode, bool bLocalSpace,
 	int32 ParticleCount, const uint8* ParticleData, int32 ParticleStride, const uint16* ParticleIndices,
@@ -189,9 +190,12 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 		Indices.Add(BaseVertexIndex + 3);
 	}
 
-	// 6. GPU 버퍼 생성 (동적 버퍼)
-	// TODO: RHI 시스템을 통해 동적 버퍼 생성
-	// 현재는 임시로 정적 버퍼처럼 처리하되, 실제로는 매 프레임 업데이트 가능한 동적 버퍼여야 함
+	// 6. GPU 버퍼 업데이트 (동적 버퍼)
+	// VertexBuffer 업데이트 (OwnerInstance의 버퍼에 새로 생성한 정점 데이터를 업데이트)
+	if (OwnerInstance && OwnerInstance->VertexBuffer && !Vertices.empty())
+	{
+		GEngine.GetRHIDevice()->VertexBufferUpdate(OwnerInstance->VertexBuffer, Vertices);
+	}
 	
 	// 7. FMeshBatchElement 생성
 	FMeshBatchElement BatchElement;
@@ -199,20 +203,18 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 	// 머티리얼과 셰이더는 렌더러에서 설정됨 (RenderParticlesPass)
 	// 여기서는 기하 데이터만 설정
 	
-	// TODO: 실제 GPU 버퍼 생성 및 할당
-	// BatchElement.VertexBuffer = CreateDynamicVertexBuffer(...);
-	// BatchElement.IndexBuffer = CreateDynamicIndexBuffer(...);
-	
-	// 임시: nullptr로 설정 (실제 구현에서는 동적 버퍼 생성 필요)
-	BatchElement.VertexBuffer = nullptr; // TODO: Implement dynamic buffer creation
-	BatchElement.IndexBuffer = nullptr;  // TODO: Implement dynamic buffer creation
-	
+	BatchElement.VertexBuffer = OwnerInstance ? OwnerInstance->VertexBuffer : nullptr;
+	BatchElement.IndexBuffer = OwnerInstance ? OwnerInstance->IndexBuffer : nullptr;
+
 	BatchElement.VertexStride = sizeof(FParticleSpriteVertex);
 	BatchElement.IndexCount = IndexCount;
 	BatchElement.StartIndex = 0;
 	BatchElement.BaseVertexIndex = 0;
 	BatchElement.WorldMatrix = FMatrix::Identity(); // TODO: Get from component transform
-	BatchElement.ObjectID = 0; // TODO: Get from component
+
+	assert(OwnerInstance != nullptr);
+	assert(OwnerInstance->Component != nullptr);
+	BatchElement.ObjectID = OwnerInstance->Component->UUID; 
 	BatchElement.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
 	// 머티리얼 설정

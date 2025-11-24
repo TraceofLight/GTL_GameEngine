@@ -21,6 +21,8 @@ struct FParticleSpriteEmitterInstance : public FParticleEmitterInstance
 	 */
 	virtual ~FParticleSpriteEmitterInstance();
 
+	virtual void Init(UParticleEmitter* InTemplate, UParticleSystemComponent* InComponent) override;
+
 	/**
 	 * Retrieves the dynamic data for the emitter (render thread data)
 	 * 에미터의 동적 데이터를 가져옴 (렌더 스레드용 데이터)

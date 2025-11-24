@@ -5,6 +5,8 @@
 #include "ParticleSystemComponent.h"
 #include "ParticleLODLevel.h"
 #include "ParticleModuleRequired.h"
+#include "D3D11RHI.h"
+#include "VertexData.h"
 
 // ============== Lifecycle ==============
 
@@ -15,6 +17,74 @@ FParticleSpriteEmitterInstance::FParticleSpriteEmitterInstance()
 
 FParticleSpriteEmitterInstance::~FParticleSpriteEmitterInstance()
 {
+}
+
+void FParticleSpriteEmitterInstance::Init(UParticleEmitter* InTemplate, UParticleSystemComponent* InComponent)
+{
+	FParticleEmitterInstance::Init(InTemplate, InComponent);
+
+	// GPU 버퍼 생성 (파티클 스프라이트용)
+	// 각 파티클은 4개의 정점으로 구성된 쿼드(Quad)로 렌더링됨
+	if (Component && MaxActiveParticles > 0)
+	{
+		ID3D11Device* Device = GEngine.GetRHIDevice()->GetDevice();
+		if (Device)
+		{
+			// 1. Vertex Buffer 생성 (동적 버퍼)
+			// 각 파티클당 4개의 정점 필요 (쿼드의 4개 코너)
+			const int32 MaxVertexCount = MaxActiveParticles * 4;
+			
+			// 초기 정점 데이터 생성 (빈 버퍼로 시작)
+			std::vector<FParticleSpriteVertex> InitialVertices;
+			InitialVertices.resize(MaxVertexCount);
+			
+			// 동적 버퍼로 생성 (매 프레임 업데이트 가능)
+			HRESULT hr = D3D11RHI::CreateVertexBuffer<FParticleSpriteVertex>(Device, InitialVertices, &VertexBuffer);
+			if (FAILED(hr))
+			{
+				UE_LOG("Failed to create particle sprite vertex buffer");
+			}
+
+			// 2. Index Buffer 생성 (정적 버퍼)
+			// 각 파티클당 2개의 삼각형 = 6개의 인덱스 필요
+			const int32 MaxIndexCount = MaxActiveParticles * 6;
+			
+			TArray<uint32> Indices;
+			Indices.Reserve(MaxIndexCount);
+			
+			// 모든 쿼드에 대한 인덱스 사전 생성
+			for (int32 QuadIndex = 0; QuadIndex < MaxActiveParticles; ++QuadIndex)
+			{
+				const uint32 BaseVertexIndex = QuadIndex * 4;
+				
+				// 첫 번째 삼각형 (좌상단 -> 우상단 -> 좌하단)
+				Indices.Add(BaseVertexIndex + 0);
+				Indices.Add(BaseVertexIndex + 1);
+				Indices.Add(BaseVertexIndex + 2);
+				
+				// 두 번째 삼각형 (좌하단 -> 우상단 -> 우하단)
+				Indices.Add(BaseVertexIndex + 2);
+				Indices.Add(BaseVertexIndex + 1);
+				Indices.Add(BaseVertexIndex + 3);
+			}
+			
+			// 인덱스 버퍼 생성
+			D3D11_BUFFER_DESC IndexBufferDesc = {};
+			IndexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+			IndexBufferDesc.ByteWidth = static_cast<UINT>(sizeof(uint32) * Indices.Num());
+			IndexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+			IndexBufferDesc.CPUAccessFlags = 0;
+			
+			D3D11_SUBRESOURCE_DATA IndexInitData = {};
+			IndexInitData.pSysMem = Indices.GetData();
+			
+			hr = Device->CreateBuffer(&IndexBufferDesc, &IndexInitData, &IndexBuffer);
+			if (FAILED(hr))
+			{
+				UE_LOG("Failed to create particle sprite index buffer");
+			}
+		}
+	}
 }
 
 // ============== Dynamic Data ==============
@@ -45,6 +115,8 @@ FDynamicEmitterDataBase* FParticleSpriteEmitterInstance::GetDynamicData(bool bSe
 
 	// Setup dynamic render data (Init must be called AFTER filling source data)
 	NewEmitterData->Init(bSelected);
+
+	NewEmitterData->OwnerInstance = this;
 
 	return NewEmitterData;
 }

@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "MeshLoader.h"
 #include "ObjectFactory.h"
 #include "DDSTextureLoader.h"
@@ -522,6 +522,21 @@ void UResourceManager::InitShaderILMap()
     ShaderToInputLayoutMap["Shaders/PostProcess/HeightFog_PS.hlsl"] = layout;
     ShaderToInputLayoutMap["Shaders/Utility/SceneDepth_PS.hlsl"] = layout;
     layout.clear();
+
+	// ────────────────────────────────
+	// Particle 렌더링 (PARTICLE_VS_INPUT)
+	// ────────────────────────────────
+	layout.Add({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 });            // Position
+	layout.Add({ "RELATIVE_TIME", 0, DXGI_FORMAT_R32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 });             // RelativeTime
+	layout.Add({ "OLD_POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 });        // OldPosition
+	layout.Add({ "PARTICLE_ID", 0, DXGI_FORMAT_R32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 });               // ParticleId
+	layout.Add({ "SIZE", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 });                   // Size
+	layout.Add({ "ROTATION", 0, DXGI_FORMAT_R32_FLOAT, 0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0 });                  // Rotation
+	layout.Add({ "SUB_IMAGE_INDEX", 0, DXGI_FORMAT_R32_FLOAT, 0, 44, D3D11_INPUT_PER_VERTEX_DATA, 0 });           // SubImageIndex
+	layout.Add({ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0 });            // Color
+	layout.Add({ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 64, D3D11_INPUT_PER_VERTEX_DATA, 0 });               // TexCoord
+	ShaderToInputLayoutMap["Shaders/Materials/UberLit.hlsl#PARTICLE"] = layout;
+	layout.clear();
 
     ShaderToInputLayoutMap["Shaders/Utility/FullScreenTriangle_VS.hlsl"] = {};  // FullScreenTriangle 는 InputLayout을 사용하지 않는다
 }

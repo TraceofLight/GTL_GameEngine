@@ -4,6 +4,9 @@
 
 #include "MeshBatchElement.h"
 
+// Forward declarations
+struct FParticleEmitterInstance;
+
 /**
  * @brief 이미터 렌더 데이터의 기본 구조체
  * @details 렌더링 스레드로 전달되는 파티클 이미터 데이터
@@ -21,6 +24,7 @@ struct FDynamicEmitterDataBase
 	int32 EmitterIndex;
 	//...
 
+	FParticleEmitterInstance* OwnerInstance; // 이 데이터를 생성한 이미터 인스턴스
 	
 
 	FDynamicEmitterDataBase()

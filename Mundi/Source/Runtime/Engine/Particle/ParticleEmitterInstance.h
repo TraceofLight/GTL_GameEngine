@@ -368,7 +368,7 @@ struct FParticleEmitterInstance
 	 *
 	 * @note LOD 레벨 설정, Stride 계산, 메모리 할당 수행
 	 */
-	void Init(UParticleEmitter* InTemplate, UParticleSystemComponent* InComponent)
+	virtual void Init(UParticleEmitter* InTemplate, UParticleSystemComponent* InComponent)
 	{
 		SpriteTemplate = InTemplate;
 		Component = InComponent;
