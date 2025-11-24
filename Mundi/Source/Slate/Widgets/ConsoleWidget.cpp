@@ -67,7 +67,12 @@ void UConsoleWidget::Initialize()
 
 void UConsoleWidget::Update()
 {
-	// Console doesn't need per-frame updates
+	std::lock_guard<std::mutex> Lock(PendingLogsMutex);
+	if (!PendingLogs.IsEmpty())
+	{
+		Items.insert(Items.end(), PendingLogs.begin(), PendingLogs.end());
+		PendingLogs.clear();
+	}
 }
 
 void UConsoleWidget::RenderWidget()
@@ -480,7 +485,10 @@ void UConsoleWidget::AddLog(const char* fmt, ...)
 		USlateManager::GetInstance().ForceOpenConsole();
 	}
 
-	Items.Add(FString(buf));
+	{
+		std::lock_guard<std::mutex> Lock(PendingLogsMutex);
+		PendingLogs.Add(FString(buf));
+	}
 	ScrollToBottom = true;
 }
 
@@ -495,13 +503,19 @@ void UConsoleWidget::VAddLog(const char* fmt, va_list args)
 		USlateManager::GetInstance().ForceOpenConsole();
 	}
 
-	Items.Add(FString(buf));
+	{
+		std::lock_guard<std::mutex> Lock(PendingLogsMutex);
+		PendingLogs.Add(FString(buf));
+	}
 	ScrollToBottom = true;
 }
 
 void UConsoleWidget::ClearLog()
 {
 	Items.Empty();
+
+	std::lock_guard<std::mutex> Lock(PendingLogsMutex);
+	PendingLogs.Empty();
 }
 
 void UConsoleWidget::ExecCommand(const char* command_line)

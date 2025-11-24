@@ -39,9 +39,11 @@ uint32 FNamePool::Add(const FString& InStr)
 
     auto it = NameMap.find(Lower);
     if (it != NameMap.end())
+    {
         return it->second;
+    }
 
-    uint32 NewIndex = (uint32)Entries.size();
+    uint32 NewIndex = static_cast<uint32>(Entries.size());
     Entries.push_back({ InStr, Lower });
     NameMap[Lower] = NewIndex;
     return NewIndex;

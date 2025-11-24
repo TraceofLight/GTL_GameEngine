@@ -10,17 +10,13 @@
 #include "../Engine/Audio/Sound.h"
 #include "Quad.h"
 #include "LineDynamicMesh.h"
-
-#pragma once
 #include "AnimStateMachine.h"
-#include "ObjectFactory.h"
-#include "Object.h"
 #include "SkeletalMesh.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
+#include "AsyncLoader.h"
 #include <queue>
 #include <functional>
 #include <chrono>
-// ... 기타 include ...
 
 // --- 전방 선언 ---
 class UStaticMesh;
@@ -28,50 +24,6 @@ class FMeshBVH;
 class UResourceBase;
 class UMaterial;
 class USound;
-
-//================================================================================================
-// 비동기 로딩 시스템
-//================================================================================================
-
-/**
- * @brief 에셋 로딩 상태
- */
-enum class EAssetLoadState : uint8
-{
-	NotLoaded,  // 로드 요청 전
-	Queued,     // 큐에 대기 중
-	Loading,    // 로딩 중
-	Loaded,     // 로드 완료
-	Failed      // 로드 실패
-};
-
-/**
- * @brief 로딩 우선순위
- */
-enum class EAssetLoadPriority : uint8
-{
-	Low = 0,
-	Normal = 1,
-	High = 2,
-	Critical = 3  // 즉시 로드 필요
-};
-
-/**
- * @brief 비동기 로딩 요청
- */
-struct FAssetLoadRequest
-{
-	FString FilePath;
-	EResourceType ResourceType;
-	EAssetLoadPriority Priority = EAssetLoadPriority::Normal;
-	std::function<void(UResourceBase*)> Callback;
-
-	// 우선순위 비교 (priority queue용 - 높은 우선순위가 먼저)
-	bool operator<(const FAssetLoadRequest& Other) const
-	{
-		return static_cast<uint8>(Priority) < static_cast<uint8>(Other.Priority);
-	}
-};
 
 //================================================================================================
 // UResourceManager
@@ -130,8 +82,8 @@ public:
 	void ProcessLoadQueue(float MaxTimeMs = 5.0f);
 	EAssetLoadState GetLoadState(const FString& FilePath) const;
 	float GetLoadProgress() const;
-	int32 GetPendingLoadCount() const { return static_cast<int32>(LoadQueue.size()); }
-	int32 GetCompletedCount() const { return CompletedCount; }
+	int32 GetPendingLoadCount() const;
+	int32 GetCompletedCount() const;
 	TArray<FString> GetCurrentlyLoadingAssets() const;
 	void RegisterOnAllLoadsComplete(std::function<void()> Callback);
 
@@ -220,14 +172,9 @@ private:
 
 	// Shader Hot Reload
 	float ShaderCheckTimer = 0.0f;
-	const float ShaderCheckInterval = 0.5f; // Check every 0.5 seconds
+	const float ShaderCheckInterval = 0.5f;
 
-	// --- 비동기 로딩 시스템 ---
-	std::priority_queue<FAssetLoadRequest> LoadQueue;
-	TMap<FString, EAssetLoadState> LoadStateMap;
-	FString CurrentLoadingAsset;
-	int32 TotalRequestedCount = 0;
-	int32 CompletedCount = 0;
+	// 모든 로드 완료 시 콜백
 	TArray<std::function<void()>> OnAllLoadsCompleteCallbacks;
 };
 
@@ -480,11 +427,9 @@ void UResourceManager::AsyncLoad(const FString& InFilePath,
 
 	FString NormalizedPath = NormalizePath(InFilePath);
 
-	// 이미 로드된 리소스 확인
 	T* ExistingResource = Get<T>(NormalizedPath);
 	if (ExistingResource)
 	{
-		// 이미 로드됨 - 즉시 콜백 호출
 		if (Callback)
 		{
 			Callback(ExistingResource);
@@ -492,32 +437,19 @@ void UResourceManager::AsyncLoad(const FString& InFilePath,
 		return;
 	}
 
-	// 이미 큐에 있는지 확인
-	auto* ExistingState = LoadStateMap.Find(NormalizedPath);
-	if (ExistingState && (*ExistingState == EAssetLoadState::Queued || *ExistingState == EAssetLoadState::Loading))
-	{
-		// 이미 로딩 중 - 콜백만 큐에 추가 (중복 방지)
-		// TODO: 여러 콜백을 지원하려면 콜백 리스트 필요
-		return;
-	}
-
-	// 새 로딩 요청 생성
-	FAssetLoadRequest Request;
-	Request.FilePath = NormalizedPath;
-	Request.ResourceType = GetResourceType<T>();
-	Request.Priority = Priority;
-
-	// 타입 안전 콜백 래핑
+	std::function<void(UResourceBase*)> WrappedCallback = nullptr;
 	if (Callback)
 	{
-		Request.Callback = [Callback](UResourceBase* Resource)
+		WrappedCallback = [Callback](UResourceBase* Resource)
 		{
 			Callback(static_cast<T*>(Resource));
 		};
 	}
 
-	// 큐에 추가
-	LoadQueue.push(Request);
-	LoadStateMap[NormalizedPath] = EAssetLoadState::Queued;
-	++TotalRequestedCount;
+	FAsyncLoader::Get().RequestAsyncLoad(
+		NormalizedPath,
+		GetResourceType<T>(),
+		WrappedCallback,
+		Priority
+	);
 }

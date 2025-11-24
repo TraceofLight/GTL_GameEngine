@@ -5,12 +5,12 @@ class UGizmoArrowComponent : public UStaticMeshComponent
 public:
     DECLARE_CLASS(UGizmoArrowComponent, UStaticMeshComponent)
     UGizmoArrowComponent();
-    
+
     void CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) override;
 
 protected:
     ~UGizmoArrowComponent() override;
-    
+
 public:
     const FVector& GetDirection() const { return Direction; }
     const FVector& GetColor() const { return Color; }
@@ -37,6 +37,9 @@ public:
     void SetMaterial(uint32 InElementIndex, UMaterialInterface* InNewMaterial) override;
 
     void SetDrawScale(float ViewWidth, float ViewHeight, const FMatrix& ViewMatrix, const FMatrix& ProjectionMatrix);
+
+    // 기즈모용 SetStaticMesh
+    void SetStaticMesh(const FString& PathFileName) override;
 
     // ───── 복사 관련 ────────────────────────────
     void DuplicateSubObjects() override;

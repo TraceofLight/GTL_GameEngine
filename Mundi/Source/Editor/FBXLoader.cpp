@@ -74,7 +74,7 @@ void UFbxLoader::PreLoad()
     }
 
     // 모든 로드 완료 시 후처리 콜백 등록
-    RESOURCE.RegisterOnAllLoadsComplete([this]()
+    RESOURCE.RegisterOnAllLoadsComplete([]()
     {
        auto& RM = UResourceManager::GetInstance();
        RM.SetSkeletalMeshes();

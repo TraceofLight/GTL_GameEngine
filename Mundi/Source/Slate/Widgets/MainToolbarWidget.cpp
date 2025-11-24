@@ -547,6 +547,11 @@ void UMainToolbarWidget::OnNewScene()
             return;
         }
 
+        // 씬 전환 전: 혹시나 있을 기본 오브젝트의 케이스 고려한 완료된 로드의 콜백 먼저 실행
+        FAsyncLoader::Get().ProcessCompletedResources();
+        // 그 후 남은 콜백 제거 (파괴될 씬 오브젝트 참조 방지)
+        FAsyncLoader::Get().ClearAllCallbacks();
+
         // 로드 직전: Transform 위젯/선택 초기화
         UUIManager::GetInstance().ClearTransformWidgetSelection();
         GWorld->GetSelectionManager()->ClearSelection();
@@ -565,6 +570,9 @@ void UMainToolbarWidget::OnNewScene()
 
 void UMainToolbarWidget::OnSaveScene()
 {
+    // 다이얼로그 열기 전에 Worker 스레드 일시 정지
+    FAsyncLoader::Get().Pause();
+
     const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/Scenes";
     const FWideString Extension = L".scene";
     const FWideString Description = L"Scene Files";
@@ -579,6 +587,10 @@ void UMainToolbarWidget::OnSaveScene()
 
     // Windows 파일 다이얼로그 열기
     std::filesystem::path SelectedPath = FPlatformProcess::OpenSaveFileDialog(BaseDir, Extension, Description, DefaultFileName);
+
+    // 다이얼로그 닫힌 후 Worker 재개
+    FAsyncLoader::Get().Resume();
+
     if (SelectedPath.empty())
         return;
 
@@ -613,14 +625,23 @@ void UMainToolbarWidget::OnSaveScene()
 
 void UMainToolbarWidget::OnLoadScene()
 {
+    // 다이얼로그 열기 전에 Worker 스레드 일시 정지
+    FAsyncLoader::Get().Pause();
+
     const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/Scenes";
     const FWideString Extension = L".scene";
     const FWideString Description = L"Scene Files";
 
     // Windows 파일 다이얼로그 열기
     std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(BaseDir, Extension, Description);
+
+    // 다이얼로그 닫힌 후 Worker 재개
+    FAsyncLoader::Get().Resume();
+
     if (SelectedPath.empty())
+    {
         return;
+    }
 
     try
     {
@@ -631,6 +652,11 @@ void UMainToolbarWidget::OnLoadScene()
             UE_LOG("MainToolbar: Cannot find World!");
             return;
         }
+
+        // 씬 전환 전: 혹시나 있을 기본 오브젝트의 케이스 고려한 완료된 로드의 콜백 먼저 실행
+        FAsyncLoader::Get().ProcessCompletedResources();
+        // 그 후 남은 콜백 제거 (파괴될 씬 오브젝트 참조 방지)
+        FAsyncLoader::Get().ClearAllCallbacks();
 
         // 로드 직전: Transform 위젯/선택 초기화
         UUIManager::GetInstance().ClearTransformWidgetSelection();

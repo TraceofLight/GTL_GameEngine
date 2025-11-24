@@ -2,6 +2,7 @@
 #include "Widget.h"
 #include "Vector.h"
 #include "ImGui/imgui.h"
+#include <mutex>
 
 /**
  * @brief Console Widget for displaying log messages and executing commands
@@ -31,10 +32,12 @@ public:
 private:
 	// Console data
 	char InputBuf[256];
-	TArray<FString> Items;           // Log items
-	TArray<FString> HelpCommandList;        // Available commands
-	TArray<FString> History;         // Command history
-	int32 HistoryPos;                // -1: new line, 0..History.Size-1 browsing history
+	TArray<FString> Items;
+	TArray<FString> PendingLogs;
+	mutable std::mutex PendingLogsMutex;
+	TArray<FString> HelpCommandList;
+	TArray<FString> History;
+	int32 HistoryPos;
 
 	// UI state
 	bool AutoScroll;

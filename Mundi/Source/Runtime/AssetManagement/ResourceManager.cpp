@@ -7,6 +7,7 @@
 #include "Quad.h"
 #include "MeshBVH.h"
 #include "Enums.h"
+#include "AsyncLoader.h"
 
 #include <filesystem>
 #include <cwctype>
@@ -52,11 +53,15 @@ void UResourceManager::Initialize(ID3D11Device* InDevice, ID3D11DeviceContext* I
     CreateDefaultStaticMesh();
     CreateDefaultSkeletalMesh();
 	PreLoadAnimStateMachines();
+
+    FAsyncLoader::Get().Initialize(Device);
 }
 
 // 전체 해제
 void UResourceManager::Clear()
 {
+    FAsyncLoader::Get().Shutdown();
+
     {////////////// Deprecated //////////////
         for (auto& [Key, Data] : ResourceMap)
         {
@@ -806,89 +811,11 @@ template bool UResourceManager::Unload<UTexture>(const FString&);
 
 void UResourceManager::ProcessLoadQueue(float MaxTimeMs)
 {
-	if (LoadQueue.empty())
-	{
-		return;
-	}
+	FAsyncLoader& Loader = FAsyncLoader::Get();
 
-	// 프레임당 1개 파일만 로드 (FBX 등 큰 파일로 인한 끊김 방지)
-	// 시간 제한 방식은 이미 로드가 시작되면 중단할 수 없어서 효과 없음
+	Loader.ProcessCompletedResources();
 
-	// 큐에서 최우선순위 요청 가져오기
-	FAssetLoadRequest Request = LoadQueue.top();
-	LoadQueue.pop();
-
-	// 현재 로딩 중인 에셋 설정
-	CurrentLoadingAsset = Request.FilePath;
-
-	// 상태 업데이트
-	LoadStateMap[Request.FilePath] = EAssetLoadState::Loading;
-
-	// 실제 로딩 수행 (메인 스레드에서 안전하게)
-	UResourceBase* LoadedResource = nullptr;
-	try
-	{
-		switch (Request.ResourceType)
-		{
-		case EResourceType::StaticMesh:
-			LoadedResource = Load<UStaticMesh>(Request.FilePath);
-			break;
-
-		case EResourceType::SkeletalMesh:
-			LoadedResource = Load<USkeletalMesh>(Request.FilePath);
-			break;
-
-		case EResourceType::Texture:
-			LoadedResource = Load<UTexture>(Request.FilePath);
-			break;
-
-		case EResourceType::Material:
-			LoadedResource = Load<UMaterial>(Request.FilePath);
-			break;
-
-		case EResourceType::Sound:
-			LoadedResource = Load<USound>(Request.FilePath);
-			break;
-
-		case EResourceType::Animation:
-			LoadedResource = Load<UAnimSequence>(Request.FilePath);
-			break;
-
-		default:
-			UE_LOG("[warning] ResourceManager: Unsupported resource type for %s", Request.FilePath.c_str());
-			break;
-		}
-	}
-	catch (const std::exception& e)
-	{
-		UE_LOG("[warning] ResourceManager: Failed to load %s - %s", Request.FilePath.c_str(), e.what());
-		LoadedResource = nullptr;
-	}
-
-	// 상태 업데이트
-	if (LoadedResource)
-	{
-		LoadStateMap[Request.FilePath] = EAssetLoadState::Loaded;
-	}
-	else
-	{
-		LoadStateMap[Request.FilePath] = EAssetLoadState::Failed;
-	}
-
-	// 콜백 실행 (메인 스레드에서 안전)
-	if (Request.Callback)
-	{
-		Request.Callback(LoadedResource);
-	}
-
-	// 진행률 업데이트
-	++CompletedCount;
-
-	// 현재 로딩 중인 에셋 클리어
-	CurrentLoadingAsset.clear();
-
-	// 모든 로드 완료 시 콜백 실행
-	if (LoadQueue.empty() && !OnAllLoadsCompleteCallbacks.IsEmpty())
+	if (!Loader.IsLoading() && !OnAllLoadsCompleteCallbacks.IsEmpty())
 	{
 		for (auto& Callback : OnAllLoadsCompleteCallbacks)
 		{
@@ -912,14 +839,13 @@ void UResourceManager::RegisterOnAllLoadsComplete(std::function<void()> Callback
 EAssetLoadState UResourceManager::GetLoadState(const FString& FilePath) const
 {
 	FString NormalizedPath = NormalizePath(FilePath);
-	auto* State = LoadStateMap.Find(NormalizedPath);
-	if (State)
+
+	EAssetLoadState AsyncState = FAsyncLoader::Get().GetLoadState(NormalizedPath);
+	if (AsyncState != EAssetLoadState::NotLoaded)
 	{
-		return *State;
+		return AsyncState;
 	}
 
-	// 이미 로드된 리소스인지 확인
-	// (상태가 없지만 캐시에 있으면 Loaded)
 	for (const auto& ResourceMap : Resources)
 	{
 		if (ResourceMap.find(NormalizedPath) != ResourceMap.end())
@@ -933,22 +859,22 @@ EAssetLoadState UResourceManager::GetLoadState(const FString& FilePath) const
 
 float UResourceManager::GetLoadProgress() const
 {
-	if (TotalRequestedCount == 0)
-	{
-		return 1.0f;
-	}
+	return FAsyncLoader::Get().GetLoadProgress();
+}
 
-	return static_cast<float>(CompletedCount) / static_cast<float>(TotalRequestedCount);
+int32 UResourceManager::GetPendingLoadCount() const
+{
+	return FAsyncLoader::Get().GetPendingCount();
+}
+
+int32 UResourceManager::GetCompletedCount() const
+{
+	return FAsyncLoader::Get().GetCompletedCount();
 }
 
 TArray<FString> UResourceManager::GetCurrentlyLoadingAssets() const
 {
-	TArray<FString> Result;
-	if (!CurrentLoadingAsset.empty())
-	{
-		Result.push_back(CurrentLoadingAsset);
-	}
-	return Result;
+	return FAsyncLoader::Get().GetCurrentlyLoadingAssets();
 }
 
 //================================================================================================

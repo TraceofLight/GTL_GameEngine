@@ -1,7 +1,16 @@
 ﻿#include "pch.h"
 #include "ObjectFactory.h"
-// 전역 오브젝트 배열 정의 (한 번만!)
+
 TArray<UObject*> GUObjectArray;
+
+namespace
+{
+    static TMap<UClass*, int>& GetNameCounters()
+    {
+        static TMap<UClass*, int> NameCounters;
+        return NameCounters;
+    }
+}
 
 namespace ObjectFactory
 {
@@ -20,27 +29,29 @@ namespace ObjectFactory
     {
         auto& reg = GetRegistry();
         auto it = reg.find(Class);
-        if (it == reg.end()) return nullptr;
+        if (it == reg.end())
+        {
+            return nullptr;
+        }
         return it->second();
     }
-    
+
     UObject* NewObject(UClass* Class)
     {
         UObject* Obj = ConstructObject(Class);
-        if (!Obj) return nullptr;
+        if (!Obj)
+        {
+            return nullptr;
+        }
 
-        int32 idx = -1;
-
-        idx = GUObjectArray.Add(Obj);
-
+        int32 idx = GUObjectArray.Add(Obj);
         Obj->InternalIndex = static_cast<uint32>(idx);
 
-        static TMap<UClass*, int> NameCounters;
-        int Count = ++NameCounters[Class];
+        int Count = ++GetNameCounters()[Class];
 
-        const std::string base = Class->Name; // FName -> string
+        const std::string base = Class->Name;
         std::string unique;
-        unique.reserve(base.size() + 1 + 12);            // "_" + 최대 10~12자리 여유
+        unique.reserve(base.size() + 1 + 12);
         unique.append(base);
         unique.push_back('_');
         unique.append(std::to_string(Count));
@@ -52,34 +63,34 @@ namespace ObjectFactory
 
     UObject* AddToGUObjectArray(UClass* Class, UObject* Obj)
     {
-        if (!Obj) return nullptr;
+        if (!Obj)
+        {
+            return nullptr;
+        }
 
-        // 배열에 등록: 빈 슬롯 재사용
-        int32 idx = -1;
-
-        idx = GUObjectArray.Add(Obj);
-        //}
+        int32 idx = GUObjectArray.Add(Obj);
         Obj->InternalIndex = static_cast<uint32>(idx);
 
-        static TMap<UClass*, int> NameCounters;
-        int Count = ++NameCounters[Class];
+        int Count = ++GetNameCounters()[Class];
 
-        // NOTE: 복제 시 이름을 그대로 유지
-        //const std::string base = Class->Name; // FName -> string
-        //std::string unique;
-        //unique.reserve(base.size() + 1 + 12);            // "_" + 최대 10~12자리 여유
-        //unique.append(base);
-        //unique.push_back('_');
-        //unique.append(std::to_string(Count));
+        const std::string base = Class->Name;
+        std::string unique;
+        unique.reserve(base.size() + 1 + 12);
+        unique.append(base);
+        unique.push_back('_');
+        unique.append(std::to_string(Count));
 
-        //Obj->ObjectName = FName(unique);
+        Obj->ObjectName = FName(unique);
 
         return Obj;
     }
 
     void DeleteObject(UObject* Obj)
     {
-        if (!Obj) return;
+        if (!Obj)
+        {
+            return;
+        }
 
         // Important: DO NOT dereference Obj fields before verifying it is still in GUObjectArray.
         int32 foundIndex = -1;
@@ -104,7 +115,7 @@ namespace ObjectFactory
 
     void DeleteAll(bool bCallBeginDestroy)
     {
-        // 실제 삭제 (역순 안전)
+        // 역순으로 삭제 (DeleteObject가 배열에서 nullptr 처리)
         for (int32 i = GUObjectArray.Num() - 1; i >= 0; --i)
         {
             if (UObject* Obj = GUObjectArray[i])
@@ -116,7 +127,6 @@ namespace ObjectFactory
         GUObjectArray.Shrink();
     }
 
-    // (선택) null 슬롯 압축
     void CompactNullSlots()
     {
         int32 write = 0;
@@ -133,7 +143,6 @@ namespace ObjectFactory
                 ++write;
             }
         }
-        // 크기(Num) 축소 + 불필요한 capacity도 반환
         GUObjectArray.SetNum(write);
     }
 }

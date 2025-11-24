@@ -187,6 +187,14 @@ void UGizmoArrowComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMesh
 	}
 }
 
+void UGizmoArrowComponent::SetStaticMesh(const FString& PathFileName)
+{
+	// 기즈모는 에디터 오브젝트이므로 동기 로드 사용
+	auto& RM = UResourceManager::GetInstance();
+	StaticMesh = RM.Load<UStaticMesh>(PathFileName);
+	MarkWorldPartitionDirty();
+}
+
 void UGizmoArrowComponent::DuplicateSubObjects()
 {
 	Super::DuplicateSubObjects();
