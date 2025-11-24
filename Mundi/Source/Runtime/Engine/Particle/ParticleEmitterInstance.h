@@ -6,6 +6,8 @@
 #include "ParticleLODLevel.h"
 #include "ParticleModule.h"
 #include "ParticleEmitter.h"
+#include "DynamicEmitterReplayDataBase.h"
+#include "ParticleModuleRequired.h"
 
 // Forward declarations
 class UParticleSystemComponent;
@@ -426,7 +428,127 @@ struct FParticleEmitterInstance
 
 			Resize(InitialCount);
 		}
-
-		
 	}
+
+	// ============== Virtual Methods for Rendering ==============
+	/**
+	 * Check if dynamic data is required for rendering
+	 * 렌더링을 위한 동적 데이터가 필요한지 체크
+	 *
+	 * @return true if there are active particles to render
+	 */
+	virtual bool IsDynamicDataRequired() const
+	{
+		return ActiveParticles > 0 && CurrentLODLevel != nullptr;
+	}
+
+	/**
+	 * Retrieves the dynamic data for the emitter (render thread data)
+	 * 에미터의 동적 데이터를 가져옴 (렌더 스레드용 데이터)
+	 *
+	 * @param bSelected - Whether the emitter is selected in the editor
+	 * @return FDynamicEmitterDataBase* - The dynamic data, or nullptr if not required
+	 *
+	 * @note Subclasses should override this to return their specific data type
+	 * @note Caller is responsible for deleting the returned pointer
+	 */
+	virtual FDynamicEmitterDataBase* GetDynamicData(bool bSelected)
+	{
+		// Base implementation returns null - subclasses override
+		return nullptr;
+	}
+
+	/**
+	 * Fill replay data with common particle information
+	 * 공통 파티클 정보로 리플레이 데이터를 채움
+	 *
+	 * @param OutData - Output replay data to fill
+	 * @return true if successful, false if no data to fill
+	 *
+	 * @note This is called by subclasses first, then they add type-specific data
+	 */
+	virtual bool FillReplayData(FDynamicEmitterReplayDataBase& OutData)
+	{
+		if (ActiveParticles <= 0 || !ParticleData || !CurrentLODLevel)
+		{
+			return false;
+		}
+
+		// Fill common particle data
+		OutData.ActiveParticleCount = ActiveParticles;
+		OutData.ParticleStride = ParticleStride;
+
+		// Allocate and copy particle data to container
+		OutData.DataContainer.Allocate(ActiveParticles, ParticleStride);
+		FMemory::Memcpy(
+			OutData.DataContainer.ParticleData,
+			ParticleData,
+			ActiveParticles * ParticleStride
+		);
+
+		// Copy particle indices
+		FMemory::Memcpy(
+			OutData.DataContainer.ParticleIndices,
+			ParticleIndices,
+			ActiveParticles * sizeof(uint16)
+		);
+
+		// Get scale from component transform
+		if (Component)
+		{
+			OutData.Scale = Component->GetWorldTransform().Scale3D;
+		}
+		else
+		{
+			OutData.Scale = FVector::One();
+		}
+
+		// Get sort mode from required module
+		if (CurrentLODLevel->RequiredModule)
+		{
+			OutData.SortMode = CurrentLODLevel->RequiredModule->GetSortMode();
+		}
+		else
+		{
+			OutData.SortMode = EParticleSortMode::None;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Retrieves replay data for the emitter (simplified version)
+	 * 에미터의 리플레이 데이터를 가져옴 (간소화 버전)
+	 *
+	 * @return FDynamicEmitterReplayDataBase* - The replay data, or nullptr if not available
+	 *
+	 * @note Subclasses should override this to return their specific replay data type
+	 * @note Caller is responsible for deleting the returned pointer
+	 */
+	virtual FDynamicEmitterReplayDataBase* GetReplayData()
+	{
+		// Base implementation returns null - subclasses override
+		return nullptr;
+	}
+
+	/**
+	 * Retrieve the allocated size of this instance
+	 * 이 인스턴스가 할당한 메모리 크기 반환
+	 *
+	 * @param OutNum - The size of this instance (currently used)
+	 * @param OutMax - The maximum size of this instance (allocated)
+	 */
+	virtual void GetAllocatedSize(int32& OutNum, int32& OutMax)
+	{
+		int32 Size = sizeof(FParticleEmitterInstance);
+		int32 ActiveParticleDataSize = (ParticleData != nullptr) ? (ActiveParticles * ParticleStride) : 0;
+		int32 MaxActiveParticleDataSize = (ParticleData != nullptr) ? (MaxActiveParticles * ParticleStride) : 0;
+		int32 ActiveParticleIndexSize = (ParticleIndices != nullptr) ? (ActiveParticles * sizeof(uint16)) : 0;
+		int32 MaxActiveParticleIndexSize = (ParticleIndices != nullptr) ? (MaxActiveParticles * sizeof(uint16)) : 0;
+
+		OutNum = ActiveParticleDataSize + ActiveParticleIndexSize + Size;
+		OutMax = MaxActiveParticleDataSize + MaxActiveParticleIndexSize + Size;
+	}
+
+
 };
