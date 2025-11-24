@@ -8,6 +8,7 @@
 #include "ParticleEmitter.h"
 #include "DynamicEmitterReplayDataBase.h"
 #include "ParticleModuleRequired.h"
+#include "ParticleSystemComponent.h"
 
 // Forward declarations
 class UParticleSystemComponent;
@@ -479,11 +480,12 @@ struct FParticleEmitterInstance
 		OutData.ParticleStride = ParticleStride;
 
 		// Allocate and copy particle data to container
+		// ActiveParticles 크기만큼만 할당
 		OutData.DataContainer.Allocate(ActiveParticles, ParticleStride);
 		FMemory::Memcpy(
 			OutData.DataContainer.ParticleData,
 			ParticleData,
-			ActiveParticles * ParticleStride
+			ActiveParticles * ParticleStride // 활성 파티클만
 		);
 
 		// Copy particle indices
