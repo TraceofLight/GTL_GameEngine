@@ -102,7 +102,24 @@ SamplerState g_VSMSampler : register(s3);
 struct VS_INPUT
 {
 #if PARTICLE
-	PARTICLE_VS_INPUT ParticleInput;
+	/** The position of the particle. */
+	float3 Position : POSITION;
+	/** The relative time of the particle. */
+	float RelativeTime : RELATIVE_TIME;
+	/** The previous position of the particle. */
+	float3 OldPosition : OLD_POSITION;
+	/** Value that remains constant over the lifetime of a particle. */
+	float ParticleId : PARTICLE_ID;
+	/** The size of the particle. */
+	float2 Size : SIZE;
+	/** The rotation of the particle. */
+	float Rotation : ROTATION;
+	/** The sub-image index for the particle. */
+	float SubImageIndex : SUB_IMAGE_INDEX;
+	/** The color of the particle. */
+	float4 Color : COLOR;
+
+	float2 TexCoord : TEXCOORD0;
 #else
 	float3 Position : POSITION;
 	float3 Normal : NORMAL0;
@@ -143,16 +160,14 @@ PS_INPUT mainVS(VS_INPUT Input)
     PS_INPUT Out;
 	float3 worldNormal = float3(0, 0, 0);
 
-#if PARTICLE
-	PARTICLE_VS_INPUT ParticleInput = Input.ParticleInput;
-	
+#if PARTICLE	
     // World position
-	float4 WorldPos = mul(float4(ParticleInput.Position, 1.0f), WorldMatrix);
+	float4 WorldPos = mul(float4(Input.Position, 1.0f), WorldMatrix);
 
-	float3 ParticleTranslatedWorldPosition = mul(float4(ParticleInput.Position, 1.0f), WorldMatrix).xyz;
-	float3 ParticleOldTranslatedWorldPosition = mul(float4(ParticleInput.OldPosition, 1.0f), WorldMatrix).xyz;
+	float3 ParticleTranslatedWorldPosition = mul(float4(Input.Position, 1.0f), WorldMatrix).xyz;
+	float3 ParticleOldTranslatedWorldPosition = mul(float4(Input.OldPosition, 1.0f), WorldMatrix).xyz;
 
-	const float SpriteRotation = ParticleInput.Rotation;
+	const float SpriteRotation = Input.Rotation;
 
 	// Tangents.
 	float3 Right, Up;
@@ -162,11 +177,11 @@ PS_INPUT mainVS(VS_INPUT Input)
 	float2 UVForPosition;
 	float2 UVForTexturing;
 	float2 UVForTexturingUnflipped;
-	ComputeBillboardUVs(ParticleInput, UVForPosition, UVForTexturing, UVForTexturingUnflipped);
+	ComputeBillboardUVs(Input, UVForPosition, UVForTexturing, UVForTexturingUnflipped);
 
 	// Vertex position.
 	float4 VertexWorldPosition = float4(ParticleTranslatedWorldPosition, 1);
-	float2 Size = abs(ParticleInput.Size);
+	float2 Size = abs(Input.Size);
 	float2 PivotOffset = float2(-0.5f, -0.5f); // Center pivot
 	VertexWorldPosition += Size.x * (UVForPosition.x + PivotOffset.x) * float4(Right, 0);
 	VertexWorldPosition += Size.y * (UVForPosition.y + PivotOffset.y) * float4(Up, 0) * -1.0f; // Invert Y. dx11에서는 좌측 상단이 (0,0)이므로.
@@ -179,7 +194,6 @@ PS_INPUT mainVS(VS_INPUT Input)
 	float4x4 VP = mul(ViewMatrix, ProjectionMatrix);
 	Out.Position = mul(VertexWorldPosition, VP);
 	Out.TexCoord = UVForTexturing;
-	Out.Color = ParticleInput.Color;
 
 	worldNormal = normalize(CameraPosition - ParticleTranslatedWorldPosition);
 	Out.Normal = worldNormal;
