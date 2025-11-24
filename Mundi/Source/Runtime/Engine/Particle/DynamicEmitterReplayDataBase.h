@@ -48,60 +48,60 @@ struct FDynamicEmitterReplayDataBase
 struct FDynamicSpriteEmitterReplayDataBase : public FDynamicEmitterReplayDataBase
 {
 	UMaterialInterface* MaterialInterface;
-	struct FParticleRequiredModule* RequiredModule;
+	struct FParticleRequiredModule* RequiredModule; // 깊은 복사 필요
 
-	FVector						NormalsSphereCenter;
-	FVector						NormalsCylinderDirection;
-	float						InvDeltaSeconds;
-	//FVector						LWCTile;
-	int32						MaxDrawCount;
-	int32						OrbitModuleOffset;
-	int32						DynamicParameterDataOffset;
-	int32						LightDataOffset;
-	float						LightVolumetricScatteringIntensity;
-	int32						CameraPayloadOffset;
-	int32						SubUVDataOffset;
-	int32						SubImages_Horizontal;
-	int32						SubImages_Vertical;
-	bool						bUseLocalSpace;
-	bool						bLockAxis;
-	uint8						ScreenAlignment;
-	uint8						LockAxisFlag;
-	EEmitterRenderMode			EmitterRenderMode;
-	EEmitterNormalsMode			EmitterNormalsMode;
-	FVector2D					PivotOffset;
-	bool						bUseVelocityForMotionBlur;
-	//bool						bRemoveHMDRoll;
-	float						MinFacingCameraBlendDistance;
-	float						MaxFacingCameraBlendDistance;
+	//FVector						NormalsSphereCenter;
+	//FVector						NormalsCylinderDirection;
+	//float						InvDeltaSeconds;
+	////FVector						LWCTile;
+	//int32						MaxDrawCount;
+	//int32						OrbitModuleOffset;
+	//int32						DynamicParameterDataOffset;
+	//int32						LightDataOffset;
+	//float						LightVolumetricScatteringIntensity;
+	//int32						CameraPayloadOffset;
+	//int32						SubUVDataOffset;
+	//int32						SubImages_Horizontal;
+	//int32						SubImages_Vertical;
+	//bool						bUseLocalSpace;
+	//bool						bLockAxis;
+	//uint8						ScreenAlignment;
+	//uint8						LockAxisFlag;
+	//EEmitterRenderMode			EmitterRenderMode;
+	//EEmitterNormalsMode			EmitterNormalsMode;
+	//FVector2D					PivotOffset;
+	//bool						bUseVelocityForMotionBlur;
+	////bool						bRemoveHMDRoll;
+	//float						MinFacingCameraBlendDistance;
+	//float						MaxFacingCameraBlendDistance;
 
 	/** Constructor */
 	FDynamicSpriteEmitterReplayDataBase()
 		: MaterialInterface(nullptr)
 		, RequiredModule(nullptr)
-		, NormalsSphereCenter(FVector::Zero())
-		, NormalsCylinderDirection(FVector::Zero())
-		, InvDeltaSeconds(0.0f)
-		, MaxDrawCount(0)
-		, OrbitModuleOffset(0)
-		, DynamicParameterDataOffset(0)
-		, LightDataOffset(0)
-		, LightVolumetricScatteringIntensity(0)
-		, CameraPayloadOffset(0)
-		, SubUVDataOffset(0)
-		, SubImages_Horizontal(1)
-		, SubImages_Vertical(1)
-		, bUseLocalSpace(false)
-		, bLockAxis(false)
-		, ScreenAlignment(0)
-		, LockAxisFlag(0)
-		, EmitterRenderMode(EEmitterRenderMode::Normal)
-		, EmitterNormalsMode(EEmitterNormalsMode::CameraFacing)
-		, PivotOffset(-0.5f, -0.5f)
-		, bUseVelocityForMotionBlur(false)
-		//, bRemoveHMDRoll(false)
-		, MinFacingCameraBlendDistance(0.f)
-		, MaxFacingCameraBlendDistance(0.f)
+		//, NormalsSphereCenter(FVector::Zero())
+		//, NormalsCylinderDirection(FVector::Zero())
+		//, InvDeltaSeconds(0.0f)
+		//, MaxDrawCount(0)
+		//, OrbitModuleOffset(0)
+		//, DynamicParameterDataOffset(0)
+		//, LightDataOffset(0)
+		//, LightVolumetricScatteringIntensity(0)
+		//, CameraPayloadOffset(0)
+		//, SubUVDataOffset(0)
+		//, SubImages_Horizontal(1)
+		//, SubImages_Vertical(1)
+		//, bUseLocalSpace(false)
+		//, bLockAxis(false)
+		//, ScreenAlignment(0)
+		//, LockAxisFlag(0)
+		//, EmitterRenderMode(EEmitterRenderMode::Normal)
+		//, EmitterNormalsMode(EEmitterNormalsMode::CameraFacing)
+		//, PivotOffset(-0.5f, -0.5f)
+		//, bUseVelocityForMotionBlur(false)
+		////, bRemoveHMDRoll(false)
+		//, MinFacingCameraBlendDistance(0.f)
+		//, MaxFacingCameraBlendDistance(0.f)
 	{
 	}
 	~FDynamicSpriteEmitterReplayDataBase()

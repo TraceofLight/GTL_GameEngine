@@ -303,3 +303,9 @@ struct FColorDistribution
 		);
 	}
 };
+
+// Particle을 렌더링하기 위한 모든 정보
+struct FParticleDynamicData
+{
+	TArray<struct FDynamicEmitterDataBase*> DynamicEmitterDataArray;
+};
