@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -654,6 +654,15 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\ASpotLightActor.generated.cpp" />
     <ClCompile Include="Generated\AStaticMeshActor.generated.cpp" />
     <ClCompile Include="Generated\UParticleSystemComponent.generated.cpp" />
+    <ClCompile Include="Generated\UParticleSystem.generated.cpp" />
+    <ClCompile Include="Generated\UParticleEmitter.generated.cpp" />
+    <ClCompile Include="Generated\UParticleLODLevel.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleRequired.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleColor.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleLifetime.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleSize.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleSpawn.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleVelocity.generated.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -969,6 +978,15 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\ASpotLightActor.generated.h" />
     <ClInclude Include="Generated\AStaticMeshActor.generated.h" />
     <ClInclude Include="Generated\UParticleSystemComponent.generated.h" />
+    <ClInclude Include="Generated\UParticleSystem.generated.h" />
+    <ClInclude Include="Generated\UParticleEmitter.generated.h" />
+    <ClInclude Include="Generated\UParticleLODLevel.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleRequired.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleColor.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleLifetime.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleSize.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleSpawn.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleVelocity.generated.h" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Shaders\Common\LightingBuffers.hlsl" />

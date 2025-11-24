@@ -3,6 +3,8 @@
 #include "ParticleTypes.h"
 #include "ParticleModule.h"
 
+#include "UParticleModuleSpawn.generated.h"
+
 /**
  * @brief 파티클의 생성 빈도와 수량을 제어하는 모듈
  * @details 초당 생성률, 버스트 생성 등을 관리
@@ -15,7 +17,7 @@
 UCLASS()
 class UParticleModuleSpawn : public UParticleModule
 {
-	DECLARE_CLASS(UParticleModuleSpawn, UParticleModule)
+	GENERATED_REFLECTION_BODY()
 
 public:
 	FFloatDistribution Rate;

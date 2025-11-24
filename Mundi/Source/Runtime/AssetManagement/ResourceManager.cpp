@@ -559,7 +559,9 @@ FString& UResourceManager::GetProperShader(const FString& InTextureName)
 
     if (it == TextureToShaderMap.end())
     {
-        throw std::runtime_error("Proper shader not found for " + InTextureName);
+        //throw std::runtime_error("Proper shader not found for " + InTextureName);
+		TextureToShaderMap[InTextureName] = FString();
+		return TextureToShaderMap[InTextureName];
     }
 
     return TextureToShaderMap[InTextureName];

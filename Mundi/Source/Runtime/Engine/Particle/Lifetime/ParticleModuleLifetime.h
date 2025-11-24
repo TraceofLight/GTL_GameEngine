@@ -2,6 +2,8 @@
 #include "ParticleModule.h"
 #include "ParticleTypes.h"
 
+#include "UParticleModuleLifetime.generated.h"
+
 /**
  * @brief 파티클의 수명을 설정하는 모듈
  * @details Spawn 시 파티클의 Lifetime 값을 설정
@@ -12,7 +14,7 @@ UCLASS()
 class UParticleModuleLifetime :
 	public UParticleModule
 {
-	DECLARE_CLASS(UParticleModuleLifetime, UParticleModule)
+	GENERATED_REFLECTION_BODY()
 
 public:
 	// 파티클 수명 분포

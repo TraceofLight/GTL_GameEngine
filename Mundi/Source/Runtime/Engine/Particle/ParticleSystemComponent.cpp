@@ -8,6 +8,14 @@
 #include "ParticleLODLevel.h"
 #include "ParticleTypes.h"
 #include "Spawn/ParticleModuleSpawn.h"
+#include "ParticleModuleRequired.h"
+#include "Lifetime/ParticleModuleLifetime.h"
+#include "Velocity/ParticleModuleVelocity.h"
+#include "Size/ParticleModuleSize.h"
+#include "Color/ParticleModuleColor.h"
+#include "Source/Runtime/Core/Object/ObjectFactory.h"
+#include "Source/Runtime/AssetManagement/ResourceManager.h"
+#include "Source/Runtime/Renderer/Material.h"
 
 /**
  * 생성자: 파티클 시스템 컴포넌트 초기화
@@ -20,6 +28,8 @@ UParticleSystemComponent::UParticleSystemComponent()
 {
 	// 파티클 업데이트를 위해 매 프레임 Tick 활성화
 	bCanEverTick = true;
+	InitializeComponent();
+	ActivateSystem(true);
 }
 
 /**
@@ -58,6 +68,9 @@ void UParticleSystemComponent::InitializeComponent()
 {
 	// 부모 클래스 초기화 먼저 호출
 	UPrimitiveComponent::InitializeComponent();
+
+	UParticleSystem* FlareSystem = UParticleSystemComponent::CreateFlareParticleSystem();
+	Template = FlareSystem;
 
 	// 템플릿(설계도)이 있으면 에미터 인스턴스 생성
 	if (Template)
@@ -411,4 +424,148 @@ void UParticleSystemComponent::ClearEmitterInstances()
 
 	// 배열 비우기
 	EmitterInstances.clear();
+}
+
+// ============== Particle System Creation (파티클 시스템 생성) ==============
+
+/**
+ * flare0.dds 텍스처를 사용하여 랜덤한 회전, 속도, 수명을 가진 파티클 시스템 생성
+ * @return UParticleSystem* - 생성된 파티클 시스템 템플릿
+ */
+UParticleSystem* UParticleSystemComponent::CreateFlareParticleSystem()
+{
+	// ========== 1. 파티클 시스템 생성 ==========
+	UParticleSystem* ParticleSystem = NewObject<UParticleSystem>();
+	if (!ParticleSystem)
+	{
+		return nullptr;
+	}
+
+	// 시스템 기본 설정
+	ParticleSystem->UpdateTime_FPS = 60.0f;
+	ParticleSystem->UpdateTime_Delta = 1.0f / 60.0f;
+	ParticleSystem->WarmupTime = 0.0f;
+	ParticleSystem->WarmupTickRate = 0;
+	ParticleSystem->bAutoDeactivate = false;
+	ParticleSystem->SecondsBeforeInactive = 0.0f;
+	ParticleSystem->Delay = 0.0f;
+
+	// ========== 2. 에미터 생성 ==========
+	UParticleEmitter* Emitter = NewObject<UParticleEmitter>();
+	if (!Emitter)
+	{
+		return nullptr;
+	}
+
+	// ========== 3. LOD 레벨 생성 ==========
+	UParticleLODLevel* LODLevel = NewObject<UParticleLODLevel>();
+	if (!LODLevel)
+	{
+		return nullptr;
+	}
+
+	LODLevel->Level = 0;
+	LODLevel->bEnabled = true;
+
+	// ========== 4. Required 모듈 생성 및 설정 ==========
+	UParticleModuleRequired* RequiredModule = NewObject<UParticleModuleRequired>();
+	if (!RequiredModule)
+	{
+		return nullptr;
+	}
+
+	// flare0.dds 텍스처를 사용하는 머티리얼 로드
+	UMaterial* FlareMaterial = UResourceManager::GetInstance().Load<UMaterial>("Data/Particle/flare0.dds");
+	RequiredModule->SetMaterial(FlareMaterial);
+	RequiredModule->SetEmitterDuration(1.0f);
+	RequiredModule->SetEmitterLoops(0); // 무한 루프
+	RequiredModule->SetScreenAlignment(EParticleScreenAlignment::Square); // 카메라를 향함
+	RequiredModule->SetSortMode(EParticleSortMode::None);
+	RequiredModule->SetUseLocalSpace(false); // 월드 공간 사용
+
+	LODLevel->RequiredModule = RequiredModule;
+
+	// ========== 5. Spawn 모듈 생성 및 설정 ==========
+	UParticleModuleSpawn* SpawnModule = NewObject<UParticleModuleSpawn>();
+	if (!SpawnModule)
+	{
+		return nullptr;
+	}
+
+	// 초당 50개 파티클 생성
+	SpawnModule->Rate = FFloatDistribution(50.0f);
+	SpawnModule->bProcessBurstList = false;
+
+	LODLevel->SpawnModule = SpawnModule;
+
+	// ========== 6. Lifetime 모듈 생성 및 설정 (랜덤 수명) ==========
+	UParticleModuleLifetime* LifetimeModule = NewObject<UParticleModuleLifetime>();
+	if (!LifetimeModule)
+	{
+		return nullptr;
+	}
+
+	// 수명: 1.0 ~ 3.0초 랜덤
+	LifetimeModule->Lifetime = FFloatDistribution(1.0f, 3.0f);
+
+	LODLevel->Modules.Add(LifetimeModule);
+
+	// ========== 7. Velocity 모듈 생성 및 설정 (랜덤 속도) ==========
+	UParticleModuleVelocity* VelocityModule = NewObject<UParticleModuleVelocity>();
+	if (!VelocityModule)
+	{
+		return nullptr;
+	}
+
+	// 속도: 각 방향으로 -100 ~ 100 랜덤
+	VelocityModule->StartVelocity = FVectorDistribution(
+		FVector(-100.0f, -100.0f, -100.0f),
+		FVector(100.0f, 100.0f, 100.0f)
+	);
+	VelocityModule->bInWorldSpace = false;
+
+	LODLevel->Modules.Add(VelocityModule);
+
+	// ========== 8. Size 모듈 생성 및 설정 ==========
+	UParticleModuleSize* SizeModule = NewObject<UParticleModuleSize>();
+	if (!SizeModule)
+	{
+		return nullptr;
+	}
+
+	// 크기: 10 ~ 30 유닛 랜덤
+	SizeModule->StartSize = FVectorDistribution(
+		FVector(10.0f, 10.0f, 10.0f),
+		FVector(30.0f, 30.0f, 30.0f)
+	);
+
+	LODLevel->Modules.Add(SizeModule);
+
+	// ========== 9. Color 모듈 생성 및 설정 ==========
+	UParticleModuleColor* ColorModule = NewObject<UParticleModuleColor>();
+	if (!ColorModule)
+	{
+		return nullptr;
+	}
+
+	// 색상: 흰색
+	ColorModule->StartColor = FColorDistribution(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f));
+	ColorModule->StartAlpha = FFloatDistribution(1.0f);
+	ColorModule->bClampAlpha = true;
+
+	LODLevel->Modules.Add(ColorModule);
+
+	// ========== 10. 모듈 리스트 업데이트 ==========
+	LODLevel->UpdateModuleLists();
+
+	// ========== 11. 에미터에 LOD 레벨 추가 ==========
+	Emitter->LODLevels.Add(LODLevel);
+
+	// ========== 12. 파티클 시스템에 에미터 추가 ==========
+	ParticleSystem->Emitters.Add(Emitter);
+
+	// ========== 13. 파티클 시스템 빌드 ==========
+	ParticleSystem->BuildEmitters();
+
+	return ParticleSystem;
 }

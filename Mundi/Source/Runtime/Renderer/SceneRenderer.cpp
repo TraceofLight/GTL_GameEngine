@@ -994,6 +994,8 @@ void FSceneRenderer::RenderParticlesPass()
 
 		for(FDynamicEmitterDataBase* EmitterData : DynamicData->DynamicEmitterDataArray)
 		{
+			if(!EmitterData)
+				continue;
 			EmitterData->GetDynamicMeshElementsEmitter(ParticleBatchElements, View);
 
 			// 각 파티클 컴포넌트의 메시 배치 수집

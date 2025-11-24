@@ -73,6 +73,15 @@ public:
 	 */
 	void ResetParticles();
 
+	// ============== Particle System Creation ==============
+	/**
+	 * Create a flare particle system with random rotation, velocity, and lifetime
+	 * flare0.dds 텍스처를 사용하여 랜덤한 회전, 속도, 수명을 가진 파티클 시스템 생성
+	 *
+	 * @return UParticleSystem* - Created particle system template
+	 */
+	static UParticleSystem* CreateFlareParticleSystem();
+
 	// ============== Emitter Management ==============
 	/**
 	 * Initialize emitter instances from template

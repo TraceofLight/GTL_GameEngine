@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
@@ -694,6 +694,33 @@
     <ClCompile Include="Source\Runtime\Engine\Particle\TypeData\ParticleModuleTypeDataBase.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\DynamicEmitterDataBase.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.cpp" />
+    <ClCompile Include="Generated\UParticleSystem.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Generated\UParticleEmitter.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Generated\UParticleLODLevel.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Generated\UParticleModuleRequired.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Generated\UParticleModuleColor.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Generated\UParticleModuleLifetime.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Generated\UParticleModuleSize.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Generated\UParticleModuleSpawn.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Generated\UParticleModuleVelocity.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -1463,6 +1490,33 @@
     <ClInclude Include="Source\Runtime\Engine\Particle\TypeData\ParticleModuleTypeDataBase.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleHelper.h" />
+    <ClInclude Include="Generated\UParticleSystem.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleEmitter.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleLODLevel.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleModuleRequired.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleModuleColor.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleModuleLifetime.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleModuleSize.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleModuleSpawn.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleModuleVelocity.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Shaders">

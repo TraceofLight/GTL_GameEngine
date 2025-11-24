@@ -195,13 +195,14 @@ public:
     UPROPERTY(EditAnywhere, Category="[액터]")
     bool bActorIsActive = true;       // 활성 상태(사용자 on/off), tick 적용
 
+	UPROPERTY(EditAnywhere, Category = "[액터]")
+	bool bTickInEditor = false; // 에디터에서도 틱 허용
+
 protected:
     // NOTE: RootComponent, CollisionComponent 등 기본 보호 컴포넌트들도
     // OwnedComponents와 SceneComponents에 포함되어 관리됨.
     TSet<UActorComponent*> OwnedComponents;   // 모든 컴포넌트 (씬/비씬)
     TArray<USceneComponent*> SceneComponents; // 씬 컴포넌트들만 별도 캐시(트리/렌더/ImGui용)
-
-    bool bTickInEditor = false; // 에디터에서도 틱 허용
 
     // Actor의 Visibility는 루트 컴포넌트로 설정
     bool bHiddenInEditor = false;

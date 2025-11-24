@@ -1,6 +1,7 @@
 #pragma once
 #include "ParticleModule.h"
 #include "ParticleTypes.h"
+#include "UParticleModuleSize.generated.h"
 
 /**
  * @brief 파티클의 크기를 설정하는 모듈
@@ -11,7 +12,7 @@
 UCLASS()
 class UParticleModuleSize : public UParticleModule
 {
-	DECLARE_CLASS(UParticleModuleSize, UParticleModule)
+	GENERATED_REFLECTION_BODY()
 
 public:
 	UParticleModuleSize();

@@ -1,5 +1,8 @@
 #pragma once
 #include "ParticleTypes.h"
+#include "Object.h"
+
+#include "UParticleSystem.generated.h"
 
 class UParticleEmitter;
 
@@ -28,7 +31,7 @@ UCLASS()
 class UParticleSystem :
 	public UObject
 {
-	DECLARE_CLASS(UParticleSystem, UObject)
+	GENERATED_REFLECTION_BODY()
 
 public:
 	// 이미터 배열

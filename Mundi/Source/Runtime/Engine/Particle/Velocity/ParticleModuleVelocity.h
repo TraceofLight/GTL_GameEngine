@@ -2,6 +2,8 @@
 #include "ParticleModule.h"
 #include "ParticleTypes.h"
 
+#include "UParticleModuleVelocity.generated.h"
+
 /**
  * @brief 파티클의 초기 속도와 방향을 설정하는 모듈
  * @details Spawn 시 파티클의 Velocity 및 BaseVelocity 값을 설정
@@ -13,7 +15,7 @@ UCLASS()
 class UParticleModuleVelocity :
 	public UParticleModule
 {
-	DECLARE_CLASS(UParticleModuleVelocity, UParticleModule)
+	GENERATED_REFLECTION_BODY()
 
 public:
 	UParticleModuleVelocity();

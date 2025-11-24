@@ -2,6 +2,8 @@
 #include "ParticleModule.h"
 #include "ParticleTypes.h"
 
+#include "UParticleModuleRequired.generated.h"
+
 // Forward declarations
 class UMaterial;
 
@@ -48,7 +50,7 @@ UCLASS()
 class UParticleModuleRequired :
 	public UParticleModule
 {
-	DECLARE_CLASS(UParticleModuleRequired, UParticleModule)
+	GENERATED_REFLECTION_BODY()
 
 public:
 	UParticleModuleRequired();

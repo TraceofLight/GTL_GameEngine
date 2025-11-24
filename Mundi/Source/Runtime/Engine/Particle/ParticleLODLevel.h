@@ -1,5 +1,7 @@
 #pragma once
 
+#include "UParticleLODLevel.generated.h"
+
 // Forward declarations
 class UParticleModule;
 class UParticleModuleRequired;
@@ -24,7 +26,7 @@ UCLASS()
 class UParticleLODLevel :
 	public UObject
 {
-	DECLARE_CLASS(UParticleLODLevel, UObject)
+	GENERATED_REFLECTION_BODY()
 
 public:
 	int32 Level;

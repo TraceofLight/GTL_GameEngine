@@ -2,6 +2,8 @@
 #include "ParticleModule.h"
 #include "ParticleTypes.h"
 
+#include "UParticleModuleColor.generated.h"
+
 /**
  * @brief 파티클의 색상을 정의하는 모듈
  * @details Spawn 시 파티클의 Color 값을 설정
@@ -13,7 +15,7 @@
 UCLASS()
 class UParticleModuleColor : public UParticleModule
 {
-	DECLARE_CLASS(UParticleModuleColor, UParticleModule)
+	GENERATED_REFLECTION_BODY()
 
 public:
 	FColorDistribution StartColor;

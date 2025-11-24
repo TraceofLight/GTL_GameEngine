@@ -1,5 +1,6 @@
 #pragma once
 #include "ParticleTypes.h"
+#include "UParticleEmitter.generated.h"
 
 class UParticleLODLevel;
 class UParticleModuleTypeDataBase;
@@ -28,7 +29,7 @@ UCLASS()
 class UParticleEmitter :
 	public UObject
 {
-	DECLARE_CLASS(UParticleEmitter, UObject)
+	GENERATED_REFLECTION_BODY()
 
 public:
 	// 기본 속성
