@@ -2,6 +2,7 @@
 #include "AnimSequence.h"
 #include "AnimDataModel.h"
 #include "WindowsBinReader.h"
+#include "WindowsBinWriter.h"
 #include "Source/Editor/FBXLoader.h"
 #include "ResourceManager.h"
 
@@ -193,6 +194,30 @@ void UAnimSequence::LoadFromAnimFile(const FString& AnimFilePath)
 			Reader << Notifies[i];
 		}
 
+		// SyncMarkers 로드
+		uint32 SyncMarkerCount = 0;
+		Reader << SyncMarkerCount;
+
+		// SyncMarkerCount 유효성 검사
+		if (SyncMarkerCount > 1000)
+		{
+			UE_LOG("AnimSequence: LoadFromAnimFile: Invalid SyncMarkerCount (%u) in file: %s", SyncMarkerCount, AnimFilePath.c_str());
+			Name.clear();
+			Notifies.clear();
+			return;
+		}
+
+		SyncMarkers.clear();
+		SyncMarkers.reserve(SyncMarkerCount);
+		for (uint32 i = 0; i < SyncMarkerCount; ++i)
+		{
+			FString MarkerName;
+			float MarkerTime = 0.0f;
+			Serialization::ReadString(Reader, MarkerName);
+			Reader << MarkerTime;
+			SyncMarkers.Add(FAnimSyncMarker(MarkerName, MarkerTime));
+		}
+
 		// DataModel 로드
 		UAnimDataModel* NewDataModel = NewObject<UAnimDataModel>();
 		Reader << *NewDataModel;
@@ -212,6 +237,106 @@ void UAnimSequence::LoadFromAnimFile(const FString& AnimFilePath)
 	catch (const std::exception& e)
 	{
 		UE_LOG("AnimSequence: LoadFromAnimFile: Exception: %s", e.what());
+	}
+}
+
+bool UAnimSequence::Save()
+{
+	FString CurrentPath = GetFilePath();
+	FString SavePath;
+
+	// 저장 경로 결정
+	if (CurrentPath.ends_with(".anim"))
+	{
+		// .anim 파일: 기존 경로에 덮어쓰기
+		SavePath = CurrentPath;
+	}
+	else
+	{
+		// FBX 파일: .anim으로 변환하여 저장
+		size_t HashPos = CurrentPath.find('#');
+		if (HashPos != FString::npos)
+		{
+			// "Data/Animation/File.FBX#AnimStack" → "Data/Animation/File.anim"
+			FString FbxPath = CurrentPath.substr(0, HashPos);
+			size_t DotPos = FbxPath.find_last_of('.');
+			if (DotPos != FString::npos)
+			{
+				SavePath = FbxPath.substr(0, DotPos) + ".anim";
+			}
+			else
+			{
+				SavePath = FbxPath + ".anim";
+			}
+		}
+		else
+		{
+			// Fallback: AnimSequence 이름 사용
+			SavePath = "Data/Animation/" + Name + ".anim";
+		}
+	}
+
+	return SaveToFile(SavePath);
+}
+
+bool UAnimSequence::SaveToFile(const FString& SavePath)
+{
+	if (SavePath.empty())
+	{
+		UE_LOG("AnimSequence: SaveToFile: Empty save path");
+		return false;
+	}
+
+	// 디렉토리 생성
+	std::filesystem::path FilePathObj(SavePath);
+	std::filesystem::path DirPath = FilePathObj.parent_path();
+	if (!DirPath.empty() && !std::filesystem::exists(DirPath))
+	{
+		std::filesystem::create_directories(DirPath);
+	}
+
+	try
+	{
+		FWindowsBinWriter Writer(SavePath);
+
+		// Name 저장
+		Serialization::WriteString(Writer, Name);
+
+		// Notifies 저장
+		uint32 NotifyCount = static_cast<uint32>(Notifies.Num());
+		Writer << NotifyCount;
+		for (FAnimNotifyEvent& Notify : Notifies)
+		{
+			Writer << Notify;
+		}
+
+		// SyncMarkers 저장
+		uint32 SyncMarkerCount = static_cast<uint32>(SyncMarkers.Num());
+		Writer << SyncMarkerCount;
+		for (const FAnimSyncMarker& Marker : SyncMarkers)
+		{
+			Serialization::WriteString(Writer, Marker.MarkerName);
+			Writer << Marker.Time;
+		}
+
+		// DataModel 저장
+		if (DataModel)
+		{
+			Writer << *DataModel;
+		}
+
+		Writer.Close();
+
+		// FilePath 업데이트 (다음 Save는 .anim 경로로)
+		SetFilePath(SavePath);
+
+		UE_LOG("AnimSequence: SaveToFile: Saved '%s' to %s", Name.c_str(), SavePath.c_str());
+		return true;
+	}
+	catch (const std::exception& e)
+	{
+		UE_LOG("AnimSequence: SaveToFile: Failed - %s", e.what());
+		return false;
 	}
 }
 

@@ -43,6 +43,10 @@ public:
 	// .anim 파일에서 직접 로드 (Save와 대칭)
 	void LoadFromAnimFile(const FString& AnimFilePath);
 
+	// .anim 파일로 저장
+	bool Save();
+	bool SaveToFile(const FString& SavePath);
+
 	// 특정 시간의 본 Transform 샘플링
 	bool GetBoneTransformAtTime(const FString& BoneName, float Time, FVector& OutPosition, FQuat& OutRotation, FVector& OutScale) const;
 

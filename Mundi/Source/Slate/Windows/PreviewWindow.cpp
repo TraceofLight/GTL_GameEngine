@@ -19,7 +19,6 @@
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
 #include "Source/Runtime/InputCore/InputManager.h"
-#include "Source/Runtime/Core/Misc/WindowsBinWriter.h"
 #include "Source/Runtime/Core/Misc/Archive.h"
 #include <cmath> // for fmod
 #include <filesystem>
@@ -1259,81 +1258,7 @@ void SPreviewWindow::OnRender()
                 UAnimSequence* AnimToSave = ActiveState->CurrentAnimation;
                 if (AnimToSave)
                 {
-                    FString FilePath = AnimToSave->GetFilePath();
-                    FString SavePath;
-
-                    // 저장 경로 결정
-                    if (FilePath.ends_with(".anim"))
-                    {
-                        // .anim 파일: 기존 경로에 덮어쓰기
-                        SavePath = FilePath;
-                    }
-                    else
-                    {
-                        // FBX 파일: .anim으로 변환하여 저장
-                        size_t HashPos = FilePath.find('#');
-                        if (HashPos != FString::npos)
-                        {
-                            // "Data/Animation/File.FBX#AnimStack" → "Data/Animation/File.anim"
-                            FString FbxPath = FilePath.substr(0, HashPos);
-                            size_t DotPos = FbxPath.find_last_of('.');
-                            if (DotPos != FString::npos)
-                            {
-                                SavePath = FbxPath.substr(0, DotPos) + ".anim";
-                            }
-                            else
-                            {
-                                SavePath = FbxPath + ".anim";
-                            }
-                        }
-                        else
-                        {
-                            // Fallback: AnimSequence 이름 사용
-                            SavePath = "Data/Animation/" + AnimToSave->GetName() + ".anim";
-                        }
-                    }
-
-                    // 디렉토리 생성
-                    std::filesystem::path FilePathObj(SavePath);
-                    std::filesystem::path DirPath = FilePathObj.parent_path();
-                    if (!DirPath.empty() && !std::filesystem::exists(DirPath))
-                    {
-                        std::filesystem::create_directories(DirPath);
-                    }
-
-                    // 파일 저장
-                    try
-                    {
-                        FWindowsBinWriter Writer(SavePath);
-
-                        // Name 저장
-                        Serialization::WriteString(Writer, AnimToSave->GetName());
-
-                        // Notifies 저장
-                        uint32 NotifyCount = static_cast<uint32>(AnimToSave->Notifies.Num());
-                        Writer << NotifyCount;
-                        for (FAnimNotifyEvent& Notify : AnimToSave->Notifies)
-                        {
-                            Writer << Notify;
-                        }
-
-                        // DataModel 저장
-                        if (UAnimDataModel* DataModel = AnimToSave->GetDataModel())
-                        {
-                            Writer << *DataModel;
-                        }
-
-                        Writer.Close();
-
-                        // FilePath 업데이트 (다음 Save는 .anim 경로로)
-                        AnimToSave->SetFilePath(SavePath);
-
-                        UE_LOG("SkeletalMeshViewer: Save: Saved to %s", SavePath.c_str());
-                    }
-                    catch (const std::exception& e)
-                    {
-                        UE_LOG("SkeletalMeshViewer: Save: Failed - %s", e.what());
-                    }
+                    AnimToSave->Save();
                 }
             }
 
@@ -1392,34 +1317,20 @@ void SPreviewWindow::OnRender()
                         FString NewFileName = SaveAsFileName;
                         FString SavePath = "Data/Animation/" + NewFileName + ".anim";
 
-                        std::filesystem::path FilePathObj(SavePath);
-                        std::filesystem::path DirPath = FilePathObj.parent_path();
-                        if (!DirPath.empty() && !std::filesystem::exists(DirPath))
+                        UAnimSequence* SourceAnim = ActiveState->CurrentAnimation;
+
+                        // 원본 상태 저장 (SaveToFile이 Name과 FilePath를 변경하므로)
+                        FString OriginalName = SourceAnim->GetName();
+                        FString OriginalFilePath = SourceAnim->GetFilePath();
+
+                        // 임시로 Name을 변경하여 저장
+                        SourceAnim->SetName(NewFileName);
+
+                        if (SourceAnim->SaveToFile(SavePath))
                         {
-                            std::filesystem::create_directories(DirPath);
-                        }
-
-                        try
-                        {
-                            UAnimSequence* SourceAnim = ActiveState->CurrentAnimation;
-
-                            // 파일 저장
-                            FWindowsBinWriter Writer(SavePath);
-                            Serialization::WriteString(Writer, NewFileName);
-
-                            uint32 NotifyCount = static_cast<uint32>(SourceAnim->Notifies.Num());
-                            Writer << NotifyCount;
-                            for (FAnimNotifyEvent& Notify : SourceAnim->Notifies)
-                            {
-                                Writer << Notify;
-                            }
-
-                            if (UAnimDataModel* DataModel = SourceAnim->GetDataModel())
-                            {
-                                Writer << *DataModel;
-                            }
-
-                            Writer.Close();
+                            // 원본 애니메이션 상태 복원
+                            SourceAnim->SetName(OriginalName);
+                            SourceAnim->SetFilePath(OriginalFilePath);
 
                             // 새로운 AnimSequence 객체 생성 및 로드
                             UAnimSequence* NewAnim = UResourceManager::GetInstance().Load<UAnimSequence>(SavePath);
@@ -1454,14 +1365,16 @@ void SPreviewWindow::OnRender()
                             }
 
                             UE_LOG("SkeletalMeshViewer: SaveAs: Created new animation %s", SavePath.c_str());
-
-                            memset(SaveAsFileName, 0, sizeof(SaveAsFileName));
-                            ImGui::CloseCurrentPopup();
                         }
-                        catch (const std::exception& e)
+                        else
                         {
-                            UE_LOG("SkeletalMeshViewer: SaveAs: Failed - %s", e.what());
+                            // 저장 실패 시 원본 상태 복원
+                            SourceAnim->SetName(OriginalName);
+                            SourceAnim->SetFilePath(OriginalFilePath);
                         }
+
+                        memset(SaveAsFileName, 0, sizeof(SaveAsFileName));
+                        ImGui::CloseCurrentPopup();
                     }
                 }
                 ImGui::SameLine();

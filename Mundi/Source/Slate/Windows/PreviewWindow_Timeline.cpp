@@ -8,7 +8,6 @@
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
 #include "Source/Runtime/Engine/Animation/AnimSingleNodeInstance.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
-#include "Source/Runtime/Core/Misc/WindowsBinWriter.h"
 
 // Timeline 컨트롤 UI 렌더링
 void SPreviewWindow::RenderTimelineControls(ViewerState* State)
@@ -752,33 +751,8 @@ void SPreviewWindow::TimelineRecord(ViewerState* State)
             // 파일로 저장
             FString SavePath = "Data/Animation/" + State->RecordedFileName + ".anim";
 
-            // 디렉토리 생성
-            std::filesystem::path FilePathObj(SavePath);
-            std::filesystem::path DirPath = FilePathObj.parent_path();
-            if (!DirPath.empty() && !std::filesystem::exists(DirPath))
+            if (NewAnim->SaveToFile(SavePath))
             {
-                std::filesystem::create_directories(DirPath);
-            }
-
-            // 파일 저장
-            try
-            {
-                FWindowsBinWriter Writer(SavePath);
-
-                // Name 저장
-                Serialization::WriteString(Writer, NewAnim->GetName());
-
-                // Notifies 저장 (빈 배열)
-                uint32 NotifyCount = 0;
-                Writer << NotifyCount;
-
-                // DataModel 저장
-                Writer << *DataModel;
-
-                Writer.Close();
-
-                NewAnim->SetFilePath(SavePath);
-
                 // SkeletalMesh의 Animation List에 추가
                 State->CurrentMesh->AddAnimation(NewAnim);
 
@@ -807,9 +781,9 @@ void SPreviewWindow::TimelineRecord(ViewerState* State)
 
                 UE_LOG("[PreviewWindow] Recording saved: %s (%d frames)", SavePath.c_str(), NumFrames);
             }
-            catch (const std::exception& e)
+            else
             {
-                UE_LOG("[PreviewWindow] Recording save failed: %s", e.what());
+                UE_LOG("[PreviewWindow] Recording save failed");
             }
         }
         else
