@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "SceneRenderer.h"
 #include "GPUProfiler.h"
 #include "StatsOverlayD2D.h"
@@ -50,6 +50,7 @@
 #include "PostProcessing/VignettePass.h"
 #include "FbxLoader.h"
 #include "SkinnedMeshComponent.h"
+#include "ParticleSystemComponent.h"
 
 FSceneRenderer::FSceneRenderer(UWorld* InWorld, FSceneView* InView, URenderer* InOwnerRenderer)
 	: World(InWorld)
@@ -728,6 +729,10 @@ void FSceneRenderer::GatherVisibleProxies()
 					else if (ULineComponent* LineComponent = Cast<ULineComponent>(PrimitiveComponent))
 					{
 						Proxies.EditorLines.Add(LineComponent);
+					}
+					else if (UParticleSystemComponent* ParticleComponent = Cast<UParticleSystemComponent>(PrimitiveComponent))
+					{
+						Proxies.Particles.Add(ParticleComponent);
 					}
 				}
 				else

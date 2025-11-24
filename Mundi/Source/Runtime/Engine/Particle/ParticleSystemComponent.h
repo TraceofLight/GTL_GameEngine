@@ -7,6 +7,7 @@
 class UParticleSystem;
 struct FParticleEmitterInstance;
 struct FDynamicEmitterDataBase;
+struct FParticleDynamicData;
 
 /**
  * Component that manages and renders a particle system
@@ -91,6 +92,10 @@ public:
 	 */
 	void UpdateEmitters(float DeltaTime);
 
+	// ============== Rendering Data ==============
+	void UpdateDynamicData();
+	FParticleDynamicData* GetCurrentDynamicData() const { return CurrentDynamicData; }
+
 	// ============== State ==============
 	/** Whether the particle system is currently active */
 	// 파티클 시스템이 현재 활성화되어 있는지 여부
@@ -112,4 +117,6 @@ protected:
 	 * 모든 에미터 인스턴스 정리 (내부 헬퍼)
 	 */
 	void ClearEmitterInstances();
+
+	FParticleDynamicData* CurrentDynamicData;
 };
