@@ -62,75 +62,50 @@ void UFbxLoader::PreLoad()
           {
              ProcessedFiles.insert(WPathStr);
 
-             // FBX Mesh 로드
-             USkeletalMesh* LoadedMesh = FbxLoader.LoadFbxMesh(PathStr);
+             UResourceManager::GetInstance().AsyncLoad<USkeletalMesh>(PathStr, nullptr, EAssetLoadPriority::Low);
              ++LoadedCount;
-
-             // 애니메이션 로드 (AnimStack이 있는 경우에만)
-             if (LoadedMesh && LoadedMesh->GetSkeleton())
-             {
-                const FSkeleton* TargetSkeleton = LoadedMesh->GetSkeleton();
-
-                // LoadAllFbxAnimations가 내부에서 ResourceManager에 자동 등록
-                // 메시 추가는 나중에 일괄 처리 (95-115줄)
-                FbxLoader.LoadAllFbxAnimations(PathStr, *TargetSkeleton);
-             }
-             else
-             {
-                // 메시가 없는 애니메이션 전용 FBX인 경우
-                // 표준 Canonical Mixamo 스켈레톤 사용
-                UE_LOG("FbxLoader: PreLoad: No mesh found in '%s', loading as animation-only FBX", PathStr.c_str());
-
-                FSkeleton* CanonicalSkeleton = FMixamoChainMapper::CreateCanonicalSkeleton();
-                if (CanonicalSkeleton)
-                {
-                   FbxLoader.LoadAllFbxAnimations(PathStr, *CanonicalSkeleton);
-                   delete CanonicalSkeleton;
-                }
-             }
           }
        }
        else if (Extension == L".dds" || Extension == L".jpg" || Extension == L".png")
        {
-          UResourceManager::GetInstance().Load<UTexture>(WideToUTF8(Path.wstring()));
+          // 텍스처도 비동기 로딩으로 변경
+          UResourceManager::GetInstance().AsyncLoad<UTexture>(WideToUTF8(Path.wstring()), nullptr, EAssetLoadPriority::Low);
        }
     }
-    RESOURCE.SetSkeletalMeshes();
-    RESOURCE.SetAnimSequences();
 
-    // 모든 Animation을 모든 SkeletalMesh에 추가 (호환성 체크 없음)
-    TArray<USkeletalMesh*> AllSkeletalMeshes = RESOURCE.GetAll<USkeletalMesh>();
-    TArray<UAnimSequence*> AllAnimSequences = RESOURCE.GetAll<UAnimSequence>();
-
-    UE_LOG("FbxLoader: PreLoad: Adding %d animations to %d skeletal meshes", AllAnimSequences.Num(), AllSkeletalMeshes.Num());
-
-    for (UAnimSequence* AnimSeq : AllAnimSequences)
+    // 모든 로드 완료 시 후처리 콜백 등록
+    RESOURCE.RegisterOnAllLoadsComplete([this]()
     {
-       if (!AnimSeq)
-          continue;
+       auto& RM = UResourceManager::GetInstance();
+       RM.SetSkeletalMeshes();
+       RM.SetAnimSequences();
 
-       // Name이 비어있는 경우 건너뜀 (로드 실패)
-       if (AnimSeq->Name.empty())
-       {
-          continue;
-       }
+       TArray<USkeletalMesh*> AllSkeletalMeshes = RM.GetAll<USkeletalMesh>();
+       TArray<UAnimSequence*> AllAnimSequences = RM.GetAll<UAnimSequence>();
 
-       for (USkeletalMesh* Mesh : AllSkeletalMeshes)
+       UE_LOG("FbxLoader: Adding %d animations to %d skeletal meshes", AllAnimSequences.Num(), AllSkeletalMeshes.Num());
+
+       for (UAnimSequence* AnimSeq : AllAnimSequences)
        {
-          if (Mesh)
+          if (!AnimSeq || AnimSeq->Name.empty())
           {
-             Mesh->AddAnimation(AnimSeq);
+             continue;
+          }
+
+          for (USkeletalMesh* Mesh : AllSkeletalMeshes)
+          {
+             if (Mesh)
+             {
+                Mesh->AddAnimation(AnimSeq);
+             }
           }
        }
-    }
 
-    UE_LOG("FbxLoader: PreLoad: Loaded %zu .fbx files from %s", LoadedCount, GDataDir.c_str());
+       SaveAllAnimSequencesToAnimFiles();
+       PrintAllSkeletonHierarchies();
+    });
 
-   // 모든 AnimSequence를 .anim 파일로 저장
-   SaveAllAnimSequencesToAnimFiles();
-
-   // 모든 스켈레톤과 애니메이션의 본 계층 구조 출력
-   PrintAllSkeletonHierarchies();
+    UE_LOG("FbxLoader: PreLoad: Queued %zu .fbx files from %s", LoadedCount, GDataDir.c_str());
 }
 
 UFbxLoader::~UFbxLoader()

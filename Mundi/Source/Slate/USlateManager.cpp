@@ -530,6 +530,44 @@ void USlateManager::Render()
     {
         AnimStateMachineWindow->OnRender();
     }
+
+    // 로딩 UI (우상단)
+    auto& RM = UResourceManager::GetInstance();
+    int32 PendingCount = RM.GetPendingLoadCount();
+    if (PendingCount > 0)
+    {
+        extern float CLIENTWIDTH;
+        extern float CLIENTHEIGHT;
+
+        // 화면 중앙 하단에 로딩 UI 표시
+        ImGui::SetNextWindowPos(ImVec2((CLIENTWIDTH - 310) * 0.5f, CLIENTHEIGHT - 150), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(310, 110), ImGuiCond_Always);
+
+        ImGui::Begin("Loading Assets", nullptr,
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoTitleBar);
+
+        ImGui::Text("Loading Assets...");
+        ImGui::Separator();
+
+        float Progress = RM.GetLoadProgress();
+        ImGui::ProgressBar(Progress, ImVec2(-1, 0));
+
+        int32 CompletedCount = RM.GetCompletedCount();
+        int32 TotalCount = PendingCount + CompletedCount;
+        ImGui::Text("%d / %d assets loaded", CompletedCount, TotalCount);
+
+        TArray<FString> CurrentAssets = RM.GetCurrentlyLoadingAssets();
+        if (!CurrentAssets.IsEmpty())
+        {
+            ImGui::Separator();
+            ImGui::TextWrapped("%s", CurrentAssets[0].c_str());
+        }
+
+        ImGui::End();
+    }
 }
 
 void USlateManager::RenderAfterUI()

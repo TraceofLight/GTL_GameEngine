@@ -365,8 +365,9 @@ void FAudioDevice::Preload()
         return;
     }
 
-    size_t LoadedCount = 0;
+    size_t QueuedCount = 0;
     std::unordered_set<FString> ProcessedFiles; //중복 로딩 방지
+    auto& RM = UResourceManager::GetInstance();
 
     for (const auto& Entry : fs::recursive_directory_iterator(DataDir))
     {
@@ -385,13 +386,18 @@ void FAudioDevice::Preload()
             if (ProcessedFiles.find(PathStr) == ProcessedFiles.end())
             {
                 ProcessedFiles.insert(PathStr);
-                // Load wav file 
-                ++LoadedCount;
-                UResourceManager::GetInstance().Load<USound>(Path.string());
+                // 비동기 로딩 큐에 추가 (동기 블로킹 제거)
+                ++QueuedCount;
+                RM.AsyncLoad<USound>(Path.string(), nullptr, EAssetLoadPriority::Low);
             }
         }
     }
-    RESOURCE.SetAudioFiles();
 
-    UE_LOG("FAudioDevice::Preload: Loaded %zu .wav files from %s", LoadedCount, DataDir.string().c_str());
+    // 모든 로드 완료 시 SetAudioFiles() 호출
+    RM.RegisterOnAllLoadsComplete([]()
+    {
+       UResourceManager::GetInstance().SetAudioFiles();
+    });
+
+    UE_LOG("FAudioDevice::Preload: Queued %zu .wav files for async loading from %s", QueuedCount, DataDir.string().c_str());
 }

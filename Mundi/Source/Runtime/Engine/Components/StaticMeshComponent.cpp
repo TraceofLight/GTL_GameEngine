@@ -130,30 +130,45 @@ void UStaticMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMesh
 
 void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 {
-	// 새 메시를 설정하기 전에, 기존에 생성된 모든 MID와 슬롯 정보를 정리합니다.
 	ClearDynamicMaterials();
 
-	// 새 메시를 로드합니다.
-	StaticMesh = UResourceManager::GetInstance().Load<UStaticMesh>(PathFileName);
+	auto& RM = UResourceManager::GetInstance();
+
+	// Default 메쉬 즉시 표시 → 로드 완료 시 교체
+	StaticMesh = RM.GetDefaultStaticMesh();
 	if (StaticMesh && StaticMesh->GetStaticMeshAsset())
 	{
 		const TArray<FGroupInfo>& GroupInfos = StaticMesh->GetMeshGroupInfo();
+		MaterialSlots.resize(GroupInfos.size());
 
-		// 4. 새 메시 정보에 맞게 슬롯을 재설정합니다.
-		MaterialSlots.resize(GroupInfos.size()); // ClearDynamicMaterials()에서 비워졌으므로, 새 크기로 재할당
-
-		for (int i = 0; i < GroupInfos.size(); ++i)
+		for (size_t i = 0; i < GroupInfos.size(); ++i)
 		{
-			SetMaterialByName(i, GroupInfos[i].InitialMaterialName);
+			SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
 		}
 		MarkWorldPartitionDirty();
 	}
-	else
+
+	RM.AsyncLoad<UStaticMesh>(PathFileName, [this, PathFileName](UStaticMesh* LoadedMesh)
 	{
-		// 메시 로드에 실패한 경우, StaticMesh 포인터를 nullptr로 보장합니다.
-		// (슬롯은 이미 위에서 비워졌습니다.)
-		StaticMesh = nullptr;
-	}
+		if (LoadedMesh && LoadedMesh->GetStaticMeshAsset())
+		{
+			this->StaticMesh = LoadedMesh;
+
+			const TArray<FGroupInfo>& GroupInfos = LoadedMesh->GetMeshGroupInfo();
+			this->MaterialSlots.resize(GroupInfos.size());
+
+			for (size_t i = 0; i < GroupInfos.size(); ++i)
+			{
+				this->SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
+			}
+
+			this->MarkWorldPartitionDirty();
+		}
+		else
+		{
+			UE_LOG("[warning] StaticMeshComponent: Failed to load %s, keeping default cube", PathFileName.c_str());
+		}
+	}, EAssetLoadPriority::Normal);
 }
 
 FAABB UStaticMeshComponent::GetWorldAABB() const

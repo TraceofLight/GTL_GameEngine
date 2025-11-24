@@ -226,8 +226,9 @@ void FObjManager::Preload()
 		return;
 	}
 
-	size_t LoadedCount = 0;
+	size_t QueuedCount = 0;
 	std::unordered_set<FString> ProcessedFiles; // 중복 로딩 방지
+	auto& RM = UResourceManager::GetInstance();
 
 	for (const auto& Entry : fs::recursive_directory_iterator(DataDir))
 	{
@@ -246,20 +247,26 @@ void FObjManager::Preload()
 			if (ProcessedFiles.find(PathStr) == ProcessedFiles.end())
 			{
 				ProcessedFiles.insert(PathStr);
-				LoadObjStaticMesh(PathStr);
-				++LoadedCount;
+
+				// 비동기 로딩 큐에 추가
+				RM.AsyncLoad<UStaticMesh>(PathStr, nullptr, EAssetLoadPriority::Low);
+				++QueuedCount;
 			}
 		}
 		else if (Extension == ".dds" || Extension == ".jpg" || Extension == ".png")
 		{
-			UResourceManager::GetInstance().Load<UTexture>(Path.string()); // 데칼 텍스쳐를 ui에서 고를 수 있게 하기 위해 임시로 만듬.
+			// 텍스처도 비동기 로딩으로 변경
+			RM.AsyncLoad<UTexture>(Path.string(), nullptr, EAssetLoadPriority::Low);
 		}
 	}
 
-	// 4) 모든 StaticMeshs 가져오기
-	RESOURCE.SetStaticMeshes();
+	// 모든 로드 완료 시 SetStaticMeshes 호출
+	RM.RegisterOnAllLoadsComplete([]()
+	{
+		UResourceManager::GetInstance().SetStaticMeshes();
+	});
 
-	UE_LOG("FObjManager::Preload: Loaded %zu .obj files from %s", LoadedCount, DataDir.string().c_str());
+	UE_LOG("FObjManager::Preload: Queued %zu mesh files for async loading from %s", QueuedCount, DataDir.string().c_str());
 }
 
 void FObjManager::Clear()

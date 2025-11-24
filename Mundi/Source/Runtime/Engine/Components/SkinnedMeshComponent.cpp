@@ -209,35 +209,60 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
 {
    ClearDynamicMaterials();
 
-   SkeletalMesh = UResourceManager::GetInstance().Load<USkeletalMesh>(PathFileName);
-
    if (VertexBuffer)
    {
       VertexBuffer->Release();
       VertexBuffer = nullptr;
-   } 
+   }
 
+   auto& RM = UResourceManager::GetInstance();
+
+   // Default SkeletalMesh 즉시 표시 → 로드 완료 시 교체
+   SkeletalMesh = RM.GetDefaultSkeletalMesh();
    if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshData())
    {
       SkeletalMesh->CreateVertexBufferForComp(&VertexBuffer);
-
-      const TArray<FMatrix> IdentityMatrices(SkeletalMesh->GetBoneCount(), FMatrix::Identity());
-      UpdateSkinningMatrices(IdentityMatrices, IdentityMatrices);
+      UpdateSkinningMatrices(TArray<FMatrix>(), TArray<FMatrix>());
 
       const TArray<FGroupInfo>& GroupInfos = SkeletalMesh->GetMeshGroupInfo();
-       MaterialSlots.resize(GroupInfos.size());
-       for (int i = 0; i < GroupInfos.size(); ++i)
+      MaterialSlots.resize(GroupInfos.size());
+      for (size_t i = 0; i < GroupInfos.size(); ++i)
       {
-         // FGroupInfo에 InitialMaterialName이 있다고 가정
-         SetMaterialByName(i, GroupInfos[i].InitialMaterialName);
+         SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
       }
       MarkWorldPartitionDirty();
    }
-   else
+
+   RM.AsyncLoad<USkeletalMesh>(PathFileName, [this, PathFileName](USkeletalMesh* LoadedMesh)
    {
-      SkeletalMesh = nullptr;
-      UpdateSkinningMatrices(TArray<FMatrix>(), TArray<FMatrix>());
-   }
+      if (LoadedMesh && LoadedMesh->GetSkeletalMeshData())
+      {
+         this->SkeletalMesh = LoadedMesh;
+
+         if (this->VertexBuffer)
+         {
+            this->VertexBuffer->Release();
+            this->VertexBuffer = nullptr;
+         }
+         LoadedMesh->CreateVertexBufferForComp(&this->VertexBuffer);
+
+         const TArray<FMatrix> IdentityMatrices(LoadedMesh->GetBoneCount(), FMatrix::Identity());
+         this->UpdateSkinningMatrices(IdentityMatrices, IdentityMatrices);
+
+         const TArray<FGroupInfo>& GroupInfos = LoadedMesh->GetMeshGroupInfo();
+         this->MaterialSlots.resize(GroupInfos.size());
+         for (size_t i = 0; i < GroupInfos.size(); ++i)
+         {
+            this->SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
+         }
+
+         this->MarkWorldPartitionDirty();
+      }
+      else
+      {
+         UE_LOG("[warning] SkinnedMeshComponent: Failed to load %s", PathFileName.c_str());
+      }
+   }, EAssetLoadPriority::Normal);
 }
 
 void USkinnedMeshComponent::PerformSkinning()

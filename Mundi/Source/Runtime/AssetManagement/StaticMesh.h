@@ -29,10 +29,14 @@ public:
     void SetStaticMeshAsset(FStaticMesh* InStaticMesh) { StaticMeshAsset = InStaticMesh; }
 	FStaticMesh* GetStaticMeshAsset() const { return StaticMeshAsset; }
 
-    const TArray<FGroupInfo>& GetMeshGroupInfo() const { return StaticMeshAsset->GroupInfos; }
-    bool HasMaterial() const { return StaticMeshAsset->bHasMaterial; }
+    const TArray<FGroupInfo>& GetMeshGroupInfo() const
+    {
+        static TArray<FGroupInfo> EmptyGroup;
+        return StaticMeshAsset ? StaticMeshAsset->GroupInfos : EmptyGroup;
+    }
+    bool HasMaterial() const { return StaticMeshAsset ? StaticMeshAsset->bHasMaterial : false; }
 
-    uint64 GetMeshGroupCount() const { return StaticMeshAsset->GroupInfos.size(); }
+    uint64 GetMeshGroupCount() const { return StaticMeshAsset ? StaticMeshAsset->GroupInfos.size() : 0; }
     
     FAABB GetLocalBound() const {return LocalBound; }
     
