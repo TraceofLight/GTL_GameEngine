@@ -38,11 +38,10 @@ $RawUrl = $RemoteUrl -replace '\.git$', ''
 $RawUrl = $RawUrl -replace 'github\.com', 'raw.githubusercontent.com'
 
 $RepoRoot = $RepoRoot -replace '/', '\'
-$RepoRootEscaped = $RepoRoot -replace '\\', '\\'
 
 $Sourcelink = @{
     documents = @{
-        "$RepoRootEscaped\\*" = "$RawUrl/$CommitHash/*"
+        "$RepoRoot\*" = "$RawUrl/$CommitHash/*"
     }
 }
 
