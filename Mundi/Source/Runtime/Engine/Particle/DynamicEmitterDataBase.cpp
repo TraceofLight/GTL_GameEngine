@@ -222,6 +222,7 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 	{
 		BatchElement.Material = SourceData.MaterialInterface;
 	}
+	//BatchElement.Material = nullptr; // for test
 
 	// 출력 배열에 추가
 	OutMeshBatchElements.Add(BatchElement);

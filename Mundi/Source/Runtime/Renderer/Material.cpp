@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "Material.h"
 #include "Shader.h"
 #include "Texture.h"
@@ -26,6 +26,7 @@ void UMaterial::Load(const FString& InFilePath, ID3D11Device* InDevice)
 		Shader = UResourceManager::GetInstance().Load<UShader>(shaderName);
 		UResourceManager::GetInstance().Load<UTexture>(InFilePath);
 		MaterialInfo.DiffuseTextureFileName = InFilePath;
+		ResolveTextures();
 	} // hlsl 의 경우 
 	else if (InFilePath.find(".hlsl") != std::string::npos)
 	{

@@ -957,6 +957,7 @@ void FSceneRenderer::RenderParticlesPass()
 	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "ParticlePass", OwnerRenderer->GetGPUTimer());
 
 	// 파티클은 반투명이므로 add 블렌딩 활성화
+	RHIDevice->RSSetState(ERasterizerMode::Solid_NoCull);
 	RHIDevice->OMSetBlendState(true, true);
 	// 깊이 쓰기는 OFF, 깊이 테스트는 ON (다른 오브젝트 뒤에 가려지도록)
 	RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
