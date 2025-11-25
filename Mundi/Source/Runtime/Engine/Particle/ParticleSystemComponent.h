@@ -90,6 +90,14 @@ public:
 	 */
 	static UParticleSystem* CreateFlareParticleSystem();
 
+	/**
+	 * Create a mesh particle system using bitten apple model
+	 * 물린 사과 메시를 사용하는 메시 파티클 시스템 생성
+	 *
+	 * @return UParticleSystem* - Created particle system template
+	 */
+	static UParticleSystem* CreateAppleMeshParticleSystem();
+
 	// ============== Emitter Management ==============
 	/**
 	 * Initialize emitter instances from template

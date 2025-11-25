@@ -8,6 +8,8 @@
 #include "ParticleEmitterInstance.h"
 #include "ParticleMeshEmitterInstance.h"
 #include "Source/Runtime/AssetManagement/StaticMesh.h"
+#include "Source/Runtime/AssetManagement/ResourceManager.h"
+#include "Source/Runtime/Renderer/Material.h"
 
 void FDynamicSpriteEmitterDataBase::SortSpriteParticles(EParticleSortMode SortMode, bool bLocalSpace,
 	int32 ParticleCount, const uint8* ParticleData, int32 ParticleStride, const uint16* ParticleIndices,
@@ -315,35 +317,78 @@ void FDynamicMeshEmitterData::GetDynamicMeshElementsEmitter(
 		GEngine.GetRHIDevice()->VertexBufferUpdate(MeshInstance->InstanceBuffer, InstanceData);
 	}
 
-	// 6. FMeshBatchElement 생성
-	FMeshBatchElement BatchElement;
-
-	// 메시 에셋의 버퍼 사용
+	// 6. 메시 에셋 정보 가져오기
 	UStaticMesh* MeshAsset = SourceData.MeshAsset;
-	BatchElement.VertexBuffer = MeshAsset->GetVertexBuffer();
-	BatchElement.IndexBuffer = MeshAsset->GetIndexBuffer();
-	BatchElement.VertexStride = MeshAsset->GetVertexStride();
-	BatchElement.IndexCount = MeshAsset->GetIndexCount();
-	BatchElement.StartIndex = 0;
-	BatchElement.BaseVertexIndex = 0;
-
-	// 인스턴싱 데이터
-	BatchElement.InstanceBuffer = MeshInstance ? MeshInstance->InstanceBuffer : nullptr;
-	BatchElement.InstanceCount = ParticleCount;
-	BatchElement.InstanceStride = sizeof(FMeshParticleInstanceVertex);
-
-	BatchElement.WorldMatrix = FMatrix::Identity();
-	BatchElement.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-	assert(OwnerInstance != nullptr);
-	assert(OwnerInstance->Component != nullptr);
-	BatchElement.ObjectID = OwnerInstance->Component->UUID;
-
-	// 머티리얼 설정
-	if (SourceData.MaterialInterface)
+	if (!MeshAsset || !MeshAsset->GetStaticMeshAsset())
 	{
-		BatchElement.Material = SourceData.MaterialInterface;
+		return;
 	}
 
-	OutMeshBatchElements.Add(BatchElement);
+	const TArray<FGroupInfo>& MeshGroupInfos = MeshAsset->GetMeshGroupInfo();
+
+	// 7. 그룹별로 FMeshBatchElement 생성 (UStaticMeshComponent::CollectMeshBatches 로직 참고)
+	const bool bHasSections = !MeshGroupInfos.IsEmpty();
+	const uint32 NumSectionsToProcess = bHasSections ? static_cast<uint32>(MeshGroupInfos.size()) : 1;
+
+	for (uint32 SectionIndex = 0; SectionIndex < NumSectionsToProcess; ++SectionIndex)
+	{
+		uint32 IndexCount = 0;
+		uint32 StartIndex = 0;
+		UMaterialInterface* SectionMaterial = SourceData.MaterialInterface; // 기본 머티리얼
+
+		if (bHasSections)
+		{
+			const FGroupInfo& Group = MeshGroupInfos[SectionIndex];
+			IndexCount = Group.IndexCount;
+			StartIndex = Group.StartIndex;
+
+			// 그룹별 머티리얼 로드 (있는 경우)
+			if (!Group.InitialMaterialName.empty())
+			{
+				UMaterialInterface* GroupMaterial = UResourceManager::GetInstance().Load<UMaterial>(Group.InitialMaterialName);
+				if (GroupMaterial)
+				{
+					SectionMaterial = GroupMaterial;
+				}
+			}
+		}
+		else
+		{
+			IndexCount = MeshAsset->GetIndexCount();
+			StartIndex = 0;
+		}
+
+		if (IndexCount == 0)
+		{
+			continue;
+		}
+
+		// FMeshBatchElement 생성
+		FMeshBatchElement BatchElement;
+
+		// 메시 에셋의 버퍼 사용
+		BatchElement.VertexBuffer = MeshAsset->GetVertexBuffer();
+		BatchElement.IndexBuffer = MeshAsset->GetIndexBuffer();
+		BatchElement.VertexStride = MeshAsset->GetVertexStride();
+		BatchElement.IndexCount = IndexCount;
+		BatchElement.StartIndex = StartIndex;
+		BatchElement.BaseVertexIndex = 0;
+
+		// 인스턴싱 데이터
+		BatchElement.InstanceBuffer = MeshInstance ? MeshInstance->InstanceBuffer : nullptr;
+		BatchElement.InstanceCount = ParticleCount;
+		BatchElement.InstanceStride = sizeof(FMeshParticleInstanceVertex);
+
+		BatchElement.WorldMatrix = FMatrix::Identity();
+		BatchElement.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+		assert(OwnerInstance != nullptr);
+		assert(OwnerInstance->Component != nullptr);
+		BatchElement.ObjectID = OwnerInstance->Component->UUID;
+
+		// 섹션별 머티리얼 설정
+		BatchElement.Material = SectionMaterial;
+
+		OutMeshBatchElements.Add(BatchElement);
+	}
 }

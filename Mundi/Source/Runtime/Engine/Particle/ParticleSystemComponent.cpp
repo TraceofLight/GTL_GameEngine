@@ -17,6 +17,7 @@
 #include "Color/ParticleModuleColor.h"
 #include "Source/Runtime/Core/Object/ObjectFactory.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
+#include "Source/Runtime/AssetManagement/StaticMesh.h"
 #include "Source/Runtime/Renderer/Material.h"
 
 /**
@@ -71,7 +72,7 @@ void UParticleSystemComponent::InitializeComponent()
 	// 부모 클래스 초기화 먼저 호출
 	UPrimitiveComponent::InitializeComponent();
 
-	UParticleSystem* FlareSystem = UParticleSystemComponent::CreateFlareParticleSystem();
+	UParticleSystem* FlareSystem = UParticleSystemComponent::CreateAppleMeshParticleSystem();
 	Template = FlareSystem;
 
 	// 템플릿(설계도)이 있으면 에미터 인스턴스 생성
@@ -90,7 +91,7 @@ void UParticleSystemComponent::TickComponent(float DeltaTime)
 	// 부모 클래스 Tick 먼저 호출
 	UPrimitiveComponent::TickComponent(DeltaTime);
 
-	// 비활성 상태거나 템플릿이 없으면 업데이트 안 함
+	// 비활성 상태이거나 템플릿이 없으면 업데이트 안 함
 	if (!bIsActive || !Template)
 	{
 		return;
@@ -621,6 +622,164 @@ UParticleSystem* UParticleSystemComponent::CreateFlareParticleSystem()
 	ParticleSystem->Emitters.Add(Emitter);
 
 	// ========== 13. 파티클 시스템 빌드 ==========
+	ParticleSystem->BuildEmitters();
+
+	return ParticleSystem;
+}
+
+/**
+ * 물린 사과 메시를 사용하여 메시 파티클 시스템 생성
+ * @return UParticleSystem* - 생성된 파티클 시스템 템플릿
+ */
+UParticleSystem* UParticleSystemComponent::CreateAppleMeshParticleSystem()
+{
+	// ========== 1. 파티클 시스템 생성 ==========
+	UParticleSystem* ParticleSystem = NewObject<UParticleSystem>();
+	if (!ParticleSystem)
+	{
+		return nullptr;
+	}
+
+	// 시스템 기본 설정
+	ParticleSystem->UpdateTime_FPS = 60.0f;
+	ParticleSystem->UpdateTime_Delta = 1.0f / 60.0f;
+	ParticleSystem->WarmupTime = 0.0f;
+	ParticleSystem->WarmupTickRate = 0;
+	ParticleSystem->bAutoDeactivate = false;
+	ParticleSystem->SecondsBeforeInactive = 0.0f;
+	ParticleSystem->Delay = 0.0f;
+
+	// ========== 2. 에미터 생성 ==========
+	UParticleEmitter* Emitter = NewObject<UParticleEmitter>();
+	if (!Emitter)
+	{
+		return nullptr;
+	}
+
+	// ========== 3. LOD 레벨 생성 ==========
+	UParticleLODLevel* LODLevel = NewObject<UParticleLODLevel>();
+	if (!LODLevel)
+	{
+		return nullptr;
+	}
+
+	LODLevel->Level = 0;
+	LODLevel->bEnabled = true;
+
+	// ========== 4. TypeDataModule (Mesh) 생성 및 설정 ==========
+	UParticleModuleTypeDataMesh* MeshTypeData = NewObject<UParticleModuleTypeDataMesh>();
+	if (!MeshTypeData)
+	{
+		return nullptr;
+	}
+
+	// 물린 사과 메시 로드
+	UStaticMesh* AppleMesh = UResourceManager::GetInstance().Load<UStaticMesh>("Data/Model/bitten_apple_mid.obj");
+	MeshTypeData->Mesh = AppleMesh;
+	MeshTypeData->bCastShadows = false;
+	MeshTypeData->MeshAlignment = EParticleAxisLock::None;
+	MeshTypeData->bOverrideMaterial = false;
+	MeshTypeData->SetOwnerSystem(ParticleSystem);
+
+	LODLevel->TypeDataModule = MeshTypeData;
+
+	// ========== 5. Required 모듈 생성 및 설정 ==========
+	UParticleModuleRequired* RequiredModule = NewObject<UParticleModuleRequired>();
+	if (!RequiredModule)
+	{
+		return nullptr;
+	}
+
+	// 기본 머티리얼 설정 (메시의 기본 머티리얼 사용)
+	RequiredModule->SetMaterial(nullptr);
+	RequiredModule->SetEmitterDuration(1.0f);
+	RequiredModule->SetEmitterLoops(0); // 무한 루프
+	RequiredModule->SetScreenAlignment(EParticleScreenAlignment::Square);
+	RequiredModule->SetSortMode(EParticleSortMode::ViewProjDepth);
+	RequiredModule->SetUseLocalSpace(false); // 월드 공간 사용
+
+	LODLevel->RequiredModule = RequiredModule;
+
+	// ========== 6. Spawn 모듈 생성 및 설정 ==========
+	UParticleModuleSpawn* SpawnModule = NewObject<UParticleModuleSpawn>();
+	if (!SpawnModule)
+	{
+		return nullptr;
+	}
+
+	// 초당 30개 파티클 생성
+	SpawnModule->Rate = FFloatDistribution(30.0f);
+	SpawnModule->bProcessBurstList = false;
+
+	LODLevel->SpawnModule = SpawnModule;
+
+	// ========== 7. Lifetime 모듈 생성 및 설정 (랜덤 수명) ==========
+	UParticleModuleLifetime* LifetimeModule = NewObject<UParticleModuleLifetime>();
+	if (!LifetimeModule)
+	{
+		return nullptr;
+	}
+
+	// 수명: 2.0 ~ 4.0초 랜덤
+	LifetimeModule->Lifetime = FFloatDistribution(2.0f, 4.0f);
+
+	LODLevel->Modules.Add(LifetimeModule);
+
+	// ========== 8. Velocity 모듈 생성 및 설정 (랜덤 속도) ==========
+	UParticleModuleVelocity* VelocityModule = NewObject<UParticleModuleVelocity>();
+	if (!VelocityModule)
+	{
+		return nullptr;
+	}
+
+	// 속도: 각 방향으로 -2 ~ 2 랜덤 (좀 더 빠르게)
+	VelocityModule->StartVelocity = FVectorDistribution(
+		FVector(-2.0f, -2.0f, -0.5f),
+		FVector(2.0f, 2.0f, 2.0f)
+	);
+	VelocityModule->bInWorldSpace = false;
+
+	LODLevel->Modules.Add(VelocityModule);
+
+	// ========== 9. Size 모듈 생성 및 설정 ==========
+	UParticleModuleSize* SizeModule = NewObject<UParticleModuleSize>();
+	if (!SizeModule)
+	{
+		return nullptr;
+	}
+
+	// 크기: 0.5 ~ 1.5 유닛 랜덤 (메시이므로 작게)
+	SizeModule->StartSize = FVectorDistribution(
+		FVector(0.5f, 0.5f, 0.5f),
+		FVector(1.5f, 1.5f, 1.5f)
+	);
+
+	LODLevel->Modules.Add(SizeModule);
+
+	// ========== 10. Color 모듈 생성 및 설정 ==========
+	UParticleModuleColor* ColorModule = NewObject<UParticleModuleColor>();
+	if (!ColorModule)
+	{
+		return nullptr;
+	}
+
+	// 색상: 빨간색 계열
+	ColorModule->StartColor = FColorDistribution(FLinearColor(1.0f, 0.3f, 0.3f, 1.0f));
+	ColorModule->StartAlpha = FFloatDistribution(1.0f);
+	ColorModule->bClampAlpha = true;
+
+	LODLevel->Modules.Add(ColorModule);
+
+	// ========== 11. 모듈 리스트 업데이트 ==========
+	LODLevel->UpdateModuleLists();
+
+	// ========== 12. 에미터에 LOD 레벨 추가 ==========
+	Emitter->LODLevels.Add(LODLevel);
+
+	// ========== 13. 파티클 시스템에 에미터 추가 ==========
+	ParticleSystem->Emitters.Add(Emitter);
+
+	// ========== 14. 파티클 시스템 빌드 ==========
 	ParticleSystem->BuildEmitters();
 
 	return ParticleSystem;

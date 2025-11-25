@@ -2,6 +2,10 @@
 #include "ParticleModuleTypeDataBase.h"
 #include "ParticleSystem.h"
 
+IMPLEMENT_CLASS(UParticleModuleTypeDataBase)
+IMPLEMENT_CLASS(UParticleModuleTypeDataSprite)
+IMPLEMENT_CLASS(UParticleModuleTypeDataMesh)
+
 // ========== UParticleModuleTypeDataBase ==========
 
 UParticleModuleTypeDataBase::UParticleModuleTypeDataBase()
