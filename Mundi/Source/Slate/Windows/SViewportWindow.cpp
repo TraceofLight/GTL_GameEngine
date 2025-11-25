@@ -1715,58 +1715,46 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 			ImGui::SameLine(0, 4);
 		}
 
-		// 서브메뉴
+		// 서브메뉴 (NVIDIA FXAA 3.11 style)
 		if (ImGui::BeginMenu(" 안티 에일리어싱"))
 		{
-			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "안티 에일리어싱");
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "안티 에일리어싱 (FXAA 3.11)");
 			ImGui::Separator();
 
-			// EdgeThresholdMin 슬라이더
-			float edgeMin = RenderSettings.GetFXAAEdgeThresholdMin();
-			ImGui::Text("엣지 감지 최소값");
-			if (ImGui::SliderFloat("##EdgeMin", &edgeMin, 0.01f, 0.2f, "%.4f"))
+			// SpanMax 슬라이더 (최대 탐색 범위)
+			float spanMax = RenderSettings.GetFXAASpanMax();
+			ImGui::Text("최대 탐색 범위");
+			if (ImGui::SliderFloat("##SpanMax", &spanMax, 2.0f, 16.0f, "%.1f"))
 			{
-				RenderSettings.SetFXAAEdgeThresholdMin(edgeMin);
+				RenderSettings.SetFXAASpanMax(spanMax);
 			}
 			if (ImGui::IsItemHovered())
 			{
-				ImGui::SetTooltip("낮을수록 더 많은 엣지를 감지합니다. (권장: 0.0833)");
+				ImGui::SetTooltip("엣지 탐색 최대 거리 (픽셀 단위)\n높을수록 긴 엣지를 더 잘 처리합니다. (권장: 8.0)");
 			}
 
-			// EdgeThresholdMax 슬라이더
-			float edgeMax = RenderSettings.GetFXAAEdgeThresholdMax();
-			ImGui::Text("엣지 감지 최대값");
-			if (ImGui::SliderFloat("##EdgeMax", &edgeMax, 0.05f, 0.3f, "%.4f"))
+			// ReduceMul 슬라이더 (감쇠 배율)
+			float reduceMul = RenderSettings.GetFXAAReduceMul();
+			ImGui::Text("감쇠 배율");
+			if (ImGui::SliderFloat("##ReduceMul", &reduceMul, 0.0f, 0.5f, "%.4f"))
 			{
-				RenderSettings.SetFXAAEdgeThresholdMax(edgeMax);
+				RenderSettings.SetFXAAReduceMul(reduceMul);
 			}
 			if (ImGui::IsItemHovered())
 			{
-				ImGui::SetTooltip("높을수록 선명한 엣지만 감지합니다. (권장: 0.166)");
+				ImGui::SetTooltip("방향 벡터 감쇠 배율\n높을수록 더 안정적이지만 덜 정밀합니다. (권장: 0.125 = 1/8)");
 			}
 
-			// QualitySubPix 슬라이더
-			float subPix = RenderSettings.GetFXAAQualitySubPix();
-			ImGui::Text("서브픽셀 품질");
-			if (ImGui::SliderFloat("##SubPix", &subPix, 0.0f, 1.0f, "%.2f"))
+			// ReduceMin 슬라이더 (최소 감쇠값)
+			float reduceMin = RenderSettings.GetFXAAReduceMin();
+			ImGui::Text("최소 감쇠값");
+			if (ImGui::SliderFloat("##ReduceMin", &reduceMin, 0.001f, 0.05f, "%.4f"))
 			{
-				RenderSettings.SetFXAAQualitySubPix(subPix);
+				RenderSettings.SetFXAAReduceMin(reduceMin);
 			}
 			if (ImGui::IsItemHovered())
 			{
-				ImGui::SetTooltip("낮을수록 부드러워집니다. (권장: 0.75)");
-			}
-
-			// QualityIterations 슬라이더
-			int iterations = RenderSettings.GetFXAAQualityIterations();
-			ImGui::Text("탐색 반복 횟수");
-			if (ImGui::SliderInt("##Iterations", &iterations, 4, 24))
-			{
-				RenderSettings.SetFXAAQualityIterations(iterations);
-			}
-			if (ImGui::IsItemHovered())
-			{
-				ImGui::SetTooltip("높을수록 품질이 좋지만 성능이 떨어집니다. (권장: 12)");
+				ImGui::SetTooltip("최소 감쇠 바닥값\n노이즈 영역에서 과민 반응을 방지합니다. (권장: 0.0078 = 1/128)");
 			}
 
 			ImGui::Separator();
@@ -1777,14 +1765,13 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 			// 고품질 버튼
 			if (ImGui::Button("고품질", ImVec2(60, 0)))
 			{
-				RenderSettings.SetFXAAEdgeThresholdMin(0.0625f);
-				RenderSettings.SetFXAAEdgeThresholdMax(0.125f);
-				RenderSettings.SetFXAAQualitySubPix(0.75f);
-				RenderSettings.SetFXAAQualityIterations(16);
+				RenderSettings.SetFXAASpanMax(12.0f);
+				RenderSettings.SetFXAAReduceMul(1.0f / 16.0f);
+				RenderSettings.SetFXAAReduceMin(1.0f / 256.0f);
 			}
 			if (ImGui::IsItemHovered())
 			{
-				ImGui::SetTooltip("최고 품질 설정 (성능 낮음)\nEdgeMin: 0.0625, EdgeMax: 0.125, SubPix: 0.75, Iterations: 16");
+				ImGui::SetTooltip("최고 품질 설정 (성능 낮음)\nSpanMax: 12, ReduceMul: 1/16, ReduceMin: 1/256");
 			}
 
 			ImGui::SameLine();
@@ -1792,14 +1779,13 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 			// 중품질 버튼
 			if (ImGui::Button("중품질", ImVec2(60, 0)))
 			{
-				RenderSettings.SetFXAAEdgeThresholdMin(0.0833f);
-				RenderSettings.SetFXAAEdgeThresholdMax(0.166f);
-				RenderSettings.SetFXAAQualitySubPix(0.75f);
-				RenderSettings.SetFXAAQualityIterations(12);
+				RenderSettings.SetFXAASpanMax(8.0f);
+				RenderSettings.SetFXAAReduceMul(1.0f / 8.0f);
+				RenderSettings.SetFXAAReduceMin(1.0f / 128.0f);
 			}
 			if (ImGui::IsItemHovered())
 			{
-				ImGui::SetTooltip("균형잡힌 설정 (기본값)\nEdgeMin: 0.0833, EdgeMax: 0.166, SubPix: 0.75, Iterations: 12");
+				ImGui::SetTooltip("균형잡힌 설정 (기본값)\nSpanMax: 8, ReduceMul: 1/8, ReduceMin: 1/128");
 			}
 
 			ImGui::SameLine();
@@ -1807,14 +1793,13 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 			// 저품질 버튼
 			if (ImGui::Button("저품질", ImVec2(60, 0)))
 			{
-				RenderSettings.SetFXAAEdgeThresholdMin(0.125f);
-				RenderSettings.SetFXAAEdgeThresholdMax(0.25f);
-				RenderSettings.SetFXAAQualitySubPix(1.0f);
-				RenderSettings.SetFXAAQualityIterations(8);
+				RenderSettings.SetFXAASpanMax(4.0f);
+				RenderSettings.SetFXAAReduceMul(1.0f / 4.0f);
+				RenderSettings.SetFXAAReduceMin(1.0f / 64.0f);
 			}
 			if (ImGui::IsItemHovered())
 			{
-				ImGui::SetTooltip("빠른 처리 설정 (성능 높음)\nEdgeMin: 0.125, EdgeMax: 0.25, SubPix: 1.0, Iterations: 8");
+				ImGui::SetTooltip("빠른 처리 설정 (성능 높음)\nSpanMax: 4, ReduceMul: 1/4, ReduceMin: 1/64");
 			}
 
 			ImGui::EndMenu();

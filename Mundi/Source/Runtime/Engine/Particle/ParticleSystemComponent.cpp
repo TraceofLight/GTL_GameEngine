@@ -196,6 +196,41 @@ void UParticleSystemComponent::ResetParticles()
 	AccumulatedTime = 0.0f;  // 누적 시간 초기화
 }
 
+/**
+ * EmitterInstance 업데이트 (Editor에서 프로퍼티 변경 시)
+ * 기존 Instance를 파괴하고 새로 생성하여 변경사항 반영
+ *
+ * @param bEmptyInstances - true면 완전히 파괴 후 재생성
+ */
+void UParticleSystemComponent::UpdateInstances(bool bEmptyInstances)
+{
+	if (!Template)
+	{
+		return;
+	}
+
+	// 기존 파티클 리셋
+	if (bEmptyInstances)
+	{
+		// 완전히 파괴 후 재생성
+		ClearEmitterInstances();
+	}
+	else
+	{
+		// 파티클만 리셋 (Instance 유지)
+		ResetParticles();
+	}
+
+	// 시스템 재초기화 (EmitterInstance 재생성)
+	InitializeEmitters();
+
+	// 자동 활성화가 켜져 있으면 재활성화
+	if (bIsActive)
+	{
+		ActivateSystem(false);
+	}
+}
+
 // ============== Emitter Management (에미터 관리) ==============
 
 /**

@@ -78,6 +78,8 @@ public:
 	bool HasGPUEmitter() const { return bHasGPUEmitter; }
 	float GetMaxDuration() const { return MaxDuration; }
 
+	void OnModuleChanged();
+
 protected:
 	// 캐시된 정보
 	bool bHasGPUEmitter;

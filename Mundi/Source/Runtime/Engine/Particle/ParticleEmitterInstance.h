@@ -123,7 +123,7 @@ struct FParticleEmitterInstance
 	{
 	}
 
-	~FParticleEmitterInstance()
+	virtual ~FParticleEmitterInstance()
 	{
 		// 메모리 해제 (언리얼 방식)
 		if (ParticleData)
@@ -180,7 +180,7 @@ struct FParticleEmitterInstance
 		FParticleEventInstancePayload* EventPayload = nullptr
 	)
 	{
-		// 안전성 체크 
+		// 안전성 체크
 		if (!CurrentLODLevel || !ParticleData || !ParticleIndices)
 		{
 			return;
@@ -500,7 +500,7 @@ struct FParticleEmitterInstance
 		FMemory::Memcpy(
 			OutData.DataContainer.ParticleData,
 			ParticleData,
-			MaxActiveParticles * ParticleStride 
+			MaxActiveParticles * ParticleStride
 		);
 
 		// Copy particle indices

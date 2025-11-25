@@ -10,11 +10,8 @@
 #include "Material.h"
 #include "SceneView.h"
 #include "LuaBindHelpers.h"
-// IMPLEMENT_CLASS is now auto-generated in .generated.cpp
-UStaticMeshComponent::UStaticMeshComponent()
-{
-	SetStaticMesh(GDataDir + "/cube-tex.obj");     // 임시 기본 static mesh 설정
-}
+
+UStaticMeshComponent::UStaticMeshComponent() = default;
 
 UStaticMeshComponent::~UStaticMeshComponent() = default;
 

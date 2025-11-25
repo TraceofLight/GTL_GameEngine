@@ -43,6 +43,9 @@ public:
 	const char* GetVertexFactoryName() const override;
 };
 
+// Forward declarations for Editor callbacks
+class UParticleSystem;
+
 /**
  * @brief 메시 타입 데이터
  * @details 3D 메시 파티클 렌더링
@@ -78,4 +81,11 @@ public:
 	EDynamicEmitterType GetEmitterType() const override;
 	const char* GetVertexFactoryName() const override;
 	uint32 RequiredBytes(UParticleModuleTypeDataBase* TypeData) override;
+	void OnMeshChanged();
+
+	void SetOwnerSystem(UParticleSystem* InOwner) { OwnerSystem = InOwner; }
+
+private:
+	/** 소유 ParticleSystem (변경 전파용) */
+	UParticleSystem* OwnerSystem = nullptr;
 };

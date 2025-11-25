@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ParticleModuleTypeDataBase.h"
+#include "ParticleSystem.h"
 
 // ========== UParticleModuleTypeDataBase ==========
 
@@ -73,4 +74,16 @@ uint32 UParticleModuleTypeDataMesh::RequiredBytes(UParticleModuleTypeDataBase* T
 	// 메시 파티클은 추가로 회전/스케일 데이터가 필요할 수 있음
 	// 현재는 FBaseParticle에 이미 포함되어 있으므로 0
 	return 0;
+}
+
+/**
+ * Mesh 프로퍼티가 변경되었을 때 호출
+ */
+void UParticleModuleTypeDataMesh::OnMeshChanged()
+{
+	// 소유 ParticleSystem에 변경 전파
+	if (OwnerSystem)
+	{
+		OwnerSystem->OnModuleChanged();
+	}
 }

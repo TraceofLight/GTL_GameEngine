@@ -1,8 +1,11 @@
 #include "pch.h"
 #include "ParticleSystem.h"
+
+#include "ObjectIterator.h"
 #include "ParticleEmitter.h"
 #include "ParticleLODLevel.h"
 #include "ParticleModuleRequired.h"
+#include "ParticleSystemComponent.h"
 #include "TypeData/ParticleModuleTypeDataBase.h"
 
 UParticleSystem::UParticleSystem()
@@ -192,4 +195,21 @@ UParticleEmitter* UParticleSystem::GetEmitter(int32 Index)
 		return Emitters[Index];
 	}
 	return nullptr;
+}
+
+/**
+ * 모듈 프로퍼티가 변경되었을 때 호출
+ * 이 Template을 사용하는 모든 PSC에 UpdateInstances 호출
+ */
+void UParticleSystem::OnModuleChanged()
+{
+	// TObjectIterator로 모든 PSC를 순회하여 이 Template을 사용하는 것 탐색
+	for (TObjectIterator<UParticleSystemComponent> It; It; ++It)
+	{
+		UParticleSystemComponent* PSC = *It;
+		if (PSC && PSC->Template == this)
+		{
+			PSC->UpdateInstances(true);
+		}
+	}
 }
