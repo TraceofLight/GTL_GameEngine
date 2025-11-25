@@ -101,6 +101,13 @@ enum class EParticleBurstMethod : uint8
 	Interpolated    // 보간
 };
 
+// 파티클 블렌드 모드
+enum class EParticleBlendMode : uint8
+{
+	Translucent,    // 반투명 (알파 블렌딩) - 먼지, 연기 등
+	Additive        // 가산 블렌딩 - 불, 발광 효과 등
+};
+
 // 이미터 렌더링 모드
 enum class EEmitterRenderMode : uint8
 {

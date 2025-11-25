@@ -151,6 +151,9 @@ bool FParticleSpriteEmitterInstance::FillReplayData(FDynamicEmitterReplayDataBas
 
 		// RequiredModule (깊은 복사 - CreateRendererResource 사용)
 		SpriteData.RequiredModule = RequiredModule->CreateRendererResource();
+
+		// BlendMode (렌더러에서 블렌드 스테이트 분기용)
+		SpriteData.BlendMode = RequiredModule->GetBlendMode();
 	}
 
 	return true;

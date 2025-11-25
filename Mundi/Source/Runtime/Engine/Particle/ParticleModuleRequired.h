@@ -85,6 +85,7 @@ public:
 	EEmitterNormalsMode GetEmitterNormalsMode() const { return EmitterNormalsMode; }
 	EParticleSubUVInterpMethod GetInterpolationMethod() const { return InterpolationMethod; }
 	EParticleAxisLock GetAxisLockOption() const { return AxisLockOption; }
+	EParticleBlendMode GetBlendMode() const { return BlendMode; }
 
 	// Setters
 	void SetMaterial(UMaterial* InMaterial) { Material = InMaterial; }
@@ -103,6 +104,7 @@ public:
 	void SetEmitterNormalsMode(EEmitterNormalsMode InMode) { EmitterNormalsMode = InMode; }
 	void SetInterpolationMethod(EParticleSubUVInterpMethod InMethod) { InterpolationMethod = InMethod; }
 	void SetAxisLockOption(EParticleAxisLock InOption) { AxisLockOption = InOption; }
+	void SetBlendMode(EParticleBlendMode InMode) { BlendMode = InMode; }
 
 protected:
 	UMaterial* Material;
@@ -121,5 +123,6 @@ protected:
 	EEmitterNormalsMode EmitterNormalsMode;
 	EParticleSubUVInterpMethod InterpolationMethod;
 	EParticleAxisLock AxisLockOption;
+	EParticleBlendMode BlendMode;
 };
 

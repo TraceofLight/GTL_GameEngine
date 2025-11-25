@@ -49,6 +49,7 @@ struct FDynamicSpriteEmitterReplayDataBase : public FDynamicEmitterReplayDataBas
 {
 	UMaterialInterface* MaterialInterface;
 	struct FParticleRequiredModule* RequiredModule; // 깊은 복사 필요
+	EParticleBlendMode BlendMode; // 블렌드 모드 (렌더러에서 블렌드 스테이트 분기용)
 
 	//FVector						NormalsSphereCenter;
 	//FVector						NormalsCylinderDirection;
@@ -79,6 +80,7 @@ struct FDynamicSpriteEmitterReplayDataBase : public FDynamicEmitterReplayDataBas
 	FDynamicSpriteEmitterReplayDataBase()
 		: MaterialInterface(nullptr)
 		, RequiredModule(nullptr)
+		, BlendMode(EParticleBlendMode::Translucent)
 		//, NormalsSphereCenter(FVector::Zero())
 		//, NormalsCylinderDirection(FVector::Zero())
 		//, InvDeltaSeconds(0.0f)

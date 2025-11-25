@@ -141,6 +141,9 @@ bool FParticleMeshEmitterInstance::FillReplayData(FDynamicEmitterReplayDataBase&
 
 		// 상속 구조상 RequiredModule 멤버가 있으므로 채워줌
 		MeshData.RequiredModule = CurrentLODLevel->RequiredModule->CreateRendererResource();
+
+		// BlendMode (렌더러에서 블렌드 스테이트 분기용)
+		MeshData.BlendMode = CurrentLODLevel->RequiredModule->GetBlendMode();
 	}
 
 	// 5. 메시 전용 데이터 설정 (MeshTypeData에서)
