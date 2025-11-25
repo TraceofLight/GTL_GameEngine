@@ -12,11 +12,17 @@
 FParticleMeshEmitterInstance::FParticleMeshEmitterInstance()
 	: FParticleEmitterInstance()
 	, MeshTypeData(nullptr)
+	, InstanceBuffer(nullptr)
 {
 }
 
 FParticleMeshEmitterInstance::~FParticleMeshEmitterInstance()
 {
+	if (InstanceBuffer)
+	{
+		InstanceBuffer->Release();
+		InstanceBuffer = nullptr;
+	}
 }
 
 // ============== Init ==============
@@ -88,7 +94,7 @@ bool FParticleMeshEmitterInstance::FillReplayData(FDynamicEmitterReplayDataBase&
 	if (MeshTypeData)
 	{
 		MeshData.MeshAlignment = static_cast<uint8>(MeshTypeData->MeshAlignment);
-		// MeshData에 메시 에셋 참조가 필요하면 여기서 설정
+		MeshData.MeshAsset = MeshTypeData->Mesh;
 	}
 
 	return true;

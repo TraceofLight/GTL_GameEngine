@@ -6,6 +6,8 @@
 #include "ParticleHelper.h"
 #include "SceneView.h"
 #include "ParticleEmitterInstance.h"
+#include "ParticleMeshEmitterInstance.h"
+#include "Source/Runtime/AssetManagement/StaticMesh.h"
 
 void FDynamicSpriteEmitterDataBase::SortSpriteParticles(EParticleSortMode SortMode, bool bLocalSpace,
 	int32 ParticleCount, const uint8* ParticleData, int32 ParticleStride, const uint16* ParticleIndices,
@@ -234,4 +236,114 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 int32 FDynamicMeshEmitterData::GetDynamicVertexStride() const
 {
 	return sizeof(FMeshParticleInstanceVertex);
+}
+
+void FDynamicMeshEmitterData::GetDynamicMeshElementsEmitter(
+	TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) const
+{
+	// 1. 유효성 검사
+	if (!bValid || Source.ActiveParticleCount <= 0 || !Source.MeshAsset)
+	{
+		return;
+	}
+
+	// 2. Source 데이터 가져오기
+	const FDynamicMeshEmitterReplayData& SourceData = Source;
+	const int32 ParticleCount = SourceData.ActiveParticleCount;
+	const uint8* ParticleData = SourceData.DataContainer.ParticleData;
+	const uint16* ParticleIndices = SourceData.DataContainer.ParticleIndices;
+	const int32 ParticleStride = SourceData.ParticleStride;
+
+	if (!ParticleData || !ParticleIndices)
+	{
+		return;
+	}
+
+	// 3. 인스턴스 데이터 생성 (각 파티클당 1개의 인스턴스)
+	TArray<FMeshParticleInstanceVertex> InstanceData;
+	InstanceData.reserve(ParticleCount);
+
+	for (int32 ParticleIndex = 0; ParticleIndex < ParticleCount; ++ParticleIndex)
+	{
+		const int32 CurrentIndex = ParticleIndices[ParticleIndex];
+		const uint8* ParticlePtr = ParticleData + (CurrentIndex * ParticleStride);
+		const FBaseParticle& Particle = *reinterpret_cast<const FBaseParticle*>(ParticlePtr);
+
+		FMeshParticleInstanceVertex Instance;
+
+		// 색상
+		Instance.Color = Particle.Color;
+
+		// Transform 행렬 구성 (Scale * Rotation * Translation)
+		// FVector4 Transform[3]에 3x4 행렬 저장 (W에 Translation)
+		FVector Scale = Particle.Size;
+		FVector Location = Particle.Location;
+
+		// 단순화: 회전 없이 스케일과 위치만 적용
+		// Row 0: Scale.X, 0, 0, Location.X
+		Instance.Transform[0] = FVector4(Scale.X, 0.0f, 0.0f, Location.X);
+		// Row 1: 0, Scale.Y, 0, Location.Y
+		Instance.Transform[1] = FVector4(0.0f, Scale.Y, 0.0f, Location.Y);
+		// Row 2: 0, 0, Scale.Z, Location.Z
+		Instance.Transform[2] = FVector4(0.0f, 0.0f, Scale.Z, Location.Z);
+
+		// Velocity
+		FVector Velocity = Particle.Velocity;
+		float Speed = Velocity.Size();
+		Instance.Velocity = FVector4(Velocity.X, Velocity.Y, Velocity.Z, Speed);
+
+		// SubUV (기본값)
+		Instance.SubUVParams[0] = 0;
+		Instance.SubUVParams[1] = 0;
+		Instance.SubUVParams[2] = 0;
+		Instance.SubUVParams[3] = 0;
+		Instance.SubUVLerp = 0.0f;
+
+		// RelativeTime
+		Instance.RelativeTime = Particle.RelativeTime;
+
+		InstanceData.Add(Instance);
+	}
+
+	// 4. MeshEmitterInstance로 캐스팅 (InstanceBuffer 접근용)
+	FParticleMeshEmitterInstance* MeshInstance =
+		static_cast<FParticleMeshEmitterInstance*>(OwnerInstance);
+
+	// 5. 인스턴스 버퍼 업데이트
+	if (MeshInstance && MeshInstance->InstanceBuffer && !InstanceData.empty())
+	{
+		GEngine.GetRHIDevice()->VertexBufferUpdate(MeshInstance->InstanceBuffer, InstanceData);
+	}
+
+	// 6. FMeshBatchElement 생성
+	FMeshBatchElement BatchElement;
+
+	// 메시 에셋의 버퍼 사용
+	UStaticMesh* MeshAsset = SourceData.MeshAsset;
+	BatchElement.VertexBuffer = MeshAsset->GetVertexBuffer();
+	BatchElement.IndexBuffer = MeshAsset->GetIndexBuffer();
+	BatchElement.VertexStride = MeshAsset->GetVertexStride();
+	BatchElement.IndexCount = MeshAsset->GetIndexCount();
+	BatchElement.StartIndex = 0;
+	BatchElement.BaseVertexIndex = 0;
+
+	// 인스턴싱 데이터
+	BatchElement.InstanceBuffer = MeshInstance ? MeshInstance->InstanceBuffer : nullptr;
+	BatchElement.InstanceCount = ParticleCount;
+	BatchElement.InstanceStride = sizeof(FMeshParticleInstanceVertex);
+
+	BatchElement.WorldMatrix = FMatrix::Identity();
+	BatchElement.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+	assert(OwnerInstance != nullptr);
+	assert(OwnerInstance->Component != nullptr);
+	BatchElement.ObjectID = OwnerInstance->Component->UUID;
+
+	// 머티리얼 설정
+	if (SourceData.MaterialInterface)
+	{
+		BatchElement.Material = SourceData.MaterialInterface;
+	}
+
+	OutMeshBatchElements.Add(BatchElement);
 }

@@ -21,6 +21,9 @@ struct FParticleMeshEmitterInstance : public FParticleEmitterInstance
 	// FillReplayData에서 메시 에셋(MeshTypeData->Mesh, MeshTypeData->MeshAligned)과 정렬 방식을 가져와야 하기 때문에 필요
 	UParticleModuleTypeDataMesh* MeshTypeData;
 
+	/** GPU 인스턴싱용 인스턴스 버퍼 */
+	ID3D11Buffer* InstanceBuffer;
+
 	// ============== 생성자/소멸자 ==============
 
 	FParticleMeshEmitterInstance();

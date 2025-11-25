@@ -110,12 +110,23 @@ struct FDynamicSpriteEmitterData : public FDynamicSpriteEmitterDataBase
 struct FDynamicMeshEmitterData : public FDynamicSpriteEmitterData
 {
 	virtual int32 GetDynamicVertexStride() const override;
-	//...
 
 	virtual const FDynamicEmitterReplayDataBase& GetSource() const override
 	{
 		return Source;
 	}
+
+	/**
+	 * Initialize the dynamic mesh emitter data
+	 * @param bInSelected - Whether this emitter is selected in the editor
+	 */
+	void Init(bool bInSelected)
+	{
+		bSelected = bInSelected;
+		bValid = (Source.ActiveParticleCount > 0) && (Source.MeshAsset != nullptr);
+	}
+
+	virtual void GetDynamicMeshElementsEmitter(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) const override;
 
 	/** The frame source data for this particle system.  This is everything needed to represent this
 		this particle system frame.  It does not include any transient rendering thread data.  Also, for
