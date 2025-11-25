@@ -174,6 +174,7 @@ void FSceneRenderer::RenderLitPath()
 
 	// Base Pass
 	RenderOpaquePass(View->RenderSettings->GetViewMode());
+	RenderGridLinesPass();
 	RenderParticlesPass();
 	RenderDecalPass();
 }
@@ -1328,7 +1329,7 @@ void FSceneRenderer::RenderDebugPass()
 	RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTarget);
 
 	// 그리드 라인 수집
-	for (ULineComponent* LineComponent : Proxies.EditorLines)
+	/*for (ULineComponent* LineComponent : Proxies.EditorLines)
 	{
 		if (!LineComponent || LineComponent->IsAlwaysOnTop())
 			continue;
@@ -1338,7 +1339,7 @@ void FSceneRenderer::RenderDebugPass()
 			LineComponent->CollectLineBatches(OwnerRenderer);
 		}
 	}
-	OwnerRenderer->EndLineBatch(FMatrix::Identity());
+	OwnerRenderer->EndLineBatch(FMatrix::Identity());*/
 
 	// Always-on-top lines (e.g., skeleton bones), regardless of grid flag
 	OwnerRenderer->BeginLineBatch();
@@ -1598,6 +1599,24 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 	{
 		InMeshBatches.Empty();
 	}
+}
+
+void FSceneRenderer::RenderGridLinesPass()
+{
+	RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTarget);
+
+	// 그리드 라인 수집
+	for (ULineComponent* LineComponent : Proxies.EditorLines)
+	{
+		if (!LineComponent || LineComponent->IsAlwaysOnTop())
+			continue;
+
+		if (World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Grid))
+		{
+			LineComponent->CollectLineBatches(OwnerRenderer);
+		}
+	}
+	OwnerRenderer->EndLineBatch(FMatrix::Identity());
 }
 
 void FSceneRenderer::ApplyScreenEffectsPass()

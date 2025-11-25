@@ -189,7 +189,7 @@ PS_INPUT mainVS(VS_INPUT Input)
 	
 	//Intermediates.TangentToLocal = CalcTangentBasis(Intermediates);
 
-	float4 ViewPos = mul(VertexWorldPosition, ViewMatrix);
+	float4 viewPos = mul(VertexWorldPosition, ViewMatrix);
 	// Screen position
 	float4x4 VP = mul(ViewMatrix, ProjectionMatrix);
 	Out.Position = mul(VertexWorldPosition, VP);
@@ -289,7 +289,7 @@ PS_INPUT mainVS(VS_INPUT Input)
     finalColor += CalculateDirectionalLight(dirLightNoShadow, Out.WorldPos, viewPos.xyz, worldNormal, viewDir, baseColor, true, specPower, g_ShadowAtlas2D, g_ShadowSample);
 
     // Point lights (diffuse + specular) - 그림자 제외
-    for (int i = 0; i < PointLightCount; i++)
+    for (uint i = 0; i < PointLightCount; i++)
     {
         FPointLightInfo pointLightNoShadow = g_PointLightList[i];
         pointLightNoShadow.bCastShadows = 0;
@@ -297,7 +297,7 @@ PS_INPUT mainVS(VS_INPUT Input)
     }
 
     // Spot lights (diffuse + specular) - 그림자 제외
-    for (int j = 0; j < SpotLightCount; j++)
+    for (uint j = 0; j < SpotLightCount; j++)
     {
         FSpotLightInfo spotLightNoShadow = g_SpotLightList[j];
         spotLightNoShadow.bCastShadows = 0;
@@ -393,11 +393,14 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     // Directional Light 그림자
     if (DirectionalLight.bCastShadows)
     {
-        shadowFactor *= CalculateSpotLightShadowFactor(Input.WorldPos, DirectionalLight.Cascades[0], g_ShadowAtlas2D, g_ShadowSample);
+        float3 lightDir = normalize(-DirectionalLight.Direction);
+        shadowFactor *= CalculateSpotLightShadowFactor(
+            Input.WorldPos, Input.Normal, lightDir, 
+            DirectionalLight.Cascades[0], g_ShadowAtlas2D, g_ShadowSample);
     }
 
     // Point Light 그림자
-    for (int i = 0; i < PointLightCount; i++)
+    for (uint i = 0; i < PointLightCount; i++)
     {
         if (g_PointLightList[i].bCastShadows)
         {
@@ -407,12 +410,14 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     }
 
     // Spot Light 그림자
-    for (int j = 0; j < SpotLightCount; j++)
+    for (uint j = 0; j < SpotLightCount; j++)
     {
         if (g_SpotLightList[j].bCastShadows)
         {
+            float3 spotLightDir = normalize(g_SpotLightList[j].Position - Input.WorldPos);
             shadowFactor *= CalculateSpotLightShadowFactor(
-                Input.WorldPos, g_SpotLightList[j].ShadowData, g_ShadowAtlas2D, g_ShadowSample);
+                Input.WorldPos, Input.Normal, spotLightDir,
+                g_SpotLightList[j].ShadowData, g_ShadowAtlas2D, g_ShadowSample);
         }
     }
 

@@ -533,11 +533,15 @@ UParticleSystem* UParticleSystemComponent::CreateFlareParticleSystem()
 		return nullptr;
 	}
 
-	// 크기: 10 ~ 30 유닛 랜덤
+	// 크기: 10 ~ 20 유닛 랜덤
 	SizeModule->StartSize = FVectorDistribution(
 		FVector(10.0f, 10.0f, 10.0f),
 		FVector(20.0f, 20.0f, 20.0f)
 	);
+	/*SizeModule->StartSize = FVectorDistribution(
+		FVector(1.0f, 1.0f, 1.0f),
+		FVector(1.0f, 1.0f, 1.0f)
+	);*/
 
 	LODLevel->Modules.Add(SizeModule);
 
