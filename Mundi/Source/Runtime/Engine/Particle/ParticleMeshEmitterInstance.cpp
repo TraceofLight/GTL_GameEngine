@@ -29,15 +29,41 @@ FParticleMeshEmitterInstance::~FParticleMeshEmitterInstance()
 
 void FParticleMeshEmitterInstance::Init(UParticleEmitter* InTemplate, UParticleSystemComponent* InComponent)
 {
-	// 1. 부모 Init 호출 (메모리 할당, Stride 계산, LOD 설정 등)
+	// 부모 Init 호출 (메모리 할당, Stride 계산, LOD 설정 등)
 	FParticleEmitterInstance::Init(InTemplate, InComponent);
 
-	// 2. TypeDataModule에서 MeshTypeData 가져오기 
+	// TypeDataModule에서 MeshTypeData 가져오기
 	if (CurrentLODLevel && CurrentLODLevel->TypeDataModule)
 	{
 		MeshTypeData = Cast<UParticleModuleTypeDataMesh>(CurrentLODLevel->TypeDataModule);
 	}
+}
 
+// ============== IsDynamicDataRequired ==============
+
+bool FParticleMeshEmitterInstance::IsDynamicDataRequired() const
+{
+	// MeshTypeData 유효성 체크
+	if (!MeshTypeData)
+	{
+		return false;
+	}
+
+	// Mesh 에셋 유효성 체크
+	UStaticMesh* Mesh = MeshTypeData->Mesh;
+	if (!Mesh)
+	{
+		return false;
+	}
+
+	// 렌더 데이터 유효성 체크 (버퍼가 생성되어 있어야 함)
+	if (!Mesh->GetVertexBuffer() || Mesh->GetIndexCount() == 0)
+	{
+		return false;
+	}
+
+	// 부모 체크 (ActiveParticles > 0 && CurrentLODLevel != nullptr)
+	return FParticleEmitterInstance::IsDynamicDataRequired();
 }
 
 // ============== GetDynamicData ==============

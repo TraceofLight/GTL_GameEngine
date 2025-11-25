@@ -27,7 +27,7 @@ struct FParticleMeshEmitterInstance : public FParticleEmitterInstance
 	// ============== 생성자/소멸자 ==============
 
 	FParticleMeshEmitterInstance();
-	virtual ~FParticleMeshEmitterInstance();
+	~FParticleMeshEmitterInstance() override;
 
 	// ============== 핵심 오버라이드 ==============
 
@@ -38,6 +38,14 @@ struct FParticleMeshEmitterInstance : public FParticleEmitterInstance
 	 * @param InComponent - 소유자 컴포넌트
 	 */
 	virtual void Init(UParticleEmitter* InTemplate, UParticleSystemComponent* InComponent) override;
+
+	/**
+	 * 렌더링을 위한 동적 데이터가 필요한지 체크
+	 * Mesh 유효성까지 검증
+	 *
+	 * @return Mesh가 유효하고 활성 파티클이 있으면 true
+	 */
+	virtual bool IsDynamicDataRequired() const override;
 
 	/**
 	 * 렌더링용 동적 데이터 가져오기

@@ -73,6 +73,14 @@ public:
 	 */
 	void ResetParticles();
 
+	/**
+	 * EmitterInstance 업데이트 (Editor에서 프로퍼티 변경 시 호출)
+	 * EmitterInstance를 재생성하여 변경사항 반영
+	 *
+	 * @param bEmptyInstances - true면 기존 Instance 완전히 파괴 후 재생성
+	 */
+	void UpdateInstances(bool bEmptyInstances = true);
+
 	// ============== Particle System Creation ==============
 	/**
 	 * Create a flare particle system with random rotation, velocity, and lifetime
