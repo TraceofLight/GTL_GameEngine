@@ -217,21 +217,8 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
 
    auto& RM = UResourceManager::GetInstance();
 
-   // Default SkeletalMesh 즉시 표시 → 로드 완료 시 교체
-   SkeletalMesh = RM.GetDefaultSkeletalMesh();
-   if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshData())
-   {
-      SkeletalMesh->CreateVertexBufferForComp(&VertexBuffer);
-      UpdateSkinningMatrices(TArray<FMatrix>(), TArray<FMatrix>());
-
-      const TArray<FGroupInfo>& GroupInfos = SkeletalMesh->GetMeshGroupInfo();
-      MaterialSlots.resize(GroupInfos.size());
-      for (size_t i = 0; i < GroupInfos.size(); ++i)
-      {
-         SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
-      }
-      MarkWorldPartitionDirty();
-   }
+   // 로드될 때까지 null
+   SkeletalMesh = nullptr;
 
    RM.AsyncLoad<USkeletalMesh>(PathFileName, [this, PathFileName](USkeletalMesh* LoadedMesh)
    {

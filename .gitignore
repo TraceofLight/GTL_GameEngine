@@ -447,8 +447,8 @@ GEMINI.md
 Document/*
 
 # Data folder (large assets - only Default tracked)
-/Mundi/Data/*
-!/Mundi/Data/Default/
+#/Mundi/Data/*
+#!/Mundi/Data/Default/
 /Mundi/DerivedDataCache/**
 
 # Python Embedded

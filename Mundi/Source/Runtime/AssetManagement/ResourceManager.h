@@ -102,13 +102,11 @@ public:
 	void UpdateDynamicVertexBuffer(const FString& name, TArray<FBillboardVertexInfo_GPU>& vertices);
 	UMaterial* GetDefaultMaterial();
 	UStaticMesh* GetDefaultStaticMesh();
-	USkeletalMesh* GetDefaultSkeletalMesh();
 
 	// --- 디버그 및 기본 메시 생성 ---
 	void CreateDefaultShader();
 	void CreateDefaultMaterial();
 	void CreateDefaultStaticMesh();
-	void CreateDefaultSkeletalMesh();
 	void CreateAxisMesh(float Length, const FString& FilePath);
 	void CreateGridMesh(int N, const FString& FilePath);
 	void CreateBoxWireframeMesh(const FVector& Min, const FVector& Max, const FString& FilePath);
@@ -169,7 +167,6 @@ private:
 
 	UMaterial* DefaultMaterialInstance;
 	UStaticMesh* DefaultStaticMeshInstance = nullptr;
-	USkeletalMesh* DefaultSkeletalMeshInstance = nullptr;
 
 	// Shader Hot Reload
 	float ShaderCheckTimer = 0.0f;

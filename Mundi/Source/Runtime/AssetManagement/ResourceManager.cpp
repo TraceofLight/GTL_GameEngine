@@ -59,7 +59,6 @@ void UResourceManager::Initialize(ID3D11Device* InDevice, ID3D11DeviceContext* I
     CreateDefaultShader();
     CreateDefaultMaterial();
     CreateDefaultStaticMesh();
-    CreateDefaultSkeletalMesh();
 	PreLoadAnimStateMachines();
 }
 
@@ -1014,29 +1013,6 @@ void UResourceManager::CreateDefaultStaticMesh()
 		EAssetLoadPriority::High);
 }
 
-void UResourceManager::CreateDefaultSkeletalMesh()
-{
-	// Default SkeletalMesh 비동기 로드 (워커 스레드 단일이라 FBX도 안전)
-	const FString DefaultSkeletalMeshPath = GDataDir + "/Default/SkeletalMesh/X Bot.fbx";
-
-	AsyncLoad<USkeletalMesh>(DefaultSkeletalMeshPath,
-		[this](USkeletalMesh* LoadedMesh)
-		{
-			if (LoadedMesh)
-			{
-				DefaultSkeletalMeshInstance = LoadedMesh;
-				LoadedMesh->SetFilePath("__DefaultSkeletalMesh__");
-				Add<USkeletalMesh>("__DefaultSkeletalMesh__", LoadedMesh);
-				UE_LOG("ResourceManager: Created Default SkeletalMesh (X Bot)");
-			}
-			else
-			{
-				UE_LOG("[warning] ResourceManager: Failed to load Default SkeletalMesh");
-			}
-		},
-		EAssetLoadPriority::High);
-}
-
 UStaticMesh* UResourceManager::GetDefaultStaticMesh()
 {
 	if (!DefaultStaticMeshInstance)
@@ -1046,11 +1022,3 @@ UStaticMesh* UResourceManager::GetDefaultStaticMesh()
 	return DefaultStaticMeshInstance;
 }
 
-USkeletalMesh* UResourceManager::GetDefaultSkeletalMesh()
-{
-	if (!DefaultSkeletalMeshInstance)
-	{
-		CreateDefaultSkeletalMesh();
-	}
-	return DefaultSkeletalMeshInstance;
-}
