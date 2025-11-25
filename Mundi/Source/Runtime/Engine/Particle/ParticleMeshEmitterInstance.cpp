@@ -37,7 +37,6 @@ void FParticleMeshEmitterInstance::Init(UParticleEmitter* InTemplate, UParticleS
 	{
 		MeshTypeData = Cast<UParticleModuleTypeDataMesh>(CurrentLODLevel->TypeDataModule);
 	}
-}
 
 	// 3. InstanceBuffer 생성 (GPU 인스턴싱용)
 	if (Component && MaxActiveParticles > 0)
@@ -65,6 +64,8 @@ void FParticleMeshEmitterInstance::Init(UParticleEmitter* InTemplate, UParticleS
 			}
 		}
 	}
+}
+
 // ============== IsDynamicDataRequired ==============
 
 bool FParticleMeshEmitterInstance::IsDynamicDataRequired() const
