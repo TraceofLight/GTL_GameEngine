@@ -35,17 +35,6 @@ struct FParticleSpriteEmitterInstance : public FParticleEmitterInstance
 	 */
 	virtual FDynamicEmitterDataBase* GetDynamicData(bool bSelected) override;
 
-	/**
-	 * Fill replay data with sprite-specific particle information
-	 * 스프라이트 전용 파티클 정보로 리플레이 데이터를 채움
-	 *
-	 * @param OutData - Output replay data to fill
-	 * @return true if successful, false if no data to fill
-	 *
-	 * @note Calls parent FParticleEmitterInstance::FillReplayData first!
-	 * @note Then adds sprite-specific data (material, SubImages, alignment, etc.)
-	 */
-	virtual bool FillReplayData(FDynamicEmitterReplayDataBase& OutData) override;
 
 	/**
 	 * Retrieves replay data for the emitter
@@ -65,4 +54,17 @@ struct FParticleSpriteEmitterInstance : public FParticleEmitterInstance
 	 * @param OutMax - The maximum size of this instance (allocated)
 	 */
 	virtual void GetAllocatedSize(int32& OutNum, int32& OutMax) override;
+
+protected:
+	/**
+	 * Fill replay data with sprite-specific particle information
+	 * 스프라이트 전용 파티클 정보로 리플레이 데이터를 채움
+	 *
+	 * @param OutData - Output replay data to fill
+	 * @return true if successful, false if no data to fill
+	 *
+	 * @note Calls parent FParticleEmitterInstance::FillReplayData first!
+	 * @note Then adds sprite-specific data (material, SubImages, alignment, etc.)
+	 */
+	virtual bool FillReplayData(FDynamicEmitterReplayDataBase& OutData) override;
 };
