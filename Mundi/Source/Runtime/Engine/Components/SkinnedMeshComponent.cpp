@@ -32,7 +32,7 @@ void USkinnedMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle
 {
    Super::Serialize(bInIsLoading, InOutHandle);
 
-   if (bInIsLoading)
+   if (bInIsLoading && SkeletalMesh)
    {
       SetSkeletalMesh(SkeletalMesh->GetPathFileName());
    }
@@ -41,7 +41,10 @@ void USkinnedMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle
 void USkinnedMeshComponent::DuplicateSubObjects()
 {
    Super::DuplicateSubObjects();
-   SkeletalMesh->CreateVertexBufferForComp(&VertexBuffer);
+   if (SkeletalMesh)
+   {
+      SkeletalMesh->CreateVertexBufferForComp(&VertexBuffer);
+   }
 }
 
 void USkinnedMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
