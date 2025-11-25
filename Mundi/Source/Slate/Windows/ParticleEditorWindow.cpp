@@ -16,6 +16,15 @@
 #include "FViewportClient.h"
 #include "ImGui/imgui.h"
 
+// 파티클 모듈 헤더
+#include "Source/Runtime/Engine/Particle/Color/ParticleModuleColor.h"
+#include "Source/Runtime/Engine/Particle/Lifetime/ParticleModuleLifetime.h"
+#include "Source/Runtime/Engine/Particle/Location/ParticleModuleLocation.h"
+#include "Source/Runtime/Engine/Particle/Size/ParticleModuleSize.h"
+#include "Source/Runtime/Engine/Particle/Velocity/ParticleModuleVelocity.h"
+#include "Source/Runtime/Engine/Particle/TypeData/ParticleModuleTypeDataBase.h"
+#include "Source/Slate/Widgets/ParticleModuleDetailRenderer.h"
+
 extern float CLIENTWIDTH;
 extern float CLIENTHEIGHT;
 
@@ -142,7 +151,7 @@ void SParticleEditorWindow::OnRender()
 		bRequestFocus = false;
 	}
 
-	bool bIsFocused = false;
+	bIsFocused = false;
 
 	if (ImGui::Begin(WindowTitle.c_str(), &bIsOpen, flags))
 	{
@@ -275,6 +284,9 @@ void SParticleEditorWindow::OnRender()
 		// 컬러피커를 최상위로 (패널 포커스 후에 호출)
 		ImGui::SetWindowFocus("Color Picker##BgColorPicker");
 	}
+
+	// Rename 다이얼로그 렌더링 (최상위 모달)
+	RenderRenameEmitterDialog();
 }
 
 void SParticleEditorWindow::OnUpdate(float DeltaSeconds)
@@ -509,7 +521,7 @@ void SParticleEditorWindow::RenderToolbar()
 	}
 
 	// 툴바 스타일 설정
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 2));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(3, 2));
 
 	// 수직 구분선 그리기 헬퍼 람다
 	auto DrawVerticalSeparator = [&]()
@@ -717,6 +729,85 @@ void SParticleEditorWindow::RenderToolbar()
 	ImGui::Separator();
 }
 
+void SParticleEditorWindow::RenderRenameEmitterDialog()
+{
+	if (!ActiveState || !ActiveState->bRenamingEmitter)
+	{
+		return;
+	}
+
+	// 모달 팝업 열기
+	if (!ImGui::IsPopupOpen("Rename Emitter##Modal"))
+	{
+		ImGui::OpenPopup("Rename Emitter##Modal");
+	}
+
+	// 화면 중앙에 위치
+	ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+	ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	ImGui::SetNextWindowSize(ImVec2(300, 120), ImGuiCond_FirstUseEver);
+
+	ImGuiWindowFlags modalFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+
+	if (ImGui::BeginPopupModal("Rename Emitter##Modal", &ActiveState->bRenamingEmitter, modalFlags))
+	{
+		ImGui::Text("Enter new emitter name:");
+		ImGui::Spacing();
+
+		// 첫 프레임에 포커스 설정
+		static bool bFirstFrame = true;
+		if (bFirstFrame)
+		{
+			ImGui::SetKeyboardFocusHere();
+			bFirstFrame = false;
+		}
+
+		bool bConfirm = ImGui::InputText("##RenameInput", ActiveState->RenameBuffer, sizeof(ActiveState->RenameBuffer),
+			ImGuiInputTextFlags_EnterReturnsTrue);
+
+		ImGui::Spacing();
+
+		if (bConfirm || ImGui::Button("OK", ImVec2(120, 0)))
+		{
+			if (ActiveState->CurrentSystem &&
+				ActiveState->RenamingEmitterIndex >= 0 &&
+				ActiveState->RenamingEmitterIndex < ActiveState->CurrentSystem->GetNumEmitters())
+			{
+				UParticleEmitter* Emitter = ActiveState->CurrentSystem->GetEmitter(ActiveState->RenamingEmitterIndex);
+				if (Emitter)
+				{
+					Emitter->EmitterName = ActiveState->RenameBuffer;
+				}
+			}
+			ActiveState->bRenamingEmitter = false;
+			ActiveState->RenamingEmitterIndex = -1;
+			bFirstFrame = true;
+			ImGui::CloseCurrentPopup();
+		}
+
+		ImGui::SameLine();
+
+		if (ImGui::Button("Cancel", ImVec2(120, 0)))
+		{
+			ActiveState->bRenamingEmitter = false;
+			ActiveState->RenamingEmitterIndex = -1;
+			bFirstFrame = true;
+			ImGui::CloseCurrentPopup();
+		}
+
+		ImGui::EndPopup();
+	}
+	else
+	{
+		// 팝업이 닫혔으면 상태 초기화
+		ActiveState->bRenamingEmitter = false;
+		ActiveState->RenamingEmitterIndex = -1;
+	}
+
+	// 다이얼로그를 최상위로
+	ImGui::SetWindowFocus("Rename Emitter##Modal");
+}
+
 // ============================================================================
 // SParticleViewportPanel
 // ============================================================================
@@ -809,38 +900,13 @@ void SParticleDetailPanel::OnRender()
 
 		if (!State->SelectedModule)
 		{
-			if (State->SelectedEmitter)
-			{
-				ImGui::Text("Emitter: %s", State->SelectedEmitter->EmitterName.c_str());
-				ImGui::Separator();
-
-				// 이미터 기본 정보
-				ImGui::Text("LOD Levels: %d", State->SelectedEmitter->GetNumLODs());
-				ImGui::Text("Peak Particles: %d", State->SelectedEmitter->GetPeakActiveParticles());
-
-				// 에디터 색상
-				float color[4] = {
-					State->SelectedEmitter->EmitterEditorColor.R,
-					State->SelectedEmitter->EmitterEditorColor.G,
-					State->SelectedEmitter->EmitterEditorColor.B,
-					State->SelectedEmitter->EmitterEditorColor.A
-				};
-				if (ImGui::ColorEdit4("Editor Color", color))
-				{
-					State->SelectedEmitter->EmitterEditorColor.R = color[0];
-					State->SelectedEmitter->EmitterEditorColor.G = color[1];
-					State->SelectedEmitter->EmitterEditorColor.B = color[2];
-					State->SelectedEmitter->EmitterEditorColor.A = color[3];
-				}
-			}
-			else
-			{
-				ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Select a module to edit");
-			}
+			// 모듈이 선택되지 않았으면 에미터 정보 표시
+			UParticleModuleDetailRenderer::RenderEmitterDetails(State->SelectedEmitter);
 		}
 		else
 		{
-			RenderModuleProperties(State->SelectedModule);
+			// 선택된 모듈의 디테일 렌더링
+			UParticleModuleDetailRenderer::RenderModuleDetails(State->SelectedModule);
 		}
 	}
 	ImGui::End();
@@ -848,21 +914,8 @@ void SParticleDetailPanel::OnRender()
 
 void SParticleDetailPanel::RenderModuleProperties(UParticleModule* Module)
 {
-	if (!Module)
-	{
-		return;
-	}
-
-	const char* className = Module->GetClass() ? Module->GetClass()->Name : "Unknown";
-	ImGui::Text("Module: %s", className);
-	ImGui::Separator();
-
-	// 모듈 기본 정보 표시
-	ImGui::Text("Spawn Module: %s", Module->IsSpawnModule() ? "Yes" : "No");
-	ImGui::Text("Update Module: %s", Module->IsUpdateModule() ? "Yes" : "No");
-	ImGui::Text("3D Draw Mode: %s", Module->Is3DDrawMode() ? "Yes" : "No");
-
-	// TODO: 리플렉션 시스템을 통한 프로퍼티 렌더링
+	// ParticleModuleDetailRenderer로 이동됨
+	UParticleModuleDetailRenderer::RenderModuleDetails(Module);
 }
 
 // ============================================================================
@@ -888,18 +941,24 @@ void SParticleEmittersPanel::OnRender()
 	if (ImGui::Begin("Emitters##ParticleEmitters", nullptr, flags))
 	{
 		ParticleViewerState* State = Owner->GetActiveState();
-		if (!State || !State->CurrentSystem)
+		if (!State)
 		{
-			ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No particle system loaded");
+			ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No active state");
 			ImGui::End();
 			return;
+		}
+
+		// 파티클 시스템이 없으면 자동 생성
+		if (!State->CurrentSystem)
+		{
+			State->CurrentSystem = new UParticleSystem();
+			State->CurrentSystem->SetFilePath("NewParticleSystem.psys");
 		}
 
 		UParticleSystem* System = State->CurrentSystem;
 
 		// 이미터들을 수평으로 배치 (Cascade 스타일)
 		const float EmitterColumnWidth = 180.0f;
-		const float ModuleHeight = 24.0f;
 
 		for (int32 i = 0; i < System->GetNumEmitters(); ++i)
 		{
@@ -909,6 +968,7 @@ void SParticleEmittersPanel::OnRender()
 				continue;
 			}
 
+			ImGui::PushID(i);
 			ImGui::BeginGroup();
 
 			// 이미터 헤더
@@ -918,21 +978,45 @@ void SParticleEmittersPanel::OnRender()
 			ImGui::BeginChild(("EmitterModules" + std::to_string(i)).c_str(),
 				ImVec2(EmitterColumnWidth, 0), true);
 			RenderModuleStack(Emitter, i);
+
+			// 에미터 블록 내 우클릭 컨텍스트 메뉴 (모듈 추가 + 에미터 조작)
+			if (ImGui::BeginPopupContextWindow(("ModuleContext" + std::to_string(i)).c_str(), ImGuiPopupFlags_MouseButtonRight))
+			{
+				RenderModuleContextMenu(Emitter, i);
+				ImGui::EndPopup();
+			}
+
 			ImGui::EndChild();
 
 			ImGui::EndGroup();
+			ImGui::PopID();
 
 			ImGui::SameLine();
 		}
 
-		// + 버튼으로 새 이미터 추가
-		if (ImGui::Button("+", ImVec2(30, 30)))
+		// 에미터가 없을 때 안내 텍스트
+		if (System->GetNumEmitters() == 0)
 		{
-			// TODO: 새 이미터 추가
+			ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Right-click to add emitter");
 		}
-		if (ImGui::IsItemHovered())
+
+		// 빈 영역 우클릭 → 새 이미터 추가 (에미터 블록 외 영역)
+		if (ImGui::BeginPopupContextWindow("EmittersAreaContext", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
 		{
-			ImGui::SetTooltip("Add Emitter");
+			if (ImGui::MenuItem("New Sprite Emitter"))
+			{
+				AddNewEmitter(System);
+			}
+			ImGui::EndPopup();
+		}
+
+		// Delete 키 처리 (윈도우 포커스 시)
+		if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
+		{
+			if (ImGui::IsKeyPressed(ImGuiKey_Delete))
+			{
+				DeleteSelectedModule();
+			}
 		}
 	}
 	ImGui::End();
@@ -1075,6 +1159,80 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 			State->SelectedEmitter = State->CurrentSystem->GetEmitter(EmitterIndex);
 		}
 	}
+
+	// 드래그 앤 드롭 - 일반 모듈만 (Required/Spawn 제외)
+	// ModuleIndex: -1 = Required, -2 = Spawn, 0+ = 일반 모듈
+	if (ModuleIndex >= 0)
+	{
+		// 드래그 소스
+		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+		{
+			// 페이로드: EmitterIndex와 ModuleIndex
+			struct ModuleDragPayload
+			{
+				int32 EmitterIndex;
+				int32 ModuleIndex;
+			};
+			ModuleDragPayload payload = { EmitterIndex, ModuleIndex };
+			ImGui::SetDragDropPayload("MODULE_REORDER", &payload, sizeof(payload));
+
+			// 드래그 프리뷰
+			ImGui::Text("Move: %s", ModuleName.c_str());
+			ImGui::EndDragDropSource();
+		}
+
+		// 드롭 타겟
+		if (ImGui::BeginDragDropTarget())
+		{
+			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MODULE_REORDER"))
+			{
+				struct ModuleDragPayload
+				{
+					int32 EmitterIndex;
+					int32 ModuleIndex;
+				};
+				ModuleDragPayload* data = (ModuleDragPayload*)payload->Data;
+
+				// 같은 에미터 내에서만 순서 변경 가능
+				if (data->EmitterIndex == EmitterIndex && data->ModuleIndex != ModuleIndex)
+				{
+					UParticleEmitter* Emitter = State->CurrentSystem->GetEmitter(EmitterIndex);
+					if (Emitter)
+					{
+						// 모든 LOD 레벨에서 모듈 순서 변경
+						for (int32 lod = 0; lod < Emitter->GetNumLODs(); ++lod)
+						{
+							UParticleLODLevel* LODLevel = Emitter->GetLODLevel(lod);
+							if (LODLevel && data->ModuleIndex < static_cast<int32>(LODLevel->Modules.size()) &&
+								ModuleIndex < static_cast<int32>(LODLevel->Modules.size()))
+							{
+								// 모듈 swap
+								UParticleModule* DraggedModule = LODLevel->Modules[data->ModuleIndex];
+								LODLevel->Modules.erase(LODLevel->Modules.begin() + data->ModuleIndex);
+
+								// 삽입 위치 조정 (삭제 후 인덱스 보정)
+								int32 InsertIndex = ModuleIndex;
+								if (data->ModuleIndex < ModuleIndex)
+								{
+									--InsertIndex;
+								}
+								LODLevel->Modules.insert(LODLevel->Modules.begin() + InsertIndex, DraggedModule);
+							}
+						}
+
+						// 선택 상태 업데이트 (드래그한 모듈 선택 유지)
+						State->SelectedModuleIndex = ModuleIndex;
+						if (data->ModuleIndex < ModuleIndex)
+						{
+							--State->SelectedModuleIndex;
+						}
+					}
+				}
+			}
+			ImGui::EndDragDropTarget();
+		}
+	}
+
 	ImGui::PopID();
 
 	ImGui::PopStyleColor(2);
@@ -1087,6 +1245,396 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 			Module->Is3DDrawMode() ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
 			"3D");
 	}
+}
+
+void SParticleEmittersPanel::AddNewEmitter(UParticleSystem* System)
+{
+	if (!System)
+	{
+		return;
+	}
+
+	// 새 Emitter 생성
+	UParticleEmitter* NewEmitter = new UParticleEmitter();
+	NewEmitter->EmitterName = "New Sprite Emitter";
+
+	// 에디터 색상 랜덤 설정 (파스텔 톤)
+	NewEmitter->EmitterEditorColor.R = 0.4f + (rand() % 60) / 100.0f;
+	NewEmitter->EmitterEditorColor.G = 0.4f + (rand() % 60) / 100.0f;
+	NewEmitter->EmitterEditorColor.B = 0.4f + (rand() % 60) / 100.0f;
+	NewEmitter->EmitterEditorColor.A = 1.0f;
+
+	// LOD Level 0 생성
+	UParticleLODLevel* LODLevel = new UParticleLODLevel();
+
+	// 기본 Required 모듈
+	UParticleModuleRequired* RequiredModule = new UParticleModuleRequired();
+	LODLevel->RequiredModule = RequiredModule;
+
+	// 기본 Spawn 모듈
+	UParticleModuleSpawn* SpawnModule = new UParticleModuleSpawn();
+	LODLevel->SpawnModule = SpawnModule;
+
+	// LOD Level 추가
+	NewEmitter->LODLevels.Add(LODLevel);
+
+	// 시스템에 이미터 추가
+	System->Emitters.Add(NewEmitter);
+
+	// 선택 상태 업데이트
+	ParticleViewerState* State = Owner->GetActiveState();
+	if (State)
+	{
+		State->SelectedEmitterIndex = System->GetNumEmitters() - 1;
+		State->SelectedModuleIndex = -1;
+		State->SelectedEmitter = NewEmitter;
+		State->SelectedModule = nullptr;
+	}
+}
+
+void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, int32 EmitterIndex)
+{
+	if (!Emitter)
+	{
+		return;
+	}
+
+	UParticleLODLevel* LODLevel = Emitter->GetLODLevel(0);
+	if (!LODLevel)
+	{
+		return;
+	}
+
+	ParticleViewerState* State = Owner->GetActiveState();
+
+	// Emitter 서브메뉴 (Cascade 스타일)
+	if (ImGui::BeginMenu("Emitter"))
+	{
+		RenderEmitterContextMenu(Emitter, EmitterIndex);
+		ImGui::EndMenu();
+	}
+
+	// TypeData 서브메뉴
+	if (ImGui::BeginMenu("TypeData"))
+	{
+		ImGui::MenuItem("GPU Sprites", nullptr, false, false); // TODO
+		ImGui::MenuItem("Mesh", nullptr, false, false); // TODO
+		ImGui::MenuItem("Beam", nullptr, false, false); // TODO
+		ImGui::MenuItem("Ribbon", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	ImGui::Separator();
+
+	// Acceleration 서브메뉴
+	if (ImGui::BeginMenu("Acceleration"))
+	{
+		ImGui::MenuItem("Const Acceleration", nullptr, false, false); // TODO
+		ImGui::MenuItem("Drag", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Attraction 서브메뉴
+	if (ImGui::BeginMenu("Attraction"))
+	{
+		ImGui::MenuItem("Line Attractor", nullptr, false, false); // TODO
+		ImGui::MenuItem("Point Attractor", nullptr, false, false); // TODO
+		ImGui::MenuItem("Point Gravity", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Collision 서브메뉴
+	if (ImGui::BeginMenu("Collision"))
+	{
+		ImGui::MenuItem("Collision", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Color 서브메뉴
+	if (ImGui::BeginMenu("Color"))
+	{
+		if (ImGui::MenuItem("Initial Color"))
+		{
+			UParticleModuleColor* Module = new UParticleModuleColor();
+			LODLevel->Modules.Add(Module);
+		}
+		ImGui::MenuItem("Color Over Life", nullptr, false, false); // TODO
+		ImGui::MenuItem("Scale Color/Life", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Event 서브메뉴
+	if (ImGui::BeginMenu("Event"))
+	{
+		ImGui::MenuItem("Event Generator", nullptr, false, false); // TODO
+		ImGui::MenuItem("Event Receiver Kill All", nullptr, false, false); // TODO
+		ImGui::MenuItem("Event Receiver Spawn", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Lifetime 서브메뉴
+	if (ImGui::BeginMenu("Lifetime"))
+	{
+		if (ImGui::MenuItem("Lifetime"))
+		{
+			UParticleModuleLifetime* Module = new UParticleModuleLifetime();
+			LODLevel->Modules.Add(Module);
+		}
+		ImGui::EndMenu();
+	}
+
+	// Location 서브메뉴
+	if (ImGui::BeginMenu("Location"))
+	{
+		if (ImGui::MenuItem("Initial Location"))
+		{
+			UParticleModuleLocation* Module = new UParticleModuleLocation();
+			LODLevel->Modules.Add(Module);
+		}
+		ImGui::MenuItem("World Offset", nullptr, false, false); // TODO
+		ImGui::MenuItem("Bone/Socket Location", nullptr, false, false); // TODO
+		ImGui::MenuItem("Direct Location", nullptr, false, false); // TODO
+		ImGui::MenuItem("Cylinder", nullptr, false, false); // TODO
+		ImGui::MenuItem("Sphere", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Rotation 서브메뉴
+	if (ImGui::BeginMenu("Rotation"))
+	{
+		ImGui::MenuItem("Initial Rotation", nullptr, false, false); // TODO
+		ImGui::MenuItem("Rotation Over Life", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Rotation Rate 서브메뉴
+	if (ImGui::BeginMenu("Rotation Rate"))
+	{
+		ImGui::MenuItem("Initial Rotation Rate", nullptr, false, false); // TODO
+		ImGui::MenuItem("Rotation Rate Over Life", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Orbit 서브메뉴
+	if (ImGui::BeginMenu("Orbit"))
+	{
+		ImGui::MenuItem("Orbit", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Orientation 서브메뉴
+	if (ImGui::BeginMenu("Orientation"))
+	{
+		ImGui::MenuItem("Axis Lock", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Size 서브메뉴
+	if (ImGui::BeginMenu("Size"))
+	{
+		if (ImGui::MenuItem("Initial Size"))
+		{
+			UParticleModuleSize* Module = new UParticleModuleSize();
+			LODLevel->Modules.Add(Module);
+		}
+		ImGui::MenuItem("Size By Life", nullptr, false, false); // TODO
+		ImGui::MenuItem("Size Scale", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Spawn 서브메뉴
+	if (ImGui::BeginMenu("Spawn"))
+	{
+		ImGui::MenuItem("Spawn Per Unit", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// SubUV 서브메뉴
+	if (ImGui::BeginMenu("SubUV"))
+	{
+		ImGui::MenuItem("SubImage Index", nullptr, false, false); // TODO
+		ImGui::MenuItem("SubUV Movie", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Vector Field 서브메뉴
+	if (ImGui::BeginMenu("Vector Field"))
+	{
+		ImGui::MenuItem("VF Global", nullptr, false, false); // TODO
+		ImGui::MenuItem("VF Local", nullptr, false, false); // TODO
+		ImGui::MenuItem("VF Rotation", nullptr, false, false); // TODO
+		ImGui::MenuItem("VF Rotation Rate", nullptr, false, false); // TODO
+		ImGui::MenuItem("VF Scale", nullptr, false, false); // TODO
+		ImGui::MenuItem("VF Scale Over Life", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+
+	// Velocity 서브메뉴
+	if (ImGui::BeginMenu("Velocity"))
+	{
+		if (ImGui::MenuItem("Initial Velocity"))
+		{
+			UParticleModuleVelocity* Module = new UParticleModuleVelocity();
+			LODLevel->Modules.Add(Module);
+		}
+		ImGui::MenuItem("Velocity Over Life", nullptr, false, false); // TODO
+		ImGui::MenuItem("Inherit Parent Velocity", nullptr, false, false); // TODO
+		ImGui::EndMenu();
+	}
+}
+
+void SParticleEmittersPanel::RenderEmitterContextMenu(UParticleEmitter* Emitter, int32 EmitterIndex)
+{
+	ParticleViewerState* State = Owner->GetActiveState();
+	if (!State || !State->CurrentSystem)
+	{
+		return;
+	}
+
+	UParticleSystem* System = State->CurrentSystem;
+
+	// Rename Emitter
+	if (ImGui::MenuItem("Rename Emitter"))
+	{
+		State->bRenamingEmitter = true;
+		State->RenamingEmitterIndex = EmitterIndex;
+		strncpy_s(State->RenameBuffer, Emitter->EmitterName.c_str(), sizeof(State->RenameBuffer) - 1);
+	}
+
+	// Duplicate Emitter
+	if (ImGui::MenuItem("Duplicate Emitter"))
+	{
+		UParticleEmitter* NewEmitter = new UParticleEmitter();
+		NewEmitter->EmitterName = Emitter->EmitterName + " (Copy)";
+		NewEmitter->EmitterEditorColor = Emitter->EmitterEditorColor;
+
+		for (int32 lod = 0; lod < Emitter->GetNumLODs(); ++lod)
+		{
+			UParticleLODLevel* SourceLOD = Emitter->GetLODLevel(lod);
+			if (SourceLOD)
+			{
+				UParticleLODLevel* NewLOD = new UParticleLODLevel();
+				if (SourceLOD->RequiredModule)
+				{
+					UParticleModuleRequired* NewRequired = new UParticleModuleRequired();
+					NewLOD->RequiredModule = NewRequired;
+				}
+				if (SourceLOD->SpawnModule)
+				{
+					UParticleModuleSpawn* NewSpawn = new UParticleModuleSpawn();
+					NewLOD->SpawnModule = NewSpawn;
+				}
+				NewEmitter->LODLevels.Add(NewLOD);
+			}
+		}
+		System->Emitters.Add(NewEmitter);
+	}
+
+	// Duplicate and Share Emitter
+	if (ImGui::MenuItem("Duplicate and Share Emitter"))
+	{
+		// TODO: 모듈 공유 복제
+	}
+
+	// Delete Emitter
+	if (ImGui::MenuItem("Delete Emitter"))
+	{
+		DeleteEmitter(System, EmitterIndex);
+	}
+
+	ImGui::Separator();
+
+	// Export Emitter
+	if (ImGui::MenuItem("Export Emitter"))
+	{
+		// TODO: 이미터 익스포트
+	}
+
+	// Export All
+	if (ImGui::MenuItem("Export All"))
+	{
+		// TODO: 전체 익스포트
+	}
+}
+
+void SParticleEmittersPanel::DeleteEmitter(UParticleSystem* System, int32 EmitterIndex)
+{
+	ParticleViewerState* State = Owner->GetActiveState();
+	if (!State || !System)
+	{
+		return;
+	}
+
+	if (EmitterIndex >= 0 && EmitterIndex < static_cast<int32>(System->Emitters.size()))
+	{
+		delete System->Emitters[EmitterIndex];
+		System->Emitters.erase(System->Emitters.begin() + EmitterIndex);
+
+		// 선택 상태 초기화
+		State->SelectedEmitterIndex = -1;
+		State->SelectedModuleIndex = -1;
+		State->SelectedEmitter = nullptr;
+		State->SelectedModule = nullptr;
+	}
+}
+
+void SParticleEmittersPanel::DeleteSelectedModule()
+{
+	ParticleViewerState* State = Owner->GetActiveState();
+	if (!State || !State->CurrentSystem)
+	{
+		return;
+	}
+
+	// 에미터가 선택된 경우 (모듈이 아닌)
+	if (State->SelectedEmitterIndex >= 0 && State->SelectedModuleIndex < 0)
+	{
+		DeleteEmitter(State->CurrentSystem, State->SelectedEmitterIndex);
+		return;
+	}
+
+	// 모듈이 선택된 경우
+	if (State->SelectedEmitterIndex < 0 || !State->SelectedEmitter)
+	{
+		return;
+	}
+
+	// LOD 0에서만 삭제 가능 (UE 규칙)
+	if (State->CurrentLODIndex != 0)
+	{
+		// TODO: 경고 메시지 표시
+		return;
+	}
+
+	// Required/Spawn 모듈은 삭제 불가 (UE 규칙)
+	// ModuleIndex: -1 = Required, -2 = Spawn, 0+ = 일반 모듈
+	if (State->SelectedModuleIndex == -1 || State->SelectedModuleIndex == -2)
+	{
+		// TODO: "Required and Spawn modules may not be deleted" 메시지
+		return;
+	}
+
+	UParticleLODLevel* LODLevel = State->SelectedEmitter->GetLODLevel(0);
+	if (!LODLevel)
+	{
+		return;
+	}
+
+	// 모든 LOD 레벨에서 모듈 삭제 (UE 규칙)
+	int32 ModuleIndex = State->SelectedModuleIndex;
+	for (int32 lod = 0; lod < State->SelectedEmitter->GetNumLODs(); ++lod)
+	{
+		UParticleLODLevel* Level = State->SelectedEmitter->GetLODLevel(lod);
+		if (Level && ModuleIndex >= 0 && ModuleIndex < static_cast<int32>(Level->Modules.size()))
+		{
+			delete Level->Modules[ModuleIndex];
+			Level->Modules.erase(Level->Modules.begin() + ModuleIndex);
+		}
+	}
+
+	// 선택 상태 초기화
+	State->SelectedModuleIndex = -1;
+	State->SelectedModule = nullptr;
 }
 
 // ============================================================================

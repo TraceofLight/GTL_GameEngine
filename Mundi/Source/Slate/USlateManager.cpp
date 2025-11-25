@@ -874,9 +874,17 @@ void USlateManager::ProcessInput()
         CloseSkeletalMeshViewer();
     }
 
+    // ParticleEditorWindow가 포커스된 경우 EditorWorld 입력 차단
+    if (ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput())
+    {
+        return;
+    }
+
     // 단축키로 기즈모 모드 변경
     if (World->GetGizmoActor())
+    {
         World->GetGizmoActor()->ProcessGizmoModeSwitch();
+    }
 }
 
 void USlateManager::OnMouseMove(FVector2D MousePos)

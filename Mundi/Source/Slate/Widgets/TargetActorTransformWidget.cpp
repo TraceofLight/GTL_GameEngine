@@ -434,22 +434,37 @@ void UTargetActorTransformWidget::RenderComponentHierarchy(AActor* SelectedActor
 		RenderActorComponent(SelectedActor, SelectedComponent, ComponentPendingRemoval);
 	}
 
-	// 삭제 입력 처리 (Preview 윈도우에 포커스가 없을 때만)
-	// Preview 윈도우가 열려있는지 확인
-	bool bPreviewFocused = false;
-	ImGuiWindow* PreviewWindow = ImGui::FindWindowByName("Preview");
-	if (PreviewWindow)
+	// 삭제 입력 처리 (다이나믹 뷰포트에 포커스가 없을 때만)
+	// 다이나믹 뷰포트 윈도우들 체크 (Preview, ParticleEditor, BlendSpace2D 등)
+	bool bDynamicViewportFocused = false;
+	ImGuiContext* Context = ImGui::GetCurrentContext();
+
+	// 체크할 윈도우 이름 목록 (ParticleEditor의 모든 자식 윈도우 포함)
+	const char* DynamicWindowNames[] = {
+		"Preview",
+		"Particle Editor###ParticleEditor",
+		"##ParticleViewport",
+		"Details##ParticleDetail",
+		"Emitters##ParticleEmitters",
+		"Curve Editor##ParticleCurve",
+		"BlendSpace 2D Editor###BlendSpace2D"
+	};
+
+	// 현재 포커스된 윈도우 이름 가져오기
+	if (Context->NavWindow)
 	{
-		bPreviewFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-		// 현재 포커스된 윈도우가 Preview인지 체크
-		ImGuiContext* Context = ImGui::GetCurrentContext();
-		if (Context->NavWindow && Context->NavWindow->RootWindow == PreviewWindow->RootWindow)
+		const char* FocusedName = Context->NavWindow->Name;
+		for (const char* WindowName : DynamicWindowNames)
 		{
-			bPreviewFocused = true;
+			if (FocusedName && strcmp(FocusedName, WindowName) == 0)
+			{
+				bDynamicViewportFocused = true;
+				break;
+			}
 		}
 	}
 
-	const bool bDeletePressed = !bPreviewFocused && ImGui::IsKeyPressed(ImGuiKey_Delete);
+	const bool bDeletePressed = !bDynamicViewportFocused && ImGui::IsKeyPressed(ImGuiKey_Delete);
 	if (bDeletePressed)
 	{
 		if (bActorSelected) ActorPendingRemoval = SelectedActor;

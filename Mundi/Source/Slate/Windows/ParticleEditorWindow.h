@@ -54,6 +54,8 @@ public:
 	FViewportClient* GetViewportClient() const;
 	bool IsOpen() const { return bIsOpen; }
 	void Close() { bIsOpen = false; }
+	bool IsFocused() const { return bIsFocused; }
+	bool ShouldBlockEditorInput() const { return bIsOpen && bIsFocused; }
 
 	// 패널 접근용 (친구 클래스나 콜백을 위해)
 	ParticleViewerState* GetActiveState() const { return ActiveState; }
@@ -63,6 +65,9 @@ private:
 	void RenderToolbar();
 	void LoadToolbarIcons();
 	bool RenderIconButton(const char* id, UTexture* icon, const char* label, const char* tooltip, bool bActive = false);
+
+	// 모달 다이얼로그 렌더링
+	void RenderRenameEmitterDialog();
 
 	// 툴바 아이콘
 	UTexture* IconSave = nullptr;
@@ -115,6 +120,7 @@ private:
 	bool bInitialPlacementDone = false;
 	bool bRequestFocus = false;
 	bool bShowColorPicker = false;
+	bool bIsFocused = false;
 
 	// 에디터 상태
 	float BackgroundColor[3] = { 0.1f, 0.1f, 0.1f };
@@ -166,6 +172,15 @@ private:
 	void RenderEmitterHeader(UParticleEmitter* Emitter, int32 EmitterIndex);
 	void RenderModuleStack(UParticleEmitter* Emitter, int32 EmitterIndex);
 	void RenderModuleItem(UParticleModule* Module, int32 ModuleIndex, int32 EmitterIndex);
+
+	// 컨텍스트 메뉴 관련
+	void AddNewEmitter(UParticleSystem* System);
+	void RenderModuleContextMenu(UParticleEmitter* Emitter, int32 EmitterIndex);
+	void RenderEmitterContextMenu(UParticleEmitter* Emitter, int32 EmitterIndex);
+
+	// 삭제 기능
+	void DeleteEmitter(UParticleSystem* System, int32 EmitterIndex);
+	void DeleteSelectedModule();
 };
 
 /**

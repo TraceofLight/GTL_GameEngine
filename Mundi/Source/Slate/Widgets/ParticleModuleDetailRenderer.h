@@ -1,0 +1,51 @@
+#pragma once
+
+class UParticleModule;
+class UParticleModuleRequired;
+class UParticleModuleSpawn;
+class UParticleModuleColor;
+class UParticleModuleLifetime;
+class UParticleModuleLocation;
+class UParticleModuleSize;
+class UParticleModuleVelocity;
+class UParticleEmitter;
+
+/**
+ * @brief 파티클 모듈 디테일 렌더러
+ * @details 파티클 모듈의 프로퍼티를 ImGui로 렌더링
+ *          Cascade 스타일의 섹션별 구성
+ */
+class UParticleModuleDetailRenderer
+{
+public:
+	// 모듈 타입에 따라 적절한 UI 렌더링
+	static void RenderModuleDetails(UParticleModule* Module);
+
+	// Emitter 전체 프로퍼티 렌더링 (모듈이 선택되지 않았을 때)
+	static void RenderEmitterDetails(UParticleEmitter* Emitter);
+
+private:
+	// 각 모듈 타입별 렌더링
+	static void RenderRequiredModule(UParticleModuleRequired* Module);
+	static void RenderSpawnModule(UParticleModuleSpawn* Module);
+	static void RenderColorModule(UParticleModuleColor* Module);
+	static void RenderLifetimeModule(UParticleModuleLifetime* Module);
+	static void RenderLocationModule(UParticleModuleLocation* Module);
+	static void RenderSizeModule(UParticleModuleSize* Module);
+	static void RenderVelocityModule(UParticleModuleVelocity* Module);
+
+	// Distribution 타입 UI 헬퍼
+	static bool RenderFloatDistribution(const char* Label, struct FFloatDistribution& Dist);
+	static bool RenderVectorDistribution(const char* Label, struct FVectorDistribution& Dist);
+	static bool RenderColorDistribution(const char* Label, struct FColorDistribution& Dist);
+
+	// Enum 콤보박스 헬퍼
+	static bool RenderScreenAlignmentCombo(const char* Label, enum class EParticleScreenAlignment& Value);
+	static bool RenderSortModeCombo(const char* Label, enum class EParticleSortMode& Value);
+	static bool RenderBlendModeCombo(const char* Label, enum class EParticleBlendMode& Value);
+	static bool RenderBurstMethodCombo(const char* Label, enum class EParticleBurstMethod& Value);
+
+	// 섹션 헬퍼
+	static bool BeginSection(const char* Label, bool bDefaultOpen = true);
+	static void EndSection();
+};
