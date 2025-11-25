@@ -1040,7 +1040,27 @@ void FSceneRenderer::RenderParticlesPass()
 
 			// 에미터 타입에 따라 다른 셰이더 매크로 사용
 			TArray<FShaderMacro> ParticleShaderMacros;
-			
+
+			const FDynamicEmitterReplayDataBase& ReplayData = EmitterData->GetSource();
+
+			const FDynamicSpriteEmitterReplayDataBase& SpriteReplayData = static_cast<const FDynamicSpriteEmitterReplayDataBase&>(ReplayData);
+			EParticleBlendMode BlendMode = SpriteReplayData.BlendMode;
+			switch (BlendMode)
+			{
+			case EParticleBlendMode::None:
+				RHIDevice->OMSetBlendState(false, false);
+				break;
+			case EParticleBlendMode::Translucent:
+				RHIDevice->OMSetBlendState(true, false);
+				break;
+			case EParticleBlendMode::Additive:
+				RHIDevice->OMSetBlendState(true, true);
+				break;
+			default:
+				assert(false && "Unknown Particle Blend Mode!");
+				break;
+			}
+
 			// Mesh 파티클인지 Sprite 파티클인지 확인
 			bool bIsMeshParticle = false;
 			if (EmitterData->GetSource().eEmitterType == EDynamicEmitterType::Mesh)
@@ -1048,8 +1068,7 @@ void FSceneRenderer::RenderParticlesPass()
 				bIsMeshParticle = true;
 				ParticleShaderMacros = View->ViewShaderMacros; // 메시 파티클은 뷰 모드 매크로도 포함
 				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE_MESH", "1" });
-
-				RHIDevice->OMSetBlendState(false, false);
+				
 				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
 			}
 			else
@@ -1057,7 +1076,6 @@ void FSceneRenderer::RenderParticlesPass()
 				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE", "1" });
 
 				RHIDevice->RSSetState(ERasterizerMode::Solid_NoCull); // TODO: 스프라이트 정점 순서 이슈 때문에 임시 조치. 수정 필요
-				RHIDevice->OMSetBlendState(true, true);
 				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
 			}
 

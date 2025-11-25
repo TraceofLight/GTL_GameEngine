@@ -92,6 +92,7 @@ void UParticleSystemComponent::InitializeComponent()
 	if (!Template)
 	{
 		UParticleSystem* FlareSystem = UParticleSystemComponent::CreateAppleMeshParticleSystem();
+		//UParticleSystem* FlareSystem = UParticleSystemComponent::CreateFlareParticleSystem();
 		Template = FlareSystem;
 	}
 
@@ -632,6 +633,7 @@ UParticleSystem* UParticleSystemComponent::CreateFlareParticleSystem()
 	RequiredModule->SetScreenAlignment(EParticleScreenAlignment::Square); // 카메라를 향함
 	RequiredModule->SetSortMode(EParticleSortMode::ViewProjDepth);
 	RequiredModule->SetUseLocalSpace(false); // 월드 공간 사용
+	RequiredModule->SetBlendMode(EParticleBlendMode::Additive);
 
 	LODLevel->RequiredModule = RequiredModule;
 
@@ -794,6 +796,7 @@ UParticleSystem* UParticleSystemComponent::CreateAppleMeshParticleSystem()
 	RequiredModule->SetScreenAlignment(EParticleScreenAlignment::Square);
 	RequiredModule->SetSortMode(EParticleSortMode::ViewProjDepth);
 	RequiredModule->SetUseLocalSpace(false); // 월드 공간 사용
+	RequiredModule->SetBlendMode(EParticleBlendMode::None);
 
 	LODLevel->RequiredModule = RequiredModule;
 

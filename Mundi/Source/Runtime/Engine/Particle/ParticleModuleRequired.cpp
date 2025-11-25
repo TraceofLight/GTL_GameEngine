@@ -22,7 +22,7 @@ UParticleModuleRequired::UParticleModuleRequired()
 	, EmitterNormalsMode(EEmitterNormalsMode::CameraFacing)
 	, InterpolationMethod(EParticleSubUVInterpMethod::None)
 	, AxisLockOption(EParticleAxisLock::None)
-	, BlendMode(EParticleBlendMode::Translucent)
+	, BlendMode(EParticleBlendMode::None)
 {
 	// Required 모듈은 Spawn/Update에 참여하지 않음 (설정만 제공)
 	bSpawnModule = false;
