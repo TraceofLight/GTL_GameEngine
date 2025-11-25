@@ -75,7 +75,7 @@ void UParticleSystemComponent::InitializeComponent()
 	// Template이 없을 때만 기본 파티클 시스템 생성 (Serialize로 로드한 경우 유지)
 	if (!Template)
 	{
-		UParticleSystem* FlareSystem = UParticleSystemComponent::CreateFlareParticleSystem();
+		UParticleSystem* FlareSystem = UParticleSystemComponent::CreateAppleMeshParticleSystem();
 		Template = FlareSystem;
 	}
 

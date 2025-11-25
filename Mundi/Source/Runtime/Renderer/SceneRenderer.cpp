@@ -960,12 +960,6 @@ void FSceneRenderer::RenderParticlesPass()
 
 	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "ParticlePass", OwnerRenderer->GetGPUTimer());
 
-	// 파티클은 반투명이므로 add 블렌딩 활성화
-	RHIDevice->RSSetState(ERasterizerMode::Solid_NoCull);
-	RHIDevice->OMSetBlendState(true, true);
-	// 깊이 쓰기는 OFF, 깊이 테스트는 ON (다른 오브젝트 뒤에 가려지도록)
-	RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
-
 	// 셰이더 경로
 	FString ShaderPath = "Shaders/Materials/UberLit.hlsl";
 
@@ -998,10 +992,17 @@ void FSceneRenderer::RenderParticlesPass()
 				bIsMeshParticle = true;
 				ParticleShaderMacros = View->ViewShaderMacros; // 메시 파티클은 뷰 모드 매크로도 포함
 				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE_MESH", "1" });
+
+				RHIDevice->OMSetBlendState(false, false);
+				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
 			}
 			else
 			{
 				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE", "1" });
+
+				RHIDevice->RSSetState(ERasterizerMode::Solid_NoCull); // TODO: 스프라이트 정점 순서 이슈 때문에 임시 조치. 수정 필요
+				RHIDevice->OMSetBlendState(true, true);
+				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
 			}
 
 			// 파티클용 셰이더 로드
@@ -1036,6 +1037,7 @@ void FSceneRenderer::RenderParticlesPass()
 	}
 
 	// 상태 복구
+	RHIDevice->RSSetState(ERasterizerMode::Solid);
 	RHIDevice->OMSetBlendState(false);
 	RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
 }
