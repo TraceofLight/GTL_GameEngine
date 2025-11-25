@@ -2,11 +2,13 @@
 #include "ParticleSystemComponent.h"
 #include "ParticleEmitterInstance.h"
 #include "ParticleSpriteEmitterInstance.h"
+#include "ParticleMeshEmitterInstance.h"
 #include "ParticleDataContainer.h"
 #include "ParticleSystem.h"
 #include "ParticleEmitter.h"
 #include "ParticleLODLevel.h"
 #include "ParticleTypes.h"
+#include "TypeData/ParticleModuleTypeDataBase.h"
 #include "Spawn/ParticleModuleSpawn.h"
 #include "ParticleModuleRequired.h"
 #include "Lifetime/ParticleModuleLifetime.h"
@@ -393,9 +395,24 @@ void UParticleSystemComponent::CreateEmitterInstances()
 			continue;  // 유효하지 않으면 스킵
 		}
 
-		// 스프라이트 에미터 인스턴스 생성 (현재는 스프라이트만 지원)
-		// TODO: 나중에 메시 파티클 추가 시 TypeDataModule 체크해서 타입별 생성
-		FParticleEmitterInstance* NewInstance = new FParticleSpriteEmitterInstance();
+		// TypeDataModule 타입에 따라 에미터 인스턴스 생성
+		FParticleEmitterInstance* NewInstance = nullptr;
+
+		UParticleLODLevel* LODLevel = Emitter->GetLODLevel(0);
+		if (LODLevel && LODLevel->TypeDataModule)
+		{
+			EDynamicEmitterType EmitterType = LODLevel->TypeDataModule->GetEmitterType();
+			if (EmitterType == EDynamicEmitterType::Mesh)
+			{
+				NewInstance = new FParticleMeshEmitterInstance();
+			}
+		}
+
+		// 기본값: 스프라이트
+		if (!NewInstance)
+		{
+			NewInstance = new FParticleSpriteEmitterInstance();
+		}
 
 		// 에미터 인스턴스 초기화
 		// - Emitter: 설계도 (어떻게 동작할지 정의)

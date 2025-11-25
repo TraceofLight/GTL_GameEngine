@@ -496,12 +496,11 @@ struct FParticleEmitterInstance
 		OutData.ParticleStride = ParticleStride;
 
 		// Allocate and copy particle data to container
-		// ActiveParticles 크기만큼만 할당
 		OutData.DataContainer.Allocate(MaxActiveParticles, ParticleStride);
 		FMemory::Memcpy(
 			OutData.DataContainer.ParticleData,
 			ParticleData,
-			MaxActiveParticles * ParticleStride // 활성 파티클만
+			MaxActiveParticles * ParticleStride 
 		);
 
 		// Copy particle indices
