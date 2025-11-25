@@ -294,17 +294,24 @@ void UParticleSystemComponent::UpdateEmitters(float DeltaTime)
 		{
 			// 이번 프레임에 생성할 파티클 개수 계산
 			int32 SpawnNumber = 0;      // 실제 생성할 개수
-			float SpawnRate = 0.0f;     // 초당 생성률
+			float SpawnRate = 0.0f;     // 초당 생성률 (디버깅/통계용)
 
-			// [방법 1] SpawnRate 기반 생성
+			// ----------------------------------------------------------------
+			// [방법 1] SpawnRate 기반 생성 (연속적 생성)
+			// ----------------------------------------------------------------
 			// 예: SpawnRate=30 → 초당 30개 생성
 			// DeltaTime=0.016초(60fps) → 0.48개 생성
-			// SpawnFraction으로 소수점 누적 처리 (부드러운 생성)
+			//
+			// SpawnFraction 누적 방식:
+			//   - Instance->SpawnFraction에 소수점 누적 저장
+			//   - 1.0 이상이 되면 그때 파티클 1개 생성
+			//   - 이렇게 하면 프레임마다 부드럽게 파티클이 나옴
+			// ----------------------------------------------------------------
 			bool bShouldSpawn = SpawnModule->GetSpawnAmount(
-				AccumulatedTime - DeltaTime,  // OldTime (이전 프레임 시간)
 				DeltaTime,                     // DeltaTime (경과 시간)
 				SpawnNumber,                   // OutNumber (출력: 생성할 개수)
-				SpawnRate                      // OutRate (출력: 초당 생성률)
+				SpawnRate,                     // OutRate (출력: 초당 생성률, 디버깅/통계용)
+				Instance->SpawnFraction        // InOutSpawnFraction (입출력: 소수점 누적값)
 			);
 
 			// [방법 2] Burst 기반 생성 (특정 시간에 대량 생성)

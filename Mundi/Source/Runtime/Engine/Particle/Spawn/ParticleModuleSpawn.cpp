@@ -18,47 +18,78 @@ UParticleModuleSpawn::UParticleModuleSpawn()
 }
 
 /**
- * 주어진 시간 동안 생성할 파티클 수 계산
- * @param OldTime 이전 시간
- * @param DeltaTime 델타 타임
- * @param OutNumber 생성할 파티클 수 (출력)
- * @param OutRate 실제 생성률 (출력)
- * @return 파티클을 생성해야 하면 true
+ * @brief Rate 기반으로 이번 프레임에 생성할 파티클 수 계산
+ * @details SpawnFraction 누적 방식으로 부드러운 파티클 생성 보장
+ *
+ * [왜 SpawnFraction이 필요한가?]
+ *
+ * 예를 들어 Rate=30 (초당 30개), 60fps (DeltaTime=0.016초)인 경우:
+ *   - 이번 프레임 생성량 = 30 * 0.016 = 0.48개
+ *   - 그냥 int로 변환하면 0개 → 파티클이 매우 끊겨서 나옴
+ *
+ * [SpawnFraction 누적 방식]
+ *
+ * SpawnFraction에 소수점을 누적 저장하고, 1.0 이상이 되면 그때 생성:
+ *   - Frame 1: SpawnCount = 0 + 0.48 = 0.48 → 0개 생성, Fraction = 0.48 저장
+ *   - Frame 2: SpawnCount = 0.48 + 0.48 = 0.96 → 0개 생성, Fraction = 0.96 저장
+ *   - Frame 3: SpawnCount = 0.96 + 0.48 = 1.44 → 1개 생성, Fraction = 0.44 저장
+ *   - Frame 4: SpawnCount = 0.44 + 0.48 = 0.92 → 0개 생성, Fraction = 0.92 저장
+ *   - Frame 5: SpawnCount = 0.92 + 0.48 = 1.40 → 1개 생성, Fraction = 0.40 저장
+ *   - ...
+ *
+ * 이렇게 하면 장기적으로 정확히 초당 30개가 생성되고,
+ * 프레임마다 부드럽게 파티클이 나옴
+ *
+ * @param DeltaTime 이번 프레임의 경과 시간 (초)
+ * @param OutNumber [출력] 이번 프레임에 생성할 파티클 개수 (정수)
+ * @param OutRate [출력] 현재 초당 생성률 (Rate * RateScale)
+ * @param InOutSpawnFraction [입출력] 소수점 누적값
+ *                           - 입력: 이전 프레임까지의 누적 소수점
+ *                           - 출력: 이번 프레임 후 남은 소수점
+ * @return 파티클을 1개 이상 생성해야 하면 true
  */
-bool UParticleModuleSpawn::GetSpawnAmount(float OldTime, float DeltaTime, int32& OutNumber, float& OutRate)
+bool UParticleModuleSpawn::GetSpawnAmount(float DeltaTime, int32& OutNumber, float& OutRate, float& InOutSpawnFraction)
 {
+	// ========== 1단계: 출력값 초기화 ==========
 	OutNumber = 0;
 	OutRate = 0.0f;
 
+	// Rate 처리가 비활성화되어 있으면 스킵
 	if (!bProcessSpawnRate)
 	{
 		return false;
 	}
 
-	// 생성률 계산
+	// ========== 2단계: 현재 생성률 계산 ==========
+	// Rate와 RateScale 모두 Distribution이므로 매번 다른 값이 나올 수 있음
+	// 예: Rate(Min=20, Max=40) * RateScale(1.0) → 20~40 사이 랜덤
 	float CurrentRate = Rate.GetValue() * RateScale.GetValue();
+
+	// 생성률이 0 이하면 생성 안 함
 	if (CurrentRate <= 0.0f)
 	{
 		return false;
 	}
 
+	// 초당 생성률 출력 (디버깅/통계용)
 	OutRate = CurrentRate;
 
-	// 델타 타임 동안 생성할 파티클 수
-	float SpawnCount = CurrentRate * DeltaTime;
+	// ========== 3단계: SpawnFraction 누적 방식으로 생성 개수 계산 ==========
+
+	// 이번 프레임 생성량 = (이전까지 누적된 소수점) + (이번 프레임 생성량)
+	// 예: InOutSpawnFraction=0.96, CurrentRate=30, DeltaTime=0.016
+	//     SpawnCount = 0.96 + (30 * 0.016) = 0.96 + 0.48 = 1.44
+	float SpawnCount = InOutSpawnFraction + (CurrentRate * DeltaTime);
+
+	// 정수 부분 = 실제로 생성할 개수
+	// 예: SpawnCount=1.44 → OutNumber=1
 	OutNumber = static_cast<int32>(SpawnCount);
 
-	// 소수점 부분은 확률적으로 처리
-	float Fraction = SpawnCount - static_cast<float>(OutNumber);
-	if (Fraction > 0.0f)
-	{
-		float Random = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-		if (Random < Fraction)
-		{
-			++OutNumber;
-		}
-	}
+	// 소수 부분 = 다음 프레임으로 이월할 찌꺼기
+	// 예: SpawnCount=1.44, OutNumber=1 → InOutSpawnFraction=0.44
+	InOutSpawnFraction = SpawnCount - static_cast<float>(OutNumber);
 
+	// 1개 이상 생성할 게 있으면 true 반환
 	return OutNumber > 0;
 }
 
