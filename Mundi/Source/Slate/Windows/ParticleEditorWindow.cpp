@@ -11,6 +11,7 @@
 #include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
 #include "Source/Runtime/Engine/GameFramework/ParticleSystemActor.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
+#include "Source/Runtime/AssetManagement/Texture.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "ImGui/imgui.h"
@@ -92,6 +93,9 @@ bool SParticleEditorWindow::Initialize(float StartX, float StartY, float Width, 
 	bIsOpen = true;
 	bRequestFocus = true;
 
+	// 툴바 아이콘 로드
+	LoadToolbarIcons();
+
 	return ActiveState != nullptr;
 }
 
@@ -103,6 +107,13 @@ void SParticleEditorWindow::OnRender()
 	}
 
 	ImGuiWindowFlags flags = ImGuiWindowFlags_NoSavedSettings;
+
+	// 리사이즈 가능하도록 size constraints 설정 (최소 400x300, 최대 무제한)
+	ImGui::SetNextWindowSizeConstraints(ImVec2(400, 300), ImVec2(10000, 10000));
+
+	// 리사이즈 그립 크기 증가
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 5.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
 
 	// 초기 배치
 	if (!bInitialPlacementDone)
@@ -143,14 +154,78 @@ void SParticleEditorWindow::OnRender()
 		ImVec2 windowSize = ImGui::GetWindowSize();
 		Rect = FRect(windowPos.x, windowPos.y, windowPos.x + windowSize.x, windowPos.y + windowSize.y);
 
-		// 콘텐츠 영역 계산
+		// ================================================================
+		// 수동 리사이즈 핸들링 (우하단 코너)
+		// ================================================================
+		const float ResizeGripSize = 16.0f;
+		ImVec2 resizeGripMin(windowPos.x + windowSize.x - ResizeGripSize, windowPos.y + windowSize.y - ResizeGripSize);
+		ImVec2 resizeGripMax(windowPos.x + windowSize.x, windowPos.y + windowSize.y);
+
+		ImGuiIO& io = ImGui::GetIO();
+		ImVec2 mousePos = io.MousePos;
+
+		// 리사이즈 그립 영역에 마우스가 있는지 확인
+		bool bMouseInResizeGrip = (mousePos.x >= resizeGripMin.x && mousePos.x <= resizeGripMax.x &&
+								   mousePos.y >= resizeGripMin.y && mousePos.y <= resizeGripMax.y);
+
+		// 리사이즈 그립 그리기
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		ImU32 gripColor = bMouseInResizeGrip ? IM_COL32(150, 150, 150, 255) : IM_COL32(100, 100, 100, 200);
+		drawList->AddTriangleFilled(
+			ImVec2(resizeGripMax.x - 2, resizeGripMax.y - ResizeGripSize),
+			ImVec2(resizeGripMax.x - 2, resizeGripMax.y - 2),
+			ImVec2(resizeGripMax.x - ResizeGripSize, resizeGripMax.y - 2),
+			gripColor
+		);
+
+		// 수동 리사이즈 처리
+		static bool bResizing = false;
+		static ImVec2 resizeStartSize;
+		static ImVec2 resizeStartMouse;
+
+		if (bMouseInResizeGrip && ImGui::IsMouseClicked(0))
+		{
+			bResizing = true;
+			resizeStartSize = windowSize;
+			resizeStartMouse = mousePos;
+		}
+
+		if (bResizing)
+		{
+			if (ImGui::IsMouseDown(0))
+			{
+				ImVec2 delta(mousePos.x - resizeStartMouse.x, mousePos.y - resizeStartMouse.y);
+				float newWidth = std::max(400.0f, resizeStartSize.x + delta.x);
+				float newHeight = std::max(300.0f, resizeStartSize.y + delta.y);
+				ImGui::SetWindowSize(ImVec2(newWidth, newHeight));
+			}
+			else
+			{
+				bResizing = false;
+			}
+		}
+
+		// 리사이즈 중일 때 커서 변경
+		if (bMouseInResizeGrip || bResizing)
+		{
+			ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNWSE);
+		}
+
+		// ================================================================
+		// 툴바 렌더링 (Cascade 스타일)
+		// ================================================================
+		RenderToolbar();
+
+		// 콘텐츠 영역 계산 (리사이즈 핸들을 위해 우/하단에 패딩 추가)
+		const float ResizeHandlePadding = 16.0f;
 		ImVec2 contentMin = ImGui::GetWindowContentRegionMin();
 		ImVec2 contentMax = ImGui::GetWindowContentRegionMax();
+		float toolbarHeight = ImGui::GetCursorPosY() - contentMin.y;
 		FRect contentRect(
 			windowPos.x + contentMin.x,
-			windowPos.y + contentMin.y,
-			windowPos.x + contentMax.x,
-			windowPos.y + contentMax.y
+			windowPos.y + ImGui::GetCursorPosY(),
+			windowPos.x + contentMax.x - ResizeHandlePadding,
+			windowPos.y + contentMax.y - ResizeHandlePadding
 		);
 
 		// 스플리터에 영역 설정 및 렌더링
@@ -167,14 +242,38 @@ void SParticleEditorWindow::OnRender()
 		}
 	}
 	ImGui::End();
+	ImGui::PopStyleVar(2);  // WindowRounding, WindowBorderSize
 
-	// ParticleEditor가 포커스되어 있으면 모든 패널을 최상위로 올림
+	// ParticleEditor가 포커스되어 있으면 모든 패널을 최상위로 올림 (항상)
 	if (bIsFocused)
 	{
 		ImGui::SetWindowFocus("##ParticleViewport");
 		ImGui::SetWindowFocus("Details##ParticleDetail");
 		ImGui::SetWindowFocus("Emitters##ParticleEmitters");
 		ImGui::SetWindowFocus("Curve Editor##ParticleCurve");
+	}
+
+	// 컬러피커 윈도우 렌더링 (패널 포커스 이후에 렌더링하여 최상위에 표시)
+	if (bShowColorPicker)
+	{
+		ImGui::SetNextWindowSize(ImVec2(300, 350), ImGuiCond_FirstUseEver);
+		ImGuiWindowFlags popupFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
+		if (ImGui::Begin("Color Picker##BgColorPicker", &bShowColorPicker, popupFlags))
+		{
+			ImGui::Text("Background Color");
+			ImGui::Separator();
+			ImGui::ColorPicker3("##BgColorPickerWidget", ActiveState->BackgroundColor,
+				ImGuiColorEditFlags_PickerHueWheel);
+			ImGui::Separator();
+			if (ImGui::Button("OK", ImVec2(120, 0)))
+			{
+				bShowColorPicker = false;
+			}
+		}
+		ImGui::End();
+
+		// 컬러피커를 최상위로 (패널 포커스 후에 호출)
+		ImGui::SetWindowFocus("Color Picker##BgColorPicker");
 	}
 }
 
@@ -292,6 +391,332 @@ FViewportClient* SParticleEditorWindow::GetViewportClient() const
 	return ActiveState ? ActiveState->Client : nullptr;
 }
 
+void SParticleEditorWindow::LoadToolbarIcons()
+{
+	// 파일 관련
+	IconSave = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Save.dds");
+	IconLoad = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Load.dds");
+
+	// 시뮬레이션 제어
+	IconRestartSim = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_RestartSim.dds");
+	IconRestartLevel = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_RestartLevel.dds");
+
+	// 편집
+	IconUndo = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_Undo.dds");
+	IconRedo = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_Redo.dds");
+
+	// 뷰 옵션
+	IconThumbnail = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_Thumbnail.dds");
+	IconBounds = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_Bounds.dds");
+	IconOriginAxis = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_OriginAxis.dds");
+	IconBackgroundColor = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_BgColor.dds");
+
+	// LOD 관련
+	IconRegenLOD = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_RegenLOD.dds");
+	IconLowestLOD = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_LowestLOD.dds");
+	IconLowerLOD = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_LowerLOD.dds");
+	IconHigherLOD = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_HigherLOD.dds");
+	IconAddLOD = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_AddLOD.dds");
+}
+
+bool SParticleEditorWindow::RenderIconButton(const char* id, UTexture* icon, const char* label, const char* tooltip, bool bActive)
+{
+	const float IconSize = 24.0f;
+	const float ButtonWidth = 70.0f;
+	const float ButtonHeight = 48.0f;
+
+	bool bClicked = false;
+
+	ImGui::BeginGroup();
+	ImGui::PushID(id);
+
+	// 버튼 배경
+	ImVec2 buttonPos = ImGui::GetCursorScreenPos();
+	ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+	// 활성화 상태 배경
+	if (bActive)
+	{
+		drawList->AddRectFilled(
+			buttonPos,
+			ImVec2(buttonPos.x + ButtonWidth, buttonPos.y + ButtonHeight),
+			IM_COL32(60, 100, 140, 255),
+			4.0f
+		);
+	}
+
+	// 투명 버튼 (클릭 감지용)
+	ImGui::InvisibleButton("##btn", ImVec2(ButtonWidth, ButtonHeight));
+	if (ImGui::IsItemClicked())
+	{
+		bClicked = true;
+	}
+
+	// 호버 효과
+	if (ImGui::IsItemHovered())
+	{
+		drawList->AddRectFilled(
+			buttonPos,
+			ImVec2(buttonPos.x + ButtonWidth, buttonPos.y + ButtonHeight),
+			IM_COL32(80, 80, 80, 100),
+			4.0f
+		);
+		if (tooltip)
+		{
+			ImGui::SetTooltip("%s", tooltip);
+		}
+	}
+
+	// 아이콘 중앙 배치
+	float iconX = buttonPos.x + (ButtonWidth - IconSize) * 0.5f;
+	float iconY = buttonPos.y + 2.0f;
+
+	if (icon && icon->GetShaderResourceView())
+	{
+		drawList->AddImage(
+			(void*)icon->GetShaderResourceView(),
+			ImVec2(iconX, iconY),
+			ImVec2(iconX + IconSize, iconY + IconSize)
+		);
+	}
+	else
+	{
+		// 아이콘이 없으면 플레이스홀더
+		drawList->AddRect(
+			ImVec2(iconX, iconY),
+			ImVec2(iconX + IconSize, iconY + IconSize),
+			IM_COL32(100, 100, 100, 255)
+		);
+	}
+
+	// 텍스트 중앙 배치 (아이콘 아래)
+	ImVec2 textSize = ImGui::CalcTextSize(label);
+	float textX = buttonPos.x + (ButtonWidth - textSize.x) * 0.5f;
+	float textY = iconY + IconSize + 4.0f;
+	drawList->AddText(ImVec2(textX, textY), IM_COL32(200, 200, 200, 255), label);
+
+	ImGui::PopID();
+	ImGui::EndGroup();
+
+	return bClicked;
+}
+
+void SParticleEditorWindow::RenderToolbar()
+{
+	if (!ActiveState)
+	{
+		return;
+	}
+
+	// 툴바 스타일 설정
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 2));
+
+	// 수직 구분선 그리기 헬퍼 람다
+	auto DrawVerticalSeparator = [&]()
+	{
+		ImGui::SameLine();
+		ImVec2 sepPos = ImGui::GetCursorScreenPos();
+		ImGui::GetWindowDrawList()->AddLine(
+			ImVec2(sepPos.x + 4, sepPos.y + 4),
+			ImVec2(sepPos.x + 4, sepPos.y + 38),
+			IM_COL32(80, 80, 80, 255),
+			2.0f
+		);
+		ImGui::Dummy(ImVec2(12, 0));
+		ImGui::SameLine();
+	};
+
+	// ================================================================
+	// 파일: Save, Load
+	// ================================================================
+	if (RenderIconButton("Save", IconSave, "Save", "Save Particle System"))
+	{
+		// TODO: 파티클 시스템 저장
+	}
+
+	ImGui::SameLine();
+	if (RenderIconButton("Load", IconLoad, "Load", "Load Particle System"))
+	{
+		// TODO: 파일 다이얼로그 열기
+	}
+
+	DrawVerticalSeparator();
+
+	// ================================================================
+	// 시뮬레이션: Restart Sim, Restart Level
+	// ================================================================
+	if (RenderIconButton("RestartSim", IconRestartSim, "Restart Sim", "Restart Particle Simulation"))
+	{
+		if (ActiveState->PreviewActor)
+		{
+			UParticleSystemComponent* PSC = ActiveState->PreviewActor->GetParticleSystemComponent();
+			if (PSC)
+			{
+				PSC->ActivateSystem(true);
+			}
+		}
+		ActiveState->AccumulatedTime = 0.0f;
+	}
+
+	ImGui::SameLine();
+	if (RenderIconButton("RestartLevel", IconRestartLevel, "Restart Level", "Reset Level and Simulation"))
+	{
+		if (ActiveState->PreviewActor)
+		{
+			ActiveState->PreviewActor->SetActorLocation(FVector::Zero());
+			ActiveState->PreviewActor->SetActorRotation(FQuat::Identity());
+		}
+		ActiveState->AccumulatedTime = 0.0f;
+		if (ActiveState->PreviewActor)
+		{
+			UParticleSystemComponent* PSC = ActiveState->PreviewActor->GetParticleSystemComponent();
+			if (PSC)
+			{
+				PSC->ActivateSystem(true);
+			}
+		}
+	}
+
+	DrawVerticalSeparator();
+
+	// ================================================================
+	// 편집: Undo, Redo
+	// ================================================================
+	if (RenderIconButton("Undo", IconUndo, "Undo", "Undo (Ctrl+Z)"))
+	{
+		// TODO: Undo 구현
+	}
+
+	ImGui::SameLine();
+	if (RenderIconButton("Redo", IconRedo, "Redo", "Redo (Ctrl+Y)"))
+	{
+		// TODO: Redo 구현
+	}
+
+	DrawVerticalSeparator();
+
+	// ================================================================
+	// Thumbnail
+	// ================================================================
+	if (RenderIconButton("Thumbnail", IconThumbnail, "Thumbnail", "Capture Thumbnail"))
+	{
+		// TODO: 썸네일 캡처
+	}
+
+	DrawVerticalSeparator();
+
+	// ================================================================
+	// 뷰 옵션: Bounds (토글)
+	// ================================================================
+	if (RenderIconButton("Bounds", IconBounds, "Bounds", "Toggle Bounds Display", ActiveState->bShowBounds))
+	{
+		ActiveState->bShowBounds = !ActiveState->bShowBounds;
+	}
+
+	DrawVerticalSeparator();
+
+	// ================================================================
+	// Origin Axis (토글)
+	// ================================================================
+	if (RenderIconButton("OriginAxis", IconOriginAxis, "Origin Axis", "Toggle Origin Axis Display", ActiveState->bShowOriginAxis))
+	{
+		ActiveState->bShowOriginAxis = !ActiveState->bShowOriginAxis;
+	}
+
+	DrawVerticalSeparator();
+
+	// ================================================================
+	// Background Color (클릭 시 컬러피커 팝업 - OnRender에서 렌더링)
+	// ================================================================
+	if (RenderIconButton("BgColor", IconBackgroundColor, "BG Color", "Change Background Color", bShowColorPicker))
+	{
+		bShowColorPicker = !bShowColorPicker;
+	}
+
+	DrawVerticalSeparator();
+
+	// ================================================================
+	// LOD 관련: Regen LOD 버튼들
+	// ================================================================
+	if (RenderIconButton("RegenLODDup", IconRegenLOD, "Regen LOD", "Regenerate Lowest LOD (Duplicate Highest)"))
+	{
+		// TODO: LOD 재생성 (최하위, 최상위 복제)
+	}
+
+	ImGui::SameLine();
+	if (RenderIconButton("RegenLOD", IconRegenLOD, "Regen LOD", "Regenerate Lowest LOD"))
+	{
+		// TODO: LOD 재생성 (최하위)
+	}
+
+	DrawVerticalSeparator();
+
+	// ================================================================
+	// LOD 네비게이션: Lowest, Lower
+	// ================================================================
+	if (RenderIconButton("LowestLOD", IconLowestLOD, "Lowest LOD", "Go to Lowest LOD"))
+	{
+		CurrentLODIndex = 0;
+	}
+
+	ImGui::SameLine();
+	if (RenderIconButton("LowerLOD", IconLowerLOD, "Lower LOD", "Go to Lower LOD"))
+	{
+		if (CurrentLODIndex > 0)
+		{
+			--CurrentLODIndex;
+		}
+	}
+
+	DrawVerticalSeparator();
+
+	// ================================================================
+	// LOD 추가 및 선택
+	// ================================================================
+	if (RenderIconButton("AddLODBefore", IconAddLOD, "Add LOD", "Add LOD Before Current"))
+	{
+		// TODO: LOD 추가 (현재 앞에)
+	}
+
+	ImGui::SameLine();
+
+	// LOD 입력창
+	ImGui::BeginGroup();
+	{
+		ImGui::Text("LOD");
+		ImGui::SetNextItemWidth(40);
+		ImGui::InputInt("##LODIndex", &CurrentLODIndex, 0, 0);
+		if (CurrentLODIndex < 0)
+		{
+			CurrentLODIndex = 0;
+		}
+	}
+	ImGui::EndGroup();
+
+	ImGui::SameLine();
+	if (RenderIconButton("AddLODAfter", IconAddLOD, "Add LOD", "Add LOD After Current"))
+	{
+		// TODO: LOD 추가 (현재 뒤에)
+	}
+
+	DrawVerticalSeparator();
+
+	// ================================================================
+	// LOD 네비게이션: Higher
+	// ================================================================
+	if (RenderIconButton("HigherLOD", IconHigherLOD, "Higher LOD", "Go to Higher LOD"))
+	{
+		++CurrentLODIndex;
+		// TODO: 최대 LOD 수에 맞게 클램프
+	}
+
+	ImGui::PopStyleVar();
+
+	// 툴바와 콘텐츠 사이 간격
+	ImGui::Spacing();
+	ImGui::Separator();
+}
+
 // ============================================================================
 // SParticleViewportPanel
 // ============================================================================
@@ -314,42 +739,36 @@ void SParticleViewportPanel::OnRender()
 
 	if (ImGui::Begin("##ParticleViewport", nullptr, flags))
 	{
-		// 툴바
-		{
-			ParticleViewerState* State = Owner->GetActiveState();
+		ParticleViewerState* State = Owner->GetActiveState();
 
-			if (ImGui::Button(State && State->bIsSimulating ? "Pause" : "Play"))
-			{
-				if (State)
-				{
-					State->bIsSimulating = !State->bIsSimulating;
-				}
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Restart"))
-			{
-				if (State && State->PreviewActor)
-				{
-					UParticleSystemComponent* PSC = State->PreviewActor->GetParticleSystemComponent();
-					if (PSC)
-					{
-						PSC->ActivateSystem(true);
-					}
-				}
-			}
-			ImGui::SameLine();
-			if (State)
-			{
-				ImGui::SetNextItemWidth(100);
-				ImGui::SliderFloat("Speed", &State->SimulationSpeed, 0.1f, 2.0f, "%.1fx");
-			}
+		// 뷰포트 간단 툴바 (View/Time 탭)
+		if (ImGui::Button("View"))
+		{
+			// TODO: 뷰 옵션
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Time"))
+		{
+			// TODO: 타임라인 옵션
 		}
 
 		// 뷰포트 이미지 영역 (배경색으로 표시)
 		ImVec2 viewportSize = ImGui::GetContentRegionAvail();
 		ImDrawList* drawList = ImGui::GetWindowDrawList();
 		ImVec2 p = ImGui::GetCursorScreenPos();
-		drawList->AddRectFilled(p, ImVec2(p.x + viewportSize.x, p.y + viewportSize.y), IM_COL32(30, 30, 30, 255));
+
+		// 배경색 적용
+		ImU32 bgColor = IM_COL32(30, 30, 30, 255);
+		if (State)
+		{
+			bgColor = IM_COL32(
+				static_cast<int>(State->BackgroundColor[0] * 255),
+				static_cast<int>(State->BackgroundColor[1] * 255),
+				static_cast<int>(State->BackgroundColor[2] * 255),
+				255
+			);
+		}
+		drawList->AddRectFilled(p, ImVec2(p.x + viewportSize.x, p.y + viewportSize.y), bgColor);
 	}
 	ImGui::End();
 }

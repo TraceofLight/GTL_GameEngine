@@ -10,8 +10,8 @@ class UParticleSystem;
 class UParticleEmitter;
 class UParticleModule;
 class ParticleViewerState;
-class UTexture;
 struct ID3D11Device;
+class UTexture;
 
 // Forward declarations for panel classes
 class SParticleViewportPanel;
@@ -59,6 +59,31 @@ public:
 	ParticleViewerState* GetActiveState() const { return ActiveState; }
 
 private:
+	// 툴바 렌더링
+	void RenderToolbar();
+	void LoadToolbarIcons();
+	bool RenderIconButton(const char* id, UTexture* icon, const char* label, const char* tooltip, bool bActive = false);
+
+	// 툴바 아이콘
+	UTexture* IconSave = nullptr;
+	UTexture* IconLoad = nullptr;
+	UTexture* IconRestartSim = nullptr;
+	UTexture* IconRestartLevel = nullptr;
+	UTexture* IconUndo = nullptr;
+	UTexture* IconRedo = nullptr;
+	UTexture* IconThumbnail = nullptr;
+	UTexture* IconBounds = nullptr;
+	UTexture* IconOriginAxis = nullptr;
+	UTexture* IconBackgroundColor = nullptr;
+	UTexture* IconRegenLOD = nullptr;
+	UTexture* IconLowestLOD = nullptr;
+	UTexture* IconLowerLOD = nullptr;
+	UTexture* IconHigherLOD = nullptr;
+	UTexture* IconAddLOD = nullptr;
+
+	// LOD 상태
+	int32 CurrentLODIndex = 0;
+
 	// 탭 상태
 	ParticleViewerState* ActiveState = nullptr;
 	TArray<ParticleViewerState*> Tabs;
@@ -89,6 +114,7 @@ private:
 	bool bIsOpen = true;
 	bool bInitialPlacementDone = false;
 	bool bRequestFocus = false;
+	bool bShowColorPicker = false;
 
 	// 에디터 상태
 	float BackgroundColor[3] = { 0.1f, 0.1f, 0.1f };

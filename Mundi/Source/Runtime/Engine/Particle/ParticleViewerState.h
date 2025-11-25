@@ -45,6 +45,7 @@ public:
 	bool bShowBounds = false;
 	bool bShowOriginAxis = true;
 	bool bShowGrid = true;
+	float BackgroundColor[3] = { 0.1f, 0.1f, 0.1f };
 
 	// 타임라인/커브 에디터 상태
 	float TimelineZoom = 1.0f;
