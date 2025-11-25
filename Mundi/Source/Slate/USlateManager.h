@@ -7,6 +7,7 @@
 #include "Windows/PreviewWindow.h"
 #include "Windows/BlendSpace2DEditorWindow.h"
 #include "Windows/ParticlePreviewWindow.h"
+#include "Windows/ParticleEditorWindow.h"
 
 class SSceneIOWindow; // 새로 추가할 UI
 class SDetailsWindow;
@@ -98,6 +99,15 @@ public:
 	void CloseParticlePreviewWindow();
 	bool IsParticlePreviewWindowOpen() const { return ParticlePreviewWindow != nullptr; }
 
+	// Particle Editor Window 관리 (Cascade 스타일)
+	void OpenParticleEditorWindow();
+	void OpenParticleEditorWindowWithSystem(class UParticleSystem* System);
+	void CloseParticleEditorWindow();
+	bool IsParticleEditorWindowOpen() const { return ParticleEditorWindow != nullptr; }
+
+	// Scene 로드 요청
+	void RequestSceneLoad(const FString& ScenePath);
+
 private:
     FRect Rect; // 이전엔 SWindow로부터 상속받던 영역 정보
 
@@ -149,6 +159,9 @@ private:
 
     // Particle Preview window
     SParticlePreviewWindow* ParticlePreviewWindow = nullptr;
+
+    // Particle Editor window (Cascade 스타일)
+    SParticleEditorWindow* ParticleEditorWindow = nullptr;
 
     // Content Browser (Bottom panel overlay with animation)
     UContentBrowserWindow* ContentBrowserWindow = nullptr;

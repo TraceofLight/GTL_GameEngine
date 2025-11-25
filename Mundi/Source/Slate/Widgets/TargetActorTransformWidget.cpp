@@ -31,6 +31,8 @@
 #include "Color.h"
 #include "PlatformProcess.h"
 #include "JsonSerializer.h"
+#include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
+#include "Source/Slate/USlateManager.h"
 
 using namespace std;
 
@@ -432,22 +434,37 @@ void UTargetActorTransformWidget::RenderComponentHierarchy(AActor* SelectedActor
 		RenderActorComponent(SelectedActor, SelectedComponent, ComponentPendingRemoval);
 	}
 
-	// 삭제 입력 처리 (Preview 윈도우에 포커스가 없을 때만)
-	// Preview 윈도우가 열려있는지 확인
-	bool bPreviewFocused = false;
-	ImGuiWindow* PreviewWindow = ImGui::FindWindowByName("Preview");
-	if (PreviewWindow)
+	// 삭제 입력 처리 (다이나믹 뷰포트에 포커스가 없을 때만)
+	// 다이나믹 뷰포트 윈도우들 체크 (Preview, ParticleEditor, BlendSpace2D 등)
+	bool bDynamicViewportFocused = false;
+	ImGuiContext* Context = ImGui::GetCurrentContext();
+
+	// 체크할 윈도우 이름 목록 (ParticleEditor의 모든 자식 윈도우 포함)
+	const char* DynamicWindowNames[] = {
+		"Preview",
+		"Particle Editor###ParticleEditor",
+		"##ParticleViewport",
+		"Details##ParticleDetail",
+		"Emitters##ParticleEmitters",
+		"Curve Editor##ParticleCurve",
+		"BlendSpace 2D Editor###BlendSpace2D"
+	};
+
+	// 현재 포커스된 윈도우 이름 가져오기
+	if (Context->NavWindow)
 	{
-		bPreviewFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-		// 현재 포커스된 윈도우가 Preview인지 체크
-		ImGuiContext* Context = ImGui::GetCurrentContext();
-		if (Context->NavWindow && Context->NavWindow->RootWindow == PreviewWindow->RootWindow)
+		const char* FocusedName = Context->NavWindow->Name;
+		for (const char* WindowName : DynamicWindowNames)
 		{
-			bPreviewFocused = true;
+			if (FocusedName && strcmp(FocusedName, WindowName) == 0)
+			{
+				bDynamicViewportFocused = true;
+				break;
+			}
 		}
 	}
 
-	const bool bDeletePressed = !bPreviewFocused && ImGui::IsKeyPressed(ImGuiKey_Delete);
+	const bool bDeletePressed = !bDynamicViewportFocused && ImGui::IsKeyPressed(ImGuiKey_Delete);
 	if (bDeletePressed)
 	{
 		if (bActorSelected) ActorPendingRemoval = SelectedActor;
@@ -525,6 +542,18 @@ void UTargetActorTransformWidget::RenderSelectedActorDetails(AActor* SelectedAct
 void UTargetActorTransformWidget::RenderSelectedComponentDetails(UActorComponent* SelectedComponent)
 {
 	if (!SelectedComponent) return;
+
+	// ParticleSystemComponent 전용: 에디터 열기 버튼
+	if (UParticleSystemComponent* ParticleComp = Cast<UParticleSystemComponent>(SelectedComponent))
+	{
+		if (ImGui::Button("파티클 에디터 열기", ImVec2(-1, 30)))
+		{
+			USlateManager::GetInstance().OpenParticleEditorWindowWithSystem(ParticleComp->Template);
+		}
+		ImGui::Spacing();
+		ImGui::Separator();
+		ImGui::Spacing();
+	}
 
 	// 리플렉션이 적용된 컴포넌트는 자동으로 UI 생성
 	if (SelectedComponent)
