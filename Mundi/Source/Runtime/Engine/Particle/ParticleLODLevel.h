@@ -42,6 +42,10 @@ public:
 	UParticleLODLevel();
 	~UParticleLODLevel() override = default;
 
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle);
+	void DuplicateFrom(const UParticleLODLevel* Source);
+
 	void UpdateModuleLists();
 	int32 CalculateMaxActiveParticleCount();
 	int32 GetModuleIndex(UParticleModule* InModule);

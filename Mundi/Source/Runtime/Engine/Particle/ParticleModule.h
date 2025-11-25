@@ -36,6 +36,10 @@ public:
 	bool IsValidForLODLevel(int32 LODLevel) const;
 	void SetLODValidity(int32 LODLevel, bool bValid);
 
+	// Serialize/Duplicate
+	virtual void Serialize(bool bIsLoading, JSON& InOutHandle);
+	virtual void DuplicateFrom(const UParticleModule* Source);
+
 	// Getters
 	bool IsSpawnModule() const { return bSpawnModule; }
 	bool IsUpdateModule() const { return bUpdateModule; }

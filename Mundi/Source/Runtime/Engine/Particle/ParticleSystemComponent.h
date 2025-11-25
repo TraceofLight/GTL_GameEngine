@@ -32,6 +32,10 @@ public:
 	TArray<FParticleEmitterInstance*> EmitterInstances;
 
 	// ============== Lifecycle ==============
+	// Serialize/Duplicate
+	void Serialize(const bool bIsLoading, JSON& InOutHandle) override;
+	void DuplicateSubObjects() override;
+
 	/**
 	 * Initialize the component
 	 * 컴포넌트 초기화 - EmitterInstance 생성 및 설정

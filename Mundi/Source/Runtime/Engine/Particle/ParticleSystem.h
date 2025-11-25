@@ -1,10 +1,11 @@
 #pragma once
 #include "ParticleTypes.h"
-#include "Object.h"
+#include "Source/Runtime/AssetManagement/ResourceBase.h"
 
 #include "UParticleSystem.generated.h"
 
 class UParticleEmitter;
+struct ID3D11Device;
 
 /**
  * @brief 파티클 시스템 클래스
@@ -29,7 +30,7 @@ class UParticleEmitter;
  */
 UCLASS()
 class UParticleSystem :
-	public UObject
+	public UResourceBase
 {
 	GENERATED_REFLECTION_BODY()
 
@@ -63,6 +64,17 @@ public:
 	// 생성자/소멸자
 	UParticleSystem();
 	~UParticleSystem() override = default;
+
+	// ResourceManager 패턴 Load (기존 패턴과 호환)
+	void Load(const FString& InFilePath, ID3D11Device* InDevice);
+
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle);
+	void DuplicateFrom(const UParticleSystem* Source);
+
+	// 파일 저장/로드 (직접 사용)
+	bool SaveToFile(const FString& InFilePath);
+	bool LoadFromFileInternal(const FString& InFilePath);
 
 	// Functions
 	void UpdateAllModuleLists();

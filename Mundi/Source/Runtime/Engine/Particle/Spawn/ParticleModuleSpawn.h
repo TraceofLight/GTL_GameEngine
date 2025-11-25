@@ -31,6 +31,10 @@ public:
 	UParticleModuleSpawn();
 	~UParticleModuleSpawn() override = default;
 
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
+	void DuplicateFrom(const UParticleModule* Source) override;
+
 	bool GetSpawnAmount(float OldTime, float DeltaTime, int32& OutNumber, float& OutRate);
 	int32 GetBurstCount(float OldTime, float NewTime, float Duration);
 };

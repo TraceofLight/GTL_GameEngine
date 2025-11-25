@@ -47,6 +47,10 @@ public:
 	UParticleEmitter();
 	~UParticleEmitter() override = default;
 
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle);
+	void DuplicateFrom(const UParticleEmitter* Source);
+
 	// Functions
 	void CacheEmitterModuleInfo();
 	UParticleLODLevel* GetLODLevel(int32 LODIndex);

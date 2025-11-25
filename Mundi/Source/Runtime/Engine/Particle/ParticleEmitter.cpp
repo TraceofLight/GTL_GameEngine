@@ -155,3 +155,100 @@ bool UParticleEmitter::AutogenerateLowestLODLevel()
 
 	return true;
 }
+
+void UParticleEmitter::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	if (bIsLoading)
+	{
+		if (InOutHandle.hasKey("EmitterName")) EmitterName = InOutHandle["EmitterName"].ToString();
+		if (InOutHandle.hasKey("bDisabledLODsKeepEmitterAlive")) bDisabledLODsKeepEmitterAlive = InOutHandle["bDisabledLODsKeepEmitterAlive"].ToBool();
+		if (InOutHandle.hasKey("bCollapsed")) bCollapsed = InOutHandle["bCollapsed"].ToBool();
+		if (InOutHandle.hasKey("DetailMode")) DetailMode = static_cast<int32>(InOutHandle["DetailMode"].ToInt());
+		if (InOutHandle.hasKey("EmitterRenderMode")) EmitterRenderMode = static_cast<EEmitterRenderMode>(InOutHandle["EmitterRenderMode"].ToInt());
+		if (InOutHandle.hasKey("InitialAllocationCount")) InitialAllocationCount = static_cast<int32>(InOutHandle["InitialAllocationCount"].ToInt());
+		if (InOutHandle.hasKey("bIsSoloing")) bIsSoloing = InOutHandle["bIsSoloing"].ToBool();
+
+		// EmitterEditorColor
+		if (InOutHandle.hasKey("EmitterEditorColor") && InOutHandle["EmitterEditorColor"].JSONType() == JSON::Class::Array && InOutHandle["EmitterEditorColor"].size() == 4)
+		{
+			EmitterEditorColor.R = static_cast<float>(InOutHandle["EmitterEditorColor"][0].ToFloat());
+			EmitterEditorColor.G = static_cast<float>(InOutHandle["EmitterEditorColor"][1].ToFloat());
+			EmitterEditorColor.B = static_cast<float>(InOutHandle["EmitterEditorColor"][2].ToFloat());
+			EmitterEditorColor.A = static_cast<float>(InOutHandle["EmitterEditorColor"][3].ToFloat());
+		}
+
+		// LODLevels 로드
+		LODLevels.clear();
+		if (InOutHandle.hasKey("LODLevels") && InOutHandle["LODLevels"].JSONType() == JSON::Class::Array)
+		{
+			for (size_t i = 0; i < InOutHandle["LODLevels"].size(); ++i)
+			{
+				JSON lodJson = InOutHandle["LODLevels"][static_cast<int>(i)];
+				UParticleLODLevel* NewLOD = NewObject<UParticleLODLevel>();
+				NewLOD->Serialize(true, lodJson);
+				LODLevels.Add(NewLOD);
+			}
+		}
+
+		CacheEmitterModuleInfo();
+	}
+	else
+	{
+		InOutHandle["EmitterName"] = EmitterName;
+		InOutHandle["bDisabledLODsKeepEmitterAlive"] = bDisabledLODsKeepEmitterAlive;
+		InOutHandle["bCollapsed"] = bCollapsed;
+		InOutHandle["DetailMode"] = DetailMode;
+		InOutHandle["EmitterRenderMode"] = static_cast<int32>(EmitterRenderMode);
+		InOutHandle["InitialAllocationCount"] = InitialAllocationCount;
+		InOutHandle["bIsSoloing"] = bIsSoloing;
+
+		// EmitterEditorColor
+		JSON colorArray = JSON::Make(JSON::Class::Array);
+		colorArray.append(EmitterEditorColor.R, EmitterEditorColor.G, EmitterEditorColor.B, EmitterEditorColor.A);
+		InOutHandle["EmitterEditorColor"] = colorArray;
+
+		// LODLevels 저장
+		JSON lodArray = JSON::Make(JSON::Class::Array);
+		for (UParticleLODLevel* LOD : LODLevels)
+		{
+			if (LOD)
+			{
+				JSON lodJson = JSON::Make(JSON::Class::Object);
+				LOD->Serialize(false, lodJson);
+				lodArray.append(lodJson);
+			}
+		}
+		InOutHandle["LODLevels"] = lodArray;
+	}
+}
+
+void UParticleEmitter::DuplicateFrom(const UParticleEmitter* Source)
+{
+	if (!Source)
+	{
+		return;
+	}
+
+	EmitterName = Source->EmitterName;
+	bDisabledLODsKeepEmitterAlive = Source->bDisabledLODsKeepEmitterAlive;
+	bCollapsed = Source->bCollapsed;
+	DetailMode = Source->DetailMode;
+	EmitterRenderMode = Source->EmitterRenderMode;
+	EmitterEditorColor = Source->EmitterEditorColor;
+	InitialAllocationCount = Source->InitialAllocationCount;
+	bIsSoloing = Source->bIsSoloing;
+
+	// LODLevels 복제
+	LODLevels.clear();
+	for (UParticleLODLevel* SrcLOD : Source->LODLevels)
+	{
+		if (SrcLOD)
+		{
+			UParticleLODLevel* NewLOD = NewObject<UParticleLODLevel>();
+			NewLOD->DuplicateFrom(SrcLOD);
+			LODLevels.Add(NewLOD);
+		}
+	}
+
+	CacheEmitterModuleInfo();
+}

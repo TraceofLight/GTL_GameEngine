@@ -39,3 +39,36 @@ void UParticleModuleVelocity::Spawn(FParticleEmitterInstance* Owner, int32 Offse
 	ParticleBase->BaseVelocity = Velocity;
 	ParticleBase->Velocity = Velocity;
 }
+
+void UParticleModuleVelocity::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	UParticleModule::Serialize(bIsLoading, InOutHandle);
+
+	if (bIsLoading)
+	{
+		if (InOutHandle.hasKey("StartVelocity")) StartVelocity = JsonToVectorDistribution(InOutHandle["StartVelocity"]);
+		if (InOutHandle.hasKey("StartVelocityRadial")) StartVelocityRadial = JsonToFloatDistribution(InOutHandle["StartVelocityRadial"]);
+		if (InOutHandle.hasKey("bInWorldSpace")) bInWorldSpace = InOutHandle["bInWorldSpace"].ToBool();
+	}
+	else
+	{
+		InOutHandle["StartVelocity"] = VectorDistributionToJson(StartVelocity);
+		InOutHandle["StartVelocityRadial"] = FloatDistributionToJson(StartVelocityRadial);
+		InOutHandle["bInWorldSpace"] = bInWorldSpace;
+	}
+}
+
+void UParticleModuleVelocity::DuplicateFrom(const UParticleModule* Source)
+{
+	UParticleModule::DuplicateFrom(Source);
+
+	const UParticleModuleVelocity* SrcVelocity = static_cast<const UParticleModuleVelocity*>(Source);
+	if (!SrcVelocity)
+	{
+		return;
+	}
+
+	StartVelocity = SrcVelocity->StartVelocity;
+	StartVelocityRadial = SrcVelocity->StartVelocityRadial;
+	bInWorldSpace = SrcVelocity->bInWorldSpace;
+}

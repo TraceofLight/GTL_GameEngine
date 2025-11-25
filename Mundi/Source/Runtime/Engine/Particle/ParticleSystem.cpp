@@ -7,6 +7,7 @@
 #include "ParticleModuleRequired.h"
 #include "ParticleSystemComponent.h"
 #include "TypeData/ParticleModuleTypeDataBase.h"
+#include "JsonSerializer.h"
 
 UParticleSystem::UParticleSystem()
 	: UpdateTime_FPS(0.0f)
@@ -212,4 +213,171 @@ void UParticleSystem::OnModuleChanged()
 			PSC->UpdateInstances(true);
 		}
 	}
+}
+
+void UParticleSystem::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	if (bIsLoading)
+	{
+		if (InOutHandle.hasKey("UpdateTime_FPS")) UpdateTime_FPS = static_cast<float>(InOutHandle["UpdateTime_FPS"].ToFloat());
+		if (InOutHandle.hasKey("UpdateTime_Delta")) UpdateTime_Delta = static_cast<float>(InOutHandle["UpdateTime_Delta"].ToFloat());
+		if (InOutHandle.hasKey("WarmupTime")) WarmupTime = static_cast<float>(InOutHandle["WarmupTime"].ToFloat());
+		if (InOutHandle.hasKey("WarmupTickRate")) WarmupTickRate = static_cast<int32>(InOutHandle["WarmupTickRate"].ToInt());
+		if (InOutHandle.hasKey("bUseFixedRelativeBoundingBox")) bUseFixedRelativeBoundingBox = InOutHandle["bUseFixedRelativeBoundingBox"].ToBool();
+		FJsonSerializer::ReadVector(InOutHandle, "FixedRelativeBoundingBox", FixedRelativeBoundingBox, FVector::Zero(), false);
+		if (InOutHandle.hasKey("LODDistanceCheckTime")) LODDistanceCheckTime = static_cast<float>(InOutHandle["LODDistanceCheckTime"].ToFloat());
+		if (InOutHandle.hasKey("LODMethod")) LODMethod = static_cast<EParticleSystemLODMethod>(InOutHandle["LODMethod"].ToInt());
+		if (InOutHandle.hasKey("bRegenerateLODDuplicate")) bRegenerateLODDuplicate = InOutHandle["bRegenerateLODDuplicate"].ToBool();
+		if (InOutHandle.hasKey("SystemUpdateMode")) SystemUpdateMode = static_cast<EParticleSystemUpdateMode>(InOutHandle["SystemUpdateMode"].ToInt());
+		if (InOutHandle.hasKey("bOrientZAxisTowardCamera")) bOrientZAxisTowardCamera = InOutHandle["bOrientZAxisTowardCamera"].ToBool();
+		if (InOutHandle.hasKey("SecondsBeforeInactive")) SecondsBeforeInactive = static_cast<float>(InOutHandle["SecondsBeforeInactive"].ToFloat());
+		if (InOutHandle.hasKey("Delay")) Delay = static_cast<float>(InOutHandle["Delay"].ToFloat());
+		if (InOutHandle.hasKey("bAutoDeactivate")) bAutoDeactivate = InOutHandle["bAutoDeactivate"].ToBool();
+
+		// LODDistances
+		LODDistances.clear();
+		if (InOutHandle.hasKey("LODDistances") && InOutHandle["LODDistances"].JSONType() == JSON::Class::Array)
+		{
+			for (size_t i = 0; i < InOutHandle["LODDistances"].size(); ++i)
+			{
+				LODDistances.push_back(static_cast<float>(InOutHandle["LODDistances"][static_cast<int>(i)].ToFloat()));
+			}
+		}
+
+		// Emitters 로드
+		Emitters.clear();
+		if (InOutHandle.hasKey("Emitters") && InOutHandle["Emitters"].JSONType() == JSON::Class::Array)
+		{
+			for (size_t i = 0; i < InOutHandle["Emitters"].size(); ++i)
+			{
+				JSON emitterJson = InOutHandle["Emitters"][static_cast<int>(i)];
+				UParticleEmitter* NewEmitter = NewObject<UParticleEmitter>();
+				NewEmitter->Serialize(true, emitterJson);
+				Emitters.Add(NewEmitter);
+			}
+		}
+
+		UpdateAllModuleLists();
+	}
+	else
+	{
+		InOutHandle["UpdateTime_FPS"] = UpdateTime_FPS;
+		InOutHandle["UpdateTime_Delta"] = UpdateTime_Delta;
+		InOutHandle["WarmupTime"] = WarmupTime;
+		InOutHandle["WarmupTickRate"] = WarmupTickRate;
+		InOutHandle["bUseFixedRelativeBoundingBox"] = bUseFixedRelativeBoundingBox;
+		InOutHandle["FixedRelativeBoundingBox"] = FJsonSerializer::VectorToJson(FixedRelativeBoundingBox);
+		InOutHandle["LODDistanceCheckTime"] = LODDistanceCheckTime;
+		InOutHandle["LODMethod"] = static_cast<int32>(LODMethod);
+		InOutHandle["bRegenerateLODDuplicate"] = bRegenerateLODDuplicate;
+		InOutHandle["SystemUpdateMode"] = static_cast<int32>(SystemUpdateMode);
+		InOutHandle["bOrientZAxisTowardCamera"] = bOrientZAxisTowardCamera;
+		InOutHandle["SecondsBeforeInactive"] = SecondsBeforeInactive;
+		InOutHandle["Delay"] = Delay;
+		InOutHandle["bAutoDeactivate"] = bAutoDeactivate;
+
+		// LODDistances
+		JSON lodDistArray = JSON::Make(JSON::Class::Array);
+		for (float Dist : LODDistances)
+		{
+			lodDistArray.append(Dist);
+		}
+		InOutHandle["LODDistances"] = lodDistArray;
+
+		// Emitters 저장
+		JSON emittersArray = JSON::Make(JSON::Class::Array);
+		for (UParticleEmitter* Emitter : Emitters)
+		{
+			if (Emitter)
+			{
+				JSON emitterJson = JSON::Make(JSON::Class::Object);
+				Emitter->Serialize(false, emitterJson);
+				emittersArray.append(emitterJson);
+			}
+		}
+		InOutHandle["Emitters"] = emittersArray;
+	}
+}
+
+void UParticleSystem::DuplicateFrom(const UParticleSystem* Source)
+{
+	if (!Source)
+	{
+		return;
+	}
+
+	UpdateTime_FPS = Source->UpdateTime_FPS;
+	UpdateTime_Delta = Source->UpdateTime_Delta;
+	WarmupTime = Source->WarmupTime;
+	WarmupTickRate = Source->WarmupTickRate;
+	bUseFixedRelativeBoundingBox = Source->bUseFixedRelativeBoundingBox;
+	FixedRelativeBoundingBox = Source->FixedRelativeBoundingBox;
+	LODDistanceCheckTime = Source->LODDistanceCheckTime;
+	LODMethod = Source->LODMethod;
+	LODDistances = Source->LODDistances;
+	bRegenerateLODDuplicate = Source->bRegenerateLODDuplicate;
+	SystemUpdateMode = Source->SystemUpdateMode;
+	bOrientZAxisTowardCamera = Source->bOrientZAxisTowardCamera;
+	SecondsBeforeInactive = Source->SecondsBeforeInactive;
+	Delay = Source->Delay;
+	bAutoDeactivate = Source->bAutoDeactivate;
+
+	// Emitters 복제
+	Emitters.clear();
+	for (UParticleEmitter* SrcEmitter : Source->Emitters)
+	{
+		if (SrcEmitter)
+		{
+			UParticleEmitter* NewEmitter = NewObject<UParticleEmitter>();
+			NewEmitter->DuplicateFrom(SrcEmitter);
+			Emitters.Add(NewEmitter);
+		}
+	}
+
+	UpdateAllModuleLists();
+}
+
+bool UParticleSystem::SaveToFile(const FString& InFilePath)
+{
+	JSON json = JSON::Make(JSON::Class::Object);
+	json["FileType"] = FString("ParticleSystem");
+	json["Version"] = 1;
+
+	Serialize(false, json);
+
+	FWideString WidePath(InFilePath.begin(), InFilePath.end());
+	if (FJsonSerializer::SaveJsonToFile(json, WidePath))
+	{
+		SetFilePath(InFilePath);
+		return true;
+	}
+	return false;
+}
+
+void UParticleSystem::Load(const FString& InFilePath, ID3D11Device* InDevice)
+{
+	// ResourceManager 패턴 호환용 Load
+	// InDevice는 파티클 시스템에서 사용하지 않음
+	LoadFromFileInternal(InFilePath);
+}
+
+bool UParticleSystem::LoadFromFileInternal(const FString& InFilePath)
+{
+	FWideString WidePath(InFilePath.begin(), InFilePath.end());
+	JSON json;
+	if (!FJsonSerializer::LoadJsonFromFile(json, WidePath))
+	{
+		UE_LOG("ParticleSystem: Failed to load file: %s", InFilePath.c_str());
+		return false;
+	}
+
+	// 파일 타입 확인
+	if (!json.hasKey("FileType") || json["FileType"].ToString() != "ParticleSystem")
+	{
+		UE_LOG("ParticleSystem: Invalid file type: %s", InFilePath.c_str());
+		return false;
+	}
+
+	Serialize(true, json);
+	return true;
 }

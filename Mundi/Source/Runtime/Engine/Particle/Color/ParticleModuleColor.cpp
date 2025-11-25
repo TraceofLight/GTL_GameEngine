@@ -31,3 +31,36 @@ void UParticleModuleColor::Spawn(FParticleEmitterInstance* Owner, int32 Offset, 
 
 	ParticleBase->Color = Color;
 }
+
+void UParticleModuleColor::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	UParticleModule::Serialize(bIsLoading, InOutHandle);
+
+	if (bIsLoading)
+	{
+		if (InOutHandle.hasKey("StartColor")) StartColor = JsonToColorDistribution(InOutHandle["StartColor"]);
+		if (InOutHandle.hasKey("StartAlpha")) StartAlpha = JsonToFloatDistribution(InOutHandle["StartAlpha"]);
+		if (InOutHandle.hasKey("bClampAlpha")) bClampAlpha = InOutHandle["bClampAlpha"].ToBool();
+	}
+	else
+	{
+		InOutHandle["StartColor"] = ColorDistributionToJson(StartColor);
+		InOutHandle["StartAlpha"] = FloatDistributionToJson(StartAlpha);
+		InOutHandle["bClampAlpha"] = bClampAlpha;
+	}
+}
+
+void UParticleModuleColor::DuplicateFrom(const UParticleModule* Source)
+{
+	UParticleModule::DuplicateFrom(Source);
+
+	const UParticleModuleColor* SrcColor = static_cast<const UParticleModuleColor*>(Source);
+	if (!SrcColor)
+	{
+		return;
+	}
+
+	StartColor = SrcColor->StartColor;
+	StartAlpha = SrcColor->StartAlpha;
+	bClampAlpha = SrcColor->bClampAlpha;
+}

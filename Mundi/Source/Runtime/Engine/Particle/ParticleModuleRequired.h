@@ -56,6 +56,10 @@ public:
 	UParticleModuleRequired();
 	~UParticleModuleRequired() override = default;
 
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
+	void DuplicateFrom(const UParticleModule* Source) override;
+
 	// Functions
 	float GetEmitterDuration() const;
 	int32 GetTotalSubImages() const;

@@ -309,3 +309,121 @@ struct FParticleDynamicData
 {
 	TArray<struct FDynamicEmitterDataBase*> DynamicEmitterDataArray;
 };
+
+//=============================================================================
+// Distribution 직렬화 헬퍼
+//=============================================================================
+
+/**
+ * @brief FFloatDistribution JSON 직렬화
+ */
+inline JSON FloatDistributionToJson(const FFloatDistribution& Dist)
+{
+	JSON Obj = JSON::Make(JSON::Class::Object);
+	Obj["Min"] = Dist.Min;
+	Obj["Max"] = Dist.Max;
+	Obj["bIsUniform"] = Dist.bIsUniform;
+	return Obj;
+}
+
+inline FFloatDistribution JsonToFloatDistribution(JSON& Obj)
+{
+	FFloatDistribution Dist;
+	if (Obj.hasKey("Min")) Dist.Min = static_cast<float>(Obj["Min"].ToFloat());
+	if (Obj.hasKey("Max")) Dist.Max = static_cast<float>(Obj["Max"].ToFloat());
+	if (Obj.hasKey("bIsUniform")) Dist.bIsUniform = Obj["bIsUniform"].ToBool();
+	return Dist;
+}
+
+/**
+ * @brief FVectorDistribution JSON 직렬화
+ */
+inline JSON VectorDistributionToJson(const FVectorDistribution& Dist)
+{
+	JSON Obj = JSON::Make(JSON::Class::Object);
+	JSON MinArr = JSON::Make(JSON::Class::Array);
+	MinArr.append(Dist.Min.X, Dist.Min.Y, Dist.Min.Z);
+	JSON MaxArr = JSON::Make(JSON::Class::Array);
+	MaxArr.append(Dist.Max.X, Dist.Max.Y, Dist.Max.Z);
+	Obj["Min"] = MinArr;
+	Obj["Max"] = MaxArr;
+	Obj["bIsUniform"] = Dist.bIsUniform;
+	return Obj;
+}
+
+inline FVectorDistribution JsonToVectorDistribution(JSON& Obj)
+{
+	FVectorDistribution Dist;
+	if (Obj.hasKey("Min") && Obj["Min"].JSONType() == JSON::Class::Array && Obj["Min"].size() == 3)
+	{
+		Dist.Min.X = static_cast<float>(Obj["Min"][0].ToFloat());
+		Dist.Min.Y = static_cast<float>(Obj["Min"][1].ToFloat());
+		Dist.Min.Z = static_cast<float>(Obj["Min"][2].ToFloat());
+	}
+	if (Obj.hasKey("Max") && Obj["Max"].JSONType() == JSON::Class::Array && Obj["Max"].size() == 3)
+	{
+		Dist.Max.X = static_cast<float>(Obj["Max"][0].ToFloat());
+		Dist.Max.Y = static_cast<float>(Obj["Max"][1].ToFloat());
+		Dist.Max.Z = static_cast<float>(Obj["Max"][2].ToFloat());
+	}
+	if (Obj.hasKey("bIsUniform")) Dist.bIsUniform = Obj["bIsUniform"].ToBool();
+	return Dist;
+}
+
+/**
+ * @brief FColorDistribution JSON 직렬화
+ */
+inline JSON ColorDistributionToJson(const FColorDistribution& Dist)
+{
+	JSON Obj = JSON::Make(JSON::Class::Object);
+	JSON MinArr = JSON::Make(JSON::Class::Array);
+	MinArr.append(Dist.Min.R, Dist.Min.G, Dist.Min.B, Dist.Min.A);
+	JSON MaxArr = JSON::Make(JSON::Class::Array);
+	MaxArr.append(Dist.Max.R, Dist.Max.G, Dist.Max.B, Dist.Max.A);
+	Obj["Min"] = MinArr;
+	Obj["Max"] = MaxArr;
+	Obj["bIsUniform"] = Dist.bIsUniform;
+	return Obj;
+}
+
+inline FColorDistribution JsonToColorDistribution(JSON& Obj)
+{
+	FColorDistribution Dist;
+	if (Obj.hasKey("Min") && Obj["Min"].JSONType() == JSON::Class::Array && Obj["Min"].size() == 4)
+	{
+		Dist.Min.R = static_cast<float>(Obj["Min"][0].ToFloat());
+		Dist.Min.G = static_cast<float>(Obj["Min"][1].ToFloat());
+		Dist.Min.B = static_cast<float>(Obj["Min"][2].ToFloat());
+		Dist.Min.A = static_cast<float>(Obj["Min"][3].ToFloat());
+	}
+	if (Obj.hasKey("Max") && Obj["Max"].JSONType() == JSON::Class::Array && Obj["Max"].size() == 4)
+	{
+		Dist.Max.R = static_cast<float>(Obj["Max"][0].ToFloat());
+		Dist.Max.G = static_cast<float>(Obj["Max"][1].ToFloat());
+		Dist.Max.B = static_cast<float>(Obj["Max"][2].ToFloat());
+		Dist.Max.A = static_cast<float>(Obj["Max"][3].ToFloat());
+	}
+	if (Obj.hasKey("bIsUniform")) Dist.bIsUniform = Obj["bIsUniform"].ToBool();
+	return Dist;
+}
+
+/**
+ * @brief FParticleBurst JSON 직렬화
+ */
+inline JSON ParticleBurstToJson(const FParticleBurst& Burst)
+{
+	JSON Obj = JSON::Make(JSON::Class::Object);
+	Obj["Count"] = Burst.Count;
+	Obj["CountLow"] = Burst.CountLow;
+	Obj["Time"] = Burst.Time;
+	return Obj;
+}
+
+inline FParticleBurst JsonToParticleBurst(JSON& Obj)
+{
+	FParticleBurst Burst;
+	if (Obj.hasKey("Count")) Burst.Count = static_cast<int32>(Obj["Count"].ToInt());
+	if (Obj.hasKey("CountLow")) Burst.CountLow = static_cast<int32>(Obj["CountLow"].ToInt());
+	if (Obj.hasKey("Time")) Burst.Time = static_cast<float>(Obj["Time"].ToFloat());
+	return Burst;
+}
