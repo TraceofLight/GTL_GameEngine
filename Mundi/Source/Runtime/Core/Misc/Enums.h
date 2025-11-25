@@ -61,7 +61,7 @@ enum class EResourceType : uint8
     Sound,
     Animation,
     AnimationStateMachine,
-
+    ParticleSystem,
 
     End
 };

@@ -2,8 +2,13 @@
 #include "ParticleLODLevel.h"
 #include "ParticleModule.h"
 #include "ParticleModuleRequired.h"
-#include "ParticleModuleSpawn.h"
-#include "ParticleModuleTypeDataBase.h"
+#include "Spawn/ParticleModuleSpawn.h"
+#include "TypeData/ParticleModuleTypeDataBase.h"
+#include "Lifetime/ParticleModuleLifetime.h"
+#include "Velocity/ParticleModuleVelocity.h"
+#include "Color/ParticleModuleColor.h"
+#include "Size/ParticleModuleSize.h"
+#include "Location/ParticleModuleLocation.h"
 
 UParticleLODLevel::UParticleLODLevel()
 	: Level(0)
@@ -160,4 +165,184 @@ bool UParticleLODLevel::IsModuleEditable(UParticleModule* InModule)
 
 	// 이 LOD 레벨에서 유효한지 확인
 	return InModule->IsValidForLODLevel(Level);
+}
+
+// 모듈 타입 이름으로 모듈 생성
+static UParticleModule* CreateModuleByTypeName(const FString& TypeName)
+{
+	if (TypeName == "UParticleModuleRequired") return NewObject<UParticleModuleRequired>();
+	if (TypeName == "UParticleModuleSpawn") return NewObject<UParticleModuleSpawn>();
+	if (TypeName == "UParticleModuleLifetime") return NewObject<UParticleModuleLifetime>();
+	if (TypeName == "UParticleModuleVelocity") return NewObject<UParticleModuleVelocity>();
+	if (TypeName == "UParticleModuleColor") return NewObject<UParticleModuleColor>();
+	if (TypeName == "UParticleModuleSize") return NewObject<UParticleModuleSize>();
+	if (TypeName == "UParticleModuleLocation") return NewObject<UParticleModuleLocation>();
+	if (TypeName == "UParticleModuleTypeDataSprite") return NewObject<UParticleModuleTypeDataSprite>();
+	if (TypeName == "UParticleModuleTypeDataMesh") return NewObject<UParticleModuleTypeDataMesh>();
+	return nullptr;
+}
+
+void UParticleLODLevel::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	if (bIsLoading)
+	{
+		if (InOutHandle.hasKey("Level")) Level = static_cast<int32>(InOutHandle["Level"].ToInt());
+		if (InOutHandle.hasKey("bEnabled")) bEnabled = InOutHandle["bEnabled"].ToBool();
+		if (InOutHandle.hasKey("PeakActiveParticles")) PeakActiveParticles = static_cast<int32>(InOutHandle["PeakActiveParticles"].ToInt());
+
+		// RequiredModule 로드
+		if (InOutHandle.hasKey("RequiredModule") && InOutHandle["RequiredModule"].JSONType() == JSON::Class::Object)
+		{
+			RequiredModule = NewObject<UParticleModuleRequired>();
+			JSON reqJson = InOutHandle["RequiredModule"];
+			RequiredModule->Serialize(true, reqJson);
+		}
+
+		// SpawnModule 로드
+		if (InOutHandle.hasKey("SpawnModule") && InOutHandle["SpawnModule"].JSONType() == JSON::Class::Object)
+		{
+			SpawnModule = NewObject<UParticleModuleSpawn>();
+			JSON spawnJson = InOutHandle["SpawnModule"];
+			SpawnModule->Serialize(true, spawnJson);
+		}
+
+		// TypeDataModule 로드
+		if (InOutHandle.hasKey("TypeDataModule") && InOutHandle["TypeDataModule"].JSONType() == JSON::Class::Object)
+		{
+			JSON typeJson = InOutHandle["TypeDataModule"];
+			FString TypeName;
+			if (typeJson.hasKey("ModuleType")) TypeName = typeJson["ModuleType"].ToString();
+
+			UParticleModule* Module = CreateModuleByTypeName(TypeName);
+			if (Module)
+			{
+				Module->Serialize(true, typeJson);
+				TypeDataModule = static_cast<UParticleModuleTypeDataBase*>(Module);
+			}
+		}
+
+		// Modules 배열 로드
+		Modules.clear();
+		if (InOutHandle.hasKey("Modules") && InOutHandle["Modules"].JSONType() == JSON::Class::Array)
+		{
+			for (size_t i = 0; i < InOutHandle["Modules"].size(); ++i)
+			{
+				JSON moduleJson = InOutHandle["Modules"][static_cast<int>(i)];
+				FString TypeName;
+				if (moduleJson.hasKey("ModuleType")) TypeName = moduleJson["ModuleType"].ToString();
+
+				UParticleModule* Module = CreateModuleByTypeName(TypeName);
+				if (Module)
+				{
+					Module->Serialize(true, moduleJson);
+					Modules.Add(Module);
+				}
+			}
+		}
+
+		UpdateModuleLists();
+	}
+	else
+	{
+		InOutHandle["Level"] = Level;
+		InOutHandle["bEnabled"] = bEnabled;
+		InOutHandle["PeakActiveParticles"] = PeakActiveParticles;
+
+		// RequiredModule 저장
+		if (RequiredModule)
+		{
+			JSON reqJson = JSON::Make(JSON::Class::Object);
+			reqJson["ModuleType"] = FString("UParticleModuleRequired");
+			RequiredModule->Serialize(false, reqJson);
+			InOutHandle["RequiredModule"] = reqJson;
+		}
+
+		// SpawnModule 저장
+		if (SpawnModule)
+		{
+			JSON spawnJson = JSON::Make(JSON::Class::Object);
+			spawnJson["ModuleType"] = FString("UParticleModuleSpawn");
+			SpawnModule->Serialize(false, spawnJson);
+			InOutHandle["SpawnModule"] = spawnJson;
+		}
+
+		// TypeDataModule 저장
+		if (TypeDataModule)
+		{
+			JSON typeJson = JSON::Make(JSON::Class::Object);
+			typeJson["ModuleType"] = FString(TypeDataModule->GetClass()->Name);
+			TypeDataModule->Serialize(false, typeJson);
+			InOutHandle["TypeDataModule"] = typeJson;
+		}
+
+		// Modules 배열 저장
+		JSON modulesArray = JSON::Make(JSON::Class::Array);
+		for (UParticleModule* Module : Modules)
+		{
+			if (Module)
+			{
+				JSON moduleJson = JSON::Make(JSON::Class::Object);
+				moduleJson["ModuleType"] = FString(Module->GetClass()->Name);
+				Module->Serialize(false, moduleJson);
+				modulesArray.append(moduleJson);
+			}
+		}
+		InOutHandle["Modules"] = modulesArray;
+	}
+}
+
+void UParticleLODLevel::DuplicateFrom(const UParticleLODLevel* Source)
+{
+	if (!Source)
+	{
+		return;
+	}
+
+	Level = Source->Level;
+	bEnabled = Source->bEnabled;
+	PeakActiveParticles = Source->PeakActiveParticles;
+
+	// RequiredModule 복제
+	if (Source->RequiredModule)
+	{
+		RequiredModule = NewObject<UParticleModuleRequired>();
+		RequiredModule->DuplicateFrom(Source->RequiredModule);
+	}
+
+	// SpawnModule 복제
+	if (Source->SpawnModule)
+	{
+		SpawnModule = NewObject<UParticleModuleSpawn>();
+		SpawnModule->DuplicateFrom(Source->SpawnModule);
+	}
+
+	// TypeDataModule 복제
+	if (Source->TypeDataModule)
+	{
+		const char* TypeName = Source->TypeDataModule->GetClass()->Name;
+		UParticleModule* NewModule = CreateModuleByTypeName(TypeName);
+		if (NewModule)
+		{
+			NewModule->DuplicateFrom(Source->TypeDataModule);
+			TypeDataModule = static_cast<UParticleModuleTypeDataBase*>(NewModule);
+		}
+	}
+
+	// Modules 복제
+	Modules.clear();
+	for (UParticleModule* SrcModule : Source->Modules)
+	{
+		if (SrcModule)
+		{
+			const char* TypeName = SrcModule->GetClass()->Name;
+			UParticleModule* NewModule = CreateModuleByTypeName(TypeName);
+			if (NewModule)
+			{
+				NewModule->DuplicateFrom(SrcModule);
+				Modules.Add(NewModule);
+			}
+		}
+	}
+
+	UpdateModuleLists();
 }

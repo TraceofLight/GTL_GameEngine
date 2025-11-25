@@ -234,10 +234,10 @@ PS_INPUT mainVS(VS_INPUT Input)
 	InstanceWorldMatrix[2] = float4(Input.InstanceTransform2.xyz, 0);
 	InstanceWorldMatrix[3] = float4(Input.InstanceTransform0.w, Input.InstanceTransform1.w, Input.InstanceTransform2.w, 1);
 
-	row_major float4x4 FinalWorldMatrix = mul(InstanceWorldMatrix, WorldMatrix);
+	//row_major float4x4 FinalWorldMatrix = mul(InstanceWorldMatrix, WorldMatrix);
 	
 	// Transform position to world space using instance transform
-	float4 worldPos = mul(float4(Input.Position, 1.0f), FinalWorldMatrix);
+	float4 worldPos = mul(float4(Input.Position, 1.0f), InstanceWorldMatrix);
 	Out.WorldPos = worldPos.xyz;
 	
 	// Transform to view and projection space
@@ -245,11 +245,11 @@ PS_INPUT mainVS(VS_INPUT Input)
 	Out.Position = mul(viewPos, ProjectionMatrix);
 	
 	// Transform normal using instance world matrix
-	worldNormal = normalize(mul(Input.Normal, (float3x3)FinalWorldMatrix));
+	worldNormal = normalize(mul(Input.Normal, (float3x3)InstanceWorldMatrix));
 	Out.Normal = worldNormal;
 	
 	// Transform tangent using instance world matrix
-	float3 Tangent = normalize(mul(Input.Tangent.xyz, (float3x3)FinalWorldMatrix));
+	float3 Tangent = normalize(mul(Input.Tangent.xyz, (float3x3)InstanceWorldMatrix));
 	float3 BiTangent = normalize(cross(Tangent, worldNormal) * Input.Tangent.w);
 	row_major float3x3 TBN;
 	TBN._m00_m01_m02 = Tangent;

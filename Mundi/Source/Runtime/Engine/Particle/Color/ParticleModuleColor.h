@@ -25,6 +25,10 @@ public:
 	UParticleModuleColor();
 	~UParticleModuleColor() override = default;
 
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
+	void DuplicateFrom(const UParticleModule* Source) override;
+
 	// UParticleModule 인터페이스
 	void Spawn(FParticleEmitterInstance* Owner, int32 Offset, float SpawnTime, FBaseParticle* ParticleBase) override;
 };

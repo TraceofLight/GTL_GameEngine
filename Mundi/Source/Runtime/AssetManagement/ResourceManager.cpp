@@ -572,6 +572,7 @@ void UResourceManager::InitShaderILMap()
 	layout.Add({ "INSTANCE_SUBUVLERP", 0, DXGI_FORMAT_R32_FLOAT, 1, 88, D3D11_INPUT_PER_INSTANCE_DATA, 1 });          // SubUVLerp
 	layout.Add({ "INSTANCE_RELATIVETIME", 0, DXGI_FORMAT_R32_FLOAT, 1, 92, D3D11_INPUT_PER_INSTANCE_DATA, 1 });       // RelativeTime
 
+	ShaderToInputLayoutMap["Shaders/Shadows/DepthOnly_VS.hlsl#PARTICLE_MESH"] = layout;
 	ShaderToInputLayoutMap["Shaders/Materials/UberLit.hlsl#PARTICLE_MESH"] = layout;
 	layout.clear();
 }

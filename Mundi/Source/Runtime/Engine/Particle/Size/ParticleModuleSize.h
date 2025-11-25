@@ -18,6 +18,10 @@ public:
 	UParticleModuleSize();
 	~UParticleModuleSize() override = default;
 
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
+	void DuplicateFrom(const UParticleModule* Source) override;
+
 	// 파티클 초기 크기 분포
 	FVectorDistribution StartSize;
 

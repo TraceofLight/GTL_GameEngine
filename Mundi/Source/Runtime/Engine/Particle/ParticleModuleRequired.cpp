@@ -2,6 +2,8 @@
 #include "ParticleModuleRequired.h"
 
 #include "ParticleTypes.h"
+#include "Material.h"
+#include "ResourceManager.h"
 
 UParticleModuleRequired::UParticleModuleRequired()
 	: Material(nullptr)
@@ -70,4 +72,94 @@ FParticleRequiredModule* UParticleModuleRequired::CreateRendererResource() const
 	FReqMod->AlphaThreshold = 0.0f;
 
 	return FReqMod;
+}
+
+void UParticleModuleRequired::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	UParticleModule::Serialize(bIsLoading, InOutHandle);
+
+	if (bIsLoading)
+	{
+		// Material 로드 (경로로 저장됨)
+		if (InOutHandle.hasKey("MaterialPath"))
+		{
+			FString MaterialPath = InOutHandle["MaterialPath"].ToString();
+			if (!MaterialPath.empty())
+			{
+				Material = UResourceManager::GetInstance().Load<UMaterial>(MaterialPath);
+			}
+		}
+
+		if (InOutHandle.hasKey("EmitterDuration")) EmitterDuration = static_cast<float>(InOutHandle["EmitterDuration"].ToFloat());
+		if (InOutHandle.hasKey("EmitterDurationLow")) EmitterDurationLow = static_cast<float>(InOutHandle["EmitterDurationLow"].ToFloat());
+		if (InOutHandle.hasKey("EmitterLoops")) EmitterLoops = static_cast<int32>(InOutHandle["EmitterLoops"].ToInt());
+		if (InOutHandle.hasKey("bDurationRecalcEachLoop")) bDurationRecalcEachLoop = InOutHandle["bDurationRecalcEachLoop"].ToBool();
+		if (InOutHandle.hasKey("ScreenAlignment")) ScreenAlignment = static_cast<EParticleScreenAlignment>(InOutHandle["ScreenAlignment"].ToInt());
+		if (InOutHandle.hasKey("SubImages_Horizontal")) SubImages_Horizontal = static_cast<int32>(InOutHandle["SubImages_Horizontal"].ToInt());
+		if (InOutHandle.hasKey("SubImages_Vertical")) SubImages_Vertical = static_cast<int32>(InOutHandle["SubImages_Vertical"].ToInt());
+		if (InOutHandle.hasKey("SortMode")) SortMode = static_cast<EParticleSortMode>(InOutHandle["SortMode"].ToInt());
+		if (InOutHandle.hasKey("bUseLocalSpace")) bUseLocalSpace = InOutHandle["bUseLocalSpace"].ToBool();
+		if (InOutHandle.hasKey("bKillOnDeactivate")) bKillOnDeactivate = InOutHandle["bKillOnDeactivate"].ToBool();
+		if (InOutHandle.hasKey("bKillOnCompleted")) bKillOnCompleted = InOutHandle["bKillOnCompleted"].ToBool();
+		if (InOutHandle.hasKey("MaxDrawCount")) MaxDrawCount = static_cast<int32>(InOutHandle["MaxDrawCount"].ToInt());
+		if (InOutHandle.hasKey("EmitterNormalsMode")) EmitterNormalsMode = static_cast<EEmitterNormalsMode>(InOutHandle["EmitterNormalsMode"].ToInt());
+		if (InOutHandle.hasKey("InterpolationMethod")) InterpolationMethod = static_cast<EParticleSubUVInterpMethod>(InOutHandle["InterpolationMethod"].ToInt());
+		if (InOutHandle.hasKey("AxisLockOption")) AxisLockOption = static_cast<EParticleAxisLock>(InOutHandle["AxisLockOption"].ToInt());
+	}
+	else
+	{
+		// Material 저장 (경로)
+		if (Material)
+		{
+			InOutHandle["MaterialPath"] = Material->GetFilePath();
+		}
+		else
+		{
+			InOutHandle["MaterialPath"] = FString("");
+		}
+
+		InOutHandle["EmitterDuration"] = EmitterDuration;
+		InOutHandle["EmitterDurationLow"] = EmitterDurationLow;
+		InOutHandle["EmitterLoops"] = EmitterLoops;
+		InOutHandle["bDurationRecalcEachLoop"] = bDurationRecalcEachLoop;
+		InOutHandle["ScreenAlignment"] = static_cast<int32>(ScreenAlignment);
+		InOutHandle["SubImages_Horizontal"] = SubImages_Horizontal;
+		InOutHandle["SubImages_Vertical"] = SubImages_Vertical;
+		InOutHandle["SortMode"] = static_cast<int32>(SortMode);
+		InOutHandle["bUseLocalSpace"] = bUseLocalSpace;
+		InOutHandle["bKillOnDeactivate"] = bKillOnDeactivate;
+		InOutHandle["bKillOnCompleted"] = bKillOnCompleted;
+		InOutHandle["MaxDrawCount"] = MaxDrawCount;
+		InOutHandle["EmitterNormalsMode"] = static_cast<int32>(EmitterNormalsMode);
+		InOutHandle["InterpolationMethod"] = static_cast<int32>(InterpolationMethod);
+		InOutHandle["AxisLockOption"] = static_cast<int32>(AxisLockOption);
+	}
+}
+
+void UParticleModuleRequired::DuplicateFrom(const UParticleModule* Source)
+{
+	UParticleModule::DuplicateFrom(Source);
+
+	const UParticleModuleRequired* SrcReq = static_cast<const UParticleModuleRequired*>(Source);
+	if (!SrcReq)
+	{
+		return;
+	}
+
+	Material = SrcReq->Material;
+	EmitterDuration = SrcReq->EmitterDuration;
+	EmitterDurationLow = SrcReq->EmitterDurationLow;
+	EmitterLoops = SrcReq->EmitterLoops;
+	bDurationRecalcEachLoop = SrcReq->bDurationRecalcEachLoop;
+	ScreenAlignment = SrcReq->ScreenAlignment;
+	SubImages_Horizontal = SrcReq->SubImages_Horizontal;
+	SubImages_Vertical = SrcReq->SubImages_Vertical;
+	SortMode = SrcReq->SortMode;
+	bUseLocalSpace = SrcReq->bUseLocalSpace;
+	bKillOnDeactivate = SrcReq->bKillOnDeactivate;
+	bKillOnCompleted = SrcReq->bKillOnCompleted;
+	MaxDrawCount = SrcReq->MaxDrawCount;
+	EmitterNormalsMode = SrcReq->EmitterNormalsMode;
+	InterpolationMethod = SrcReq->InterpolationMethod;
+	AxisLockOption = SrcReq->AxisLockOption;
 }

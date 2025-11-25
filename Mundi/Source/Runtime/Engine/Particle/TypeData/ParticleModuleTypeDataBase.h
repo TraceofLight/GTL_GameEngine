@@ -19,6 +19,10 @@ public:
 	UParticleModuleTypeDataBase();
 	~UParticleModuleTypeDataBase() override = default;
 
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
+	void DuplicateFrom(const UParticleModule* Source) override;
+
 	virtual EDynamicEmitterType GetEmitterType() const;
 	virtual const char* GetVertexFactoryName() const;
 	virtual bool IsGPUSprites() const { return false; }
@@ -37,6 +41,10 @@ class UParticleModuleTypeDataSprite :
 public:
 	UParticleModuleTypeDataSprite();
 	~UParticleModuleTypeDataSprite() override = default;
+
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
+	void DuplicateFrom(const UParticleModule* Source) override;
 
 	// UParticleModuleTypeDataBase 인터페이스
 	EDynamicEmitterType GetEmitterType() const override;
@@ -77,6 +85,10 @@ public:
 
 	UParticleModuleTypeDataMesh();
 	~UParticleModuleTypeDataMesh() override = default;
+
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
+	void DuplicateFrom(const UParticleModule* Source) override;
 
 	EDynamicEmitterType GetEmitterType() const override;
 	const char* GetVertexFactoryName() const override;

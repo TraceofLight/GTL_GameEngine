@@ -13,6 +13,7 @@
 #include "AnimStateMachine.h"
 #include "SkeletalMesh.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
+#include "Source/Runtime/Engine/Particle/ParticleSystem.h"
 #include "AsyncLoader.h"
 #include <queue>
 #include <functional>
@@ -358,6 +359,8 @@ EResourceType UResourceManager::GetResourceType()
 		return EResourceType::Animation;
 	if (T::StaticClass() == UAnimStateMachine::StaticClass())
 		return EResourceType::AnimationStateMachine;
+	if (T::StaticClass() == UParticleSystem::StaticClass())
+		return EResourceType::ParticleSystem;
 
     return EResourceType::None;
 }

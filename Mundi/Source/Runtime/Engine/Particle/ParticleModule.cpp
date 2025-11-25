@@ -104,3 +104,49 @@ void UParticleModule::SetLODValidity(int32 LODLevel, bool bValid)
 		LODValidity &= ~(1 << LODLevel);
 	}
 }
+
+/**
+ * 모듈 직렬화
+ * @param bIsLoading true면 로드, false면 저장
+ * @param InOutHandle JSON 핸들
+ */
+void UParticleModule::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	if (bIsLoading)
+	{
+		if (InOutHandle.hasKey("bSpawnModule")) bSpawnModule = InOutHandle["bSpawnModule"].ToBool();
+		if (InOutHandle.hasKey("bUpdateModule")) bUpdateModule = InOutHandle["bUpdateModule"].ToBool();
+		if (InOutHandle.hasKey("bFinalUpdateModule")) bFinalUpdateModule = InOutHandle["bFinalUpdateModule"].ToBool();
+		if (InOutHandle.hasKey("bSupported3DDrawMode")) bSupported3DDrawMode = InOutHandle["bSupported3DDrawMode"].ToBool();
+		if (InOutHandle.hasKey("b3DDrawMode")) b3DDrawMode = InOutHandle["b3DDrawMode"].ToBool();
+		if (InOutHandle.hasKey("LODValidity")) LODValidity = static_cast<uint8>(InOutHandle["LODValidity"].ToInt());
+	}
+	else
+	{
+		InOutHandle["bSpawnModule"] = bSpawnModule;
+		InOutHandle["bUpdateModule"] = bUpdateModule;
+		InOutHandle["bFinalUpdateModule"] = bFinalUpdateModule;
+		InOutHandle["bSupported3DDrawMode"] = bSupported3DDrawMode;
+		InOutHandle["b3DDrawMode"] = b3DDrawMode;
+		InOutHandle["LODValidity"] = static_cast<int32>(LODValidity);
+	}
+}
+
+/**
+ * 모듈 복제
+ * @param Source 원본 모듈
+ */
+void UParticleModule::DuplicateFrom(const UParticleModule* Source)
+{
+	if (!Source)
+	{
+		return;
+	}
+
+	bSpawnModule = Source->bSpawnModule;
+	bUpdateModule = Source->bUpdateModule;
+	bFinalUpdateModule = Source->bFinalUpdateModule;
+	bSupported3DDrawMode = Source->bSupported3DDrawMode;
+	b3DDrawMode = Source->b3DDrawMode;
+	LODValidity = Source->LODValidity;
+}

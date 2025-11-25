@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "ParticleModuleTypeDataBase.h"
 #include "ParticleSystem.h"
+#include "StaticMesh.h"
+#include "ResourceManager.h"
 
 IMPLEMENT_CLASS(UParticleModuleTypeDataBase)
 IMPLEMENT_CLASS(UParticleModuleTypeDataSprite)
@@ -33,6 +35,18 @@ const char* UParticleModuleTypeDataBase::GetVertexFactoryName() const
 	return "FParticleSpriteVertexFactory";
 }
 
+void UParticleModuleTypeDataBase::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	UParticleModule::Serialize(bIsLoading, InOutHandle);
+	// Base class has no additional data
+}
+
+void UParticleModuleTypeDataBase::DuplicateFrom(const UParticleModule* Source)
+{
+	UParticleModule::DuplicateFrom(Source);
+	// Base class has no additional data
+}
+
 // ========== UParticleModuleTypeDataSprite ==========
 
 UParticleModuleTypeDataSprite::UParticleModuleTypeDataSprite()
@@ -47,6 +61,18 @@ EDynamicEmitterType UParticleModuleTypeDataSprite::GetEmitterType() const
 const char* UParticleModuleTypeDataSprite::GetVertexFactoryName() const
 {
 	return "FParticleSpriteVertexFactory";
+}
+
+void UParticleModuleTypeDataSprite::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	UParticleModuleTypeDataBase::Serialize(bIsLoading, InOutHandle);
+	// Sprite has no additional data
+}
+
+void UParticleModuleTypeDataSprite::DuplicateFrom(const UParticleModule* Source)
+{
+	UParticleModuleTypeDataBase::DuplicateFrom(Source);
+	// Sprite has no additional data
 }
 
 // ========== UParticleModuleTypeDataMesh ==========
@@ -90,4 +116,70 @@ void UParticleModuleTypeDataMesh::OnMeshChanged()
 	{
 		OwnerSystem->OnModuleChanged();
 	}
+}
+
+void UParticleModuleTypeDataMesh::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	UParticleModuleTypeDataBase::Serialize(bIsLoading, InOutHandle);
+
+	if (bIsLoading)
+	{
+		// Mesh 로드 (경로로 저장됨)
+		if (InOutHandle.hasKey("MeshPath"))
+		{
+			FString MeshPath = InOutHandle["MeshPath"].ToString();
+			if (!MeshPath.empty())
+			{
+				Mesh = UResourceManager::GetInstance().Load<UStaticMesh>(MeshPath);
+			}
+		}
+
+		if (InOutHandle.hasKey("bCastShadows")) bCastShadows = InOutHandle["bCastShadows"].ToBool();
+		if (InOutHandle.hasKey("DoCollisions")) DoCollisions = InOutHandle["DoCollisions"].ToBool();
+		if (InOutHandle.hasKey("MeshAlignment")) MeshAlignment = static_cast<EParticleAxisLock>(InOutHandle["MeshAlignment"].ToInt());
+		if (InOutHandle.hasKey("bOverrideMaterial")) bOverrideMaterial = InOutHandle["bOverrideMaterial"].ToBool();
+		if (InOutHandle.hasKey("Pitch")) Pitch = static_cast<float>(InOutHandle["Pitch"].ToFloat());
+		if (InOutHandle.hasKey("Roll")) Roll = static_cast<float>(InOutHandle["Roll"].ToFloat());
+		if (InOutHandle.hasKey("Yaw")) Yaw = static_cast<float>(InOutHandle["Yaw"].ToFloat());
+	}
+	else
+	{
+		// Mesh 저장 (경로)
+		if (Mesh)
+		{
+			InOutHandle["MeshPath"] = Mesh->GetFilePath();
+		}
+		else
+		{
+			InOutHandle["MeshPath"] = FString("");
+		}
+
+		InOutHandle["bCastShadows"] = bCastShadows;
+		InOutHandle["DoCollisions"] = DoCollisions;
+		InOutHandle["MeshAlignment"] = static_cast<int32>(MeshAlignment);
+		InOutHandle["bOverrideMaterial"] = bOverrideMaterial;
+		InOutHandle["Pitch"] = Pitch;
+		InOutHandle["Roll"] = Roll;
+		InOutHandle["Yaw"] = Yaw;
+	}
+}
+
+void UParticleModuleTypeDataMesh::DuplicateFrom(const UParticleModule* Source)
+{
+	UParticleModuleTypeDataBase::DuplicateFrom(Source);
+
+	const UParticleModuleTypeDataMesh* SrcMesh = static_cast<const UParticleModuleTypeDataMesh*>(Source);
+	if (!SrcMesh)
+	{
+		return;
+	}
+
+	Mesh = SrcMesh->Mesh;
+	bCastShadows = SrcMesh->bCastShadows;
+	DoCollisions = SrcMesh->DoCollisions;
+	MeshAlignment = SrcMesh->MeshAlignment;
+	bOverrideMaterial = SrcMesh->bOverrideMaterial;
+	Pitch = SrcMesh->Pitch;
+	Roll = SrcMesh->Roll;
+	Yaw = SrcMesh->Yaw;
 }

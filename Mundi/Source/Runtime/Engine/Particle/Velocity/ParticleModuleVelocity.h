@@ -21,6 +21,10 @@ public:
 	UParticleModuleVelocity();
 	~UParticleModuleVelocity() override = default;
 
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
+	void DuplicateFrom(const UParticleModule* Source) override;
+
 	// 파티클 초기 속도 분포
 	FVectorDistribution StartVelocity;
 

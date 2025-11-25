@@ -72,8 +72,12 @@ void UParticleSystemComponent::InitializeComponent()
 	// 부모 클래스 초기화 먼저 호출
 	UPrimitiveComponent::InitializeComponent();
 
-	UParticleSystem* FlareSystem = UParticleSystemComponent::CreateAppleMeshParticleSystem();
-	Template = FlareSystem;
+	// Template이 없을 때만 기본 파티클 시스템 생성 (Serialize로 로드한 경우 유지)
+	if (!Template)
+	{
+		UParticleSystem* FlareSystem = UParticleSystemComponent::CreateAppleMeshParticleSystem();
+		Template = FlareSystem;
+	}
 
 	// 템플릿(설계도)이 있으면 에미터 인스턴스 생성
 	if (Template)
@@ -91,7 +95,7 @@ void UParticleSystemComponent::TickComponent(float DeltaTime)
 	// 부모 클래스 Tick 먼저 호출
 	UPrimitiveComponent::TickComponent(DeltaTime);
 
-	// 비활성 상태이거나 템플릿이 없으면 업데이트 안 함
+	// 비활성 상태거나 템플릿이 없으면 업데이트 안 함
 	if (!bIsActive || !Template)
 	{
 		return;
@@ -477,6 +481,80 @@ void UParticleSystemComponent::ClearEmitterInstances()
 
 	// 배열 비우기
 	EmitterInstances.clear();
+}
+
+// ============== Serialize/Duplicate ==============
+
+void UParticleSystemComponent::Serialize(const bool bIsLoading, JSON& InOutHandle)
+{
+	Super::Serialize(bIsLoading, InOutHandle);
+
+	if (bIsLoading)
+	{
+		// Template 로드 (ResourceManager 패턴)
+		FString TemplatePath;
+		if (InOutHandle.hasKey("TemplatePath"))
+		{
+			TemplatePath = InOutHandle["TemplatePath"].ToString();
+		}
+
+		if (!TemplatePath.empty())
+		{
+			// ResourceManager를 통해 로드 (캐싱 지원)
+			Template = UResourceManager::GetInstance().Load<UParticleSystem>(TemplatePath);
+		}
+
+		// bIsActive 로드
+		if (InOutHandle.hasKey("bIsActive"))
+		{
+			bIsActive = InOutHandle["bIsActive"].ToBool();
+		}
+
+		// 로드 후 에미터 인스턴스 재생성
+		if (Template)
+		{
+			ClearEmitterInstances();
+			CreateEmitterInstances();
+		}
+	}
+	else
+	{
+		// Template 저장 (파일 경로 저장)
+		if (Template)
+		{
+			const FString& TemplatePath = Template->GetFilePath();
+			if (!TemplatePath.empty())
+			{
+				InOutHandle["TemplatePath"] = TemplatePath;
+			}
+		}
+
+		// bIsActive 저장
+		InOutHandle["bIsActive"] = bIsActive;
+	}
+}
+
+void UParticleSystemComponent::DuplicateSubObjects()
+{
+	Super::DuplicateSubObjects();
+
+	// Template 복제
+	if (Template)
+	{
+		UParticleSystem* NewTemplate = NewObject<UParticleSystem>();
+		NewTemplate->DuplicateFrom(Template);
+		Template = NewTemplate;
+	}
+
+	// EmitterInstances는 런타임 데이터이므로 재생성 필요
+	// (원본의 인스턴스를 복사하지 않고 Template에서 새로 생성)
+	EmitterInstances.clear();
+	CurrentDynamicData = nullptr;
+
+	if (Template)
+	{
+		CreateEmitterInstances();
+	}
 }
 
 // ============== Particle System Creation (파티클 시스템 생성) ==============

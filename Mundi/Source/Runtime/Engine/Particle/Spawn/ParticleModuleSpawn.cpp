@@ -101,3 +101,64 @@ int32 UParticleModuleSpawn::GetBurstCount(float OldTime, float NewTime, float Du
 
 	return TotalBurst;
 }
+
+void UParticleModuleSpawn::Serialize(bool bIsLoading, JSON& InOutHandle)
+{
+	UParticleModule::Serialize(bIsLoading, InOutHandle);
+
+	if (bIsLoading)
+	{
+		if (InOutHandle.hasKey("Rate")) Rate = JsonToFloatDistribution(InOutHandle["Rate"]);
+		if (InOutHandle.hasKey("RateScale")) RateScale = JsonToFloatDistribution(InOutHandle["RateScale"]);
+		if (InOutHandle.hasKey("BurstMethod")) BurstMethod = static_cast<EParticleBurstMethod>(InOutHandle["BurstMethod"].ToInt());
+		if (InOutHandle.hasKey("BurstScale")) BurstScale = JsonToFloatDistribution(InOutHandle["BurstScale"]);
+		if (InOutHandle.hasKey("bProcessSpawnRate")) bProcessSpawnRate = InOutHandle["bProcessSpawnRate"].ToBool();
+		if (InOutHandle.hasKey("bProcessBurstList")) bProcessBurstList = InOutHandle["bProcessBurstList"].ToBool();
+
+		// BurstList
+		BurstList.clear();
+		if (InOutHandle.hasKey("BurstList") && InOutHandle["BurstList"].JSONType() == JSON::Class::Array)
+		{
+			for (size_t i = 0; i < InOutHandle["BurstList"].size(); ++i)
+			{
+				BurstList.push_back(JsonToParticleBurst(InOutHandle["BurstList"][static_cast<int>(i)]));
+			}
+		}
+	}
+	else
+	{
+		InOutHandle["Rate"] = FloatDistributionToJson(Rate);
+		InOutHandle["RateScale"] = FloatDistributionToJson(RateScale);
+		InOutHandle["BurstMethod"] = static_cast<int32>(BurstMethod);
+		InOutHandle["BurstScale"] = FloatDistributionToJson(BurstScale);
+		InOutHandle["bProcessSpawnRate"] = bProcessSpawnRate;
+		InOutHandle["bProcessBurstList"] = bProcessBurstList;
+
+		// BurstList
+		JSON BurstArray = JSON::Make(JSON::Class::Array);
+		for (const FParticleBurst& Burst : BurstList)
+		{
+			BurstArray.append(ParticleBurstToJson(Burst));
+		}
+		InOutHandle["BurstList"] = BurstArray;
+	}
+}
+
+void UParticleModuleSpawn::DuplicateFrom(const UParticleModule* Source)
+{
+	UParticleModule::DuplicateFrom(Source);
+
+	const UParticleModuleSpawn* SrcSpawn = static_cast<const UParticleModuleSpawn*>(Source);
+	if (!SrcSpawn)
+	{
+		return;
+	}
+
+	Rate = SrcSpawn->Rate;
+	RateScale = SrcSpawn->RateScale;
+	BurstMethod = SrcSpawn->BurstMethod;
+	BurstList = SrcSpawn->BurstList;
+	BurstScale = SrcSpawn->BurstScale;
+	bProcessSpawnRate = SrcSpawn->bProcessSpawnRate;
+	bProcessBurstList = SrcSpawn->bProcessBurstList;
+}
