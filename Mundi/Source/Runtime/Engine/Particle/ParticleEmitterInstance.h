@@ -157,19 +157,112 @@ struct FParticleEmitterInstance
 		}
 	}
 
+	// ==================== 파티클 스폰 관련 함수 ====================
+
 	/**
-	 * Spawns particles in the emitter
-	 * 에미터에서 파티클을 생성하는 핵심 함수
+	 * @brief 파티클 생성 전 기본값 초기화 (PreSpawn)
+	 * @details 모듈이 실행되기 전에 파티클의 기본 속성들을 초기화
 	 *
-	 * @param Count - Number of particles to spawn (생성할 파티클 개수)
-	 * @param StartTime - Starting time for the first particle (첫 파티클의 시작 시간, 서브프레임 보정용)
-	 * @param Increment - Time increment between each particle spawn (파티클 간 시간 간격)
-	 * @param InitialLocation - Initial location for spawned particles (초기 위치, 컴포넌트 월드 위치)
-	 * @param InitialVelocity - Initial velocity for spawned particles (초기 속도, 모듈에서 덮어쓸 수 있음)
-	 * @param EventPayload - Event payload data (optional) (이벤트 데이터, 현재 미사용)
+	 * [초기화되는 속성들]
+	 * - Location: 이미터의 월드 위치
+	 * - Velocity/BaseVelocity: 초기 속도 (보통 0, 모듈에서 덮어씀)
+	 * - RelativeTime: 0.0 (막 태어남)
+	 * - Lifetime: 1.0초 (기본값, LifetimeModule에서 덮어씀)
+	 * - Rotation/RotationRate: 0 (회전 없음)
+	 * - Size: (1,1,1) (SizeModule에서 덮어씀)
+	 * - Color: 흰색 (ColorModule에서 덮어씀)
+	 * - Flags: 0 (상태 플래그 초기화)
 	 *
-	 * @note MaxActiveParticles를 초과하면 생성이 중단됨
-	 * @note DECLARE_PARTICLE_PTR 매크로로 파티클 메모리 주소 계산
+	 * @param Particle 초기화할 파티클 참조
+	 * @param InitialLocation 파티클 초기 위치 (이미터 월드 위치)
+	 * @param InitialVelocity 파티클 초기 속도 (보통 FVector::Zero)
+	 */
+	void PreSpawn(FBaseParticle& Particle, const FVector& InitialLocation, const FVector& InitialVelocity)
+	{
+		// 위치 초기화
+		Particle.Location = InitialLocation;
+		Particle.OldLocation = InitialLocation;
+
+		// 속도 초기화
+		Particle.Velocity = InitialVelocity;
+		Particle.BaseVelocity = InitialVelocity;
+
+		// 수명 초기화
+		Particle.RelativeTime = 0.0f;   // 0.0 = 막 태어남, 1.0 = 죽을 시간
+		Particle.Lifetime = 1.0f;       // 기본 1초 (LifetimeModule에서 덮어씀)
+
+		// 회전 초기화
+		Particle.Rotation = 0.0f;
+		Particle.RotationRate = 0.0f;
+
+		// 크기 초기화
+		Particle.Size = FVector::One(); // (1, 1, 1) - SizeModule에서 덮어씀
+
+		// 색상 초기화
+		Particle.Color = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f); // 흰색 - ColorModule에서 덮어씀
+
+		// 상태 플래그 초기화
+		Particle.Flags = 0;
+	}
+
+	/**
+	 * @brief 파티클 생성 후 마무리 처리 (PostSpawn)
+	 * @details 모듈 실행 후 서브프레임 보정 및 활성 파티클 등록
+	 *
+	 * [서브프레임 보정이란?]
+	 * 문제: 프레임 사이에서 파티클이 태어나면 시작 위치가 부자연스러움
+	 *
+	 * 예시 (10개 생성, DeltaTime=0.016초):
+	 *   - 파티클 0: SpawnTime=0.000초 → 이동 없음
+	 *   - 파티클 1: SpawnTime=0.0016초 → 0.0016초만큼 이동
+	 *   - 파티클 2: SpawnTime=0.0032초 → 0.0032초만큼 이동
+	 *   - ...
+	 *   - 파티클 9: SpawnTime=0.0144초 → 0.0144초만큼 이동
+	 *
+	 * 이렇게 하면 파티클들이 일렬로 나열되어 자연스러운 궤적 형성
+	 *
+	 * @param Particle 처리할 파티클 참조
+	 * @param Interp 보간값 (0.0~1.0, 현재 미사용 - 확장용)
+	 * @param SpawnTime 이 파티클의 스폰 시간 (프레임 시작 기준)
+	 */
+	void PostSpawn(FBaseParticle& Particle, float Interp, float SpawnTime)
+	{
+		// 서브프레임 보정: 프레임 중간에 태어났다면 그 시간만큼 이동시켜줌
+		// Velocity는 이미 모듈에서 설정되어 있음
+		if (SpawnTime > 0.0f)
+		{
+			Particle.Location += Particle.Velocity * SpawnTime;
+		}
+
+		// 활성 파티클 개수 증가 (중요!)
+		// 이 시점에서 파티클이 "살아있는" 상태로 등록됨
+		ActiveParticles++;
+
+		// 고유 ID 증가 (디버깅/추적용)
+		ParticleCounter++;
+	}
+
+	/**
+	 * @brief 에미터에서 파티클을 생성하는 핵심 함수
+	 * @details PreSpawn → 모듈 실행 → PostSpawn 순서로 파티클 생성
+	 *
+	 * [스폰 파이프라인]
+	 * 1. PreSpawn: 파티클 기본값 초기화
+	 * 2. SpawnModules: 각 모듈이 파티클 속성 설정 (Color, Size, Velocity 등)
+	 * 3. PostSpawn: 서브프레임 보정 및 활성 파티클 등록
+	 *
+	 * [서브프레임 분산]
+	 * 한 프레임에 여러 개를 생성할 때, 시간을 균등하게 분산:
+	 *   - Count=10, DeltaTime=0.016초
+	 *   - Increment = 0.016 / 10 = 0.0016초
+	 *   - 파티클 i의 SpawnTime = StartTime + (i * Increment)
+	 *
+	 * @param Count 생성할 파티클 개수
+	 * @param StartTime 첫 파티클의 스폰 시간 (보통 0.0)
+	 * @param Increment 파티클 간 시간 간격 (서브프레임 분산용)
+	 * @param InitialLocation 초기 위치 (이미터 월드 위치)
+	 * @param InitialVelocity 초기 속도 (보통 FVector::Zero, 모듈에서 덮어씀)
+	 * @param EventPayload 이벤트 데이터 (옵션, 현재 미사용)
 	 */
 	void SpawnParticles(
 		int32 Count,
@@ -180,61 +273,47 @@ struct FParticleEmitterInstance
 		FParticleEventInstancePayload* EventPayload = nullptr
 	)
 	{
-		// 안전성 체크
+		// ========== 안전성 체크 ==========
 		if (!CurrentLODLevel || !ParticleData || !ParticleIndices)
 		{
 			return;
 		}
 
-		// 생성 루프
+		// ========== 생성 루프 ==========
 		for (int32 i = 0; i < Count; i++)
 		{
-			// 꽉 차면 더 이상 생성 안 되도록
+			// 메모리 풀이 꽉 찼으면 생성 중단
 			if (ActiveParticles >= MaxActiveParticles)
 			{
 				break;
 			}
 
-			// 매크로를 사용해서 Particle 참조 생성
+			// DECLARE_PARTICLE_PTR 매크로로 파티클 메모리 주소 계산
+			// - CurrentIndex = ParticleIndices[ActiveParticles]
+			// - ParticlePtr = ParticleData + (CurrentIndex * ParticleStride)
+			// - Particle = *((FBaseParticle*)ParticlePtr)
 			DECLARE_PARTICLE_PTR
 
-			// 이번 파티클의 스폰 시간 계산
+			// 이번 파티클의 스폰 시간 계산 (서브프레임 분산)
 			float SpawnTime = StartTime + (i * Increment);
-			float Interp = 0.0f; // 보간값 (서브프레임용)
+			float Interp = 0.0f; // 보간값 (확장용, 현재 미사용)
 
-			// PreSpawn: 기본값 초기화
-			Particle.Location = InitialLocation;
-			Particle.Velocity = InitialVelocity;
-			Particle.BaseVelocity = InitialVelocity;
-			Particle.RelativeTime = 0.0f;
-			Particle.Lifetime = 1.0f; // 기본 1초 (모듈에서 덮어씀)
-			Particle.Rotation = 0.0f;
-			Particle.RotationRate = 0.0f;
-			Particle.Size = FVector::One();
-			Particle.Color = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+			// ========== 1단계: PreSpawn (기본값 초기화) ==========
+			PreSpawn(Particle, InitialLocation, InitialVelocity);
 
-			// Spawn 모듈 실행
+			// ========== 2단계: Spawn 모듈 실행 ==========
+			// 각 모듈이 파티클 속성을 설정 (Color, Size, Velocity, Lifetime 등)
 			for (int32 ModuleIndex = 0; ModuleIndex < CurrentLODLevel->SpawnModules.Num(); ModuleIndex++)
 			{
-			    UParticleModule* Module = CurrentLODLevel->SpawnModules[ModuleIndex];
-			    if (Module && Module->IsSpawnModule())
-			    {
-			        Module->Spawn(this, PayloadOffset, SpawnTime, &Particle);
-			    }
+				UParticleModule* Module = CurrentLODLevel->SpawnModules[ModuleIndex];
+				if (Module && Module->IsSpawnModule())
+				{
+					Module->Spawn(this, PayloadOffset, SpawnTime, &Particle);
+				}
 			}
 
-			// PostSpawn: 서브프레임 보정 및 등록
-			// 프레임 중간에 태어났다면 이동시켜줌
-			if (SpawnTime > 0.0f)
-			{
-				Particle.Location += Particle.Velocity * SpawnTime;
-			}
-
-			// 활성 파티클 개수 증가 (중요!)
-			ActiveParticles++;
-
-			// 고유 ID 증가
-			ParticleCounter++;
+			// ========== 3단계: PostSpawn (서브프레임 보정 및 등록) ==========
+			PostSpawn(Particle, Interp, SpawnTime);
 		}
 	}
 
