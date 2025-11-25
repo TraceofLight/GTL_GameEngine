@@ -112,7 +112,7 @@ private:
 	SParticleEmittersPanel* EmittersPanel = nullptr;
 	SParticleCurveEditorPanel* CurveEditorPanel = nullptr;
 
-	// 뷰포트 영역 캐시
+	// 뷰포트 영역 캐시 (실제 3D 렌더링 영역)
 	FRect ViewportRect;
 
 	// UI 상태
@@ -139,6 +139,9 @@ public:
 	SParticleViewportPanel(SParticleEditorWindow* InOwner);
 	virtual void OnRender() override;
 	virtual void OnUpdate(float DeltaSeconds) override;
+
+	// 3D 콘텐츠 렌더링 영역 (실제 뷰포트 영역)
+	FRect ContentRect;
 
 private:
 	SParticleEditorWindow* Owner = nullptr;

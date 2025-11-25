@@ -47,6 +47,28 @@ public:
 	bool bShowGrid = true;
 	float BackgroundColor[3] = { 0.1f, 0.1f, 0.1f };
 
+	// View Overlays
+	bool bShowParticleCounts = false;
+	bool bShowParticleEventCounts = false;
+	bool bShowParticleTimes = false;
+	bool bShowParticleMemory = false;
+	bool bShowSystemCompleted = true;
+	bool bShowEmitterTickTimes = false;
+
+	// View Options
+	bool bOrbitMode = false;
+	bool bShowVectorFields = false;
+	bool bShowWireframeSphere = false;
+	bool bShowPostProcess = true;
+	bool bShowMotion = false;
+	bool bShowMotionRadius = false;
+	bool bShowGeometry = false;
+	bool bShowGeometryProperties = false;
+
+	// Time Options
+	bool bRealtime = true;
+	bool bLooping = true;
+
 	// 타임라인/커브 에디터 상태
 	float TimelineZoom = 1.0f;
 	float TimelineScroll = 0.0f;

@@ -10,6 +10,7 @@
 #include "Source/Runtime/Engine/Particle/Spawn/ParticleModuleSpawn.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
 #include "Source/Runtime/Engine/GameFramework/ParticleSystemActor.h"
+#include "Source/Runtime/Engine/GameFramework/World.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/AssetManagement/Texture.h"
 #include "FViewport.h"
@@ -244,10 +245,19 @@ void SParticleEditorWindow::OnRender()
 			MainSplitter->OnRender();
 		}
 
-		// 뷰포트 영역 캐시 (ViewportPanel의 Rect)
+		// 뷰포트 영역 캐시 (ViewportPanel의 실제 콘텐츠 영역)
 		if (ViewportPanel)
 		{
-			ViewportRect = ViewportPanel->Rect;
+			// ContentRect가 유효하면 사용, 아니면 패널 Rect 사용
+			if (ViewportPanel->ContentRect.GetWidth() > 0 && ViewportPanel->ContentRect.GetHeight() > 0)
+			{
+				ViewportRect = ViewportPanel->ContentRect;
+			}
+			else
+			{
+				ViewportRect = ViewportPanel->Rect;
+			}
+			ViewportRect.UpdateMinMax();
 		}
 	}
 	ImGui::End();
@@ -302,6 +312,40 @@ void SParticleEditorWindow::OnUpdate(float DeltaSeconds)
 		MainSplitter->OnUpdate(DeltaSeconds);
 	}
 
+	// ViewportClient Tick (카메라 입력 처리)
+	if (ActiveState->Client)
+	{
+		ActiveState->Client->Tick(DeltaSeconds);
+	}
+
+	// View 설정을 World RenderSettings에 동기화
+	if (ActiveState->World)
+	{
+		URenderSettings& RenderSettings = ActiveState->World->GetRenderSettings();
+
+		// Grid 토글
+		if (ActiveState->bShowGrid)
+		{
+			RenderSettings.EnableShowFlag(EEngineShowFlags::SF_Grid);
+		}
+		else
+		{
+			RenderSettings.DisableShowFlag(EEngineShowFlags::SF_Grid);
+		}
+
+		// Post Process 토글 (Fog, FXAA)
+		if (ActiveState->bShowPostProcess)
+		{
+			RenderSettings.EnableShowFlag(EEngineShowFlags::SF_Fog);
+			RenderSettings.EnableShowFlag(EEngineShowFlags::SF_FXAA);
+		}
+		else
+		{
+			RenderSettings.DisableShowFlag(EEngineShowFlags::SF_Fog);
+			RenderSettings.DisableShowFlag(EEngineShowFlags::SF_FXAA);
+		}
+	}
+
 	// 시뮬레이션 업데이트
 	if (ActiveState->bIsSimulating && ActiveState->World)
 	{
@@ -316,6 +360,13 @@ void SParticleEditorWindow::OnMouseMove(FVector2D MousePos)
 	{
 		MainSplitter->OnMouseMove(MousePos);
 	}
+
+	// 뷰포트 영역 내에서 마우스 이벤트 전달 (카메라 컨트롤용)
+	if (ActiveState && ActiveState->Viewport && ViewportRect.Contains(MousePos))
+	{
+		FVector2D LocalPos = MousePos - FVector2D(ViewportRect.Left, ViewportRect.Top);
+		ActiveState->Viewport->ProcessMouseMove(static_cast<int32>(LocalPos.X), static_cast<int32>(LocalPos.Y));
+	}
 }
 
 void SParticleEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
@@ -324,6 +375,13 @@ void SParticleEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 	{
 		MainSplitter->OnMouseDown(MousePos, Button);
 	}
+
+	// 뷰포트 영역 내에서 마우스 이벤트 전달 (카메라 컨트롤용)
+	if (ActiveState && ActiveState->Viewport && ViewportRect.Contains(MousePos))
+	{
+		FVector2D LocalPos = MousePos - FVector2D(ViewportRect.Left, ViewportRect.Top);
+		ActiveState->Viewport->ProcessMouseButtonDown(static_cast<int32>(LocalPos.X), static_cast<int32>(LocalPos.Y), static_cast<int32>(Button));
+	}
 }
 
 void SParticleEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
@@ -331,6 +389,13 @@ void SParticleEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 	if (MainSplitter)
 	{
 		MainSplitter->OnMouseUp(MousePos, Button);
+	}
+
+	// 뷰포트 영역 내에서 마우스 이벤트 전달 (카메라 컨트롤용)
+	if (ActiveState && ActiveState->Viewport && ViewportRect.Contains(MousePos))
+	{
+		FVector2D LocalPos = MousePos - FVector2D(ViewportRect.Left, ViewportRect.Top);
+		ActiveState->Viewport->ProcessMouseButtonUp(static_cast<int32>(LocalPos.X), static_cast<int32>(LocalPos.Y), static_cast<int32>(Button));
 	}
 }
 
@@ -815,6 +880,7 @@ void SParticleEditorWindow::RenderRenameEmitterDialog()
 SParticleViewportPanel::SParticleViewportPanel(SParticleEditorWindow* InOwner)
 	: Owner(InOwner)
 {
+	ContentRect = FRect(0, 0, 0, 0);
 }
 
 void SParticleViewportPanel::OnRender()
@@ -832,34 +898,113 @@ void SParticleViewportPanel::OnRender()
 	{
 		ParticleViewerState* State = Owner->GetActiveState();
 
-		// 뷰포트 간단 툴바 (View/Time 탭)
+		// ================================================================
+		// View 드롭다운 메뉴
+		// ================================================================
 		if (ImGui::Button("View"))
 		{
-			// TODO: 뷰 옵션
+			ImGui::OpenPopup("ViewPopup");
 		}
+		if (ImGui::BeginPopup("ViewPopup"))
+		{
+			if (State)
+			{
+				// View Overlays 서브메뉴
+				if (ImGui::BeginMenu("View Overlays"))
+				{
+					ImGui::MenuItem("Particle Counts", nullptr, &State->bShowParticleCounts);
+					ImGui::MenuItem("Particle Event Counts", nullptr, &State->bShowParticleEventCounts);
+					ImGui::MenuItem("Particle Times", nullptr, &State->bShowParticleTimes);
+					ImGui::MenuItem("Particle Memory", nullptr, &State->bShowParticleMemory);
+					ImGui::MenuItem("System Completed", nullptr, &State->bShowSystemCompleted);
+					ImGui::MenuItem("Emitter Tick Times", nullptr, &State->bShowEmitterTickTimes);
+					ImGui::EndMenu();
+				}
+
+				ImGui::Separator();
+
+				ImGui::MenuItem("Orbit Mode", nullptr, &State->bOrbitMode);
+				ImGui::MenuItem("Vector Fields", nullptr, &State->bShowVectorFields);
+				ImGui::MenuItem("Grid", nullptr, &State->bShowGrid);
+				ImGui::MenuItem("Wireframe Sphere", nullptr, &State->bShowWireframeSphere);
+				ImGui::MenuItem("Post Process", nullptr, &State->bShowPostProcess);
+				ImGui::MenuItem("Motion", nullptr, &State->bShowMotion);
+				ImGui::MenuItem("Motion Radius", nullptr, &State->bShowMotionRadius);
+				ImGui::MenuItem("Geometry", nullptr, &State->bShowGeometry);
+				ImGui::MenuItem("Geometry Properties", nullptr, &State->bShowGeometryProperties);
+			}
+			ImGui::EndPopup();
+		}
+
 		ImGui::SameLine();
+
+		// ================================================================
+		// Time 드롭다운 메뉴
+		// ================================================================
 		if (ImGui::Button("Time"))
 		{
-			// TODO: 타임라인 옵션
+			ImGui::OpenPopup("TimePopup");
 		}
-
-		// 뷰포트 이미지 영역 (배경색으로 표시)
-		ImVec2 viewportSize = ImGui::GetContentRegionAvail();
-		ImDrawList* drawList = ImGui::GetWindowDrawList();
-		ImVec2 p = ImGui::GetCursorScreenPos();
-
-		// 배경색 적용
-		ImU32 bgColor = IM_COL32(30, 30, 30, 255);
-		if (State)
+		if (ImGui::BeginPopup("TimePopup"))
 		{
-			bgColor = IM_COL32(
-				static_cast<int>(State->BackgroundColor[0] * 255),
-				static_cast<int>(State->BackgroundColor[1] * 255),
-				static_cast<int>(State->BackgroundColor[2] * 255),
-				255
-			);
+			if (State)
+			{
+				ImGui::MenuItem("Play/Pause", nullptr, &State->bIsSimulating);
+				ImGui::MenuItem("Realtime", nullptr, &State->bRealtime);
+				ImGui::MenuItem("Loop", nullptr, &State->bLooping);
+
+				ImGui::Separator();
+
+				// AnimSpeed 서브메뉴
+				if (ImGui::BeginMenu("AnimSpeed"))
+				{
+					if (ImGui::MenuItem("100%", nullptr, State->SimulationSpeed == 1.0f))
+					{
+						State->SimulationSpeed = 1.0f;
+					}
+					if (ImGui::MenuItem("50%", nullptr, State->SimulationSpeed == 0.5f))
+					{
+						State->SimulationSpeed = 0.5f;
+					}
+					if (ImGui::MenuItem("25%", nullptr, State->SimulationSpeed == 0.25f))
+					{
+						State->SimulationSpeed = 0.25f;
+					}
+					if (ImGui::MenuItem("10%", nullptr, State->SimulationSpeed == 0.1f))
+					{
+						State->SimulationSpeed = 0.1f;
+					}
+					if (ImGui::MenuItem("1%", nullptr, State->SimulationSpeed == 0.01f))
+					{
+						State->SimulationSpeed = 0.01f;
+					}
+					ImGui::EndMenu();
+				}
+			}
+			ImGui::EndPopup();
 		}
-		drawList->AddRectFilled(p, ImVec2(p.x + viewportSize.x, p.y + viewportSize.y), bgColor);
+
+		// PreviewWindow와 동일한 방식: BeginChild로 뷰포트 영역 생성
+		ImGui::BeginChild("ParticleViewportRenderArea", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollbar);
+		{
+			// ImGui child 윈도우의 실제 위치/크기 가져오기
+			ImVec2 childPos = ImGui::GetWindowPos();
+			ImVec2 childSize = ImGui::GetWindowSize();
+
+			// ContentRect 업데이트 (실제 3D 렌더링 영역)
+			ContentRect.Left = childPos.x;
+			ContentRect.Top = childPos.y;
+			ContentRect.Right = childPos.x + childSize.x;
+			ContentRect.Bottom = childPos.y + childSize.y;
+			ContentRect.UpdateMinMax();
+		}
+		ImGui::EndChild();
+	}
+	else
+	{
+		// 윈도우가 표시되지 않으면 ContentRect 초기화
+		ContentRect = FRect(0, 0, 0, 0);
+		ContentRect.UpdateMinMax();
 	}
 	ImGui::End();
 }

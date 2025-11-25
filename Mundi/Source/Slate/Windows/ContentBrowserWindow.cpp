@@ -40,7 +40,8 @@ UContentBrowserWindow::UContentBrowserWindow()
 
 	// 루트 경로를 Data 폴더로 설정
 	RootPath = std::filesystem::current_path() / "Data";
-	CurrentPath = RootPath;
+	// 초기 경로를 Data/Scenes로 설정
+	CurrentPath = RootPath / "Scenes";
 }
 
 UContentBrowserWindow::~UContentBrowserWindow()
@@ -234,8 +235,8 @@ void UContentBrowserWindow::RenderFolderTreeNode(const std::filesystem::path& Fo
 		{
 			flags |= ImGuiTreeNodeFlags_Selected;
 		}
-		// Data 폴더는 기본적으로 열어둠
-		if (FolderPath == RootPath)
+		// Data 폴더와 Scenes 폴더는 기본적으로 열어둠
+		if (FolderPath == RootPath || FolderPath == (RootPath / "Scenes"))
 		{
 			flags |= ImGuiTreeNodeFlags_DefaultOpen;
 		}
