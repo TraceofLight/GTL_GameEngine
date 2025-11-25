@@ -19,6 +19,7 @@
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/AssetManagement/StaticMesh.h"
 #include "Source/Runtime/Renderer/Material.h"
+#include "Source/Runtime/Engine/Components/BillboardComponent.h"
 
 /**
  * 생성자: 파티클 시스템 컴포넌트 초기화
@@ -63,6 +64,21 @@ UParticleSystemComponent::~UParticleSystemComponent()
 }
 
 // ============== Lifecycle (생명주기) ==============
+
+/**
+ * 월드에 등록될 때 호출 - 에디터 전용 아이콘 생성
+ */
+void UParticleSystemComponent::OnRegister(UWorld* InWorld)
+{
+	Super::OnRegister(InWorld);
+
+	// PIE가 아닐 때만 에디터 전용 빌보드 생성
+	if (!SpriteComponent && InWorld && !InWorld->bPie)
+	{
+		CREATE_EDITOR_COMPONENT(SpriteComponent, UBillboardComponent);
+		SpriteComponent->SetTexture(GDataDir + "/Default/Icon/S_Emitter.PNG");
+	}
+}
 
 /**
  * 컴포넌트 초기화 (씬에 추가될 때 한 번 호출)
@@ -550,6 +566,9 @@ void UParticleSystemComponent::DuplicateSubObjects()
 	// (원본의 인스턴스를 복사하지 않고 Template에서 새로 생성)
 	EmitterInstances.clear();
 	CurrentDynamicData = nullptr;
+
+	// 에디터 전용 컴포넌트는 복제하지 않음 (OnRegister에서 재생성)
+	SpriteComponent = nullptr;
 
 	if (Template)
 	{

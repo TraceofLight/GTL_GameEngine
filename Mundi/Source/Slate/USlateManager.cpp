@@ -315,6 +315,51 @@ void USlateManager::CloseAnimStateMachineWindow()
 	AnimStateMachineWindow = nullptr;
 }
 
+void USlateManager::OpenParticlePreviewWindow()
+{
+	if (ParticlePreviewWindow)
+	{
+		return;
+	}
+
+	ParticlePreviewWindow = new SParticlePreviewWindow();
+
+	// 중앙에 적당한 크기로 열기
+	const float toolbarHeight = 50.0f;
+	const float availableHeight = Rect.GetHeight() - toolbarHeight;
+	const float w = 800.0f;
+	const float h = 600.0f;
+	const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
+	const float y = Rect.Top + toolbarHeight + (availableHeight - h) * 0.5f;
+
+	ParticlePreviewWindow->Initialize(x, y, w, h, World, Device);
+}
+
+void USlateManager::OpenParticlePreviewWindowWithFile(const char* FilePath)
+{
+	if (!ParticlePreviewWindow)
+	{
+		OpenParticlePreviewWindow();
+	}
+
+	if (ParticlePreviewWindow && FilePath && FilePath[0] != '\0')
+	{
+		ParticlePreviewWindow->LoadParticleSystem(FilePath);
+		UE_LOG("Opening ParticlePreviewWindow with file: %s", FilePath);
+	}
+}
+
+void USlateManager::CloseParticlePreviewWindow()
+{
+	if (!ParticlePreviewWindow)
+	{
+		return;
+	}
+
+	delete ParticlePreviewWindow;
+	ParticlePreviewWindow = nullptr;
+}
+
 void USlateManager::SwitchLayout(EViewportLayoutMode NewMode)
 {
     if (NewMode == CurrentMode) return;
@@ -531,6 +576,18 @@ void USlateManager::Render()
         AnimStateMachineWindow->OnRender();
     }
 
+    // Render Particle Preview Window
+    if (ParticlePreviewWindow)
+    {
+        ParticlePreviewWindow->OnRender();
+
+        // 윈도우가 닫혔으면 삭제
+        if (!ParticlePreviewWindow->IsOpen())
+        {
+            CloseParticlePreviewWindow();
+        }
+    }
+
     // 로딩 UI (우상단)
     auto& RM = UResourceManager::GetInstance();
     int32 PendingCount = RM.GetPendingLoadCount();
@@ -540,8 +597,8 @@ void USlateManager::Render()
         extern float CLIENTHEIGHT;
 
         // 화면 중앙 하단에 로딩 UI 표시
-        ImGui::SetNextWindowPos(ImVec2((CLIENTWIDTH - 310) * 0.5f, CLIENTHEIGHT - 150), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(310, 110), ImGuiCond_Always);
+        ImGui::SetNextWindowPos(ImVec2((CLIENTWIDTH - 310) * 0.5f, CLIENTHEIGHT - 155), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(310, 115), ImGuiCond_Always);
 
         ImGui::Begin("Loading Assets", nullptr,
             ImGuiWindowFlags_NoCollapse |
@@ -605,6 +662,11 @@ void USlateManager::Update(float DeltaSeconds)
     if (BlendSpace2DEditorWindow)
     {
         BlendSpace2DEditorWindow->OnUpdate(DeltaSeconds);
+    }
+
+    if (ParticlePreviewWindow)
+    {
+        ParticlePreviewWindow->OnUpdate(DeltaSeconds);
     }
 
     // 콘솔 애니메이션 업데이트

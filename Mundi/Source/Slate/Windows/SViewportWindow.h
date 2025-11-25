@@ -108,4 +108,8 @@ private:
     // 뷰포트 레이아웃 전환 아이콘
     UTexture* IconSingleToMultiViewport = nullptr;  // 단일 뷰포트 아이콘
     UTexture* IconMultiToSingleViewport = nullptr;   // 멀티 뷰포트 아이콘
+
+    // Scene 로드 확인 모달
+    bool bShowSceneLoadModal = false;
+    FString PendingScenePath;
 };

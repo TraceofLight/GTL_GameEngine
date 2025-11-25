@@ -6,6 +6,7 @@
 #include "Windows/SViewportWindow.h"
 #include "Windows/PreviewWindow.h"
 #include "Windows/BlendSpace2DEditorWindow.h"
+#include "Windows/ParticlePreviewWindow.h"
 
 class SSceneIOWindow; // 새로 추가할 UI
 class SDetailsWindow;
@@ -91,6 +92,12 @@ public:
 	void CloseAnimStateMachineWindow();
 	bool IsAnimStateMachineWindowOpen() const { return SkeletalViewerWindow != nullptr; }
 
+	// Particle Preview Window 관리
+	void OpenParticlePreviewWindow();
+	void OpenParticlePreviewWindowWithFile(const char* FilePath);
+	void CloseParticlePreviewWindow();
+	bool IsParticlePreviewWindowOpen() const { return ParticlePreviewWindow != nullptr; }
+
 private:
     FRect Rect; // 이전엔 SWindow로부터 상속받던 영역 정보
 
@@ -139,6 +146,9 @@ private:
 
     // Blend Space 2D Editor window
     SBlendSpace2DEditorWindow* BlendSpace2DEditorWindow = nullptr;
+
+    // Particle Preview window
+    SParticlePreviewWindow* ParticlePreviewWindow = nullptr;
 
     // Content Browser (Bottom panel overlay with animation)
     UContentBrowserWindow* ContentBrowserWindow = nullptr;

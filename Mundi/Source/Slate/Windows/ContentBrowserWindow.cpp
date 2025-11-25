@@ -464,6 +464,13 @@ void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 			UE_LOG("Opening BlendSpace2D Editor for: %s", Entry.FileName.c_str());
 		}
 	}
+	else if (ext == ".psys")
+	{
+		// ParticlePreviewWindow 열기
+		std::string pathStr = Entry.Path.string();
+		USlateManager::GetInstance().OpenParticlePreviewWindowWithFile(pathStr.c_str());
+		UE_LOG("Opening ParticlePreviewWindow for: %s", Entry.FileName.c_str());
+	}
 	else if (ext == ".obj")
 	{
 		// StaticMesh는 현재 전용 뷰어가 없으므로 로그만 출력

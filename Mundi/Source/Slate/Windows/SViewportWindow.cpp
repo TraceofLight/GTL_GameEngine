@@ -14,7 +14,10 @@
 #include "StatsOverlayD2D.h"
 
 #include "StaticMeshActor.h"
-//#include "SkeletalMeshActor.h"
+#include "StaticMeshComponent.h"
+#include "SkeletalMeshActor.h"
+#include "ParticleSystemActor.h"
+#include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
 #include "ResourceManager.h"
 #include <filesystem>
 
@@ -136,6 +139,65 @@ void SViewportWindow::OnRender()
 
 	// 드래그 앤 드롭 타겟 영역 (뷰포트 전체)
 	HandleDropTarget();
+
+	// Scene 로드 확인 모달
+	if (bShowSceneLoadModal)
+	{
+		ImGui::OpenPopup("Load Scene?");
+		bShowSceneLoadModal = false; // OpenPopup 호출 후 플래그 리셋
+	}
+
+	// 모달 중앙 위치 설정
+	ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+	ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+	if (ImGui::BeginPopupModal("Load Scene?", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("씬을 로드하시겠습니까?");
+		ImGui::Separator();
+
+		// 파일명만 표시
+		std::filesystem::path scenePath(PendingScenePath);
+		ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.2f, 1.0f), "%s", scenePath.filename().string().c_str());
+
+		ImGui::Spacing();
+		ImGui::Text("현재 씬의 저장되지 않은 변경사항은 사라집니다.");
+		ImGui::Spacing();
+
+		float buttonWidth = 120.0f;
+		float spacing = 10.0f;
+		float totalWidth = buttonWidth * 2 + spacing;
+		ImGui::SetCursorPosX((ImGui::GetWindowSize().x - totalWidth) * 0.5f);
+
+		if (ImGui::Button("Yes", ImVec2(buttonWidth, 0)))
+		{
+			// 씬 로드
+			if (ViewportClient && ViewportClient->GetWorld())
+			{
+				FWideString widePath(PendingScenePath.begin(), PendingScenePath.end());
+				if (ViewportClient->GetWorld()->LoadLevelFromFile(widePath))
+				{
+					UE_LOG("Scene loaded successfully: %s", PendingScenePath.c_str());
+				}
+				else
+				{
+					UE_LOG("ERROR: Failed to load scene: %s", PendingScenePath.c_str());
+				}
+			}
+			PendingScenePath.clear();
+			ImGui::CloseCurrentPopup();
+		}
+
+		ImGui::SameLine();
+
+		if (ImGui::Button("No", ImVec2(buttonWidth, 0)))
+		{
+			PendingScenePath.clear();
+			ImGui::CloseCurrentPopup();
+		}
+
+		ImGui::EndPopup();
+	}
 }
 
 void SViewportWindow::OnUpdate(float DeltaSeconds)
@@ -2125,14 +2187,13 @@ void SViewportWindow::SpawnActorFromFile(const char* FilePath, const FVector& Wo
 
 	if (extension == ".prefab")
 	{
-		// Prefab 액터 생성
+		// Prefab Actor 생성
 		FWideString widePath = path.wstring();
 		AActor* actor = world->SpawnPrefabActor(widePath);
 		if (actor)
 		{
-			// 드롭한 위치로 액터 이동
 			actor->SetActorLocation(WorldLocation);
-			UE_LOG("Prefab actor spawned successfully at (%f, %f, %f)",
+			UE_LOG("Prefab actor spawned at (%f, %f, %f)",
 				WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
 		}
 		else
@@ -2140,38 +2201,64 @@ void SViewportWindow::SpawnActorFromFile(const char* FilePath, const FVector& Wo
 			UE_LOG("ERROR: Failed to spawn prefab actor from %s", FilePath);
 		}
 	}
-	//else if (extension == ".fbx")
-	//{
-	//	// SkeletalMesh 액터 생성
-	//	ASkeletalMeshActor* actor = world->SpawnActor<ASkeletalMeshActor>(FTransform(WorldLocation));
-	//	if (actor)
-	//	{
-	//		actor->GetSkeletalMeshComponent()->SetSkeletalMesh(FilePath);
-	//		actor->SetActorLabel(path.filename().string().c_str());
-	//		UE_LOG("SkeletalMeshActor spawned successfully at (%f, %f, %f)",
-	//			WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
-	//	}
-	//	else
-	//	{
-	//		UE_LOG("ERROR: Failed to spawn SkeletalMeshActor");
-	//	}
-	//}
-	//else if (extension == ".obj")
-	//{
-	//	// StaticMesh 액터 생성
-	//	AStaticMeshActor* actor = world->SpawnActor<AStaticMeshActor>(FTransform(WorldLocation));
-	//	if (actor)
-	//	{
-	//		actor->GetStaticMeshComponent()->SetStaticMesh(FilePath);
-	//		actor->SetActorLabel(path.filename().string().c_str());
-	//		UE_LOG("StaticMeshActor spawned successfully at (%f, %f, %f)",
-	//			WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
-	//	}
-	//	else
-	//	{
-	//		UE_LOG("ERROR: Failed to spawn StaticMeshActor");
-	//	}
-	//}
+	else if (extension == ".fbx")
+	{
+		// SkeletalMesh Actor 생성
+		ASkeletalMeshActor* actor = world->SpawnActor<ASkeletalMeshActor>(FTransform(WorldLocation, FQuat::Identity(), FVector::One()));
+		if (actor)
+		{
+			actor->GetSkeletalMeshComponent()->SetSkeletalMesh(FilePath);
+			actor->ObjectName = path.filename().string().c_str();
+			UE_LOG("SkeletalMeshActor spawned at (%f, %f, %f)",
+				WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
+		}
+		else
+		{
+			UE_LOG("ERROR: Failed to spawn SkeletalMeshActor");
+		}
+	}
+	else if (extension == ".obj")
+	{
+		// StaticMesh Actor 생성
+		AStaticMeshActor* actor = world->SpawnActor<AStaticMeshActor>(FTransform(WorldLocation, FQuat::Identity(), FVector::One()));
+		if (actor)
+		{
+			actor->GetStaticMeshComponent()->SetStaticMesh(FilePath);
+			actor->ObjectName = path.filename().string().c_str();
+			UE_LOG("StaticMeshActor spawned at (%f, %f, %f)",
+				WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
+		}
+		else
+		{
+			UE_LOG("ERROR: Failed to spawn StaticMeshActor");
+		}
+	}
+	else if (extension == ".psys")
+	{
+		// ParticleSystem Actor 생성
+		AParticleSystemActor* actor = world->SpawnActor<AParticleSystemActor>(FTransform(WorldLocation, FQuat::Identity(), FVector::One()));
+		if (actor)
+		{
+			// TODO: .psys 파일 로딩 구현 후 SetParticleSystem 호출
+			// 현재는 기본 파티클 시스템 사용
+			UParticleSystem* DefaultPS = UParticleSystemComponent::CreateFlareParticleSystem();
+			actor->SetParticleSystem(DefaultPS);
+			actor->ObjectName = path.filename().string().c_str();
+			UE_LOG("ParticleSystemActor spawned at (%f, %f, %f)",
+				WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
+		}
+		else
+		{
+			UE_LOG("ERROR: Failed to spawn ParticleSystemActor");
+		}
+	}
+	else if (extension == ".scene")
+	{
+		// Scene 파일은 모달로 로드 여부 확인
+		bShowSceneLoadModal = true;
+		PendingScenePath = FilePath;
+		UE_LOG("Scene file dropped: %s - showing load confirmation modal", FilePath);
+	}
 	else
 	{
 		UE_LOG("WARNING: Unsupported file type: %s", extension.c_str());

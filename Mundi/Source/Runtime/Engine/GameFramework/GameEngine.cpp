@@ -133,7 +133,7 @@ bool UGameEngine::CreateMainWindow(HINSTANCE hInstance)
     RegisterClassW(&wndclass);
 
     // Load client area size from INI
-    int clientWidth = 1620, clientHeight = 1024;
+    int clientWidth = 1920, clientHeight = 1080;
     if (EditorINI.count("WindowWidth"))
     {
         try { clientWidth = stoi(EditorINI["WindowWidth"]); }
@@ -146,8 +146,8 @@ bool UGameEngine::CreateMainWindow(HINSTANCE hInstance)
     }
 
     // Validate minimum window size to prevent unusable windows
-    if (clientWidth < 800) clientWidth = 1620;
-    if (clientHeight < 600) clientHeight = 1024;
+    if (clientWidth < 800) clientWidth = 1920;
+    if (clientHeight < 600) clientHeight = 1080;
 
     // Convert client area size to window size (including title bar and borders)
     DWORD windowStyle = WS_POPUP | WS_VISIBLE | WS_OVERLAPPEDWINDOW;

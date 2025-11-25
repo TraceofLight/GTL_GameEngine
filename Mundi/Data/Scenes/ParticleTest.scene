@@ -13,7 +13,7 @@
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UDirectionalLightComponent_1",
           "ParentId" : 0,
-          "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+          "RelativeLocation" : [0.000000, -4.190763, 0.000000],
           "RelativeRotationEuler" : [-62.900280, 16.769619, -62.900280],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "ShadowBias" : 0.000010,
@@ -44,8 +44,8 @@
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UAmbientLightComponent_1",
           "ParentId" : 0,
-          "RelativeLocation" : [0.000000, 0.000000, 0.000000],
-          "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+          "RelativeLocation" : [0.000000, 0.000000, 2.215925],
+          "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "ShadowBias" : 0.000010,
           "ShadowResolutionScale" : 1024,
@@ -58,22 +58,12 @@
           "bIsActive" : true,
           "bIsVisible" : true,
           "bTickEnabled" : true
-        }],
-      "RootComponentId" : 62,
-      "Tag" : "",
-      "Type" : "AAmbientLightActor",
-      "bActorHiddenInGame" : false,
-      "bActorIsActive" : true,
-      "bTickInEditor" : false
-    },
-    "75" : {
-      "ObjectName" : "APlayerCameraManager_1",
-      "OwnedComponents" : [{
-          "Id" : 928,
+        }, {
+          "Id" : 926,
           "ObjectName" : "UParticleSystemComponent_1",
-          "ParentId" : 76,
-          "RelativeLocation" : [0.000000, 0.000000, 0.000000],
-          "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+          "ParentId" : 62,
+          "RelativeLocation" : [7.611156, 2.844990, 0.000000],
+          "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "Type" : "UParticleSystemComponent",
           "bBlockComponent" : false,
@@ -82,11 +72,21 @@
           "bIsActive" : true,
           "bIsVisible" : true,
           "bTickEnabled" : true
-        }, {
-          "Id" : 76,
+        }],
+      "RootComponentId" : 62,
+      "Tag" : "",
+      "Type" : "AAmbientLightActor",
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bTickInEditor" : false
+    },
+    "74" : {
+      "ObjectName" : "APlayerCameraManager_1",
+      "OwnedComponents" : [{
+          "Id" : 75,
           "ObjectName" : "USceneComponent_1",
           "ParentId" : 0,
-          "RelativeLocation" : [2.020617, -0.013730, 0.000000],
+          "RelativeLocation" : [2.297396, -0.005249, 0.000000],
           "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "Type" : "USceneComponent",
@@ -95,7 +95,7 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 76,
+      "RootComponentId" : 75,
       "Tag" : "",
       "Type" : "APlayerCameraManager",
       "bActorHiddenInGame" : false,
@@ -103,13 +103,13 @@
       "bTickInEditor" : false
     }
   },
-  "NextUUID" : 968,
+  "NextUUID" : 1024,
   "PerspectiveCamera" : {
     "FOV" : [60.000000],
     "FarClip" : [2000.000000],
-    "Location" : [-6.526615, 3.378805, 5.233457],
+    "Location" : [-10.266825, 7.894429, 7.564322],
     "NearClip" : [0.100000],
-    "Rotation" : [0.000000, 34.600147, -25.499910]
+    "Rotation" : [0.000000, 24.100019, -39.400379]
   },
   "Version" : 1
 }

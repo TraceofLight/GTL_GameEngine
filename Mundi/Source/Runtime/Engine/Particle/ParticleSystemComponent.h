@@ -5,6 +5,7 @@
 
 // Forward declarations
 class UParticleSystem;
+class UBillboardComponent;
 struct FParticleEmitterInstance;
 struct FDynamicEmitterDataBase;
 struct FParticleDynamicData;
@@ -13,6 +14,7 @@ struct FParticleDynamicData;
  * Component that manages and renders a particle system
  * Handles emitter instances and their rendering data
  */
+UCLASS(DisplayName="파티클 시스템", Description="파티클 효과를 재생하는 컴포넌트입니다")
 class UParticleSystemComponent : public UPrimitiveComponent
 {
 	GENERATED_REFLECTION_BODY()
@@ -35,6 +37,12 @@ public:
 	// Serialize/Duplicate
 	void Serialize(const bool bIsLoading, JSON& InOutHandle) override;
 	void DuplicateSubObjects() override;
+
+	/**
+	 * Called when component is registered to world
+	 * 월드에 등록될 때 호출 - 에디터 전용 아이콘 생성
+	 */
+	void OnRegister(UWorld* InWorld) override;
 
 	/**
 	 * Initialize the component
@@ -157,4 +165,7 @@ protected:
 	void ClearEmitterInstances();
 
 	FParticleDynamicData* CurrentDynamicData;
+
+	/** Editor-only sprite component for visualization (not serialized, PIE excluded) */
+	UBillboardComponent* SpriteComponent = nullptr;
 };
