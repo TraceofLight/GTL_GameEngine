@@ -31,6 +31,8 @@
 #include "Color.h"
 #include "PlatformProcess.h"
 #include "JsonSerializer.h"
+#include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
+#include "Source/Slate/USlateManager.h"
 
 using namespace std;
 
@@ -525,6 +527,18 @@ void UTargetActorTransformWidget::RenderSelectedActorDetails(AActor* SelectedAct
 void UTargetActorTransformWidget::RenderSelectedComponentDetails(UActorComponent* SelectedComponent)
 {
 	if (!SelectedComponent) return;
+
+	// ParticleSystemComponent 전용: 에디터 열기 버튼
+	if (UParticleSystemComponent* ParticleComp = Cast<UParticleSystemComponent>(SelectedComponent))
+	{
+		if (ImGui::Button("파티클 에디터 열기", ImVec2(-1, 30)))
+		{
+			USlateManager::GetInstance().OpenParticleEditorWindowWithSystem(ParticleComp->Template);
+		}
+		ImGui::Spacing();
+		ImGui::Separator();
+		ImGui::Spacing();
+	}
 
 	// 리플렉션이 적용된 컴포넌트는 자동으로 UI 생성
 	if (SelectedComponent)
