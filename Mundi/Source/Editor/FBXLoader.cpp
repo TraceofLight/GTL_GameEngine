@@ -16,14 +16,19 @@
 #include <cmath>
 #include <cfloat>
 #include <algorithm>
+#include <mutex>
 
 IMPLEMENT_CLASS(UFbxLoader)
 
+// FBX SDK는 스레드 안전하지 않으므로 mutex로 보호
+static std::mutex GFbxSdkMutex;
+
 UFbxLoader::UFbxLoader()
 {
-	// 메모리 관리, FbxManager 소멸시 Fbx 관련 오브젝트 모두 소멸
+	// 메인 스레드에서 FBX SDK 초기화
 	SdkManager = FbxManager::Create();
-
+	FbxIOSettings* IOSettings = FbxIOSettings::Create(SdkManager, IOSROOT);
+	SdkManager->SetIOSettings(IOSettings);
 }
 
 void UFbxLoader::PreLoad()
@@ -110,7 +115,8 @@ void UFbxLoader::PreLoad()
 
 UFbxLoader::~UFbxLoader()
 {
-	SdkManager->Destroy();
+	// thread_local SdkManager는 각 스레드 종료 시 자동 정리됨
+	// 여기서 Destroy 호출하면 다른 스레드의 SdkManager에 접근할 수 있어 위험
 }
 UFbxLoader& UFbxLoader::GetInstance()
 {
@@ -270,6 +276,9 @@ FSkeletalMeshData* UFbxLoader::LoadFbxMeshAsset(const FString& FilePath)
     // 6. 캐시 로드 실패 시 FBX 파싱
     UE_LOG("Regenerating cache for FBX '%s'...", NormalizedPath.c_str());
 #endif // USE_OBJ_CACHE
+
+    // FBX SDK는 스레드 안전하지 않으므로 mutex로 보호
+    std::lock_guard<std::mutex> FbxLock(GFbxSdkMutex);
 
     // 7. FBX 임포터 생성
     FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
@@ -1561,10 +1570,10 @@ TArray<UAnimSequence*> UFbxLoader::LoadAllFbxAnimations(const FString& FilePath,
 	FWideString WNormalizedPath = UTF8ToWide(NormalizedPath);
 	std::filesystem::path FbxPath(WNormalizedPath);
 
-	// 2. FBX 파일 로드
-	FbxIOSettings* IOSettings = FbxIOSettings::Create(SdkManager, IOSROOT);
-	SdkManager->SetIOSettings(IOSettings);
+	// FBX SDK는 스레드 안전하지 않으므로 mutex로 보호
+	std::lock_guard<std::mutex> FbxLock(GFbxSdkMutex);
 
+	// 2. FBX 파일 로드
 	FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
 	if (!Importer->Initialize(FbxPathAcp.c_str(), -1, SdkManager->GetIOSettings()))
 	{
@@ -2427,15 +2436,14 @@ void UFbxLoader::ApplyArmatureScaleCorrection(UAnimDataModel* DataModel, const F
 
 FSkeleton* UFbxLoader::ExtractSkeletonFromFbx(const FString& FilePath)
 {
+	// FBX SDK는 스레드 안전하지 않으므로 mutex로 보호
+	std::lock_guard<std::mutex> FbxLock(GFbxSdkMutex);
+
 	if (!SdkManager)
 	{
 		UE_LOG("FBX SDK Manager not initialized");
 		return nullptr;
 	}
-
-	// 1. FBX Scene 생성
-	FbxIOSettings* IOSettings = FbxIOSettings::Create(SdkManager, IOSROOT);
-	SdkManager->SetIOSettings(IOSettings);
 
 	FbxImporter* Importer = FbxImporter::Create(SdkManager, "");
 	FbxScene* Scene = FbxScene::Create(SdkManager, "TempScene");

@@ -654,11 +654,11 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\ASkeletalMeshActor.generated.cpp" />
     <ClCompile Include="Generated\ASpotLightActor.generated.cpp" />
     <ClCompile Include="Generated\AStaticMeshActor.generated.cpp" />
-    <ClCompile Include="Generated\UParticleSystemComponent.generated.cpp" />
-    <ClCompile Include="Generated\UParticleSystem.generated.cpp" />
     <ClCompile Include="Generated\UParticleEmitter.generated.cpp" />
     <ClCompile Include="Generated\UParticleLODLevel.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleRequired.generated.cpp" />
+    <ClCompile Include="Generated\UParticleSystem.generated.cpp" />
+    <ClCompile Include="Generated\UParticleSystemComponent.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleColor.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleLifetime.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleSize.generated.cpp" />
@@ -979,11 +979,11 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\ASkeletalMeshActor.generated.h" />
     <ClInclude Include="Generated\ASpotLightActor.generated.h" />
     <ClInclude Include="Generated\AStaticMeshActor.generated.h" />
-    <ClInclude Include="Generated\UParticleSystemComponent.generated.h" />
-    <ClInclude Include="Generated\UParticleSystem.generated.h" />
     <ClInclude Include="Generated\UParticleEmitter.generated.h" />
     <ClInclude Include="Generated\UParticleLODLevel.generated.h" />
     <ClInclude Include="Generated\UParticleModuleRequired.generated.h" />
+    <ClInclude Include="Generated\UParticleSystem.generated.h" />
+    <ClInclude Include="Generated\UParticleSystemComponent.generated.h" />
     <ClInclude Include="Generated\UParticleModuleColor.generated.h" />
     <ClInclude Include="Generated\UParticleModuleLifetime.generated.h" />
     <ClInclude Include="Generated\UParticleModuleSize.generated.h" />

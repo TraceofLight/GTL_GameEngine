@@ -4,6 +4,7 @@
 #include "DDSTextureLoader.h"
 #include "WICTextureLoader.h"
 #include "ObjManager.h"
+#include "FbxLoader.h"
 #include "Quad.h"
 #include "MeshBVH.h"
 #include "Enums.h"
@@ -45,11 +46,15 @@ void UResourceManager::Initialize(ID3D11Device* InDevice, ID3D11DeviceContext* I
 
     InitTexToShaderMap();
 
-    // AsyncLoader 먼저 초기화
+    // FBX 로더 싱글톤을 메인 스레드에서 미리 초기화한다
+    // FBX SDK 글로벌 상태가 메인 스레드에서 먼저 초기화되어야 워커 스레드 안정
+    UFbxLoader::GetInstance();
+
+    // AsyncLoader 초기화
     FAsyncLoader::Get().Initialize(Device);
 
-    CreateTextBillboardMesh();//"TextBillboard"
-    CreateBillboardMesh(); // Billboard
+    CreateTextBillboardMesh();
+    CreateBillboardMesh();
     CreateTextBillboardTexture();
     CreateDefaultShader();
     CreateDefaultMaterial();
