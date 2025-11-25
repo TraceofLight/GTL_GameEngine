@@ -1653,24 +1653,18 @@ void FSceneRenderer::ApplyScreenEffectsPass()
 		return;
 	}
 
-	//RHIDevice->UpdateFXAACB(
-	//FVector2D(static_cast<float>(RHIDevice->GetViewportWidth()), static_cast<float>(RHIDevice->GetViewportHeight())),
-	//	FVector2D(1.0f / static_cast<float>(RHIDevice->GetViewportWidth()), 1.0f / static_cast<float>(RHIDevice->GetViewportHeight())),
-	//	0.0833f,
-	//	0.166f,
-	//	1.0f,	// 0.75 가 기본값이지만 효과 강조를 위해 1로 설정
-	//	12
-		//);
-	// FXAA 파라미터를 RenderSettings에서 가져옴
+	// FXAA 파라미터를 RenderSettings에서 가져옴 (NVIDIA FXAA 3.11 style)
 	URenderSettings& RenderSettings = World->GetRenderSettings();
 
-	RHIDevice->SetAndUpdateConstantBuffer(FXAABufferType(
-		FVector2D(static_cast<float>(RHIDevice->GetViewportWidth()), static_cast<float>(RHIDevice->GetViewportHeight())),
-		FVector2D(1.0f / static_cast<float>(RHIDevice->GetViewportWidth()), 1.0f / static_cast<float>(RHIDevice->GetViewportHeight())),
-		RenderSettings.GetFXAAEdgeThresholdMin(),
-		RenderSettings.GetFXAAEdgeThresholdMax(),
-		RenderSettings.GetFXAAQualitySubPix(),
-		RenderSettings.GetFXAAQualityIterations()));
+	FXAABufferType FXAAParams = {};
+	FXAAParams.InvResolution = FVector2D(
+		1.0f / static_cast<float>(RHIDevice->GetViewportWidth()),
+		1.0f / static_cast<float>(RHIDevice->GetViewportHeight()));
+	FXAAParams.FXAASpanMax = RenderSettings.GetFXAASpanMax();
+	FXAAParams.FXAAReduceMul = RenderSettings.GetFXAAReduceMul();
+	FXAAParams.FXAAReduceMin = RenderSettings.GetFXAAReduceMin();
+
+	RHIDevice->SetAndUpdateConstantBuffer(FXAAParams);
 
 	RHIDevice->PrepareShader(FullScreenTriangleVS, CopyTexturePS);
 

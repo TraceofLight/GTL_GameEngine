@@ -1,122 +1,116 @@
 //--------------------------------------------------------------------------------------
-// 상수 버퍼 (Constant Buffer)
-// CPU에서 GPU로 넘겨주는 데이터
+// FXAA (Fast Approximate Anti-Aliasing) Pixel Shader
+// Based on NVIDIA FXAA 3.11 algorithm
 //--------------------------------------------------------------------------------------
-cbuffer FXAAParametersCB : register(b2)
+
+//--------------------------------------------------------------------------------------
+// Constant Buffer
+//--------------------------------------------------------------------------------------
+cbuffer FXAAParams : register(b2)
 {
-    float2 ScreenSize; // 화면 해상도 (e.g., float2(1920.0f, 1080.0f))
-    float2 InvScreenSize; // 1.0f / ScreenSize (픽셀 하나의 크기)
-    float EdgeThresholdMin; // 엣지 감지 최소 휘도 차이 (0.0833f 권장 -> 1/12)
-    float EdgeThresholdMax; // 엣지 감지 최대 휘도 차이 (0.166f 권장 -> 1/6)
-    float QualitySubPix; // 서브픽셀 품질 (낮을수록 부드러움, 0.75 권장)
-    int QualityIterations; // 엣지 탐색 반복 횟수 (12 권장)
+    float2 InvResolution;   // 1.0 / resolution (e.g., 1/1920, 1/1080)
+    float FXAASpanMax;      // Max search span in pixels (recommended: 8.0)
+    float FXAAReduceMul;    // Reduce multiplier (recommended: 1/8)
+    float FXAAReduceMin;    // Minimum reduce value (recommended: 1/128)
+    float3 Padding;
 };
 
 //--------------------------------------------------------------------------------------
-// 텍스처와 샘플러
+// Texture and Sampler
 //--------------------------------------------------------------------------------------
 Texture2D g_SceneTexture : register(t0);
 SamplerState g_SamplerLinear : register(s0);
 
 //--------------------------------------------------------------------------------------
-// RGB 색상에서 휘도(Luminance)를 계산하는 함수
+// Luminance calculation (Gamma-space optimized for FXAA)
 //--------------------------------------------------------------------------------------
-float RGBToLuminance(float3 InColor)
+float Luma(float3 Color)
 {
-    // ITU-R BT.709 표준에 따른 휘도 공식 (가장 일반적)
-    return dot(InColor, float3(0.2126, 0.7152, 0.0722));
+    // BT.601 coefficients - better suited for gamma-space FXAA
+    // Green is most perceptually significant, followed by red, then blue
+    return dot(Color, float3(0.299f, 0.587f, 0.114f));
 }
 
 //--------------------------------------------------------------------------------------
-// FXAA Pixel Shader
+// FXAA Pixel Shader (NVIDIA FXAA 3.11 style)
 //--------------------------------------------------------------------------------------
 float4 mainPS(float4 Pos : SV_Position, float2 TexCoord : TEXCOORD0) : SV_Target
 {
-    // 1. 중심 및 주변 휘도 샘플
-    float3 colorCenter = g_SceneTexture.Sample(g_SamplerLinear, TexCoord).rgb;
-    float lumaCenter = RGBToLuminance(colorCenter);
+    float2 Tex = TexCoord;
+    float2 Inv = InvResolution;
 
-    float lumaUp = RGBToLuminance(g_SceneTexture.Sample(g_SamplerLinear, TexCoord + float2(0.0, -InvScreenSize.y)).rgb);
-    float lumaDown = RGBToLuminance(g_SceneTexture.Sample(g_SamplerLinear, TexCoord + float2(0.0, InvScreenSize.y)).rgb);
-    float lumaLeft = RGBToLuminance(g_SceneTexture.Sample(g_SamplerLinear, TexCoord + float2(-InvScreenSize.x, 0.0)).rgb);
-    float lumaRight = RGBToLuminance(g_SceneTexture.Sample(g_SamplerLinear, TexCoord + float2(InvScreenSize.x, 0.0)).rgb);
+    // 1. Sample 5 pixels: center + 4 diagonal corners
+    // Diagonal sampling is key for detecting angled edges
+    float3 RgbNW = g_SceneTexture.Sample(g_SamplerLinear, Tex + float2(-Inv.x, -Inv.y)).rgb;
+    float3 RgbNE = g_SceneTexture.Sample(g_SamplerLinear, Tex + float2( Inv.x, -Inv.y)).rgb;
+    float3 RgbSW = g_SceneTexture.Sample(g_SamplerLinear, Tex + float2(-Inv.x,  Inv.y)).rgb;
+    float3 RgbSE = g_SceneTexture.Sample(g_SamplerLinear, Tex + float2( Inv.x,  Inv.y)).rgb;
+    float3 RgbM  = g_SceneTexture.Sample(g_SamplerLinear, Tex).rgb;
 
-    // 2. 지역 대비 계산
-    float lumaMin = min(lumaCenter, min(min(lumaUp, lumaDown), min(lumaLeft, lumaRight)));
-    float lumaMax = max(lumaCenter, max(max(lumaUp, lumaDown), max(lumaLeft, lumaRight)));
-    float lumaRange = lumaMax - lumaMin;
+    // 2. Convert to luminance
+    float LumaNW = Luma(RgbNW);
+    float LumaNE = Luma(RgbNE);
+    float LumaSW = Luma(RgbSW);
+    float LumaSE = Luma(RgbSE);
+    float LumaM  = Luma(RgbM);
 
-    // 3. 엣지 감지 (조기 종료)
-    if (lumaRange < max(EdgeThresholdMin, lumaMax * EdgeThresholdMax))
+    // 3. Compute local contrast (luminance range in neighborhood)
+    float LumaMin = min(LumaM, min(min(LumaNW, LumaNE), min(LumaSW, LumaSE)));
+    float LumaMax = max(LumaM, max(max(LumaNW, LumaNE), max(LumaSW, LumaSE)));
+    float LumaRange = LumaMax - LumaMin;
+
+    // 4. Early exit for low-contrast regions (no edge detected)
+    float Threshold = max(0.0625f, LumaMax * 0.125f);
+    if (LumaRange < Threshold)
     {
-        return float4(colorCenter, 1.0f);
+        return float4(RgbM, 1.0f);
     }
 
-    // 4. 엣지 방향 판단 (수평 vs 수직)
-    float lumaDownLeft = RGBToLuminance(g_SceneTexture.Sample(g_SamplerLinear, TexCoord + float2(-InvScreenSize.x, InvScreenSize.y)).rgb);
-    float lumaUpRight = RGBToLuminance(g_SceneTexture.Sample(g_SamplerLinear, TexCoord + float2(InvScreenSize.x, -InvScreenSize.y)).rgb);
-    float lumaUpLeft = RGBToLuminance(g_SceneTexture.Sample(g_SamplerLinear, TexCoord + float2(-InvScreenSize.x, -InvScreenSize.y)).rgb);
-    float lumaDownRight = RGBToLuminance(g_SceneTexture.Sample(g_SamplerLinear, TexCoord + float2(InvScreenSize.x, InvScreenSize.y)).rgb);
+    // 5. Calculate edge direction using gradient
+    // This produces a continuous 2D direction vector (not just horizontal/vertical)
+    float2 Dir;
+    Dir.x = -((LumaNW + LumaNE) - (LumaSW + LumaSE));
+    Dir.y =  ((LumaNW + LumaSW) - (LumaNE + LumaSE));
 
-    float edgeH = abs((lumaUpLeft + lumaUpRight) - (2.0 * lumaUp))
-                + abs((lumaDownLeft + lumaDownRight) - (2.0 * lumaDown));
-    float edgeV = abs((lumaUpLeft + lumaDownLeft) - (2.0 * lumaLeft))
-                + abs((lumaUpRight + lumaDownRight) - (2.0 * lumaRight));
+    // 6. Direction reduction to stabilize in low-contrast/noisy areas
+    // This prevents over-sensitive direction vectors
+    float DirReduce = max((LumaNW + LumaNE + LumaSW + LumaSE) * (0.25f * FXAAReduceMul), FXAAReduceMin);
 
-    bool isHorizontal = (edgeH >= edgeV);
+    // 7. Normalize direction by the smaller component to reduce orientation bias
+    // Adding DirReduce prevents division by zero and dampens over-reaction
+    float RcpDirMin = 1.0f / (min(abs(Dir.x), abs(Dir.y)) + DirReduce);
+    float2 DirScaled = Dir * RcpDirMin;
 
-    // 5. 탐색 방향 설정
-    float2 dir = isHorizontal ? float2(InvScreenSize.x, 0.0) : float2(0.0, InvScreenSize.y);
-    float dirSign = 0.0;
+    // 8. Clamp direction to maximum search span (in pixels)
+    DirScaled = clamp(DirScaled, -FXAASpanMax, FXAASpanMax);
+    Dir = DirScaled * InvResolution;
 
-    if (isHorizontal)
+    // 9. Two-tap blur along edge direction (inner samples)
+    // Samples at 1/3 and 2/3 along the direction for better coverage
+    float3 RgbA = 0.5f * (
+        g_SceneTexture.Sample(g_SamplerLinear, Tex + Dir * (1.0f / 3.0f - 0.5f)).rgb +
+        g_SceneTexture.Sample(g_SamplerLinear, Tex + Dir * (2.0f / 3.0f - 0.5f)).rgb
+    );
+
+    // 10. Four-tap blur (combines inner + outer samples for better quality)
+    float3 RgbB = RgbA * 0.5f + 0.25f * (
+        g_SceneTexture.Sample(g_SamplerLinear, Tex + Dir * -0.5f).rgb +
+        g_SceneTexture.Sample(g_SamplerLinear, Tex + Dir *  0.5f).rgb
+    );
+
+    // 11. Guard band check to prevent over-blur / halo artifacts
+    // If blended luminance falls outside local range, we've sampled across an edge boundary
+    float LumaB = Luma(RgbB);
+    if ((LumaB < LumaMin) || (LumaB > LumaMax))
     {
-        dirSign = (lumaLeft > lumaRight) ? -1.0 : 1.0;
-    }
-    else
-    {
-        dirSign = (lumaUp > lumaDown) ? -1.0 : 1.0;
-    }
-
-    dir *= dirSign;
-
-    // 6. 엣지 탐색 (min/max 갱신 포함)
-    float2 posNeg = TexCoord - dir;
-    float2 posPos = TexCoord + dir;
-    float lumaNeg = lumaCenter;
-    float lumaPos = lumaCenter;
-
-    for (int i = 0; i < 12; i++)
-    {
-        lumaNeg = RGBToLuminance(g_SceneTexture.Sample(g_SamplerLinear, posNeg).rgb);
-        lumaPos = RGBToLuminance(g_SceneTexture.Sample(g_SamplerLinear, posPos).rgb);
-
-        lumaMin = min(lumaMin, min(lumaNeg, lumaPos));
-        lumaMax = max(lumaMax, max(lumaNeg, lumaPos));
-
-        if (abs(lumaNeg - lumaCenter) >= lumaRange * 0.9f &&
-            abs(lumaPos - lumaCenter) >= lumaRange * 0.9f)
-        {
-            break;
-        }
-
-        posNeg -= dir;
-        posPos += dir;
+        // Fall back to inner samples only
+        RgbB = RgbA;
     }
 
-    // 7. 엣지 중심 계산
-    float distNeg = isHorizontal ? (TexCoord.x - posNeg.x) : (TexCoord.y - posNeg.y);
-    float distPos = isHorizontal ? (posPos.x - TexCoord.x) : (posPos.y - TexCoord.y);
-    float edgeDist = distNeg + distPos;
-    float pixelOffset = (distPos - distNeg) / edgeDist - 0.5f;
+    // 12. Final subpixel blending
+    // Higher values = smoother but potentially more blur
+    const float SubpixBlend = 0.99f;
+    float3 FinalColor = lerp(RgbM, RgbB, SubpixBlend);
 
-    // 8. 서브픽셀 보정
-    pixelOffset = clamp(pixelOffset * QualitySubPix, -0.5, 0.5);
-
-    float2 offsetDir = isHorizontal ? float2(0.0, 1.0) : float2(1.0, 0.0);
-    float2 finalTexCoord = TexCoord + offsetDir * pixelOffset * InvScreenSize;
-
-    // 9. 최종 색상 샘플
-    float3 finalColor = g_SceneTexture.Sample(g_SamplerLinear, finalTexCoord).rgb;
-    return float4(finalColor, 1.0f);
+    return float4(FinalColor, 1.0f);
 }
