@@ -914,6 +914,9 @@ void FSceneRenderer::RenderOpaquePass(EViewMode InRenderViewMode)
 {
 	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "OpaquePass", OwnerRenderer->GetGPUTimer());
 
+	// 🔧 추가: Opaque Pass는 깊이 쓰기 ON
+	RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+
 	// --- 1. 수집 (Collect) ---
 	MeshBatchElements.Empty();
 	SkinnedMeshBatchElements.Empty();
@@ -1425,7 +1428,7 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 	if (InMeshBatches.IsEmpty()) return;
 
 	// RHI 상태 초기 설정 (Opaque Pass 기본값)
-	RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual); // 깊이 쓰기 ON
+	//RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual); // 깊이 쓰기 ON
 
 	// PS 리소스 초기화
 	ID3D11ShaderResourceView* nullSRVs[2] = { nullptr, nullptr };

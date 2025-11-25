@@ -424,6 +424,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     {
         // 텍스처 모듈레이션: 조명 결과에 텍스처 곱하기
         finalPixel.rgb *= texColor.rgb;
+		finalPixel.a *= texColor.a;
     }
     // 주의: Material.DiffuseColor는 이미 Vertex Shader에서 적용됨
     // 여기서 추가 색상 적용 불필요
@@ -459,6 +460,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     if (bHasTexture)
     {
         baseColor.rgb = texColor.rgb;
+		baseColor.a *= texColor.a;
     }
     else if (bHasMaterial)
     {
@@ -568,6 +570,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     if (bHasTexture)
     {
         baseColor.rgb = texColor.rgb;
+		baseColor.a *= texColor.a;
     }
     else if (bHasMaterial)
     {
@@ -673,7 +676,8 @@ PS_OUTPUT mainPS(PS_INPUT Input)
         if (bHasTexture)
         {
             finalPixel.rgb = texColor.rgb;
-        }
+			finalPixel.a *= texColor.a;
+		}
         // 자체발광 추가
         finalPixel.rgb += Material.EmissiveColor;
     }
@@ -682,7 +686,8 @@ PS_OUTPUT mainPS(PS_INPUT Input)
         // LerpColor와 블렌드
         finalPixel.rgb = lerp(finalPixel.rgb, LerpColor.rgb, LerpColor.a);
         finalPixel.rgb *= texColor.rgb;
-    }
+		finalPixel.a *= texColor.a;
+	}
 
     // 머티리얼 투명도 적용 (0=불투명, 1=투명)
     if (bHasMaterial)

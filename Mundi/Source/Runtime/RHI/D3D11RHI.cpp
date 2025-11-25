@@ -143,8 +143,8 @@ void D3D11RHI::CreateBlendState()
     BlendDesc.IndependentBlendEnable = TRUE;
     Rt0 = BlendDesc.RenderTarget[0];
     Rt0.BlendEnable = TRUE;
-    Rt0.SrcBlend = D3D11_BLEND_BLEND_FACTOR;
-    Rt0.DestBlend = D3D11_BLEND_BLEND_FACTOR; 
+    Rt0.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    Rt0.DestBlend = D3D11_BLEND_ONE;
     Rt0.BlendOp = D3D11_BLEND_OP_ADD;         // 더하기 연산
     Rt0.SrcBlendAlpha = D3D11_BLEND_ONE;
     Rt0.DestBlendAlpha = D3D11_BLEND_ONE;

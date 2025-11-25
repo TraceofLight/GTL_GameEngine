@@ -519,7 +519,7 @@ UParticleSystem* UParticleSystemComponent::CreateFlareParticleSystem()
 
 	// 속도: 각 방향으로 -1 ~ 1 랜덤
 	VelocityModule->StartVelocity = FVectorDistribution(
-		FVector(-1.0f, -1.0f, -1.0f),
+		FVector(-1.0f, -1.0f, 0.0f),
 		FVector(1.0f, 1.0f, 1.0f)
 	);
 	VelocityModule->bInWorldSpace = false;
@@ -535,8 +535,8 @@ UParticleSystem* UParticleSystemComponent::CreateFlareParticleSystem()
 
 	// 크기: 10 ~ 30 유닛 랜덤
 	SizeModule->StartSize = FVectorDistribution(
-		FVector(1.0f, 1.0f, 1.0f),
-		FVector(1.0f, 1.0f, 1.0f)
+		FVector(10.0f, 10.0f, 10.0f),
+		FVector(20.0f, 20.0f, 20.0f)
 	);
 
 	LODLevel->Modules.Add(SizeModule);
