@@ -497,18 +497,18 @@ struct FParticleEmitterInstance
 
 		// Allocate and copy particle data to container
 		// ActiveParticles 크기만큼만 할당
-		OutData.DataContainer.Allocate(ActiveParticles, ParticleStride);
+		OutData.DataContainer.Allocate(MaxActiveParticles, ParticleStride);
 		FMemory::Memcpy(
 			OutData.DataContainer.ParticleData,
 			ParticleData,
-			ActiveParticles * ParticleStride // 활성 파티클만
+			MaxActiveParticles * ParticleStride // 활성 파티클만
 		);
 
 		// Copy particle indices
 		FMemory::Memcpy(
 			OutData.DataContainer.ParticleIndices,
 			ParticleIndices,
-			ActiveParticles * sizeof(uint16)
+			MaxActiveParticles * sizeof(uint16)
 		);
 
 		// Get scale from component transform
@@ -528,7 +528,8 @@ struct FParticleEmitterInstance
 		}
 		else
 		{
-			OutData.SortMode = EParticleSortMode::None;
+			//OutData.SortMode = EParticleSortMode::None;
+			OutData.SortMode = EParticleSortMode::ViewProjDepth;
 		}
 
 		return true;

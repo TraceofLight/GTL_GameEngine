@@ -33,7 +33,7 @@ struct FDynamicEmitterReplayDataBase
 		ActiveParticleCount(0),
 		ParticleStride(0),
 		Scale(FVector(1.0f)),
-		SortMode(EParticleSortMode::None)	// Default to PSORTMODE_None		  
+		SortMode(EParticleSortMode::ViewProjDepth)	// Default to PSORTMODE_None		  
 	{
 	}
 

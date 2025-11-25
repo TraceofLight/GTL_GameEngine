@@ -480,7 +480,7 @@ UParticleSystem* UParticleSystemComponent::CreateFlareParticleSystem()
 	RequiredModule->SetEmitterDuration(1.0f);
 	RequiredModule->SetEmitterLoops(0); // 무한 루프
 	RequiredModule->SetScreenAlignment(EParticleScreenAlignment::Square); // 카메라를 향함
-	RequiredModule->SetSortMode(EParticleSortMode::None);
+	RequiredModule->SetSortMode(EParticleSortMode::ViewProjDepth);
 	RequiredModule->SetUseLocalSpace(false); // 월드 공간 사용
 
 	LODLevel->RequiredModule = RequiredModule;

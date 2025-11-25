@@ -149,7 +149,9 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 		// 주의: FillReplayData에서 ActiveParticles만큼만 연속으로 복사했으므로
 		// ParticleIndices를 사용하지 않고 SortedParticleIndex를 직접 사용해야 함
 		const int32 SortedParticleIndex = ParticleOrder[ParticleIndex].ParticleIndex;
-		const uint8* ParticlePtr = ParticleData + (SortedParticleIndex * ParticleStride);
+		const int32 CurrentIndex = ParticleIndices[SortedParticleIndex];
+		const uint8* ParticlePtr = ParticleData + (CurrentIndex * ParticleStride);
+		//const uint8* ParticlePtr = ParticleData + (SortedParticleIndex * ParticleStride);
 		const FBaseParticle& Particle = *reinterpret_cast<const FBaseParticle*>(ParticlePtr);
 
 		// 정점 인덱스 계산
