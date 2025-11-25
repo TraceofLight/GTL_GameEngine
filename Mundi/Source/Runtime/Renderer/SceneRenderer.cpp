@@ -112,7 +112,7 @@ void FSceneRenderer::Render()
 	}
 	else if (View->RenderSettings->GetViewMode() == EViewMode::VMI_Unlit)
 	{
-		RenderLitPath();	// Unlit 모드는 조명 없이 렌더링
+		RenderLitPath();	// Unlit 모드에서는 조명 없이 렌더링
 	}
 	else if (View->RenderSettings->GetViewMode() == EViewMode::VMI_WorldNormal)
 	{
@@ -298,7 +298,7 @@ void FSceneRenderer::RenderShadowMaps()
 		0.5f, 0.5f, 0.0f, 1.0f
 	);
 
-	// 1.2. 2D 섀도우 요청 수집
+	// 1.2. 2D 섀dow 요청 수집
 	TArray<FShadowRenderRequest> Requests2D;
 	TArray<FShadowRenderRequest> RequestsCube;
 	for (UDirectionalLightComponent* Light : LightManager->GetDirectionalLightList())
@@ -966,22 +966,8 @@ void FSceneRenderer::RenderParticlesPass()
 	// 깊이 쓰기는 OFF, 깊이 테스트는 ON (다른 오브젝트 뒤에 가려지도록)
 	RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
 
-	// 파티클 전용 셰이더 매크로 생성 (ViewShaderMacros 기반으로 PARTICLE 매크로 추가)
-	TArray<FShaderMacro> ParticleShaderMacros = View->ViewShaderMacros;
-	ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE", "1" });
-
-	// 파티클용 셰이더 로드 (UberLit 셰이더를 PARTICLE 매크로와 함께 로드)
+	// 셰이더 경로
 	FString ShaderPath = "Shaders/Materials/UberLit.hlsl";
-	UShader* ParticleShader = UResourceManager::GetInstance().Load<UShader>(ShaderPath, ParticleShaderMacros);
-	FShaderVariant* ShaderVariant = ParticleShader->GetOrCompileShaderVariant(ParticleShaderMacros);
-	
-	if (!ParticleShader || !ShaderVariant)
-	{
-		UE_LOG("RenderParticlesPass: Failed to load Particle shader with macros!");
-		RHIDevice->OMSetBlendState(false);
-		RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
-		return;
-	}
 
 	// 파티클 메시 배치 수집
 	TArray<FMeshBatchElement> ParticleBatchElements;
@@ -1001,17 +987,39 @@ void FSceneRenderer::RenderParticlesPass()
 		{
 			if(!EmitterData)
 				continue;
+
+			// 에미터 타입에 따라 다른 셰이더 매크로 사용
+			TArray<FShaderMacro> ParticleShaderMacros = View->ViewShaderMacros;
+			
+			// Mesh 파티클인지 Sprite 파티클인지 확인
+			bool bIsMeshParticle = false;
+			if (EmitterData->GetSource().eEmitterType == EDynamicEmitterType::Mesh)
+			{
+				bIsMeshParticle = true;
+				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE_MESH", "1" });
+			}
+			else
+			{
+				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE", "1" });
+			}
+
+			// 파티클용 셰이더 로드
+			UShader* ParticleShader = UResourceManager::GetInstance().Load<UShader>(ShaderPath, ParticleShaderMacros);
+			FShaderVariant* ShaderVariant = ParticleShader->GetOrCompileShaderVariant(ParticleShaderMacros);
+			
+			if (!ParticleShader || !ShaderVariant)
+			{
+				UE_LOG("RenderParticlesPass: Failed to load Particle shader with macros!");
+				continue;
+			}
+
+			// 메시 배치 수집
 			EmitterData->GetDynamicMeshElementsEmitter(ParticleBatchElements, View);
 
-			// 각 파티클 컴포넌트의 메시 배치 수집
-			//ParticleComponent->CollectMeshBatches(ParticleBatchElements, View);
-
-			// 수집된 파티클이 없으면 리턴
+			// 수집된 파티클이 없으면 다음 에미터로
 			if (ParticleBatchElements.IsEmpty())
 			{
-				RHIDevice->OMSetBlendState(false);
-				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
-				return;
+				continue;
 			}
 
 			// 파티클 배치에 셰이더 설정
@@ -1142,7 +1150,7 @@ void FSceneRenderer::RenderPostProcessingPasses()
 	// Ensure first post-process pass samples from the current scene output
  	TArray<FPostProcessModifier> PostProcessModifiers = View->Modifiers;
 
-	// TODO : 다른 데에서 하기, 맨 앞으로 넘기기
+	// TODO : 다른 데서 하기, 맨 앞으로 넘기기
 	// Register Height Fog Modifiers, 첫번째만 등록 된다.
 	if (0 < SceneGlobals.Fogs.Num())
 	{
@@ -1538,7 +1546,7 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 
 			// 2. 샘플러 바인딩
 			ID3D11SamplerState* Samplers[4] = { DefaultSampler, DefaultSampler, ShadowSampler, VSMSampler };
-			RHIDevice->GetDeviceContext()->PSSetSamplers(0, 4, Samplers);
+		 RHIDevice->GetDeviceContext()->PSSetSamplers(0, 4, Samplers);
 
 			// 3. 재질 CBuffer 바인딩
 			RHIDevice->SetAndUpdateConstantBuffer(PixelConst);
@@ -1591,7 +1599,28 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 			RHIDevice->SetAndUpdateConstantBuffer_Pointer_FSkinningBuffer(pMatrixData, MatrixDataSize);
 		}
 
-		RHIDevice->GetDeviceContext()->DrawIndexed(Batch.IndexCount, Batch.StartIndex, Batch.BaseVertexIndex);
+		// 5. 인스턴스 버퍼가 있으면 DrawIndexedInstanced 사용
+		if (Batch.InstanceBuffer != nullptr && Batch.InstanceCount > 0)
+		{
+			// 인스턴스 버퍼를 슬롯 1에 바인딩 (메시 정점은 슬롯 0)
+			UINT InstanceStride = Batch.InstanceStride;
+			UINT InstanceOffset = 0;
+			RHIDevice->GetDeviceContext()->IASetVertexBuffers(1, 1, &Batch.InstanceBuffer, &InstanceStride, &InstanceOffset);
+
+			// 인스턴스드 드로우 콜
+			RHIDevice->GetDeviceContext()->DrawIndexedInstanced(
+				Batch.IndexCount,
+				Batch.InstanceCount,
+				Batch.StartIndex,
+				Batch.BaseVertexIndex,
+				0 // StartInstanceLocation
+			);
+		}
+		else
+		{
+			// 일반 드로우 콜
+			RHIDevice->GetDeviceContext()->DrawIndexed(Batch.IndexCount, Batch.StartIndex, Batch.BaseVertexIndex);
+		}
 	}
 
 	// 루프 종료 후 리스트 비우기 (옵션)

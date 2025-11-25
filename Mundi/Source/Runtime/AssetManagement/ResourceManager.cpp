@@ -551,6 +551,29 @@ void UResourceManager::InitShaderILMap()
 	layout.clear();
 
     ShaderToInputLayoutMap["Shaders/Utility/FullScreenTriangle_VS.hlsl"] = {};  // FullScreenTriangle 는 InputLayout을 사용하지 않는다
+
+	// ────────────────────────────────
+	// Mesh Particle 렌더링 (정점: 일반 메시, 인스턴스: FMeshParticleInstanceVertex)
+	// ────────────────────────────────
+	// Slot 0: 메시 정점 (FVertexDynamic)
+	layout.Add({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+	layout.Add({ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+	layout.Add({ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+	layout.Add({ "TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+	layout.Add({ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+
+	// Slot 1: 인스턴스 데이터 (FMeshParticleInstanceVertex)
+	layout.Add({ "INSTANCE_COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D11_INPUT_PER_INSTANCE_DATA, 1 });     // Color
+	layout.Add({ "INSTANCE_TRANSFORM", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D11_INPUT_PER_INSTANCE_DATA, 1 }); // Transform[0]
+	layout.Add({ "INSTANCE_TRANSFORM", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D11_INPUT_PER_INSTANCE_DATA, 1 }); // Transform[1]
+	layout.Add({ "INSTANCE_TRANSFORM", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D11_INPUT_PER_INSTANCE_DATA, 1 }); // Transform[2]
+	layout.Add({ "INSTANCE_VELOCITY", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 64, D3D11_INPUT_PER_INSTANCE_DATA, 1 });  // Velocity
+	layout.Add({ "INSTANCE_SUBUVPARAMS", 0, DXGI_FORMAT_R16G16B16A16_SINT, 1, 80, D3D11_INPUT_PER_INSTANCE_DATA, 1 });// SubUVParams[4]
+	layout.Add({ "INSTANCE_SUBUVLERP", 0, DXGI_FORMAT_R32_FLOAT, 1, 88, D3D11_INPUT_PER_INSTANCE_DATA, 1 });          // SubUVLerp
+	layout.Add({ "INSTANCE_RELATIVETIME", 0, DXGI_FORMAT_R32_FLOAT, 1, 92, D3D11_INPUT_PER_INSTANCE_DATA, 1 });       // RelativeTime
+
+	ShaderToInputLayoutMap["Shaders/Materials/UberLit.hlsl#PARTICLE_MESH"] = layout;
+	layout.clear();
 }
 
 TArray<D3D11_INPUT_ELEMENT_DESC>& UResourceManager::GetProperInputLayout(const FString& InShaderName)
@@ -724,7 +747,7 @@ FTextureData* UResourceManager::CreateOrGetTextureData(const FWideString& FilePa
     // 확장자 판별 (안전)
     std::filesystem::path realPath(FilePath);
     std::wstring ext = realPath.has_extension() ? realPath.extension().wstring() : L"";
-for (auto& ch : ext) ch = static_cast<wchar_t>(::towlower(ch));
+    for (auto& ch : ext) ch = static_cast<wchar_t>(std::towlower(ch));
 
     HRESULT hr = E_FAIL;
     if (ext == L".dds")

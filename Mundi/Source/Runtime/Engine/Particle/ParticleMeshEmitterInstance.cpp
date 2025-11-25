@@ -38,6 +38,32 @@ void FParticleMeshEmitterInstance::Init(UParticleEmitter* InTemplate, UParticleS
 		MeshTypeData = Cast<UParticleModuleTypeDataMesh>(CurrentLODLevel->TypeDataModule);
 	}
 
+	// 3. InstanceBuffer 생성 (GPU 인스턴싱용)
+	if (Component && MaxActiveParticles > 0)
+	{
+		ID3D11Device* Device = GEngine.GetRHIDevice()->GetDevice();
+		if (Device)
+		{
+			// 동적 인스턴스 버퍼 생성 (매 프레임 업데이트)
+			const int32 MaxInstanceCount = MaxActiveParticles;
+
+			// 버퍼 디스크립션 설정
+			D3D11_BUFFER_DESC BufferDesc = {};
+			BufferDesc.ByteWidth = sizeof(FMeshParticleInstanceVertex) * MaxInstanceCount;
+			BufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+			BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+			BufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+			BufferDesc.MiscFlags = 0;
+			BufferDesc.StructureByteStride = 0;
+
+			// 버퍼 생성
+			HRESULT hr = Device->CreateBuffer(&BufferDesc, nullptr, &InstanceBuffer);
+			if (FAILED(hr))
+			{
+				UE_LOG("Failed to create particle mesh instance buffer");
+			}
+		}
+	}
 }
 
 // ============== GetDynamicData ==============

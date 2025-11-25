@@ -381,9 +381,13 @@ void UShader::CreateInputLayout(ID3D11Device* Device, const FString& InShaderPat
 		{
 			FinalKey += "#GPU_SKINNING";
 		}
-		else if (Macro.Name == "PARTICLE")
+		else if (Macro.Name == "PARTICLE" && Macro.Definition == "1")
 		{
 			FinalKey += "#PARTICLE";
+		}
+		else if (Macro.Name == "PARTICLE_MESH" && Macro.Definition == "1")
+		{
+			FinalKey += "#PARTICLE_MESH";
 		}
 	}
 
