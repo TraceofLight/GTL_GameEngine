@@ -272,6 +272,29 @@ void FSceneRenderer::RenderShadowMaps()
 		}
 	}
 
+	// 파티클 메시 배치 수집
+	for (UParticleSystemComponent* ParticleComponent : Proxies.Particles)
+	{
+		if (!ParticleComponent || !ParticleComponent->IsVisible())
+			continue;
+
+		// 파티클 동적 데이터 업데이트
+		ParticleComponent->UpdateDynamicData();
+		FParticleDynamicData* DynamicData = ParticleComponent->GetCurrentDynamicData();
+
+		if (!DynamicData)
+			continue;
+
+		for (FDynamicEmitterDataBase* EmitterData : DynamicData->DynamicEmitterDataArray)
+		{
+			if (!EmitterData || EmitterData->GetSource().eEmitterType != EDynamicEmitterType::Mesh)
+				continue;
+
+			// 메시 배치 수집
+			EmitterData->GetDynamicMeshElementsEmitter(ShadowMeshBatches, View);
+		}
+	}
+
 	// NOTE: 카메라 오버라이드 기능을 항상 활성화 하기 위해서 그림자를 그릴 곳이 없어도 함수 실행
 	//if (ShadowMeshBatches.IsEmpty()) return;
 
@@ -298,7 +321,7 @@ void FSceneRenderer::RenderShadowMaps()
 		0.5f, 0.5f, 0.0f, 1.0f
 	);
 
-	// 1.2. 2D 섀dow 요청 수집
+	// 1.2. 2D 섭shadow 요청 수집
 	TArray<FShadowRenderRequest> Requests2D;
 	TArray<FShadowRenderRequest> RequestsCube;
 	for (UDirectionalLightComponent* Light : LightManager->GetDirectionalLightList())
@@ -484,6 +507,11 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 	FShaderVariant* SkinningShaderVariant = DepthVS->GetOrCompileShaderVariant(ShaderMacros);
 	if (!SkinningShaderVariant) return;
 
+	// Mesh Particle용 셰이더 변형 추가
+	TArray<FShaderMacro> ParticleMeshMacros({{"PARTICLE_MESH", "1"}});
+	FShaderVariant* ParticleMeshShaderVariant = DepthVS->GetOrCompileShaderVariant(ParticleMeshMacros);
+	if (!ParticleMeshShaderVariant) return;
+
 	// vsm용 픽셀 셰이더
 	UShader* DepthPs = UResourceManager::GetInstance().Load<UShader>("Shaders/Shadows/DepthOnly_PS.hlsl");
 	if (!DepthPs || !DepthPs->GetPixelShader()) return;
@@ -523,7 +551,16 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 
 	for (const FMeshBatchElement& Batch : InShadowBatches)
 	{
-		if (Batch.SkinningMatrices)
+		// Mesh Particle인지 확인 (InstanceBuffer가 있고 InstanceCount > 0이면 Mesh Particle)
+		bool bIsMeshParticle = (Batch.InstanceBuffer != nullptr && Batch.InstanceCount > 0);
+
+		if (bIsMeshParticle)
+		{
+			// Mesh Particle용 셰이더 설정
+			RHIDevice->GetDeviceContext()->IASetInputLayout(ParticleMeshShaderVariant->InputLayout);
+			RHIDevice->GetDeviceContext()->VSSetShader(ParticleMeshShaderVariant->VertexShader, nullptr, 0);
+		}
+		else if (Batch.SkinningMatrices)
 		{
 			TIME_PROFILE(SKINNING_CPU_TASK)
 			RHIDevice->GetDeviceContext()->IASetInputLayout(SkinningShaderVariant->InputLayout);
@@ -567,8 +604,27 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 		// 오브젝트별 World 행렬 설정 (VS에서 필요)
 		RHIDevice->SetAndUpdateConstantBuffer(ModelBufferType(Batch.WorldMatrix, Batch.WorldMatrix.InverseAffine().Transpose()));
 
-		// 드로우 콜
-		RHIDevice->GetDeviceContext()->DrawIndexed(Batch.IndexCount, Batch.StartIndex, Batch.BaseVertexIndex);
+		// Mesh Particle의 경우 인스턴스 버퍼 바인딩 및 DrawIndexedInstanced 호출
+		if (bIsMeshParticle)
+		{
+			UINT InstanceStride = Batch.InstanceStride;
+			UINT InstanceOffset = 0;
+			RHIDevice->GetDeviceContext()->IASetVertexBuffers(1, 1, &Batch.InstanceBuffer, &InstanceStride, &InstanceOffset);
+
+			// 인스턴스드 드로우 콜
+			RHIDevice->GetDeviceContext()->DrawIndexedInstanced(
+				Batch.IndexCount,
+				Batch.InstanceCount,
+				Batch.StartIndex,
+				Batch.BaseVertexIndex,
+				0 // StartInstanceLocation
+			);
+		}
+		else
+		{
+			// 일반 드로우 콜
+			RHIDevice->GetDeviceContext()->DrawIndexed(Batch.IndexCount, Batch.StartIndex, Batch.BaseVertexIndex);
+		}
 	}
 }
 
@@ -1473,7 +1529,7 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 		if (!Batch.VertexShader || !Batch.PixelShader || !Batch.VertexBuffer || !Batch.IndexBuffer || Batch.VertexStride == 0)
 		{
 			// 셰이더나 버퍼, 스트라이드 정보가 없으면 그릴 수 없음
-			//UE_LOG("[%s] 머티리얼에 셰이더가 컴파일에 실패했거나 없습니다!", Batch.Material->GetFilePath().c_str());	// NOTE: 로그가 매 프레임 떠서 셰이더 컴파일 에러 로그를 볼 수 없어서 주석 처리
+			//UE_LOG("[%s] 머티리얼에 셰더가 컴파일에 실패했거나 없습니다!", Batch.Material->GetFilePath().c_str());	// NOTE: 로그가 매 프레임 떠서 셰이더 컴파일 에러 로그를 볼 수 없어서 주석 처리
 			continue;
 		}
 
@@ -1493,7 +1549,7 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 		//
 		// 'Material' 또는 'Instance SRV' 둘 중 하나라도 바뀌면
 		// 모든 픽셀 리소스를 다시 바인딩해야 합니다.
-		if (Batch.Material != CurrentMaterial || Batch.InstanceShaderResourceView != CurrentInstanceSRV)
+		if ( Batch.Material != CurrentMaterial || Batch.InstanceShaderResourceView != CurrentInstanceSRV)
 		{
 			ID3D11ShaderResourceView* DiffuseTextureSRV = nullptr; // t0
 			ID3D11ShaderResourceView* NormalTextureSRV = nullptr;  // t1
