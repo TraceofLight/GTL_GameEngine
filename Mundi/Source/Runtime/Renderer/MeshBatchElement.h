@@ -44,6 +44,16 @@ struct FMeshBatchElement
 	// 정점 버퍼의 스트라이드(Stride)입니다. (정점 1개의 크기)
 	uint32 VertexStride = 0;
 
+	// --- GPU 인스턴싱 데이터 ---
+	// 인스턴스 버퍼 (메시 파티클용)
+	ID3D11Buffer* InstanceBuffer = nullptr;
+
+	// 인스턴스 개수 (0이면 인스턴싱 미사용)
+	uint32 InstanceCount = 0;
+
+	// 인스턴스 버퍼의 스트라이드
+	uint32 InstanceStride = 0;
+
 
 	// --- 3. 인스턴스 데이터 (Instance Data) ---
 	// 드로우 콜마다 고유하게 설정되는 데이터입니다. (정렬 키가 아님)

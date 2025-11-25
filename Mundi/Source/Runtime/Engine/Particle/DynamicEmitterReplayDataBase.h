@@ -113,11 +113,17 @@ struct FDynamicSpriteEmitterReplayDataBase : public FDynamicEmitterReplayDataBas
 	virtual void Serialize(FArchive& Ar);
 };
 
+// Forward declaration
+class UStaticMesh;
+
 // 발제에는 없는 구조체
 /** Source data for Mesh emitters */
 struct FDynamicMeshEmitterReplayData
 	: public FDynamicSpriteEmitterReplayDataBase
 {
+	/** 메시 에셋 참조 (렌더러에서 버퍼 접근용) */
+	UStaticMesh* MeshAsset;
+
 	int32	SubUVInterpMethod;
 	int32	SubUVDataOffset;
 	int32	SubImages_Horizontal;
@@ -131,6 +137,7 @@ struct FDynamicMeshEmitterReplayData
 
 	/** Constructor */
 	FDynamicMeshEmitterReplayData() :
+		MeshAsset(nullptr),
 		SubUVInterpMethod(0),
 		SubUVDataOffset(0),
 		SubImages_Horizontal(0),
