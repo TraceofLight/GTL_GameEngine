@@ -989,13 +989,14 @@ void FSceneRenderer::RenderParticlesPass()
 				continue;
 
 			// 에미터 타입에 따라 다른 셰이더 매크로 사용
-			TArray<FShaderMacro> ParticleShaderMacros = View->ViewShaderMacros;
+			TArray<FShaderMacro> ParticleShaderMacros;
 			
 			// Mesh 파티클인지 Sprite 파티클인지 확인
 			bool bIsMeshParticle = false;
 			if (EmitterData->GetSource().eEmitterType == EDynamicEmitterType::Mesh)
 			{
 				bIsMeshParticle = true;
+				ParticleShaderMacros = View->ViewShaderMacros; // 메시 파티클은 뷰 모드 매크로도 포함
 				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE_MESH", "1" });
 			}
 			else

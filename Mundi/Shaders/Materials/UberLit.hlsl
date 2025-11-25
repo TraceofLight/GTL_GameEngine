@@ -12,6 +12,10 @@
 // --- 스키닝 방식 선택 ---
 // #define GPU_SKINNING 1
 
+// --- 파티클 타입 선택 ---
+// #define PARTICLE 1         // 스프라이트 파티클 (빌보드)
+// #define PARTICLE_MESH 1    // 메시 파티클 (3D 메시)
+
 // --- Material 구조체 (OBJ 머티리얼 정보) ---
 // 주의: SPECULAR_COLOR 매크로에서 사용하므로 include 전에 정의 필요
 struct FMaterial
@@ -120,6 +124,23 @@ struct VS_INPUT
 	float4 Color : COLOR;
 
 	float2 TexCoord : TEXCOORD0;
+#elif PARTICLE_MESH
+	// Mesh particle uses standard vertex input + per-instance data
+	float3 Position : POSITION;
+	float3 Normal : NORMAL0;
+	float2 TexCoord : TEXCOORD0;
+	float4 Tangent : TANGENT0;
+	float4 Color : COLOR;
+	
+	// Per-instance data (slot 1) - 순서와 타입이 C++ Input Layout과 정확히 일치해야 함
+	float4 InstanceColor : INSTANCE_COLOR;                // offset 0:  DXGI_FORMAT_R32G32B32A32_FLOAT
+	float4 InstanceTransform0 : INSTANCE_TRANSFORM0;      // offset 16: DXGI_FORMAT_R32G32B32A32_FLOAT
+	float4 InstanceTransform1 : INSTANCE_TRANSFORM1;      // offset 32: DXGI_FORMAT_R32G32B32A32_FLOAT
+	float4 InstanceTransform2 : INSTANCE_TRANSFORM2;      // offset 48: DXGI_FORMAT_R32G32B32A32_FLOAT
+	float4 InstanceVelocity : INSTANCE_VELOCITY;          // offset 64: DXGI_FORMAT_R32G32B32A32_FLOAT
+	int4 InstanceSubUVParams : INSTANCE_SUBUVPARAMS;      // offset 80: DXGI_FORMAT_R16G16B16A16_SINT
+	float InstanceSubUVLerp : INSTANCE_SUBUVLERP;         // offset 88: DXGI_FORMAT_R32_FLOAT
+	float InstanceRelativeTime : INSTANCE_RELATIVETIME;   // offset 92: DXGI_FORMAT_R32_FLOAT
 #else
 	float3 Position : POSITION;
 	float3 Normal : NORMAL0;
@@ -159,6 +180,7 @@ PS_INPUT mainVS(VS_INPUT Input)
 
     PS_INPUT Out;
 	float3 worldNormal = float3(0, 0, 0);
+	float4 Color = Input.Color;
 
 #if PARTICLE	
     // World position
@@ -204,6 +226,40 @@ PS_INPUT mainVS(VS_INPUT Input)
 	TBN._m20_m21_m22 = cross(Right, Up);
 
 	Out.TBN = TBN;
+#elif PARTICLE_MESH
+	// Mesh particle: Reconstruct world matrix from instance data
+	row_major float4x4 InstanceWorldMatrix;
+	InstanceWorldMatrix[0] = float4(Input.InstanceTransform0.xyz, 0);
+	InstanceWorldMatrix[1] = float4(Input.InstanceTransform1.xyz, 0);
+	InstanceWorldMatrix[2] = float4(Input.InstanceTransform2.xyz, 0);
+	InstanceWorldMatrix[3] = float4(Input.InstanceTransform0.w, Input.InstanceTransform1.w, Input.InstanceTransform2.w, 1);
+
+	row_major float4x4 FinalWorldMatrix = mul(InstanceWorldMatrix, WorldMatrix);
+	
+	// Transform position to world space using instance transform
+	float4 worldPos = mul(float4(Input.Position, 1.0f), FinalWorldMatrix);
+	Out.WorldPos = worldPos.xyz;
+	
+	// Transform to view and projection space
+	float4 viewPos = mul(worldPos, ViewMatrix);
+	Out.Position = mul(viewPos, ProjectionMatrix);
+	
+	// Transform normal using instance world matrix
+	worldNormal = normalize(mul(Input.Normal, (float3x3)FinalWorldMatrix));
+	Out.Normal = worldNormal;
+	
+	// Transform tangent using instance world matrix
+	float3 Tangent = normalize(mul(Input.Tangent.xyz, (float3x3)FinalWorldMatrix));
+	float3 BiTangent = normalize(cross(Tangent, worldNormal) * Input.Tangent.w);
+	row_major float3x3 TBN;
+	TBN._m00_m01_m02 = Tangent;
+	TBN._m10_m11_m12 = BiTangent;
+	TBN._m20_m21_m22 = worldNormal;
+	Out.TBN = TBN;
+	
+	// Use instance color
+	Color = Input.InstanceColor;
+	Out.TexCoord = Input.TexCoord;
 #else
 
 #if GPU_SKINNING
@@ -264,7 +320,7 @@ PS_INPUT mainVS(VS_INPUT Input)
     float3 viewDir = normalize(CameraPosition - Out.WorldPos);
 
     // 베이스 색상 결정 (일관성을 위해 Lambert/Phong과 동일한 로직)
-    float4 baseColor = Input.Color;
+    float4 baseColor = Color;
     if (bHasMaterial)
     {
         // 머티리얼 diffuse 색상 사용
@@ -308,15 +364,15 @@ PS_INPUT mainVS(VS_INPUT Input)
 
 #elif LIGHTING_MODEL_LAMBERT
     // Lambert Shading: 픽셀별 계산을 위해 픽셀 셰이더로 데이터 전달
-    Out.Color = Input.Color;
+    Out.Color = Color;
 
 #elif LIGHTING_MODEL_PHONG
     // Phong Shading: 픽셀별 계산을 위해 픽셀 셰이더로 데이터 전달
-    Out.Color = Input.Color;
+    Out.Color = Color;
 
 #else
     // 조명 모델 미정의 - 정점 색상을 그대로 전달
-    Out.Color = Input.Color;
+    Out.Color = Color;
 
 #endif
 
