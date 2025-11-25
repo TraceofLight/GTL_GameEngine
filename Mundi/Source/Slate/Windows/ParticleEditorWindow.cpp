@@ -18,6 +18,10 @@
 extern float CLIENTWIDTH;
 extern float CLIENTHEIGHT;
 
+// ============================================================================
+// SParticleEditorWindow
+// ============================================================================
+
 SParticleEditorWindow::SParticleEditorWindow()
 {
 	ViewportRect = FRect(0, 0, 0, 0);
@@ -25,6 +29,13 @@ SParticleEditorWindow::SParticleEditorWindow()
 
 SParticleEditorWindow::~SParticleEditorWindow()
 {
+	// 스플리터/패널 정리
+	if (MainSplitter)
+	{
+		delete MainSplitter;
+		MainSplitter = nullptr;
+	}
+
 	// 모든 탭 정리
 	for (ParticleViewerState* State : Tabs)
 	{
@@ -50,6 +61,34 @@ bool SParticleEditorWindow::Initialize(float StartX, float StartY, float Width, 
 		ActiveTabIndex = 0;
 	}
 
+	// 패널 생성
+	ViewportPanel = new SParticleViewportPanel(this);
+	DetailPanel = new SParticleDetailPanel(this);
+	EmittersPanel = new SParticleEmittersPanel(this);
+	CurveEditorPanel = new SParticleCurveEditorPanel(this);
+
+	// 스플리터 계층 구조 생성
+	// 좌측: Viewport(상) | Detail(하)
+	LeftSplitter = new SSplitterV();
+	LeftSplitter->SetSplitRatio(0.6f);
+	LeftSplitter->SideLT = ViewportPanel;
+	LeftSplitter->SideRB = DetailPanel;
+
+	// 우측: Emitters(상) | CurveEditor(하)
+	RightSplitter = new SSplitterV();
+	RightSplitter->SetSplitRatio(0.5f);
+	RightSplitter->SideLT = EmittersPanel;
+	RightSplitter->SideRB = CurveEditorPanel;
+
+	// 메인: Left(좌) | Right(우)
+	MainSplitter = new SSplitterH();
+	MainSplitter->SetSplitRatio(0.5f);
+	MainSplitter->SideLT = LeftSplitter;
+	MainSplitter->SideRB = RightSplitter;
+
+	// 스플리터 초기 Rect 설정 (첫 OnUpdate 전에 유효한 값을 가지도록)
+	MainSplitter->SetRect(StartX, StartY, StartX + Width, StartY + Height);
+
 	bIsOpen = true;
 	bRequestFocus = true;
 
@@ -63,8 +102,7 @@ void SParticleEditorWindow::OnRender()
 		return;
 	}
 
-	ImGuiWindowFlags flags = ImGuiWindowFlags_NoSavedSettings |
-		ImGuiWindowFlags_MenuBar;
+	ImGuiWindowFlags flags = ImGuiWindowFlags_NoSavedSettings;
 
 	// 초기 배치
 	if (!bInitialPlacementDone)
@@ -93,279 +131,434 @@ void SParticleEditorWindow::OnRender()
 		bRequestFocus = false;
 	}
 
+	bool bIsFocused = false;
+
 	if (ImGui::Begin(WindowTitle.c_str(), &bIsOpen, flags))
 	{
-		// 메뉴바
-		if (ImGui::BeginMenuBar())
+		// 포커스 상태 확인
+		bIsFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+
+		// 윈도우 위치/크기 추적
+		ImVec2 windowPos = ImGui::GetWindowPos();
+		ImVec2 windowSize = ImGui::GetWindowSize();
+		Rect = FRect(windowPos.x, windowPos.y, windowPos.x + windowSize.x, windowPos.y + windowSize.y);
+
+		// 콘텐츠 영역 계산
+		ImVec2 contentMin = ImGui::GetWindowContentRegionMin();
+		ImVec2 contentMax = ImGui::GetWindowContentRegionMax();
+		FRect contentRect(
+			windowPos.x + contentMin.x,
+			windowPos.y + contentMin.y,
+			windowPos.x + contentMax.x,
+			windowPos.y + contentMax.y
+		);
+
+		// 스플리터에 영역 설정 및 렌더링
+		if (MainSplitter)
 		{
-			if (ImGui::BeginMenu("View"))
-			{
-				ImGui::MenuItem("Time", nullptr, &ActiveState->bIsSimulating);
-				ImGui::EndMenu();
-			}
-			ImGui::EndMenuBar();
+			MainSplitter->SetRect(contentRect.Left, contentRect.Top, contentRect.Right, contentRect.Bottom);
+			MainSplitter->OnRender();
 		}
 
-		// 툴바
-		RenderToolbar();
-
-		ImGui::Separator();
-
-		// 메인 컨텐츠 영역
-		ImVec2 contentSize = ImGui::GetContentRegionAvail();
-
-		// 커브 에디터 높이 계산
-		float curveEditorHeight = contentSize.y * CurveEditorHeightRatio;
-		float upperHeight = contentSize.y - curveEditorHeight - 5.0f;
-
-		// 상단 영역 (Viewport + Emitters + Details)
-		ImGui::BeginChild("UpperArea", ImVec2(0, upperHeight), false);
+		// 뷰포트 영역 캐시 (ViewportPanel의 Rect)
+		if (ViewportPanel)
 		{
-			ImVec2 upperSize = ImGui::GetContentRegionAvail();
-
-			// 뷰포트 너비 계산
-			float viewportWidth = upperSize.x * ViewportWidthRatio;
-			float emittersPanelWidth = upperSize.x * EmittersPanelWidthRatio;
-			float detailsPanelWidth = upperSize.x * DetailsPanelWidthRatio;
-
-			// 뷰포트 패널
-			ImGui::BeginChild("ViewportPanel", ImVec2(viewportWidth, 0), true);
-			RenderViewportPanel();
-			ImGui::EndChild();
-
-			ImGui::SameLine();
-
-			// 이미터 패널
-			ImGui::BeginChild("EmittersPanel", ImVec2(emittersPanelWidth, 0), true);
-			RenderEmittersPanel();
-			ImGui::EndChild();
-
-			ImGui::SameLine();
-
-			// 디테일 패널
-			ImGui::BeginChild("DetailsPanel", ImVec2(detailsPanelWidth, 0), true);
-			RenderDetailsPanel();
-			ImGui::EndChild();
+			ViewportRect = ViewportPanel->Rect;
 		}
-		ImGui::EndChild();
-
-		ImGui::Separator();
-
-		// 커브 에디터
-		ImGui::BeginChild("CurveEditor", ImVec2(0, curveEditorHeight), true);
-		RenderCurveEditor();
-		ImGui::EndChild();
-
-		// 윈도우 Rect 업데이트
-		ImVec2 pos = ImGui::GetWindowPos();
-		ImVec2 size = ImGui::GetWindowSize();
-		Rect.Left = pos.x;
-		Rect.Top = pos.y;
-		Rect.Right = pos.x + size.x;
-		Rect.Bottom = pos.y + size.y;
 	}
 	ImGui::End();
+
+	// ParticleEditor가 포커스되어 있으면 모든 패널을 최상위로 올림
+	if (bIsFocused)
+	{
+		ImGui::SetWindowFocus("##ParticleViewport");
+		ImGui::SetWindowFocus("Details##ParticleDetail");
+		ImGui::SetWindowFocus("Emitters##ParticleEmitters");
+		ImGui::SetWindowFocus("Curve Editor##ParticleCurve");
+	}
+}
+
+void SParticleEditorWindow::OnUpdate(float DeltaSeconds)
+{
+	if (!bIsOpen || !ActiveState)
+	{
+		return;
+	}
+
+	// 스플리터 업데이트
+	if (MainSplitter)
+	{
+		MainSplitter->OnUpdate(DeltaSeconds);
+	}
+
+	// 시뮬레이션 업데이트
+	if (ActiveState->bIsSimulating && ActiveState->World)
+	{
+		ActiveState->AccumulatedTime += DeltaSeconds * ActiveState->SimulationSpeed;
+		ActiveState->World->Tick(DeltaSeconds * ActiveState->SimulationSpeed);
+	}
+}
+
+void SParticleEditorWindow::OnMouseMove(FVector2D MousePos)
+{
+	if (MainSplitter)
+	{
+		MainSplitter->OnMouseMove(MousePos);
+	}
+}
+
+void SParticleEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
+{
+	if (MainSplitter)
+	{
+		MainSplitter->OnMouseDown(MousePos, Button);
+	}
+}
+
+void SParticleEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
+{
+	if (MainSplitter)
+	{
+		MainSplitter->OnMouseUp(MousePos, Button);
+	}
 }
 
 void SParticleEditorWindow::OnRenderViewport()
 {
-	if (!ActiveState || !ActiveState->Viewport)
+	if (!bIsOpen || !ActiveState || !ActiveState->Viewport)
 	{
 		return;
 	}
 
-	// 뷰포트 렌더링
-	ActiveState->Viewport->Render();
-}
-
-void SParticleEditorWindow::RenderToolbar()
-{
-	// Restart Sim
-	if (ImGui::Button("Restart Sim"))
+	// 뷰포트 영역이 유효한 경우에만 렌더링
+	if (ViewportRect.GetWidth() > 0 && ViewportRect.GetHeight() > 0)
 	{
-		RestartSimulation();
-	}
-	ImGui::SameLine();
+		ActiveState->Viewport->Resize(
+			static_cast<uint32>(ViewportRect.Left),
+			static_cast<uint32>(ViewportRect.Top),
+			static_cast<uint32>(ViewportRect.GetWidth()),
+			static_cast<uint32>(ViewportRect.GetHeight())
+		);
 
-	// Restart Level (동일 기능)
-	if (ImGui::Button("Restart Level"))
-	{
-		RestartSimulation();
-	}
-	ImGui::SameLine();
-
-	ImGui::Separator();
-	ImGui::SameLine();
-
-	// Undo/Redo (TODO)
-	ImGui::BeginDisabled(true);
-	ImGui::Button("Undo");
-	ImGui::SameLine();
-	ImGui::Button("Redo");
-	ImGui::EndDisabled();
-	ImGui::SameLine();
-
-	ImGui::Separator();
-	ImGui::SameLine();
-
-	// Thumbnail (TODO)
-	if (ImGui::Button("Thumbnail"))
-	{
-		// TODO: 썸네일 캡처
-	}
-	ImGui::SameLine();
-
-	// Bounds
-	if (ImGui::Checkbox("Bounds", &ActiveState->bShowBounds))
-	{
-		// TODO: 바운드 표시 토글
-	}
-	ImGui::SameLine();
-
-	// Origin Axis
-	if (ImGui::Checkbox("Origin Axis", &ActiveState->bShowOriginAxis))
-	{
-		// TODO: 원점 축 표시 토글
-	}
-	ImGui::SameLine();
-
-	// Background Color
-	ImGui::ColorEdit3("##BgColor", BackgroundColor, ImGuiColorEditFlags_NoInputs);
-}
-
-void SParticleEditorWindow::RenderViewportPanel()
-{
-	ImGui::Text("Viewport");
-	ImGui::Separator();
-
-	// View/Time 탭
-	if (ImGui::BeginTabBar("ViewportTabs"))
-	{
-		if (ImGui::BeginTabItem("View"))
+		if (ActiveState->Client)
 		{
-			// 뷰포트 영역
-			ImVec2 availSize = ImGui::GetContentRegionAvail();
-			if (availSize.x > 10 && availSize.y > 10 && ActiveState && ActiveState->Viewport)
-			{
-				// 뷰포트 크기 업데이트
-				uint32 newWidth = static_cast<uint32>(availSize.x);
-				uint32 newHeight = static_cast<uint32>(availSize.y);
-
-				ImVec2 cursorPos = ImGui::GetCursorScreenPos();
-				ActiveState->Viewport->Resize(
-					static_cast<uint32>(cursorPos.x),
-					static_cast<uint32>(cursorPos.y),
-					newWidth, newHeight);
-
-				// 뷰포트 영역 캐시
-				ViewportRect.Left = cursorPos.x;
-				ViewportRect.Top = cursorPos.y;
-				ViewportRect.Right = cursorPos.x + availSize.x;
-				ViewportRect.Bottom = cursorPos.y + availSize.y;
-
-				// 프레임 카운터 표시
-				ImGui::Text("Frame: %d / %d",
-					ActiveState->PreviewActor ? 0 : 0, 0);
-			}
-			ImGui::EndTabItem();
+			ActiveState->Client->Draw(ActiveState->Viewport);
 		}
-
-		if (ImGui::BeginTabItem("Time"))
-		{
-			// 시간 설정
-			ImGui::SliderFloat("Speed", &ActiveState->SimulationSpeed, 0.0f, 2.0f);
-
-			if (ImGui::Checkbox("Simulating", &ActiveState->bIsSimulating))
-			{
-			}
-
-			ImGui::Text("Time: %.2f", ActiveState->AccumulatedTime);
-			ImGui::EndTabItem();
-		}
-
-		ImGui::EndTabBar();
 	}
 }
 
-void SParticleEditorWindow::RenderEmittersPanel()
+void SParticleEditorWindow::LoadParticleSystem(const FString& Path)
 {
-	ImGui::Text("Emitters");
-	ImGui::Separator();
-
-	if (!ActiveState || !ActiveState->CurrentSystem)
+	if (!ActiveState)
 	{
-		ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No particle system loaded");
 		return;
 	}
 
-	UParticleSystem* System = ActiveState->CurrentSystem;
-
-	// 이미터 목록을 가로로 나열
-	ImGui::BeginChild("EmitterList", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
-
-	for (int32 i = 0; i < System->GetNumEmitters(); ++i)
+	// TODO: 파일에서 파티클 시스템 로드
+	UParticleSystem* System = UResourceManager::GetInstance().Load<UParticleSystem>(Path);
+	if (System)
 	{
-		UParticleEmitter* Emitter = System->GetEmitter(i);
-		if (!Emitter)
-		{
-			continue;
-		}
-
-		ImGui::PushID(i);
-
-		// 이미터 컬럼 (고정 너비)
-		ImGui::BeginChild("EmitterColumn", ImVec2(180, 0), true);
-
-		// 이미터 헤더
-		RenderEmitterHeader(Emitter, i);
-
-		// 모듈 스택
-		RenderModuleStack(Emitter, i);
-
-		ImGui::EndChild();
-
-		ImGui::SameLine();
-		ImGui::PopID();
+		SetParticleSystem(System);
 	}
-
-	ImGui::EndChild();
 }
 
-void SParticleEditorWindow::RenderEmitterHeader(UParticleEmitter* Emitter, int32 EmitterIndex)
+void SParticleEditorWindow::SetParticleSystem(UParticleSystem* InSystem)
 {
-	// 이미터 이름 (편집 가능)
-	bool bSelected = (ActiveState->SelectedEmitterIndex == EmitterIndex &&
-		ActiveState->SelectedModuleIndex == -1);
+	if (!ActiveState)
+	{
+		return;
+	}
 
-	ImVec4 headerColor = bSelected ?
-		ImVec4(0.8f, 0.5f, 0.2f, 1.0f) :
-		ImVec4(0.6f, 0.4f, 0.2f, 1.0f);
+	ActiveState->CurrentSystem = InSystem;
+	ActiveState->SelectedEmitterIndex = -1;
+	ActiveState->SelectedModuleIndex = -1;
+	ActiveState->SelectedEmitter = nullptr;
+	ActiveState->SelectedModule = nullptr;
+
+	// 프리뷰 액터에 설정
+	if (ActiveState->PreviewActor && InSystem)
+	{
+		ActiveState->PreviewActor->SetParticleSystem(InSystem);
+	}
+}
+
+FViewport* SParticleEditorWindow::GetViewport() const
+{
+	return ActiveState ? ActiveState->Viewport : nullptr;
+}
+
+FViewportClient* SParticleEditorWindow::GetViewportClient() const
+{
+	return ActiveState ? ActiveState->Client : nullptr;
+}
+
+// ============================================================================
+// SParticleViewportPanel
+// ============================================================================
+
+SParticleViewportPanel::SParticleViewportPanel(SParticleEditorWindow* InOwner)
+	: Owner(InOwner)
+{
+}
+
+void SParticleViewportPanel::OnRender()
+{
+	ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
+	ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
+
+	ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
+		ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoSavedSettings;
+
+	if (ImGui::Begin("##ParticleViewport", nullptr, flags))
+	{
+		// 툴바
+		{
+			ParticleViewerState* State = Owner->GetActiveState();
+
+			if (ImGui::Button(State && State->bIsSimulating ? "Pause" : "Play"))
+			{
+				if (State)
+				{
+					State->bIsSimulating = !State->bIsSimulating;
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Restart"))
+			{
+				if (State && State->PreviewActor)
+				{
+					UParticleSystemComponent* PSC = State->PreviewActor->GetParticleSystemComponent();
+					if (PSC)
+					{
+						PSC->ActivateSystem(true);
+					}
+				}
+			}
+			ImGui::SameLine();
+			if (State)
+			{
+				ImGui::SetNextItemWidth(100);
+				ImGui::SliderFloat("Speed", &State->SimulationSpeed, 0.1f, 2.0f, "%.1fx");
+			}
+		}
+
+		// 뷰포트 이미지 영역 (배경색으로 표시)
+		ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		ImVec2 p = ImGui::GetCursorScreenPos();
+		drawList->AddRectFilled(p, ImVec2(p.x + viewportSize.x, p.y + viewportSize.y), IM_COL32(30, 30, 30, 255));
+	}
+	ImGui::End();
+}
+
+void SParticleViewportPanel::OnUpdate(float DeltaSeconds)
+{
+	// 뷰포트 업데이트는 메인 윈도우에서 처리
+}
+
+// ============================================================================
+// SParticleDetailPanel
+// ============================================================================
+
+SParticleDetailPanel::SParticleDetailPanel(SParticleEditorWindow* InOwner)
+	: Owner(InOwner)
+{
+}
+
+void SParticleDetailPanel::OnRender()
+{
+	ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
+	ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
+
+	ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoSavedSettings;
+
+	if (ImGui::Begin("Details##ParticleDetail", nullptr, flags))
+	{
+		ParticleViewerState* State = Owner->GetActiveState();
+		if (!State)
+		{
+			ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No active state");
+			ImGui::End();
+			return;
+		}
+
+		if (!State->SelectedModule)
+		{
+			if (State->SelectedEmitter)
+			{
+				ImGui::Text("Emitter: %s", State->SelectedEmitter->EmitterName.c_str());
+				ImGui::Separator();
+
+				// 이미터 기본 정보
+				ImGui::Text("LOD Levels: %d", State->SelectedEmitter->GetNumLODs());
+				ImGui::Text("Peak Particles: %d", State->SelectedEmitter->GetPeakActiveParticles());
+
+				// 에디터 색상
+				float color[4] = {
+					State->SelectedEmitter->EmitterEditorColor.R,
+					State->SelectedEmitter->EmitterEditorColor.G,
+					State->SelectedEmitter->EmitterEditorColor.B,
+					State->SelectedEmitter->EmitterEditorColor.A
+				};
+				if (ImGui::ColorEdit4("Editor Color", color))
+				{
+					State->SelectedEmitter->EmitterEditorColor.R = color[0];
+					State->SelectedEmitter->EmitterEditorColor.G = color[1];
+					State->SelectedEmitter->EmitterEditorColor.B = color[2];
+					State->SelectedEmitter->EmitterEditorColor.A = color[3];
+				}
+			}
+			else
+			{
+				ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Select a module to edit");
+			}
+		}
+		else
+		{
+			RenderModuleProperties(State->SelectedModule);
+		}
+	}
+	ImGui::End();
+}
+
+void SParticleDetailPanel::RenderModuleProperties(UParticleModule* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	const char* className = Module->GetClass() ? Module->GetClass()->Name : "Unknown";
+	ImGui::Text("Module: %s", className);
+	ImGui::Separator();
+
+	// 모듈 기본 정보 표시
+	ImGui::Text("Spawn Module: %s", Module->IsSpawnModule() ? "Yes" : "No");
+	ImGui::Text("Update Module: %s", Module->IsUpdateModule() ? "Yes" : "No");
+	ImGui::Text("3D Draw Mode: %s", Module->Is3DDrawMode() ? "Yes" : "No");
+
+	// TODO: 리플렉션 시스템을 통한 프로퍼티 렌더링
+}
+
+// ============================================================================
+// SParticleEmittersPanel
+// ============================================================================
+
+SParticleEmittersPanel::SParticleEmittersPanel(SParticleEditorWindow* InOwner)
+	: Owner(InOwner)
+{
+}
+
+void SParticleEmittersPanel::OnRender()
+{
+	ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
+	ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
+
+	ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoSavedSettings |
+		ImGuiWindowFlags_HorizontalScrollbar;
+
+	if (ImGui::Begin("Emitters##ParticleEmitters", nullptr, flags))
+	{
+		ParticleViewerState* State = Owner->GetActiveState();
+		if (!State || !State->CurrentSystem)
+		{
+			ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No particle system loaded");
+			ImGui::End();
+			return;
+		}
+
+		UParticleSystem* System = State->CurrentSystem;
+
+		// 이미터들을 수평으로 배치 (Cascade 스타일)
+		const float EmitterColumnWidth = 180.0f;
+		const float ModuleHeight = 24.0f;
+
+		for (int32 i = 0; i < System->GetNumEmitters(); ++i)
+		{
+			UParticleEmitter* Emitter = System->GetEmitter(i);
+			if (!Emitter)
+			{
+				continue;
+			}
+
+			ImGui::BeginGroup();
+
+			// 이미터 헤더
+			RenderEmitterHeader(Emitter, i);
+
+			// 모듈 스택
+			ImGui::BeginChild(("EmitterModules" + std::to_string(i)).c_str(),
+				ImVec2(EmitterColumnWidth, 0), true);
+			RenderModuleStack(Emitter, i);
+			ImGui::EndChild();
+
+			ImGui::EndGroup();
+
+			ImGui::SameLine();
+		}
+
+		// + 버튼으로 새 이미터 추가
+		if (ImGui::Button("+", ImVec2(30, 30)))
+		{
+			// TODO: 새 이미터 추가
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Add Emitter");
+		}
+	}
+	ImGui::End();
+}
+
+void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int32 EmitterIndex)
+{
+	ParticleViewerState* State = Owner->GetActiveState();
+	bool bSelected = (State->SelectedEmitterIndex == EmitterIndex && State->SelectedModuleIndex == -1);
+
+	// 이미터 색상으로 헤더 배경
+	ImVec4 headerColor(
+		Emitter->EmitterEditorColor.R,
+		Emitter->EmitterEditorColor.G,
+		Emitter->EmitterEditorColor.B,
+		1.0f
+	);
 
 	ImGui::PushStyleColor(ImGuiCol_Header, headerColor);
-	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(headerColor.x + 0.1f, headerColor.y + 0.1f, headerColor.z + 0.1f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(headerColor.x * 1.2f, headerColor.y * 1.2f, headerColor.z * 1.2f, 1.0f));
 
-	FString HeaderLabel = Emitter->EmitterName.empty() ? "Emitter" : Emitter->EmitterName;
-
-	if (ImGui::Selectable(HeaderLabel.c_str(), bSelected))
+	if (ImGui::Selectable(Emitter->EmitterName.c_str(), bSelected, 0, ImVec2(180, 24)))
 	{
-		ActiveState->SelectedEmitterIndex = EmitterIndex;
-		ActiveState->SelectedModuleIndex = -1;
-		ActiveState->SelectedEmitter = Emitter;
-		ActiveState->SelectedModule = nullptr;
+		State->SelectedEmitterIndex = EmitterIndex;
+		State->SelectedModuleIndex = -1;
+		State->SelectedEmitter = Emitter;
+		State->SelectedModule = nullptr;
 	}
 
 	ImGui::PopStyleColor(2);
 
 	// 솔로 모드 체크박스
-	ImGui::SameLine(ImGui::GetWindowWidth() - 30);
+	ImGui::SameLine(150);
 	bool bSoloing = Emitter->bIsSoloing;
-	if (ImGui::Checkbox("##Solo", &bSoloing))
+	if (ImGui::Checkbox(("##Solo" + std::to_string(EmitterIndex)).c_str(), &bSoloing))
 	{
 		Emitter->bIsSoloing = bSoloing;
 	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Solo");
+	}
 }
 
-void SParticleEditorWindow::RenderModuleStack(UParticleEmitter* Emitter, int32 EmitterIndex)
+void SParticleEmittersPanel::RenderModuleStack(UParticleEmitter* Emitter, int32 EmitterIndex)
 {
 	UParticleLODLevel* LODLevel = Emitter->GetLODLevel(0);
 	if (!LODLevel)
@@ -385,6 +578,8 @@ void SParticleEditorWindow::RenderModuleStack(UParticleEmitter* Emitter, int32 E
 		RenderModuleItem(static_cast<UParticleModule*>(LODLevel->SpawnModule), -2, EmitterIndex);
 	}
 
+	ImGui::Separator();
+
 	// 일반 모듈들
 	for (int32 i = 0; i < static_cast<int32>(LODLevel->Modules.size()); ++i)
 	{
@@ -396,10 +591,10 @@ void SParticleEditorWindow::RenderModuleStack(UParticleEmitter* Emitter, int32 E
 	}
 }
 
-void SParticleEditorWindow::RenderModuleItem(UParticleModule* Module, int32 ModuleIndex, int32 EmitterIndex)
+void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 ModuleIndex, int32 EmitterIndex)
 {
-	bool bSelected = (ActiveState->SelectedEmitterIndex == EmitterIndex &&
-		ActiveState->SelectedModuleIndex == ModuleIndex);
+	ParticleViewerState* State = Owner->GetActiveState();
+	bool bSelected = (State->SelectedEmitterIndex == EmitterIndex && State->SelectedModuleIndex == ModuleIndex);
 
 	// 모듈 타입에 따른 색상
 	ImVec4 moduleColor;
@@ -415,19 +610,19 @@ void SParticleEditorWindow::RenderModuleItem(UParticleModule* Module, int32 Modu
 	}
 	else if (strstr(className, "Lifetime"))
 	{
-		moduleColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); // 회색
+		moduleColor = ImVec4(0.4f, 0.6f, 0.4f, 1.0f); // 녹색
 	}
 	else if (strstr(className, "Size"))
 	{
-		moduleColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); // 회색
+		moduleColor = ImVec4(0.5f, 0.5f, 0.7f, 1.0f); // 파란색
 	}
 	else if (strstr(className, "Velocity") || strstr(className, "Acceleration"))
 	{
-		moduleColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); // 회색
+		moduleColor = ImVec4(0.6f, 0.4f, 0.6f, 1.0f); // 보라색
 	}
 	else if (strstr(className, "Color"))
 	{
-		moduleColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); // 회색
+		moduleColor = ImVec4(0.7f, 0.5f, 0.3f, 1.0f); // 주황색
 	}
 	else
 	{
@@ -440,6 +635,7 @@ void SParticleEditorWindow::RenderModuleItem(UParticleModule* Module, int32 Modu
 	}
 
 	ImGui::PushStyleColor(ImGuiCol_Header, moduleColor);
+	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(moduleColor.x * 1.2f, moduleColor.y * 1.2f, moduleColor.z * 1.2f, 1.0f));
 
 	// 모듈 이름 추출 (UParticleModule 접두사 제거)
 	FString ModuleName = className;
@@ -448,304 +644,132 @@ void SParticleEditorWindow::RenderModuleItem(UParticleModule* Module, int32 Modu
 		ModuleName = ModuleName.substr(15);
 	}
 
-	ImGui::PushID(ModuleIndex);
-	if (ImGui::Selectable(ModuleName.c_str(), bSelected))
+	ImGui::PushID(ModuleIndex + EmitterIndex * 1000);
+	if (ImGui::Selectable(ModuleName.c_str(), bSelected, 0, ImVec2(0, 20)))
 	{
-		ActiveState->SelectedEmitterIndex = EmitterIndex;
-		ActiveState->SelectedModuleIndex = ModuleIndex;
-		ActiveState->SelectedModule = Module;
+		State->SelectedEmitterIndex = EmitterIndex;
+		State->SelectedModuleIndex = ModuleIndex;
+		State->SelectedModule = Module;
 
-		if (EmitterIndex >= 0 && EmitterIndex < ActiveState->CurrentSystem->GetNumEmitters())
+		if (EmitterIndex >= 0 && State->CurrentSystem && EmitterIndex < State->CurrentSystem->GetNumEmitters())
 		{
-			ActiveState->SelectedEmitter = ActiveState->CurrentSystem->GetEmitter(EmitterIndex);
+			State->SelectedEmitter = State->CurrentSystem->GetEmitter(EmitterIndex);
 		}
 	}
 	ImGui::PopID();
 
-	ImGui::PopStyleColor();
+	ImGui::PopStyleColor(2);
 
-	// 3D 드로우 모드 표시 (읽기 전용)
-	ImGui::SameLine(ImGui::GetWindowWidth() - 50);
+	// 3D 드로우 모드 표시
 	if (Module->IsSupported3DDrawMode())
 	{
+		ImGui::SameLine(150);
 		ImGui::TextColored(
 			Module->Is3DDrawMode() ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
 			"3D");
 	}
 }
 
-void SParticleEditorWindow::RenderDetailsPanel()
+// ============================================================================
+// SParticleCurveEditorPanel
+// ============================================================================
+
+SParticleCurveEditorPanel::SParticleCurveEditorPanel(SParticleEditorWindow* InOwner)
+	: Owner(InOwner)
 {
-	ImGui::Text("Details");
-	ImGui::Separator();
-
-	if (!ActiveState->SelectedModule)
-	{
-		if (ActiveState->SelectedEmitter)
-		{
-			ImGui::Text("Emitter: %s", ActiveState->SelectedEmitter->EmitterName.c_str());
-		}
-		else
-		{
-			ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Select a module to edit");
-		}
-		return;
-	}
-
-	RenderModuleProperties(ActiveState->SelectedModule);
 }
 
-void SParticleEditorWindow::RenderModuleProperties(UParticleModule* Module)
+void SParticleCurveEditorPanel::OnRender()
 {
-	if (!Module)
+	ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
+	ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
+
+	ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoSavedSettings;
+
+	if (ImGui::Begin("Curve Editor##ParticleCurve", nullptr, flags))
 	{
-		return;
-	}
+		// 툴바
+		if (ImGui::Button("Fit Horizontal"))
+		{
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Fit Vertical"))
+		{
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Fit All"))
+		{
+		}
 
-	const char* className = Module->GetClass() ? Module->GetClass()->Name : "Unknown";
-	ImGui::Text("Module: %s", className);
-	ImGui::Separator();
-
-	// 모듈 기본 정보 표시
-	ImGui::Text("Spawn Module: %s", Module->IsSpawnModule() ? "Yes" : "No");
-	ImGui::Text("Update Module: %s", Module->IsUpdateModule() ? "Yes" : "No");
-	ImGui::Text("3D Draw Mode: %s", Module->Is3DDrawMode() ? "Yes" : "No");
-
-	// TODO: 모듈 타입별 프로퍼티 렌더링 (리플렉션 시스템 연동)
-}
-
-void SParticleEditorWindow::RenderCurveEditor()
-{
-	ImGui::Text("Curve Editor");
-	ImGui::Separator();
-
-	// 툴바
-	if (ImGui::Button("Horizontal"))
-	{
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Vertical"))
-	{
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Fit"))
-	{
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Pan"))
-	{
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Zoom"))
-	{
-	}
-
-	ImGui::Separator();
-
-	// 커브 목록 (왼쪽)과 커브 에디터 (오른쪽)
-	ImVec2 availSize = ImGui::GetContentRegionAvail();
-	float curveListWidth = 150.0f;
-
-	// 커브 목록
-	ImGui::BeginChild("CurveList", ImVec2(curveListWidth, availSize.y), true);
-	{
-		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Curves");
 		ImGui::Separator();
 
-		// TODO: 선택된 모듈의 커브 목록 표시
-		ImGui::Text("(No curves)");
-	}
-	ImGui::EndChild();
-
-	ImGui::SameLine();
-
-	// 커브 에디터 그래프
-	ImGui::BeginChild("CurveGraph", ImVec2(0, availSize.y), true);
-	{
-		ImVec2 graphSize = ImGui::GetContentRegionAvail();
-		ImDrawList* drawList = ImGui::GetWindowDrawList();
-		ImVec2 canvasPos = ImGui::GetCursorScreenPos();
-
-		// 배경
-		drawList->AddRectFilled(
-			canvasPos,
-			ImVec2(canvasPos.x + graphSize.x, canvasPos.y + graphSize.y),
-			IM_COL32(30, 30, 30, 255));
-
-		// 그리드
-		float gridSpacing = 50.0f;
-		for (float x = 0; x < graphSize.x; x += gridSpacing)
+		// 커브 목록 (좌측)
+		ImGui::BeginChild("CurveList", ImVec2(150, 0), true);
 		{
+			ParticleViewerState* State = Owner->GetActiveState();
+			if (State && State->SelectedModule)
+			{
+				// TODO: 선택된 모듈의 커브 프로퍼티 나열
+				ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Module curves:");
+				ImGui::Selectable("Alpha Over Life");
+				ImGui::Selectable("Size Over Life");
+				ImGui::Selectable("Color Over Life");
+			}
+			else
+			{
+				ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Select a module");
+			}
+		}
+		ImGui::EndChild();
+
+		ImGui::SameLine();
+
+		// 커브 에디터 그리드 (우측)
+		ImGui::BeginChild("CurveGrid", ImVec2(0, 0), true);
+		{
+			ImVec2 canvasSize = ImGui::GetContentRegionAvail();
+			ImVec2 canvasPos = ImGui::GetCursorScreenPos();
+
+			ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+			// 배경
+			drawList->AddRectFilled(canvasPos,
+				ImVec2(canvasPos.x + canvasSize.x, canvasPos.y + canvasSize.y),
+				IM_COL32(40, 40, 40, 255));
+
+			// 그리드 라인
+			const int gridLines = 10;
+			for (int i = 0; i <= gridLines; ++i)
+			{
+				float x = canvasPos.x + (canvasSize.x * i / gridLines);
+				float y = canvasPos.y + (canvasSize.y * i / gridLines);
+
+				// 수직선
+				drawList->AddLine(
+					ImVec2(x, canvasPos.y),
+					ImVec2(x, canvasPos.y + canvasSize.y),
+					IM_COL32(60, 60, 60, 255));
+
+				// 수평선
+				drawList->AddLine(
+					ImVec2(canvasPos.x, y),
+					ImVec2(canvasPos.x + canvasSize.x, y),
+					IM_COL32(60, 60, 60, 255));
+			}
+
+			// 중앙선 강조
+			float centerY = canvasPos.y + canvasSize.y * 0.5f;
 			drawList->AddLine(
-				ImVec2(canvasPos.x + x, canvasPos.y),
-				ImVec2(canvasPos.x + x, canvasPos.y + graphSize.y),
-				IM_COL32(50, 50, 50, 255));
+				ImVec2(canvasPos.x, centerY),
+				ImVec2(canvasPos.x + canvasSize.x, centerY),
+				IM_COL32(80, 80, 80, 255), 2.0f);
+
+			// TODO: 실제 커브 렌더링
 		}
-		for (float y = 0; y < graphSize.y; y += gridSpacing)
-		{
-			drawList->AddLine(
-				ImVec2(canvasPos.x, canvasPos.y + y),
-				ImVec2(canvasPos.x + graphSize.x, canvasPos.y + y),
-				IM_COL32(50, 50, 50, 255));
-		}
-
-		// 중앙선 (0 기준선)
-		float centerY = canvasPos.y + graphSize.y * 0.5f;
-		drawList->AddLine(
-			ImVec2(canvasPos.x, centerY),
-			ImVec2(canvasPos.x + graphSize.x, centerY),
-			IM_COL32(80, 80, 80, 255), 2.0f);
-
-		// 축 레이블
-		drawList->AddText(ImVec2(canvasPos.x + 5, canvasPos.y + 5), IM_COL32(150, 150, 150, 255), "1.0");
-		drawList->AddText(ImVec2(canvasPos.x + 5, centerY - 10), IM_COL32(150, 150, 150, 255), "0.0");
-		drawList->AddText(ImVec2(canvasPos.x + 5, canvasPos.y + graphSize.y - 20), IM_COL32(150, 150, 150, 255), "-1.0");
+		ImGui::EndChild();
 	}
-	ImGui::EndChild();
-}
-
-void SParticleEditorWindow::OnUpdate(float DeltaSeconds)
-{
-	if (!bIsOpen || !ActiveState)
-	{
-		return;
-	}
-
-	// 시뮬레이션 업데이트
-	if (ActiveState->bIsSimulating && ActiveState->World)
-	{
-		float ScaledDelta = DeltaSeconds * ActiveState->SimulationSpeed;
-		ActiveState->AccumulatedTime += ScaledDelta;
-		ActiveState->World->Tick(ScaledDelta);
-	}
-
-	// 뷰포트 클라이언트 틱
-	if (ActiveState->Client)
-	{
-		ActiveState->Client->Tick(DeltaSeconds);
-	}
-}
-
-void SParticleEditorWindow::OnMouseMove(FVector2D MousePos)
-{
-	if (!ActiveState || !ActiveState->Viewport)
-	{
-		return;
-	}
-
-	// 뷰포트 영역 내에서만 처리
-	if (MousePos.X >= ViewportRect.Left && MousePos.X <= ViewportRect.Right &&
-		MousePos.Y >= ViewportRect.Top && MousePos.Y <= ViewportRect.Bottom)
-	{
-		FVector2D LocalPos = MousePos - FVector2D(ViewportRect.Left, ViewportRect.Top);
-		ActiveState->Viewport->ProcessMouseMove(static_cast<int32>(LocalPos.X), static_cast<int32>(LocalPos.Y));
-	}
-}
-
-void SParticleEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
-{
-	if (!ActiveState || !ActiveState->Viewport)
-	{
-		return;
-	}
-
-	if (MousePos.X >= ViewportRect.Left && MousePos.X <= ViewportRect.Right &&
-		MousePos.Y >= ViewportRect.Top && MousePos.Y <= ViewportRect.Bottom)
-	{
-		FVector2D LocalPos = MousePos - FVector2D(ViewportRect.Left, ViewportRect.Top);
-		ActiveState->Viewport->ProcessMouseButtonDown(static_cast<int32>(LocalPos.X), static_cast<int32>(LocalPos.Y), Button);
-	}
-}
-
-void SParticleEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
-{
-	if (!ActiveState || !ActiveState->Viewport)
-	{
-		return;
-	}
-
-	if (MousePos.X >= ViewportRect.Left && MousePos.X <= ViewportRect.Right &&
-		MousePos.Y >= ViewportRect.Top && MousePos.Y <= ViewportRect.Bottom)
-	{
-		FVector2D LocalPos = MousePos - FVector2D(ViewportRect.Left, ViewportRect.Top);
-		ActiveState->Viewport->ProcessMouseButtonUp(static_cast<int32>(LocalPos.X), static_cast<int32>(LocalPos.Y), Button);
-	}
-}
-
-void SParticleEditorWindow::LoadParticleSystem(const FString& Path)
-{
-	if (Path.empty())
-	{
-		return;
-	}
-
-	UParticleSystem* System = UResourceManager::GetInstance().Load<UParticleSystem>(Path);
-	if (System)
-	{
-		SetParticleSystem(System);
-	}
-}
-
-void SParticleEditorWindow::SetParticleSystem(UParticleSystem* InSystem)
-{
-	if (!ActiveState || !InSystem)
-	{
-		return;
-	}
-
-	ActiveState->CurrentSystem = InSystem;
-	ActiveState->LoadedSystemPath = InSystem->GetFilePath();
-
-	// 프리뷰 액터에 설정
-	if (ActiveState->PreviewActor)
-	{
-		ActiveState->PreviewActor->SetParticleSystem(InSystem);
-	}
-
-	// 선택 초기화
-	ActiveState->SelectedEmitterIndex = -1;
-	ActiveState->SelectedModuleIndex = -1;
-	ActiveState->SelectedEmitter = nullptr;
-	ActiveState->SelectedModule = nullptr;
-
-	UE_LOG("ParticleEditorWindow: Loaded particle system: %s", ActiveState->LoadedSystemPath.c_str());
-}
-
-void SParticleEditorWindow::RestartSimulation()
-{
-	if (!ActiveState)
-	{
-		return;
-	}
-
-	ActiveState->AccumulatedTime = 0.0f;
-
-	if (ActiveState->PreviewActor)
-	{
-		UParticleSystemComponent* PSC = ActiveState->PreviewActor->GetParticleSystemComponent();
-		if (PSC)
-		{
-			PSC->ActivateSystem(true);
-		}
-	}
-}
-
-void SParticleEditorWindow::ToggleSimulation()
-{
-	if (!ActiveState)
-	{
-		return;
-	}
-
-	ActiveState->bIsSimulating = !ActiveState->bIsSimulating;
-}
-
-FViewport* SParticleEditorWindow::GetViewport() const
-{
-	return ActiveState ? ActiveState->Viewport : nullptr;
-}
-
-FViewportClient* SParticleEditorWindow::GetViewportClient() const
-{
-	return ActiveState ? ActiveState->Client : nullptr;
+	ImGui::End();
 }

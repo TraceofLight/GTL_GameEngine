@@ -405,6 +405,15 @@ void USlateManager::CloseParticleEditorWindow()
 	ParticleEditorWindow = nullptr;
 }
 
+void USlateManager::RequestSceneLoad(const FString& ScenePath)
+{
+	if (MainViewport && !ScenePath.empty())
+	{
+		MainViewport->RequestSceneLoad(ScenePath);
+		UE_LOG("USlateManager: Scene load requested: %s", ScenePath.c_str());
+	}
+}
+
 void USlateManager::SwitchLayout(EViewportLayoutMode NewMode)
 {
     if (NewMode == CurrentMode) return;
@@ -886,6 +895,13 @@ void USlateManager::OnMouseMove(FVector2D MousePos)
         return;
     }
 
+    // Route to Particle Editor if hovered
+    if (ParticleEditorWindow && ParticleEditorWindow->IsHover(MousePos))
+    {
+        ParticleEditorWindow->OnMouseMove(MousePos);
+        return;
+    }
+
     if (ActiveViewport)
     {
         ActiveViewport->OnMouseMove(MousePos);
@@ -907,6 +923,12 @@ void USlateManager::OnMouseDown(FVector2D MousePos, uint32 Button)
     if (BlendSpace2DEditorWindow && BlendSpace2DEditorWindow->Rect.Contains(MousePos))
     {
         BlendSpace2DEditorWindow->OnMouseDown(MousePos, Button);
+        return;
+    }
+
+    if (ParticleEditorWindow && ParticleEditorWindow->Rect.Contains(MousePos))
+    {
+        ParticleEditorWindow->OnMouseDown(MousePos, Button);
         return;
     }
 
@@ -954,6 +976,12 @@ void USlateManager::OnMouseUp(FVector2D MousePos, uint32 Button)
     if (BlendSpace2DEditorWindow && BlendSpace2DEditorWindow->Rect.Contains(MousePos))
     {
         BlendSpace2DEditorWindow->OnMouseUp(MousePos, Button);
+        // do not return; still allow panels to finish mouse up
+    }
+
+    if (ParticleEditorWindow && ParticleEditorWindow->Rect.Contains(MousePos))
+    {
+        ParticleEditorWindow->OnMouseUp(MousePos, Button);
         // do not return; still allow panels to finish mouse up
     }
 

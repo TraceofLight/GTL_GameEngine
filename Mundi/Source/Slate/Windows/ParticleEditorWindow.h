@@ -1,5 +1,7 @@
 #pragma once
 #include "SWindow.h"
+#include "SSplitterH.h"
+#include "SSplitterV.h"
 
 class FViewport;
 class FViewportClient;
@@ -11,13 +13,19 @@ class ParticleViewerState;
 class UTexture;
 struct ID3D11Device;
 
+// Forward declarations for panel classes
+class SParticleViewportPanel;
+class SParticleDetailPanel;
+class SParticleEmittersPanel;
+class SParticleCurveEditorPanel;
+
 /**
  * @brief 파티클 시스템 에디터 윈도우
- * @details Cascade 스타일의 파티클 에디터 UI
- *          - Viewport: 파티클 프리뷰
- *          - Emitters: 이미터/모듈 스택
- *          - Details: 선택된 모듈 프로퍼티
- *          - Curve Editor: 커브 편집
+ * @details 스플리터 기반 4분할 레이아웃
+ *          - 좌상단: Viewport (파티클 프리뷰)
+ *          - 좌하단: Detail (선택된 모듈 프로퍼티)
+ *          - 우상단: Emitters (이미터/모듈 스택)
+ *          - 우하단: Curve Editor (커브 편집)
  */
 class SParticleEditorWindow : public SWindow
 {
@@ -47,25 +55,8 @@ public:
 	bool IsOpen() const { return bIsOpen; }
 	void Close() { bIsOpen = false; }
 
-private:
-	// UI 렌더링
-	void RenderToolbar();
-	void RenderViewportPanel();
-	void RenderEmittersPanel();
-	void RenderDetailsPanel();
-	void RenderCurveEditor();
-
-	// 이미터 패널 헬퍼
-	void RenderEmitterHeader(UParticleEmitter* Emitter, int32 EmitterIndex);
-	void RenderModuleStack(UParticleEmitter* Emitter, int32 EmitterIndex);
-	void RenderModuleItem(UParticleModule* Module, int32 ModuleIndex, int32 EmitterIndex);
-
-	// 모듈 프로퍼티 렌더링
-	void RenderModuleProperties(UParticleModule* Module);
-
-	// 시뮬레이션 제어
-	void RestartSimulation();
-	void ToggleSimulation();
+	// 패널 접근용 (친구 클래스나 콜백을 위해)
+	ParticleViewerState* GetActiveState() const { return ActiveState; }
 
 private:
 	// 탭 상태
@@ -73,15 +64,23 @@ private:
 	TArray<ParticleViewerState*> Tabs;
 	int32 ActiveTabIndex = -1;
 
-	// 레거시 참조 (탭 안정화 후 제거)
+	// 레거시 참조
 	UWorld* World = nullptr;
 	ID3D11Device* Device = nullptr;
 
-	// 레이아웃 비율
-	float ViewportWidthRatio = 0.4f;    // 뷰포트 너비 (40%)
-	float EmittersPanelWidthRatio = 0.3f; // 이미터 패널 너비 (30%)
-	float DetailsPanelWidthRatio = 0.3f;  // 디테일 패널 너비 (30%)
-	float CurveEditorHeightRatio = 0.35f; // 커브 에디터 높이 (35%)
+	// 스플리터 레이아웃
+	// MainSplitter (H): Left | Right
+	//   LeftSplitter (V): Viewport | Detail
+	//   RightSplitter (V): Emitters | CurveEditor
+	SSplitterH* MainSplitter = nullptr;
+	SSplitterV* LeftSplitter = nullptr;
+	SSplitterV* RightSplitter = nullptr;
+
+	// 패널들
+	SParticleViewportPanel* ViewportPanel = nullptr;
+	SParticleDetailPanel* DetailPanel = nullptr;
+	SParticleEmittersPanel* EmittersPanel = nullptr;
+	SParticleCurveEditorPanel* CurveEditorPanel = nullptr;
 
 	// 뷰포트 영역 캐시
 	FRect ViewportRect;
@@ -91,15 +90,67 @@ private:
 	bool bInitialPlacementDone = false;
 	bool bRequestFocus = false;
 
-	// 툴바 아이콘
-	UTexture* IconPlay = nullptr;
-	UTexture* IconPause = nullptr;
-	UTexture* IconRestart = nullptr;
-	UTexture* IconBounds = nullptr;
-	UTexture* IconOriginAxis = nullptr;
-	UTexture* IconThumbnail = nullptr;
-	UTexture* IconBackgroundColor = nullptr;
-
 	// 에디터 상태
 	float BackgroundColor[3] = { 0.1f, 0.1f, 0.1f };
+};
+
+// ============================================================================
+// Panel Classes
+// ============================================================================
+
+/**
+ * @brief 파티클 뷰포트 패널
+ */
+class SParticleViewportPanel : public SWindow
+{
+public:
+	SParticleViewportPanel(SParticleEditorWindow* InOwner);
+	virtual void OnRender() override;
+	virtual void OnUpdate(float DeltaSeconds) override;
+
+private:
+	SParticleEditorWindow* Owner = nullptr;
+};
+
+/**
+ * @brief 파티클 디테일 패널
+ */
+class SParticleDetailPanel : public SWindow
+{
+public:
+	SParticleDetailPanel(SParticleEditorWindow* InOwner);
+	virtual void OnRender() override;
+
+private:
+	SParticleEditorWindow* Owner = nullptr;
+	void RenderModuleProperties(UParticleModule* Module);
+};
+
+/**
+ * @brief 이미터 패널 (모듈 스택)
+ */
+class SParticleEmittersPanel : public SWindow
+{
+public:
+	SParticleEmittersPanel(SParticleEditorWindow* InOwner);
+	virtual void OnRender() override;
+
+private:
+	SParticleEditorWindow* Owner = nullptr;
+	void RenderEmitterHeader(UParticleEmitter* Emitter, int32 EmitterIndex);
+	void RenderModuleStack(UParticleEmitter* Emitter, int32 EmitterIndex);
+	void RenderModuleItem(UParticleModule* Module, int32 ModuleIndex, int32 EmitterIndex);
+};
+
+/**
+ * @brief 커브 에디터 패널
+ */
+class SParticleCurveEditorPanel : public SWindow
+{
+public:
+	SParticleCurveEditorPanel(SParticleEditorWindow* InOwner);
+	virtual void OnRender() override;
+
+private:
+	SParticleEditorWindow* Owner = nullptr;
 };

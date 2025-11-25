@@ -26,12 +26,6 @@ SSplitter::~SSplitter()
 
 bool SSplitter::IsMouseOnSplitter(FVector2D MousePos) const
 {
-    // ImGui가 마우를 사용 중이라면 Mouse의 Up, Down 이벤트가 들어오지 않기 때문에 강제로 false 반환
-    if (ImGui::GetIO().WantCaptureMouse)
-    {
-        return false;
-    }
-
     FRect SplitterRect = GetSplitterRect();
     return MousePos.X >= SplitterRect.Min.X && MousePos.X <= SplitterRect.Max.X &&
         MousePos.Y >= SplitterRect.Min.Y && MousePos.Y <= SplitterRect.Max.Y;
@@ -62,6 +56,9 @@ void SSplitter::EndDrag()
 
 void SSplitter::OnRender()
 {
+    // 자식 Rect 업데이트 (렌더링 전에 반드시 필요 - SetRect 호출 후 적용)
+    UpdateChildRects();
+
     // 자식 윈도우들 렌더링
     if (SideLT) SideLT->OnRender();
     if (SideRB) SideRB->OnRender();

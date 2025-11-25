@@ -105,6 +105,9 @@ public:
 	void CloseParticleEditorWindow();
 	bool IsParticleEditorWindowOpen() const { return ParticleEditorWindow != nullptr; }
 
+	// Scene 로드 요청
+	void RequestSceneLoad(const FString& ScenePath);
+
 private:
     FRect Rect; // 이전엔 SWindow로부터 상속받던 영역 정보
 
