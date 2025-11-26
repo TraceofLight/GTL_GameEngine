@@ -59,6 +59,10 @@ bool UParticleModuleDetailRenderer::RenderFloatDistribution(const char* Label, F
 		}
 		bChanged = true;
 	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Min~Max 랜덤 범위 사용 (체크 해제 시 상수값)");
+	}
 
 	ImGui::SameLine();
 	ImGui::Text("%s", Label);
@@ -109,6 +113,10 @@ bool UParticleModuleDetailRenderer::RenderVectorDistribution(const char* Label, 
 			Dist.Max = Dist.Min;
 		}
 		bChanged = true;
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Min~Max 랜덤 범위 사용 (각 요소별 독립적, 체크 해제 시 상수값)");
 	}
 
 	ImGui::SameLine();
@@ -168,6 +176,10 @@ bool UParticleModuleDetailRenderer::RenderColorDistribution(const char* Label, F
 			Dist.Max = Dist.Min;
 		}
 		bChanged = true;
+	}
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("Min~Max 랜덤 범위 사용 (각 채널별 독립적, 체크 해제 시 고정 색상)");
 	}
 
 	ImGui::SameLine();
@@ -435,6 +447,10 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		}
 
 		ImGui::Text("Material:");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클 렌더링에 사용할 텍스처 (지원: DDS, PNG, JPG, TGA, BMP)\n기본값: None");
+		}
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 80.0f);
 		ImGui::InputText("##MaterialPath", const_cast<char*>(MaterialName.c_str()), MaterialName.size() + 1, ImGuiInputTextFlags_ReadOnly);
@@ -496,12 +512,33 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		{
 			Module->SetScreenAlignment(Alignment);
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클이 카메라를 향하는 방식\n"
+				"Square: 카메라 정면 빌보드 (1:1 비율)\n"
+				"Rectangle: 커스텀 비율 빌보드\n"
+				"Velocity: 파티클 속도 방향으로 정렬\n"
+				"TypeSpecific: Emitter 타입의 기본 정렬 사용\n"
+				"FacingCameraPosition: 항상 카메라 위치를 향함\n"
+				"FacingCameraDistanceBlend: 거리 기반 블렌딩\n"
+				"기본값: Square");
+		}
 
 		// Sort Mode
 		EParticleSortMode SortMode = Module->GetSortMode();
 		if (RenderSortModeCombo("Sort Mode", SortMode))
 		{
 			Module->SetSortMode(SortMode);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클 렌더링 순서 정렬 방식\n"
+				"None: 정렬 안 함 (가장 빠름)\n"
+				"ViewProjDepth: 뷰 투영 깊이 기준 정렬\n"
+				"DistanceToView: 카메라 거리 기준 정렬\n"
+				"Age_OldestFirst: 오래된 파티클부터 렌더링\n"
+				"Age_NewestFirst: 최신 파티클부터 렌더링\n"
+				"기본값: None");
 		}
 
 		// Blend Mode
@@ -510,12 +547,27 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		{
 			Module->SetBlendMode(BlendMode);
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클 블렌딩 모드\n"
+				"None: 불투명 (투명도 없음)\n"
+				"Translucent: 알파 블렌딩 (연기, 먼지 등)\n"
+				"Additive: 가산 블렌딩 (불, 발광 효과 등)\n"
+				"기본값: None");
+		}
 
 		// Use Local Space
 		bool bUseLocalSpace = Module->IsUseLocalSpace();
 		if (ImGui::Checkbox("Use Local Space", &bUseLocalSpace))
 		{
 			Module->SetUseLocalSpace(bUseLocalSpace);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클을 Emitter의 로컬 공간에서 시뮬레이션\n"
+				"true: 파티클이 Emitter 이동을 따라감\n"
+				"false: 파티클이 생성 후 월드 위치에 고정\n"
+				"기본값: false");
 		}
 
 		// Kill on Deactivate
@@ -524,12 +576,22 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		{
 			Module->SetKillOnDeactivate(bKillOnDeactivate);
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Emitter 비활성화 시 모든 활성 파티클 제거\n"
+				"기본값: false");
+		}
 
 		// Kill on Completed
 		bool bKillOnCompleted = Module->IsKillOnCompleted();
 		if (ImGui::Checkbox("Kill on Completed", &bKillOnCompleted))
 		{
 			Module->SetKillOnCompleted(bKillOnCompleted);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Emitter 지속 시간 완료 시 모든 활성 파티클 제거\n"
+				"기본값: false");
 		}
 	}
 
@@ -542,12 +604,23 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		{
 			Module->SetEmitterLoops(std::max(0, Loops));
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Emitter가 반복할 횟수 (0 = 무한 반복)\n"
+				"기본값: 0");
+		}
 
 		// Emitter Duration
 		float Duration = Module->GetEmitterDurationValue();
 		if (ImGui::DragFloat("Emitter Duration", &Duration, 0.01f, 0.0f, 100.0f))
 		{
 			Module->SetEmitterDuration(Duration);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Emitter가 파티클을 생성하는 최대 지속 시간 (초)\n"
+				"DurationLow > 0이면 실제 지속 시간 = random(DurationLow, Duration)\n"
+				"기본값: 1.0");
 		}
 
 		// Emitter Duration Low
@@ -556,12 +629,24 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		{
 			Module->SetEmitterDurationLow(DurationLow);
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("랜덤 지속 시간 범위의 최소값\n"
+				"0이면 고정값 Emitter Duration 사용\n"
+				"기본값: 0.0");
+		}
 
 		// Duration Recalc Each Loop
 		bool bRecalc = Module->IsDurationRecalcEachLoop();
 		if (ImGui::Checkbox("Duration Recalc Each Loop", &bRecalc))
 		{
 			Module->SetDurationRecalcEachLoop(bRecalc);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("각 루프마다 랜덤 지속 시간 재계산\n"
+				"DurationLow > 0일 때만 적용됨\n"
+				"기본값: false");
 		}
 	}
 
@@ -574,6 +659,13 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		{
 			Module->SetMaxDrawCount(std::max(0, MaxDraw));
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("프레임당 렌더링할 최대 파티클 개수\n"
+				"많은 파티클 수에서 렌더링 비용 제한\n"
+				"0 = 제한 없음\n"
+				"기본값: 500");
+		}
 	}
 
 	// Sub UV 섹션
@@ -585,6 +677,12 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		{
 			Module->SetSubImagesHorizontal(std::max(1, SubH));
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("가로 방향 서브 이미지 개수 (texture atlas)\n"
+				"스프라이트 시트 애니메이션용 (TBD)\n"
+				"기본값: 1");
+		}
 
 		// SubImages Vertical
 		int32 SubV = Module->GetSubImagesVertical();
@@ -592,8 +690,19 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		{
 			Module->SetSubImagesVertical(std::max(1, SubV));
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("세로 방향 서브 이미지 개수 (texture atlas)\n"
+				"스프라이트 시트 애니메이션용 (TBD)\n"
+				"기본값: 1");
+		}
 
 		ImGui::Text("Total SubImages: %d", Module->GetTotalSubImages());
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("스프라이트 시트의 총 프레임 수 (가로 * 세로)\n"
+				"서브 이미지 애니메이션은 아직 미구현 (TBD)");
+		}
 	}
 }
 
@@ -613,14 +722,30 @@ void UParticleModuleDetailRenderer::RenderSpawnModule(UParticleModuleSpawn* Modu
 	{
 		// Process Spawn Rate
 		ImGui::Checkbox("Process Spawn Rate", &Module->bProcessSpawnRate);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Spawn Rate 기반 연속적인 파티클 생성 활성화\n"
+				"기본값: true");
+		}
 
 		if (Module->bProcessSpawnRate)
 		{
 			// Rate
 			RenderFloatDistribution("Spawn Rate", Module->Rate);
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("초당 생성할 파티클 개수\n"
+					"소수점 누적 방식으로 부드러운 생성 보장\n"
+					"기본값: 10.0");
+			}
 
 			// Rate Scale
 			RenderFloatDistribution("Rate Scale", Module->RateScale);
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("Spawn Rate에 곱해지는 배율 (1.0 = 100%, 0.5 = 50%)\n"
+					"기본값: 1.0");
+			}
 		}
 	}
 
@@ -629,22 +754,48 @@ void UParticleModuleDetailRenderer::RenderSpawnModule(UParticleModuleSpawn* Modu
 	{
 		// Process Burst List
 		ImGui::Checkbox("Process Burst List", &Module->bProcessBurstList);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Burst 생성 활성화 (특정 시간에 대량 파티클 생성)\n"
+				"기본값: true");
+		}
 
 		if (Module->bProcessBurstList)
 		{
 			// Burst Method
 			RenderBurstMethodCombo("Burst Method", Module->BurstMethod);
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("Burst 생성 방식\n"
+					"Instant: 한 프레임에 모든 burst 파티클 생성\n"
+					"Interpolated: 프레임 내에서 burst 파티클 분산 생성 (TBD)\n"
+					"기본값: Instant");
+			}
 
 			// Burst Scale
 			RenderFloatDistribution("Burst Scale", Module->BurstScale);
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("모든 Burst 개수에 곱해지는 배율\n"
+					"기본값: 1.0");
+			}
 
 			// Burst List
 			ImGui::Separator();
 			ImGui::Text("Burst List:");
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("Burst 이벤트 목록 (Time, Count, CountLow)\n"
+					"각 Burst는 Emitter 수명 중 지정된 시간에 파티클 생성");
+			}
 
 			if (ImGui::Button("+ Add Burst"))
 			{
 				Module->BurstList.push_back(FParticleBurst(10, 0.0f));
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("목록에 새 Burst 이벤트 추가");
 			}
 
 			for (int32 i = 0; i < static_cast<int32>(Module->BurstList.size()); ++i)
@@ -655,12 +806,27 @@ void UParticleModuleDetailRenderer::RenderSpawnModule(UParticleModuleSpawn* Modu
 
 				ImGui::SetNextItemWidth(60);
 				ImGui::DragFloat("Time", &Burst.Time, 0.01f, 0.0f, 100.0f);
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("Burst가 발생하는 시간 (초 단위, Emitter 시작 기준)");
+				}
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(60);
 				ImGui::DragInt("Count", &Burst.Count, 1, 0, 1000);
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("생성할 파티클 개수\n"
+						"CountLow가 -1이면 고정값, 그 외에는 최대값");
+				}
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(60);
 				ImGui::DragInt("CountLow", &Burst.CountLow, 1, -1, 1000);
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("최소 파티클 개수\n"
+						"-1: Count 고정값으로 사용\n"
+						"0 이상: CountLow~Count 범위에서 랜덤 생성");
+				}
 				ImGui::SameLine();
 
 				if (ImGui::Button("X"))
@@ -690,12 +856,27 @@ void UParticleModuleDetailRenderer::RenderColorModule(UParticleModuleColor* Modu
 	{
 		// Start Color
 		RenderColorDistribution("Start Color", Module->StartColor);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클 초기 색상 (RGB 채널)\n"
+				"기본값: 흰색 (1, 1, 1)");
+		}
 
 		// Start Alpha
 		RenderFloatDistribution("Start Alpha", Module->StartAlpha);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클 초기 알파/불투명도 (0.0 = 투명, 1.0 = 불투명)\n"
+				"기본값: 1.0");
+		}
 
 		// Clamp Alpha
 		ImGui::Checkbox("Clamp Alpha", &Module->bClampAlpha);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("알파값을 [0.0, 1.0] 범위로 제한\n"
+				"기본값: true");
+		}
 	}
 }
 
@@ -713,6 +894,11 @@ void UParticleModuleDetailRenderer::RenderLifetimeModule(UParticleModuleLifetime
 	if (BeginSection("Lifetime", true))
 	{
 		RenderFloatDistribution("Lifetime", Module->Lifetime);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클 수명 (초 단위, 각 파티클이 존재하는 시간)\n"
+				"기본값: 1.0");
+		}
 	}
 }
 
@@ -730,6 +916,11 @@ void UParticleModuleDetailRenderer::RenderLocationModule(UParticleModuleLocation
 	if (BeginSection("Initial Location", true))
 	{
 		RenderVectorDistribution("Start Location", Module->StartLocation);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클 생성 위치 오프셋 (Emitter 기준 상대 좌표)\n"
+				"기본값: (0, 0, 0)");
+		}
 	}
 }
 
@@ -747,6 +938,12 @@ void UParticleModuleDetailRenderer::RenderSizeModule(UParticleModuleSize* Module
 	if (BeginSection("Initial Size", true))
 	{
 		RenderVectorDistribution("Start Size", Module->StartSize);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클 초기 크기 (X, Y, Z 스케일)\n"
+				"스프라이트의 경우 균등 스케일링은 (X, X, 1.0) 형태 사용\n"
+				"기본값: (1, 1, 1)");
+		}
 	}
 }
 
@@ -765,12 +962,29 @@ void UParticleModuleDetailRenderer::RenderVelocityModule(UParticleModuleVelocity
 	{
 		// Start Velocity
 		RenderVectorDistribution("Start Velocity", Module->StartVelocity);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("초기 속도 벡터 (초당 이동 거리)\n"
+				"'In World Space' 활성화하지 않으면 로컬 공간에서 적용\n"
+				"기본값: (0, 0, 0)");
+		}
 
 		// Radial Velocity
 		RenderFloatDistribution("Start Velocity Radial", Module->StartVelocityRadial);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("초기 방사형 속도 (Emitter 중심에서 바깥쪽 방향)\n"
+				"양수 = 바깥으로 확장, 음수 = 안쪽으로 수축\n"
+				"기본값: 0.0");
+		}
 
 		// World Space
 		ImGui::Checkbox("In World Space", &Module->bInWorldSpace);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("속도를 Emitter 로컬 공간 대신 월드 공간에서 적용\n"
+				"기본값: false");
+		}
 	}
 }
 
@@ -788,6 +1002,13 @@ void UParticleModuleDetailRenderer::RenderTypeDataMeshModule(UParticleModuleType
 	// Mesh 섹션
 	if (BeginSection("Mesh Data", true))
 	{
+		ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f), "Mesh 파티클은 스프라이트 대신 3D 메시 렌더링");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("TypeData Mesh: 2D 스프라이트 대신 3D 메시를 파티클로 사용\n"
+				"파편, 발사체, 복잡한 형태에 유용");
+		}
+
 		// Mesh 선택 UI
 		UStaticMesh* CurrentMesh = Module->Mesh;
 		FString MeshName = "None";
@@ -803,6 +1024,11 @@ void UParticleModuleDetailRenderer::RenderTypeDataMeshModule(UParticleModuleType
 		}
 
 		ImGui::Text("Mesh:");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("각 파티클에 사용할 Static Mesh (지원: .obj, .fbx)\n"
+				"기본값: None");
+		}
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 80.0f);
 		ImGui::InputText("##MeshPath", const_cast<char*>(MeshName.c_str()), MeshName.size() + 1, ImGuiInputTextFlags_ReadOnly);
@@ -868,11 +1094,21 @@ void UParticleModuleDetailRenderer::RenderTypeDataMeshModule(UParticleModuleType
 		{
 			Module->OnMeshChanged();
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Mesh 파티클의 그림자 생성 활성화\n"
+				"기본값: false (TBD - Mesh 파티클 그림자 미완성)");
+		}
 
 		// Override Material
 		if (ImGui::Checkbox("Override Material", &Module->bOverrideMaterial))
 		{
 			Module->OnMeshChanged();
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Mesh 원본 Material 대신 Required 모듈의 Material 사용\n"
+				"기본값: false");
 		}
 
 		// Mesh Alignment
@@ -883,6 +1119,13 @@ void UParticleModuleDetailRenderer::RenderTypeDataMeshModule(UParticleModuleType
 			Module->MeshAlignment = static_cast<EParticleAxisLock>(CurrentAlignment);
 			Module->OnMeshChanged();
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Mesh 회전을 특정 축으로 고정\n"
+				"None: 자유 회전\n"
+				"Z-Axis/X-Axis/Y-Axis: 해당 축 중심 회전만 허용\n"
+				"기본값: None (TBD - 축 고정 기능 미완성 가능성)");
+		}
 	}
 
 	// Rotation Offset 섹션
@@ -892,13 +1135,30 @@ void UParticleModuleDetailRenderer::RenderTypeDataMeshModule(UParticleModuleType
 		{
 			Module->OnMeshChanged();
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("모든 Mesh 인스턴스에 적용되는 고정 Pitch 회전 오프셋 (도)\n"
+				"기본값: 0.0");
+		}
+
 		if (ImGui::DragFloat("Yaw", &Module->Yaw, 1.0f, -180.0f, 180.0f, "%.1f"))
 		{
 			Module->OnMeshChanged();
 		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("모든 Mesh 인스턴스에 적용되는 고정 Yaw 회전 오프셋 (도)\n"
+				"기본값: 0.0");
+		}
+
 		if (ImGui::DragFloat("Roll", &Module->Roll, 1.0f, -180.0f, 180.0f, "%.1f"))
 		{
 			Module->OnMeshChanged();
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("모든 Mesh 인스턴스에 적용되는 고정 Roll 회전 오프셋 (도)\n"
+				"기본값: 0.0");
 		}
 	}
 
@@ -906,6 +1166,11 @@ void UParticleModuleDetailRenderer::RenderTypeDataMeshModule(UParticleModuleType
 	if (BeginSection("Collision", false))
 	{
 		ImGui::Checkbox("Do Collisions", &Module->DoCollisions);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Mesh 파티클의 충돌 감지 활성화\n"
+				"기본값: false (TBD - Mesh 파티클 충돌 미구현)");
+		}
 	}
 }
 
@@ -922,7 +1187,19 @@ void UParticleModuleDetailRenderer::RenderRotationModule(UParticleModuleRotation
 
 	if (BeginSection("Initial Rotation", true))
 	{
+		ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f), "2D 스프라이트 Z축 회전");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Rotation 모듈: 스프라이트 파티클이 화면 방향 축(Z) 중심 회전\n"
+				"3D Mesh 회전은 MeshRotation 모듈 사용");
+		}
+
 		RenderFloatDistribution("Start Rotation (Degrees)", Module->StartRotation);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("초기 2D 회전 각도 (도, 시계방향)\n"
+				"기본값: 0.0");
+		}
 	}
 }
 
@@ -939,7 +1216,20 @@ void UParticleModuleDetailRenderer::RenderRotationRateModule(UParticleModuleRota
 
 	if (BeginSection("Rotation Rate", true))
 	{
+		ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f), "2D 스프라이트 회전 속도");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("Rotation Rate 모듈: 스프라이트 파티클의 연속 회전\n"
+				"3D Mesh 회전 속도는 MeshRotationRate 모듈 사용");
+		}
+
 		RenderFloatDistribution("Start Rotation Rate (Deg/s)", Module->StartRotationRate);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("초기 2D 회전 속도 (초당 도)\n"
+				"양수 = 시계방향, 음수 = 반시계방향\n"
+				"기본값: 0.0");
+		}
 	}
 }
 
@@ -956,7 +1246,20 @@ void UParticleModuleDetailRenderer::RenderMeshRotationModule(UParticleModuleMesh
 
 	if (BeginSection("Mesh Rotation (3D)", true))
 	{
+		ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f), "3D Mesh 회전 (Pitch, Yaw, Roll)");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("MeshRotation 모듈: Mesh 파티클의 완전한 3D 회전\n"
+				"TypeData Mesh 모듈이 활성화되어야 함");
+		}
+
 		RenderVectorDistribution("Start Rotation (Degrees)", Module->StartRotation);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("초기 3D 회전 (X=Pitch, Y=Yaw, Z=Roll) 각도 (도)\n"
+				"기본값: (0, 0, 0)");
+		}
+
 		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "X=Pitch, Y=Yaw, Z=Roll");
 	}
 }
@@ -974,7 +1277,20 @@ void UParticleModuleDetailRenderer::RenderMeshRotationRateModule(UParticleModule
 
 	if (BeginSection("Mesh Rotation Rate (3D)", true))
 	{
+		ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f), "3D Mesh 회전 속도");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("MeshRotationRate 모듈: Mesh 파티클의 연속 3D 회전\n"
+				"TypeData Mesh 모듈이 활성화되어야 함");
+		}
+
 		RenderVectorDistribution("Start Rotation Rate (Deg/s)", Module->StartRotationRate);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("초기 3D 회전 속도 (X=Pitch, Y=Yaw, Z=Roll) (초당 도)\n"
+				"기본값: (0, 0, 0)");
+		}
+
 		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "X=Pitch, Y=Yaw, Z=Roll");
 	}
 }

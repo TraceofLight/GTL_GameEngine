@@ -67,6 +67,16 @@ struct FParticleMeshEmitterInstance : public FParticleEmitterInstance
 	 */
 	virtual void GetAllocatedSize(int32& OutNum, int32& OutMax) override;
 
+	/**
+	 * Resize particle memory and InstanceBuffer
+	 * 파티클 메모리 및 인스턴스 버퍼 리사이징
+	 *
+	 * @param NewMaxActiveParticles - New maximum particle count
+	 * @param bSetMaxActiveCount - If true, update peak active particles
+	 * @return true if successful
+	 */
+	virtual bool Resize(int32 NewMaxActiveParticles, bool bSetMaxActiveCount = true) override;
+
 protected:
 	/**
 	 * 리플레이 데이터 채우기

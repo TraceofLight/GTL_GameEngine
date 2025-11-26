@@ -86,6 +86,16 @@ void FSceneRenderer::Render()
 {
     if (!IsValid()) return;
 
+	// 현재 렌더 타겟과 뷰포트 백업 (프리뷰 윈도우에서 설정한 커스텀 RT 보존용)
+	ID3D11RenderTargetView* BackupRTV[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
+	ID3D11DepthStencilView* BackupDSV = nullptr;
+	RHIDevice->GetDeviceContext()->OMGetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, BackupRTV, &BackupDSV);
+
+	UINT NumViewports = 1;
+	D3D11_VIEWPORT BackupViewport;
+	RHIDevice->GetDeviceContext()->RSGetViewports(&NumViewports, &BackupViewport);
+
+
 	/*static bool Loaded = false;
 	if (!Loaded)
 	{
@@ -143,11 +153,55 @@ void FSceneRenderer::Render()
 	// FXAA 등 화면에서 최종 이미지 품질을 위해 적용되는 효과를 적용
 	ApplyScreenEffectsPass();
 
-    // 최종적으로 Scene에 그려진 텍스쳐를 Back 버퍼에 그힌다
-    CompositeToBackBuffer();
+	if (World->GetWorldType() == EWorldType::PreviewMinimal)
+	{
+		// Preview World: SceneColorTarget을 커스텀 RT로 복사
+		// 1. 백업된 커스텀 RT로 전환
+		RHIDevice->GetDeviceContext()->OMSetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, BackupRTV, nullptr);
+		RHIDevice->GetDeviceContext()->RSSetViewports(1, &BackupViewport);
 
-    // BackBuffer 위에 라인 오버레이(항상 위)를 그린다
-    RenderFinalOverlayLines();
+		// 2. SceneColorTarget을 텍스처로 바인딩
+		FSwapGuard SwapGuard(RHIDevice, 0, 1);
+		ID3D11ShaderResourceView* SourceSRV = RHIDevice->GetCurrentSourceSRV();
+		ID3D11SamplerState* SamplerState = RHIDevice->GetSamplerState(RHI_Sampler_Index::LinearClamp);
+		RHIDevice->GetDeviceContext()->PSSetShaderResources(0, 1, &SourceSRV);
+		RHIDevice->GetDeviceContext()->PSSetSamplers(0, 1, &SamplerState);
+
+		// 3. Blit 셰이더로 커스텀 RT에 복사
+		UShader* FullScreenTriangleVS = UResourceManager::GetInstance().Load<UShader>("Shaders/Utility/FullScreenTriangle_VS.hlsl");
+		UShader* BlitPS = UResourceManager::GetInstance().Load<UShader>("Shaders/Utility/Blit_PS.hlsl");
+		if (FullScreenTriangleVS && BlitPS)
+		{
+			RHIDevice->PrepareShader(FullScreenTriangleVS, BlitPS);
+			RHIDevice->DrawFullScreenQuad();
+		}
+		SwapGuard.Commit();
+	}
+	else
+	{
+		// 최종적으로 Scene에 그려진 텍스쳐를 Back 버퍼에 그힌다
+		CompositeToBackBuffer();
+
+		// BackBuffer 위에 라인 오버레이(항상 위)를 그린다
+		RenderFinalOverlayLines();
+
+		// 메인 에디터: 렌더 타겟과 뷰포트 복원
+		RHIDevice->GetDeviceContext()->OMSetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, BackupRTV, BackupDSV);
+		RHIDevice->GetDeviceContext()->RSSetViewports(1, &BackupViewport);
+	}
+
+	// 백업한 렌더 타겟 Release
+	for (uint32 i = 0; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+	{
+		if (BackupRTV[i])
+		{
+			BackupRTV[i]->Release();
+		}
+	}
+	if (BackupDSV)
+	{
+		BackupDSV->Release();
+	}
 }
 
 //====================================================================================

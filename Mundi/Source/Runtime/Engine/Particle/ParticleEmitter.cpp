@@ -170,7 +170,7 @@ void UParticleEmitter::Serialize(bool bIsLoading, JSON& InOutHandle)
 		if (InOutHandle.hasKey("InitialAllocationCount")) InitialAllocationCount = static_cast<int32>(InOutHandle["InitialAllocationCount"].ToInt());
 		if (InOutHandle.hasKey("bIsSoloing")) bIsSoloing = InOutHandle["bIsSoloing"].ToBool();
 		if (InOutHandle.hasKey("bIsEnabled")) bIsEnabled = InOutHandle["bIsEnabled"].ToBool();
-		if (InOutHandle.hasKey("ThumbnailTexturePath")) ThumbnailTexturePath = InOutHandle["ThumbnailTexturePath"].ToString();
+		if (InOutHandle.hasKey("ThumbnailData")) ThumbnailData = InOutHandle["ThumbnailData"].ToString();
 
 		// EmitterEditorColor
 		if (InOutHandle.hasKey("EmitterEditorColor") && InOutHandle["EmitterEditorColor"].JSONType() == JSON::Class::Array && InOutHandle["EmitterEditorColor"].size() == 4)
@@ -206,7 +206,7 @@ void UParticleEmitter::Serialize(bool bIsLoading, JSON& InOutHandle)
 		InOutHandle["InitialAllocationCount"] = InitialAllocationCount;
 		InOutHandle["bIsSoloing"] = bIsSoloing;
 		InOutHandle["bIsEnabled"] = bIsEnabled;
-		InOutHandle["ThumbnailTexturePath"] = ThumbnailTexturePath;
+		InOutHandle["ThumbnailData"] = ThumbnailData;
 
 		// EmitterEditorColor
 		JSON colorArray = JSON::Make(JSON::Class::Array);
@@ -245,7 +245,7 @@ void UParticleEmitter::DuplicateFrom(const UParticleEmitter* Source)
 	bIsSoloing = Source->bIsSoloing;
 	bIsEnabled = Source->bIsEnabled;
 	bWasEnabledBeforeSolo = Source->bWasEnabledBeforeSolo;
-	ThumbnailTexturePath = Source->ThumbnailTexturePath;
+	ThumbnailData = Source->ThumbnailData;
 
 	// LODLevels 복제
 	LODLevels.clear();

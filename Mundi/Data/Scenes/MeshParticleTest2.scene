@@ -1,6 +1,6 @@
 {
   "Actors" : {
-    "928" : {
+    "981" : {
       "ObjectName" : "ADirectionalLightActor_1",
       "OwnedComponents" : [{
           "CascadedAreaColorDebugValue" : 0.000000,
@@ -8,7 +8,7 @@
           "CascadedCount" : 4,
           "CascadedLinearBlendingValue" : 0.500000,
           "CascadedOverlapValue" : 0.200000,
-          "Id" : 930,
+          "Id" : 983,
           "Intensity" : 1.000000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UDirectionalLightComponent_1",
@@ -29,17 +29,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 930,
+      "RootComponentId" : 983,
       "Tag" : "",
       "Type" : "ADirectionalLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "931" : {
+    "984" : {
       "ObjectName" : "AAmbientLightActor_1",
       "OwnedComponents" : [{
-          "Id" : 933,
+          "Id" : 986,
           "Intensity" : 0.100000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UAmbientLightComponent_1",
@@ -59,17 +59,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 933,
+      "RootComponentId" : 986,
       "Tag" : "",
       "Type" : "AAmbientLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "934" : {
+    "987" : {
       "ObjectName" : "APlayerCameraManager_1",
       "OwnedComponents" : [{
-          "Id" : 935,
+          "Id" : 988,
           "ObjectName" : "USceneComponent_1",
           "ParentId" : 0,
           "RelativeLocation" : [0.000000, 0.000000, 0.000000],
@@ -81,17 +81,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 935,
+      "RootComponentId" : 988,
       "Tag" : "",
       "Type" : "APlayerCameraManager",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "936" : {
+    "989" : {
       "ObjectName" : "빈 액터_0",
       "OwnedComponents" : [{
-          "Id" : 937,
+          "Id" : 990,
           "ObjectName" : "USceneComponent_3",
           "ParentId" : 0,
           "RelativeLocation" : [-2.845209, -1.426998, 2.138016],
@@ -103,12 +103,13 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }, {
-          "Id" : 938,
+          "Id" : 991,
           "ObjectName" : "UParticleSystemComponent_1",
-          "ParentId" : 937,
+          "ParentId" : 990,
           "RelativeLocation" : [0.000000, 0.000000, 0.000000],
           "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
+          "TemplatePath" : "Data/Particle/Test.psys",
           "Type" : "UParticleSystemComponent",
           "bBlockComponent" : false,
           "bGenerateOverlapEvents" : true,
@@ -117,17 +118,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 937,
+      "RootComponentId" : 990,
       "Tag" : "",
       "Type" : "AEmptyActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : true
     },
-    "949" : {
+    "992" : {
       "ObjectName" : "스태틱 메시_0",
       "OwnedComponents" : [{
-          "Id" : 951,
+          "Id" : 994,
           "MaterialSlots" : [{
               "AssetPath" : "texture",
               "Type" : "UMaterial"
@@ -147,17 +148,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 951,
+      "RootComponentId" : 994,
       "Tag" : "",
       "Type" : "AStaticMeshActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "957" : {
+    "995" : {
       "ObjectName" : "스태틱 메시_0",
       "OwnedComponents" : [{
-          "Id" : 958,
+          "Id" : 997,
           "MaterialSlots" : [{
               "AssetPath" : "MatID_1",
               "Type" : "UMaterial"
@@ -177,19 +178,19 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 958,
+      "RootComponentId" : 997,
       "Tag" : "",
       "Type" : "AStaticMeshActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "959" : {
+    "998" : {
       "ObjectName" : "스포트 라이트_0",
       "OwnedComponents" : [{
           "AttenuationRadius" : 61.200001,
           "FalloffExponent" : 2.000000,
-          "Id" : 960,
+          "Id" : 1000,
           "InnerConeAngle" : 30.000000,
           "Intensity" : 32.599998,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
@@ -214,7 +215,7 @@
           "bTickEnabled" : true,
           "bUseInverseSquareFalloff" : true
         }],
-      "RootComponentId" : 960,
+      "RootComponentId" : 1000,
       "Tag" : "",
       "Type" : "ASpotLightActor",
       "bActorHiddenInGame" : false,
@@ -222,13 +223,13 @@
       "bTickInEditor" : false
     }
   },
-  "NextUUID" : 963,
+  "NextUUID" : 1011,
   "PerspectiveCamera" : {
     "FOV" : [60.000000],
     "FarClip" : [2000.000000],
-    "Location" : [-17.520164, -5.910123, 8.573092],
+    "Location" : [-13.266772, -3.132382, 7.091847],
     "NearClip" : [0.100000],
-    "Rotation" : [0.000000, 20.700060, 28.500139]
+    "Rotation" : [0.000000, 17.800049, 11.800126]
   },
   "Version" : 1
 }

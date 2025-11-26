@@ -471,6 +471,10 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     // 텍스처 샘플링 (머트리얼 색상은 Gouraud는 VS에서 적용됨)
     float4 texColor = g_DiffuseTexColor.Sample(g_Sample, uv);
 
+#if PARTICLE || PARTICLE_MESH
+	texColor *= Input.Color;
+#endif
+	
     // 머트리얼의 SpecularExponent 사용, 머트리얼이 없으면 기본값 사용
     float specPower = bHasMaterial ? Material.SpecularExponent : 32.0f;
 

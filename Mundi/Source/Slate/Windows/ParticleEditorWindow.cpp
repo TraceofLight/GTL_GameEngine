@@ -14,6 +14,8 @@
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/AssetManagement/Texture.h"
 #include "Source/Runtime/RHI/D3D11RHI.h"
+#include "Source/Runtime/Core/Misc/Base64.h"
+#include "ThumbnailManager.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "ImGui/imgui.h"
@@ -55,6 +57,9 @@ SParticleEditorWindow::SParticleEditorWindow()
 
 SParticleEditorWindow::~SParticleEditorWindow()
 {
+	// 렌더 타겟 해제
+	ReleaseRenderTarget();
+
 	// 스플리터/패널 정리
 	if (MainSplitter)
 	{
@@ -96,19 +101,19 @@ bool SParticleEditorWindow::Initialize(float StartX, float StartY, float Width, 
 	// 스플리터 계층 구조 생성
 	// 좌측: Viewport(상) | Detail(하)
 	LeftSplitter = new SSplitterV();
-	LeftSplitter->SetSplitRatio(0.6f);
+	LeftSplitter->SetSplitRatio(0.60f);
 	LeftSplitter->SideLT = ViewportPanel;
 	LeftSplitter->SideRB = DetailPanel;
 
 	// 우측: Emitters(상) | CurveEditor(하)
 	RightSplitter = new SSplitterV();
-	RightSplitter->SetSplitRatio(0.5f);
+	RightSplitter->SetSplitRatio(0.55f);
 	RightSplitter->SideLT = EmittersPanel;
 	RightSplitter->SideRB = CurveEditorPanel;
 
 	// 메인: Left(좌) | Right(우)
 	MainSplitter = new SSplitterH();
-	MainSplitter->SetSplitRatio(0.5f);
+	MainSplitter->SetSplitRatio(0.30f);
 	MainSplitter->SideLT = LeftSplitter;
 	MainSplitter->SideRB = RightSplitter;
 
@@ -376,6 +381,12 @@ void SParticleEditorWindow::OnMouseMove(FVector2D MousePos)
 		MainSplitter->OnMouseMove(MousePos);
 	}
 
+	// 팝업/모달이 열려있으면 뷰포트 입력 무시 (드롭다운 메뉴 방해 방지)
+	if (ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+	{
+		return;
+	}
+
 	// 뷰포트 영역 내에서 마우스 이벤트 전달 (카메라 컨트롤용)
 	if (ActiveState && ActiveState->Viewport && ViewportRect.Contains(MousePos))
 	{
@@ -391,6 +402,12 @@ void SParticleEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 		MainSplitter->OnMouseDown(MousePos, Button);
 	}
 
+	// 팝업/모달이 열려있으면 뷰포트 입력 무시 (드롭다운 메뉴 방해 방지)
+	if (ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+	{
+		return;
+	}
+
 	// 뷰포트 영역 내에서 마우스 이벤트 전달 (카메라 컨트롤용)
 	if (ActiveState && ActiveState->Viewport && ViewportRect.Contains(MousePos))
 	{
@@ -404,6 +421,12 @@ void SParticleEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 	if (MainSplitter)
 	{
 		MainSplitter->OnMouseUp(MousePos, Button);
+	}
+
+	// 팝업/모달이 열려있으면 뷰포트 입력 무시 (드롭다운 메뉴 방해 방지)
+	if (ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+	{
+		return;
 	}
 
 	// 뷰포트 영역 내에서 마우스 이벤트 전달 (카메라 컨트롤용)
@@ -631,7 +654,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// 파일: Save, Load
 	// ================================================================
-	if (RenderIconButton("Save", IconSave, "Save", "Save Particle System"))
+	if (RenderIconButton("Save", IconSave, "Save", "파티클 시스템을 .psys 파일로 저장\n기본 경로: Data/Particle/"))
 	{
 		if (ActiveState->CurrentSystem)
 		{
@@ -669,7 +692,7 @@ void SParticleEditorWindow::RenderToolbar()
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("Load", IconLoad, "Load", "Load Particle System"))
+	if (RenderIconButton("Load", IconLoad, "Load", ".psys 파일에서 파티클 시스템 로드\n기본 경로: Data/Particle/"))
 	{
 		std::filesystem::path LoadPath = FPlatformProcess::OpenLoadFileDialog(
 			L"Data/Particle",
@@ -687,7 +710,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// 시뮬레이션: Restart Sim, Restart Level
 	// ================================================================
-	if (RenderIconButton("RestartSim", IconRestartSim, "Restart Sim", "Restart Particle Simulation"))
+	if (RenderIconButton("RestartSim", IconRestartSim, "Restart Sim", "파티클 시뮬레이션 재시작\n모든 파티클과 누적 시간 리셋"))
 	{
 		if (ActiveState->PreviewActor)
 		{
@@ -701,7 +724,7 @@ void SParticleEditorWindow::RenderToolbar()
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("RestartLevel", IconRestartLevel, "Restart Level", "Reset Level and Simulation"))
+	if (RenderIconButton("RestartLevel", IconRestartLevel, "Restart Level", "Actor 위치/회전 리셋 및 시뮬레이션 재시작\n원점 (0, 0, 0)으로 초기화"))
 	{
 		if (ActiveState->PreviewActor)
 		{
@@ -724,13 +747,13 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// 편집: Undo, Redo
 	// ================================================================
-	if (RenderIconButton("Undo", IconUndo, "Undo", "Undo (Ctrl+Z)"))
+	if (RenderIconButton("Undo", IconUndo, "Undo", "마지막 작업 실행 취소 (Ctrl+Z)\n(TBD)"))
 	{
 		// TODO: Undo 구현
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("Redo", IconRedo, "Redo", "Redo (Ctrl+Y)"))
+	if (RenderIconButton("Redo", IconRedo, "Redo", "실행 취소한 작업 다시 실행 (Ctrl+Y)\n(TBD)"))
 	{
 		// TODO: Redo 구현
 	}
@@ -740,36 +763,33 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// Thumbnail - 선택된 이미터의 썸네일 캡처
 	// ================================================================
-	if (RenderIconButton("Thumbnail", IconThumbnail, "Thumbnail", "Capture Thumbnail for Selected Emitter"))
+	if (RenderIconButton("Thumbnail", IconThumbnail, "Thumbnail", "선택된 Emitter의 128x128 썸네일 캡처 (.psys에 인라인 저장)"))
 	{
 		// 선택된 이미터가 있으면 썸네일 캡처
 		if (ActiveState->SelectedEmitter && ActiveState->CurrentSystem)
 		{
 			D3D11RHI* RHI = GEngine.GetRHIDevice();
-			if (RHI)
+			if (RHI && PreviewRenderTargetTexture)
 			{
-				ID3D11Texture2D* SceneColorTexture = RHI->GetCurrentSceneColorTexture();
-				if (SceneColorTexture)
+				// 전용 렌더 타겟에서 썸네일 캡처 (128x128)
+				std::vector<uint8_t> DDSBuffer;
+				if (RHI->CaptureRenderTargetToMemory(PreviewRenderTargetTexture, DDSBuffer, 128, 128))
 				{
-					// 썸네일 저장 경로 생성
-					FString ThumbnailDir = "Data/ParticleThumbnails/";
-					FString SystemName = ActiveState->CurrentSystem->GetName();
-					FString ThumbnailPath = ThumbnailDir + SystemName + "_" + std::to_string(ActiveState->SelectedEmitterIndex) + ".dds";
+					// Base64 인코딩
+					FString Base64Data = FBase64::Encode(DDSBuffer.data(), DDSBuffer.size());
+					ActiveState->SelectedEmitter->ThumbnailData = Base64Data;
 
-					if (RHI->CaptureRenderTargetToDDS(SceneColorTexture, ThumbnailPath, 64, 64))
+					// 기존 캐시 무효화 (다시 촬영 시 즉시 반영)
+					FString CacheKey = "ParticleEmitter_" + std::to_string(ActiveState->SelectedEmitter->UUID);
+					FThumbnailManager::GetInstance().InvalidateThumbnail(CacheKey);
+
+					// .psys 파일 캐시도 무효화 (ContentBrowser 썸네일 갱신)
+					if (!ActiveState->CurrentSystem->GetFilePath().empty())
 					{
-						// 캡처 성공 - 경로 저장 및 텍스처 로드
-						ActiveState->SelectedEmitter->ThumbnailTexturePath = ThumbnailPath;
-						// 이미 로드된 텍스처가 있으면 Reload, 없으면 Load
-						if (UResourceManager::GetInstance().Get<UTexture>(ThumbnailPath))
-						{
-							UResourceManager::GetInstance().Reload<UTexture>(ThumbnailPath);
-						}
-						else
-						{
-							UResourceManager::GetInstance().Load<UTexture>(ThumbnailPath);
-						}
+						FThumbnailManager::GetInstance().InvalidateThumbnail(ActiveState->CurrentSystem->GetFilePath());
 					}
+
+					UE_LOG("ParticleEditor: Thumbnail captured (128x128) for emitter: %s", ActiveState->SelectedEmitter->EmitterName.c_str());
 				}
 			}
 		}
@@ -780,7 +800,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// 뷰 옵션: Bounds (토글)
 	// ================================================================
-	if (RenderIconButton("Bounds", IconBounds, "Bounds", "Toggle Bounds Display", ActiveState->bShowBounds))
+	if (RenderIconButton("Bounds", IconBounds, "Bounds", "바운딩 박스 표시 토글\n뷰포트에 파티클 시스템 경계 표시", ActiveState->bShowBounds))
 	{
 		ActiveState->bShowBounds = !ActiveState->bShowBounds;
 	}
@@ -790,7 +810,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// Origin Axis (토글)
 	// ================================================================
-	if (RenderIconButton("OriginAxis", IconOriginAxis, "Origin Axis", "Toggle Origin Axis Display", ActiveState->bShowOriginAxis))
+	if (RenderIconButton("OriginAxis", IconOriginAxis, "Origin Axis", "원점 축 기즈모 표시 토글\nEmitter 원점에 X(빨강) Y(초록) Z(파랑) 축 표시", ActiveState->bShowOriginAxis))
 	{
 		ActiveState->bShowOriginAxis = !ActiveState->bShowOriginAxis;
 	}
@@ -800,7 +820,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// Background Color (클릭 시 컬러피커 팝업 - OnRender에서 렌더링)
 	// ================================================================
-	if (RenderIconButton("BgColor", IconBackgroundColor, "BG Color", "Change Background Color", bShowColorPicker))
+	if (RenderIconButton("BgColor", IconBackgroundColor, "BG Color", "뷰포트 배경색 변경\n기본값: 어두운 회색 (0.1, 0.1, 0.1)", bShowColorPicker))
 	{
 		bShowColorPicker = !bShowColorPicker;
 	}
@@ -810,13 +830,13 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// LOD 관련: Regen LOD 버튼들
 	// ================================================================
-	if (RenderIconButton("RegenLODDup", IconRegenLOD, "Regen LOD", "Regenerate Lowest LOD (Duplicate Highest)"))
+	if (RenderIconButton("RegenLODDup", IconRegenLOD, "Regen LOD", "최상위 LOD를 복제하여 최하위 LOD 재생성\n(TBD)"))
 	{
 		// TODO: LOD 재생성 (최하위, 최상위 복제)
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("RegenLOD", IconRegenLOD, "Regen LOD", "Regenerate Lowest LOD"))
+	if (RenderIconButton("RegenLOD", IconRegenLOD, "Regen LOD", "최하위 LOD 자동 재생성\n(TBD)"))
 	{
 		// TODO: LOD 재생성 (최하위)
 	}
@@ -826,13 +846,13 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// LOD 네비게이션: Lowest, Lower
 	// ================================================================
-	if (RenderIconButton("LowestLOD", IconLowestLOD, "Lowest LOD", "Go to Lowest LOD"))
+	if (RenderIconButton("LowestLOD", IconLowestLOD, "Lowest LOD", "최하위 디테일 LOD로 이동 (LOD 0)"))
 	{
 		CurrentLODIndex = 0;
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("LowerLOD", IconLowerLOD, "Lower LOD", "Go to Lower LOD"))
+	if (RenderIconButton("LowerLOD", IconLowerLOD, "Lower LOD", "낮은 디테일 LOD로 이동"))
 	{
 		if (CurrentLODIndex > 0)
 		{
@@ -845,7 +865,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// LOD 추가 및 선택
 	// ================================================================
-	if (RenderIconButton("AddLODBefore", IconAddLOD, "Add LOD", "Add LOD Before Current"))
+	if (RenderIconButton("AddLODBefore", IconAddLOD, "Add LOD", "현재 LOD 앞에 새 LOD 추가\n(TBD)"))
 	{
 		// TODO: LOD 추가 (현재 앞에)
 	}
@@ -856,6 +876,11 @@ void SParticleEditorWindow::RenderToolbar()
 	ImGui::BeginGroup();
 	{
 		ImGui::Text("LOD");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("현재 LOD 인덱스 (0 = 최고 디테일)\n수동 편집으로 특정 LOD로 이동");
+		}
+
 		ImGui::SetNextItemWidth(40);
 		ImGui::InputInt("##LODIndex", &CurrentLODIndex, 0, 0);
 		if (CurrentLODIndex < 0)
@@ -866,7 +891,7 @@ void SParticleEditorWindow::RenderToolbar()
 	ImGui::EndGroup();
 
 	ImGui::SameLine();
-	if (RenderIconButton("AddLODAfter", IconAddLOD, "Add LOD", "Add LOD After Current"))
+	if (RenderIconButton("AddLODAfter", IconAddLOD, "Add LOD", "현재 LOD 뒤에 새 LOD 추가\n(TBD)"))
 	{
 		// TODO: LOD 추가 (현재 뒤에)
 	}
@@ -876,7 +901,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// LOD 네비게이션: Higher
 	// ================================================================
-	if (RenderIconButton("HigherLOD", IconHigherLOD, "Higher LOD", "Go to Higher LOD"))
+	if (RenderIconButton("HigherLOD", IconHigherLOD, "Higher LOD", "높은 디테일 LOD로 이동"))
 	{
 		++CurrentLODIndex;
 		// TODO: 최대 LOD 수에 맞게 클램프
@@ -1079,19 +1104,60 @@ void SParticleViewportPanel::OnRender()
 			ImGui::EndPopup();
 		}
 
-		// PreviewWindow와 동일한 방식: BeginChild로 뷰포트 영역 생성
+		// 뷰포트 렌더링 영역
 		ImGui::BeginChild("ParticleViewportRenderArea", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollbar);
 		{
-			// ImGui child 윈도우의 실제 위치/크기 가져오기
-			ImVec2 childPos = ImGui::GetWindowPos();
-			ImVec2 childSize = ImGui::GetWindowSize();
+			// 뷰포트 크기 가져오기
+			const ImVec2 ViewportSize = ImGui::GetContentRegionAvail();
+			const uint32 NewWidth = static_cast<uint32>(ViewportSize.x);
+			const uint32 NewHeight = static_cast<uint32>(ViewportSize.y);
 
-			// ContentRect 업데이트 (실제 3D 렌더링 영역)
-			ContentRect.Left = childPos.x;
-			ContentRect.Top = childPos.y;
-			ContentRect.Right = childPos.x + childSize.x;
-			ContentRect.Bottom = childPos.y + childSize.y;
-			ContentRect.UpdateMinMax();
+			// 렌더 타겟 업데이트 (크기 변경 시)
+			if (NewWidth > 0 && NewHeight > 0)
+			{
+				Owner->UpdateViewportRenderTarget(NewWidth, NewHeight);
+
+				// 파티클 씬을 전용 렌더 타겟에 렌더링
+				Owner->RenderToPreviewRenderTarget();
+
+				// ImGui에 렌더 결과 표시
+				ID3D11ShaderResourceView* PreviewSRV = Owner->GetPreviewShaderResourceView();
+				if (PreviewSRV)
+				{
+					// 이미지 렌더링 전 위치 저장
+					ImVec2 ImagePos = ImGui::GetCursorScreenPos();
+
+					ImTextureID TextureID = reinterpret_cast<ImTextureID>(PreviewSRV);
+					ImGui::Image(TextureID, ViewportSize);
+
+					// ContentRect 업데이트 (이미지 실제 렌더링 영역)
+					ContentRect.Left = ImagePos.x;
+					ContentRect.Top = ImagePos.y;
+					ContentRect.Right = ImagePos.x + ViewportSize.x;
+					ContentRect.Bottom = ImagePos.y + ViewportSize.y;
+					ContentRect.UpdateMinMax();
+
+					// 팝업/모달이 열려있지 않을 때만 입력 처리
+					// (드롭다운 메뉴나 모달 다이얼로그가 뷰포트에 가려지는 것을 방지)
+					if (!ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+					{
+						// 마우스가 이미지 위에 있는지 확인하여 뷰포트 입력으로 간주
+						ImVec2 MousePos = ImGui::GetMousePos();
+						if (MousePos.x >= ImagePos.x && MousePos.x <= ImagePos.x + ViewportSize.x &&
+							MousePos.y >= ImagePos.y && MousePos.y <= ImagePos.y + ViewportSize.y)
+						{
+							// ImGui가 입력을 캡처하지 않도록 설정 (뷰포트 카메라 컨트롤 활성화)
+							ImGui::SetItemAllowOverlap();
+						}
+					}
+				}
+			}
+			else
+			{
+				// 유효하지 않은 크기일 경우 ContentRect 초기화
+				ContentRect = FRect(0, 0, 0, 0);
+				ContentRect.UpdateMinMax();
+			}
 		}
 		ImGui::EndChild();
 	}
@@ -1348,27 +1414,22 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 		IM_COL32(70, 70, 70, 255)
 	);
 
-	// 썸네일 텍스처가 있으면 표시, 없으면 기본 아이콘
-	UTexture* ThumbTex = nullptr;
-	if (!Emitter->ThumbnailTexturePath.empty())
+	// 썸네일 텍스처 로드 (Base64 DDS 데이터로부터)
+	ID3D11ShaderResourceView* ThumbSRV = nullptr;
+	if (!Emitter->ThumbnailData.empty())
 	{
-		// 이미 로드된 텍스처가 있는지 확인, 없으면 로드 시도
-		ThumbTex = UResourceManager::GetInstance().Get<UTexture>(Emitter->ThumbnailTexturePath);
-		if (!ThumbTex)
-		{
-			// 파일이 존재하면 로드
-			if (std::filesystem::exists(Emitter->ThumbnailTexturePath))
-			{
-				ThumbTex = UResourceManager::GetInstance().Load<UTexture>(Emitter->ThumbnailTexturePath);
-			}
-		}
+		FString CacheKey = "ParticleEmitter_" + std::to_string(Emitter->UUID);
+		ThumbSRV = FThumbnailManager::GetInstance().GetThumbnailFromBase64(
+			Emitter->ThumbnailData,
+			CacheKey
+		);
 	}
 
-	if (ThumbTex && ThumbTex->GetShaderResourceView())
+	if (ThumbSRV)
 	{
 		// 썸네일 텍스처 표시
 		DrawList->AddImage(
-			(ImTextureID)ThumbTex->GetShaderResourceView(),
+			(ImTextureID)ThumbSRV,
 			ImVec2(ThumbX, ThumbY),
 			ImVec2(ThumbX + ThumbnailSize, ThumbY + ThumbnailSize)
 		);
@@ -1515,7 +1576,7 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 		}
 		if (bRenderModeHovered)
 		{
-			ImGui::SetTooltip("%s (Click to change)", RenderModeTooltip);
+			ImGui::SetTooltip("%s", RenderModeTooltip);
 		}
 	}
 	IconX += BtnSize + IconSpacing;
@@ -1564,8 +1625,24 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 
 	if (bSoloClicked)
 	{
+		ParticleViewerState* State = Owner->GetActiveState();
+
 		if (!Emitter->bIsSoloing)
 		{
+			// 다른 모든 이미터의 솔로 끄기 (하나만 솔로 가능)
+			if (State && State->CurrentSystem)
+			{
+				for (int32 i = 0; i < State->CurrentSystem->GetNumEmitters(); ++i)
+				{
+					UParticleEmitter* E = State->CurrentSystem->GetEmitter(i);
+					if (E && E != Emitter && E->bIsSoloing)
+					{
+						E->bIsSoloing = false;
+						E->bIsEnabled = E->bWasEnabledBeforeSolo;
+					}
+				}
+			}
+
 			Emitter->bWasEnabledBeforeSolo = Emitter->bIsEnabled;
 			Emitter->bIsSoloing = true;
 		}
@@ -1574,8 +1651,8 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 			Emitter->bIsSoloing = false;
 			Emitter->bIsEnabled = Emitter->bWasEnabledBeforeSolo;
 		}
+
 		// LODLevel->bEnabled 업데이트
-		ParticleViewerState* State = Owner->GetActiveState();
 		if (State && State->CurrentSystem)
 		{
 			State->CurrentSystem->SetupSoloing();
@@ -2529,4 +2606,239 @@ void SParticleCurveEditorPanel::OnRender()
 		ImGui::EndChild();
 	}
 	ImGui::End();
+}
+
+// ============================================================================
+// Render Target Management (전용 렌더 타겟 관리)
+// ============================================================================
+
+/**
+ * @brief 전용 렌더 타겟 생성
+ */
+void SParticleEditorWindow::CreateRenderTarget(uint32 Width, uint32 Height)
+{
+	// 기존 렌더 타겟 해제
+	ReleaseRenderTarget();
+
+	if (Width == 0 || Height == 0)
+	{
+		return;
+	}
+
+	if (!Device)
+	{
+		return;
+	}
+
+	// 렌더 타겟 텍스처 생성 (DXGI_FORMAT_B8G8R8A8_UNORM - D2D 호환)
+	D3D11_TEXTURE2D_DESC TextureDesc = {};
+	TextureDesc.Width = Width;
+	TextureDesc.Height = Height;
+	TextureDesc.MipLevels = 1;
+	TextureDesc.ArraySize = 1;
+	TextureDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	TextureDesc.SampleDesc.Count = 1;
+	TextureDesc.SampleDesc.Quality = 0;
+	TextureDesc.Usage = D3D11_USAGE_DEFAULT;
+	TextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	TextureDesc.CPUAccessFlags = 0;
+	TextureDesc.MiscFlags = 0;
+
+	HRESULT hr = Device->CreateTexture2D(&TextureDesc, nullptr, &PreviewRenderTargetTexture);
+	if (FAILED(hr))
+	{
+		UE_LOG("ParticleEditorWindow: 렌더 타겟 텍스처 생성 실패");
+		return;
+	}
+
+	// 렌더 타겟 뷰 생성
+	D3D11_RENDER_TARGET_VIEW_DESC RTVDesc = {};
+	RTVDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	RTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	RTVDesc.Texture2D.MipSlice = 0;
+
+	hr = Device->CreateRenderTargetView(PreviewRenderTargetTexture, &RTVDesc, &PreviewRenderTargetView);
+	if (FAILED(hr))
+	{
+		UE_LOG("ParticleEditorWindow: 렌더 타겟 뷰 생성 실패");
+		ReleaseRenderTarget();
+		return;
+	}
+
+	// 셰이더 리소스 뷰 생성 (ImGui::Image용)
+	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+	SRVDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	SRVDesc.Texture2D.MostDetailedMip = 0;
+	SRVDesc.Texture2D.MipLevels = 1;
+
+	hr = Device->CreateShaderResourceView(PreviewRenderTargetTexture, &SRVDesc, &PreviewShaderResourceView);
+	if (FAILED(hr))
+	{
+		UE_LOG("ParticleEditorWindow: 셰이더 리소스 뷰 생성 실패");
+		ReleaseRenderTarget();
+		return;
+	}
+
+	// 깊이 스텐실 텍스처 생성
+	D3D11_TEXTURE2D_DESC DepthDesc = {};
+	DepthDesc.Width = Width;
+	DepthDesc.Height = Height;
+	DepthDesc.MipLevels = 1;
+	DepthDesc.ArraySize = 1;
+	DepthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	DepthDesc.SampleDesc.Count = 1;
+	DepthDesc.SampleDesc.Quality = 0;
+	DepthDesc.Usage = D3D11_USAGE_DEFAULT;
+	DepthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	DepthDesc.CPUAccessFlags = 0;
+	DepthDesc.MiscFlags = 0;
+
+	hr = Device->CreateTexture2D(&DepthDesc, nullptr, &PreviewDepthStencilTexture);
+	if (FAILED(hr))
+	{
+		UE_LOG("ParticleEditorWindow: 깊이 스텐실 텍스처 생성 실패");
+		ReleaseRenderTarget();
+		return;
+	}
+
+	// 깊이 스텐실 뷰 생성
+	D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
+	DSVDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	DSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	DSVDesc.Texture2D.MipSlice = 0;
+
+	hr = Device->CreateDepthStencilView(PreviewDepthStencilTexture, &DSVDesc, &PreviewDepthStencilView);
+	if (FAILED(hr))
+	{
+		UE_LOG("ParticleEditorWindow: 깊이 스텐실 뷰 생성 실패");
+		ReleaseRenderTarget();
+		return;
+	}
+
+	PreviewRenderTargetWidth = Width;
+	PreviewRenderTargetHeight = Height;
+}
+
+/**
+ * @brief 전용 렌더 타겟 해제
+ */
+void SParticleEditorWindow::ReleaseRenderTarget()
+{
+	if (PreviewDepthStencilView)
+	{
+		PreviewDepthStencilView->Release();
+		PreviewDepthStencilView = nullptr;
+	}
+
+	if (PreviewDepthStencilTexture)
+	{
+		PreviewDepthStencilTexture->Release();
+		PreviewDepthStencilTexture = nullptr;
+	}
+
+	if (PreviewShaderResourceView)
+	{
+		PreviewShaderResourceView->Release();
+		PreviewShaderResourceView = nullptr;
+	}
+
+	if (PreviewRenderTargetView)
+	{
+		PreviewRenderTargetView->Release();
+		PreviewRenderTargetView = nullptr;
+	}
+
+	if (PreviewRenderTargetTexture)
+	{
+		PreviewRenderTargetTexture->Release();
+		PreviewRenderTargetTexture = nullptr;
+	}
+
+	PreviewRenderTargetWidth = 0;
+	PreviewRenderTargetHeight = 0;
+}
+
+/**
+ * @brief 렌더 타겟 크기 업데이트 (리사이즈 처리)
+ */
+void SParticleEditorWindow::UpdateViewportRenderTarget(uint32 NewWidth, uint32 NewHeight)
+{
+	// 크기가 변경되지 않았으면 스킵
+	if (PreviewRenderTargetWidth == NewWidth && PreviewRenderTargetHeight == NewHeight)
+	{
+		return;
+	}
+
+	// 새 크기로 렌더 타겟 재생성
+	CreateRenderTarget(NewWidth, NewHeight);
+}
+
+/**
+ * @brief 파티클 프리뷰를 전용 렌더 타겟에 렌더링
+ */
+void SParticleEditorWindow::RenderToPreviewRenderTarget()
+{
+	if (!PreviewRenderTargetView || !PreviewDepthStencilView || !ActiveState)
+	{
+		return;
+	}
+
+	if (!ActiveState->Viewport || !ActiveState->Client)
+	{
+		return;
+	}
+
+	D3D11RHI* RHI = GEngine.GetRHIDevice();
+	if (!RHI)
+	{
+		return;
+	}
+
+	ID3D11DeviceContext* Context = RHI->GetDeviceContext();
+
+	// 현재 렌더 타겟 백업 (렌더링 후 복원용)
+	ID3D11RenderTargetView* OldRTV = nullptr;
+	ID3D11DepthStencilView* OldDSV = nullptr;
+	Context->OMGetRenderTargets(1, &OldRTV, &OldDSV);
+
+	// D3D 뷰포트 백업
+	UINT NumViewports = 1;
+	D3D11_VIEWPORT OldViewport;
+	Context->RSGetViewports(&NumViewports, &OldViewport);
+
+	// 렌더 타겟 클리어
+	const float ClearColor[4] = { BackgroundColor[0], BackgroundColor[1], BackgroundColor[2], 1.0f };
+	Context->ClearRenderTargetView(PreviewRenderTargetView, ClearColor);
+	Context->ClearDepthStencilView(PreviewDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+	// 프리뷰 전용 렌더 타겟 설정
+	Context->OMSetRenderTargets(1, &PreviewRenderTargetView, PreviewDepthStencilView);
+
+	// 프리뷰 전용 뷰포트 설정
+	D3D11_VIEWPORT D3DViewport = {};
+	D3DViewport.TopLeftX = 0.0f;
+	D3DViewport.TopLeftY = 0.0f;
+	D3DViewport.Width = static_cast<float>(PreviewRenderTargetWidth);
+	D3DViewport.Height = static_cast<float>(PreviewRenderTargetHeight);
+	D3DViewport.MinDepth = 0.0f;
+	D3DViewport.MaxDepth = 1.0f;
+	Context->RSSetViewports(1, &D3DViewport);
+
+	// Viewport 크기 업데이트 (렌더 타겟 크기만 전달, 스크린 위치 아님)
+	ActiveState->Viewport->Resize(0, 0, PreviewRenderTargetWidth, PreviewRenderTargetHeight);
+
+	// 파티클 씬을 프리뷰 렌더 타겟에 렌더링
+	if (ActiveState->Client)
+	{
+		ActiveState->Client->Draw(ActiveState->Viewport);
+	}
+
+	// 원래 렌더 타겟 복원 (메인 백버퍼로 돌아가기)
+	Context->OMSetRenderTargets(1, &OldRTV, OldDSV);
+	Context->RSSetViewports(1, &OldViewport);
+
+	// 백업한 렌더 타겟 Release
+	if (OldRTV) OldRTV->Release();
+	if (OldDSV) OldDSV->Release();
 }

@@ -187,4 +187,23 @@ private:
 	ImU32 SampleColor = IM_COL32(255, 200, 0, 255);
 	ImU32 SelectedSampleColor = IM_COL32(255, 100, 0, 255);
 	ImU32 PreviewColor = IM_COL32(0, 255, 0, 255);
+
+	// ===== 전용 렌더 타겟 (프리뷰용) =====
+	ID3D11Texture2D* PreviewRenderTargetTexture = nullptr;
+	ID3D11RenderTargetView* PreviewRenderTargetView = nullptr;
+	ID3D11ShaderResourceView* PreviewShaderResourceView = nullptr;
+	ID3D11Texture2D* PreviewDepthStencilTexture = nullptr;
+	ID3D11DepthStencilView* PreviewDepthStencilView = nullptr;
+	uint32 PreviewRenderTargetWidth = 0;
+	uint32 PreviewRenderTargetHeight = 0;
+
+	// 렌더 타겟 관리
+	void CreateRenderTarget(uint32 Width, uint32 Height);
+	void ReleaseRenderTarget();
+	void UpdateViewportRenderTarget(uint32 NewWidth, uint32 NewHeight);
+	void RenderToPreviewRenderTarget();
+
+public:
+	// 렌더 타겟 접근자
+	ID3D11ShaderResourceView* GetPreviewShaderResourceView() const { return PreviewShaderResourceView; }
 };

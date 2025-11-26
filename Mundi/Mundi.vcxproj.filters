@@ -736,6 +736,22 @@
     <ClCompile Include="Generated\UParticleModuleMeshRotationRate.generated.cpp">
       <Filter>Generated</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Runtime\AssetManagement\AsyncLoader.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\GameFramework\ParticleSystemActor.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\DynamicEmitterReplayDataBase.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\ParticleMeshEmitterInstance.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\ParticleSpriteEmitterInstance.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\ParticleViewerBootstrap.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleMeshRotation.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleMeshRotationRate.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleRotation.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleRotationRate.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\ParticleModuleDetailRenderer.cpp" />
+    <ClCompile Include="Source\Slate\Windows\ParticleEditorWindow.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\SubUV\ParticleModuleSubUV.cpp" />
+    <ClCompile Include="Generated\UParticleModuleSubUV.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -1545,6 +1561,23 @@
       <Filter>Generated</Filter>
     </ClInclude>
     <ClInclude Include="Generated\UParticleModuleMeshRotationRate.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Runtime\AssetManagement\AsyncLoader.h" />
+    <ClInclude Include="Source\Runtime\Engine\GameFramework\ParticleSystemActor.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleMeshEmitterInstance.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleSpriteEmitterInstance.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleViewerBootstrap.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleViewerState.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleMeshRotation.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleMeshRotationRate.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleRotation.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleRotationRate.h" />
+    <ClInclude Include="Source\Runtime\Renderer\ParticleStats.h" />
+    <ClInclude Include="Source\Slate\Widgets\ParticleModuleDetailRenderer.h" />
+    <ClInclude Include="Source\Slate\Windows\ParticleEditorWindow.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\SubUV\ParticleModuleSubUV.h" />
+    <ClInclude Include="Generated\UParticleModuleSubUV.generated.h">
       <Filter>Generated</Filter>
     </ClInclude>
   </ItemGroup>

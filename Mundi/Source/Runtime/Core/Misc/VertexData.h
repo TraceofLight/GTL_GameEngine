@@ -59,7 +59,7 @@ struct FParticleSpriteVertex
 	/** The rotation of the particle. */
 	float Rotation;
 	/** The sub-image index for the particle. */
-	float SubImageIndex;
+	float SubImageIndex; // 일반적으로 정수부 = 현재 프레임, 소수부 = 다음 프레임과의 보간 인자(머티리얼에서 floor / frac 분리).
 	/** The color of the particle. */
 	FLinearColor Color;
 

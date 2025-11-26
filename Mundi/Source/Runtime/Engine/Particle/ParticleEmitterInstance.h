@@ -100,6 +100,19 @@ struct FParticleEmitterInstance
 	// 이게 있어야 파티클이 부드럽게 이어져서 나옴
 	float SpawnFraction;
 
+	// ============== Duration/Loop 상태 관리 ==============
+	/** 에미터 경과 시간 (이 에미터만의 시간) */
+	float EmitterTime;
+
+	/** 현재 루프 번호 (0부터 시작) */
+	int32 LoopCount;
+
+	/** 이번 루프의 계산된 Duration (랜덤 범위가 있으면 루프 시작 시 한 번만 계산) */
+	float CurrentLoopDuration;
+
+	/** 스폰 완료 여부 (모든 루프가 끝났거나 Duration 초과) */
+	bool bEmitterIsDone;
+
 	// GPU 리소스
 	ID3D11Buffer* VertexBuffer = nullptr;
 	ID3D11Buffer* IndexBuffer = nullptr;
@@ -123,6 +136,10 @@ struct FParticleEmitterInstance
 		, ParticleCounter(0)
 		, MaxActiveParticles(0)
 		, SpawnFraction(0.0f)
+		, EmitterTime(0.0f)
+		, LoopCount(0)
+		, CurrentLoopDuration(0.0f)
+		, bEmitterIsDone(false)
 		, bMeshRotationActive(false)
 	{
 	}
@@ -327,7 +344,11 @@ struct FParticleEmitterInstance
 			// 현재는 제한 없이 무한 확장 가능
 			if (SpriteTemplate)
 			{
+				// FIX ME: 사실 이렇게 매프레임 캐싱을 해버라면 캐싱의 의미가 없지만, PeakActiveParticles가 갱신되야 할 타이밍에 갱신이 안되서 이렇게 임시 조치를 함.
+				SpriteTemplate->CacheEmitterModuleInfo(); 
 				int32 AbsoluteLimit = SpriteTemplate->GetPeakActiveParticles();
+
+				//UE_LOG("PeakActiveParticles for Emitter: %d", AbsoluteLimit);
 				if (AbsoluteLimit > 0)
 				{
 					NewMax = FMath::Min(NewMax, AbsoluteLimit);
@@ -392,7 +413,7 @@ struct FParticleEmitterInstance
 	 *
 	 * @param Index - Index of the particle to kill (제거할 파티클의 활성 인덱스, 0 ~ ActiveParticles-1)
 	 *
-	 * @note 마지막 파티클과 자리를 바꾼 뒤 ActiveParticles를 감소시킴
+	 * @note 마지막 파티클과 자리를 바꿨 뒤 ActiveParticles를 감소시킴
 	 * @note 이 방식으로 중간에 빈 구멍이 생기지 않아 메모리 효율적
 	 * @warning 순회 중 호출 시 역순으로 순회해야 인덱스 꼬임 방지
 	 */
@@ -491,12 +512,12 @@ struct FParticleEmitterInstance
 	 * @param bSetMaxActiveCount - If true, update peak active particles
 	 * @return true if successful
 	 */
-	bool Resize(int32 NewMaxActiveParticles, bool bSetMaxActiveCount = true)
+	virtual bool Resize(int32 NewMaxActiveParticles, bool bSetMaxActiveCount = true)
 	{
 		// 이미 충분한 크기면 리턴
 		if (NewMaxActiveParticles <= MaxActiveParticles)
 		{
-			return true;
+			return false;
 		}
 
 		// Reallocate particle data (preserves existing data)
@@ -524,6 +545,96 @@ struct FParticleEmitterInstance
 			ParticleIndices[i] = static_cast<uint16>(i);
 		}
 
+		// ========== GPU 버퍼 재생성 (VertexBuffer, IndexBuffer) ==========
+		// 파티클 개수가 증가했으므로 GPU 버퍼도 함께 리사이징 필요
+		if (Component)
+		{
+			ID3D11Device* Device = GEngine.GetRHIDevice()->GetDevice();
+			if (Device)
+			{
+				// 기존 버퍼 해제
+				if (VertexBuffer)
+				{
+					VertexBuffer->Release();
+					VertexBuffer = nullptr;
+				}
+				if (IndexBuffer)
+				{
+					IndexBuffer->Release();
+					IndexBuffer = nullptr;
+				}
+
+				// 에미터 타입 판별 (Sprite vs Mesh)
+				// TypeDataModule이 없으면 Sprite, 있으면 Mesh
+				bool bIsSpriteEmitter = true;
+				if (CurrentLODLevel && CurrentLODLevel->TypeDataModule)
+				{
+					bIsSpriteEmitter = false;
+				}
+
+				if (bIsSpriteEmitter)
+				{
+					// ========== Sprite Emitter: VertexBuffer + IndexBuffer 재생성 ==========
+					
+					// 1. Vertex Buffer 재생성 (각 파티클당 4개의 정점)
+					const int32 MaxVertexCount = NewMaxActiveParticles * 4;
+					std::vector<FParticleSpriteVertex> InitialVertices;
+					InitialVertices.resize(MaxVertexCount);
+
+					HRESULT hr = D3D11RHI::CreateVertexBuffer<FParticleSpriteVertex>(Device, InitialVertices, &VertexBuffer);
+					if (FAILED(hr))
+					{
+						UE_LOG("Failed to resize particle sprite vertex buffer");
+					}
+
+					// 2. Index Buffer 재생성 (각 파티클당 6개의 인덱스)
+					const int32 MaxIndexCount = NewMaxActiveParticles * 6;
+					TArray<uint32> Indices;
+					Indices.Reserve(MaxIndexCount);
+
+					for (int32 QuadIndex = 0; QuadIndex < NewMaxActiveParticles; ++QuadIndex)
+					{
+						const uint32 BaseVertexIndex = QuadIndex * 4;
+						
+						// 첫 번째 삼각형
+						Indices.Add(BaseVertexIndex + 0);
+						Indices.Add(BaseVertexIndex + 1);
+						Indices.Add(BaseVertexIndex + 2);
+						
+						// 두 번째 삼각형
+						Indices.Add(BaseVertexIndex + 2);
+						Indices.Add(BaseVertexIndex + 1);
+						Indices.Add(BaseVertexIndex + 3);
+					}
+
+					D3D11_BUFFER_DESC IndexBufferDesc = {};
+					IndexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+					IndexBufferDesc.ByteWidth = static_cast<UINT>(sizeof(uint32) * Indices.Num());
+					IndexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+					IndexBufferDesc.CPUAccessFlags = 0;
+
+					D3D11_SUBRESOURCE_DATA IndexInitData = {};
+					IndexInitData.pSysMem = Indices.GetData();
+
+					hr = Device->CreateBuffer(&IndexBufferDesc, &IndexInitData, &IndexBuffer);
+					if (FAILED(hr))
+					{
+						UE_LOG("Failed to resize particle sprite index buffer");
+					}
+				}
+				else
+				{
+					// ========== Mesh Emitter: InstanceBuffer만 재생성 ==========
+					// Mesh 에미터는 VertexBuffer/IndexBuffer가 아닌 InstanceBuffer를 사용
+					// (VertexBuffer/IndexBuffer는 메시 에셋에서 가져옴)
+					
+					// Note: InstanceBuffer는 FParticleMeshEmitterInstance에서 관리
+					// 여기서는 VertexBuffer/IndexBuffer를 null로 유지
+					// (FParticleMeshEmitterInstance::Resize에서 InstanceBuffer 처리)
+				}
+			}
+		}
+
 		// Update max count
 		MaxActiveParticles = NewMaxActiveParticles;
 
@@ -549,44 +660,57 @@ struct FParticleEmitterInstance
 		ParticleCounter = 0;
 		SpawnFraction = 0.0f;
 
-		// 1. LOD 레벨 설정 (일단 0번 LOD 사용)
+		// Duration/Loop 상태 초기화
+		EmitterTime = 0.0f;
+		LoopCount = 0;
+		bEmitterIsDone = false;
+
+		// LOD 레벨 설정 (일단 0번 LOD 사용)
 		CurrentLODLevelIndex = 0;
 		if (InTemplate && InTemplate->GetNumLODs() > 0)
 		{
 			CurrentLODLevel = InTemplate->GetLODLevel(0);
 		}
 
-		// 2. Stride 계산 (가장 중요!)
-		// 기본 파티클 크기
+		// Stride 계산
 		ParticleSize = sizeof(FBaseParticle);
 		ParticleStride = ParticleSize;
 
-		// TODO: 모듈들이 요구하는 추가 메모리(Payload) 계산
+		// 모듈들이 요구하는 추가 메모리(Payload) 계산
 		if (CurrentLODLevel)
 		{
-		    for (int32 i = 0; i < CurrentLODLevel->Modules.Num(); i++)
+		    for (int32 i = 0; i < CurrentLODLevel->Modules.Num(); ++i)
 		    {
 		        UParticleModule* Module = CurrentLODLevel->Modules[i];
 		        ParticleStride += Module->RequiredBytes(CurrentLODLevel->TypeDataModule);
 		    }
 		}
 
-		// 2-1. Stride 16바이트 정렬 (SIMD 최적화)
-		// InParticleStride가 50이면 -> 64로, 100이면 -> 112로
+		// Stride 16바이트 정렬 (SIMD 최적화)
 		const int32 Alignment = 16;
 		ParticleStride = (ParticleStride + (Alignment - 1)) & ~(Alignment - 1);
 
-		// 3. PayloadOffset 계산 (기본 파티클 뒤에 모듈 데이터가 시작됨)
+		// PayloadOffset 계산 (기본 파티클 뒤에 모듈 데이터가 시작됨)
 		PayloadOffset = ParticleSize;
 
-		// 3. 메모리 할당 목표치 설정
-		int32 TargetMaxParticles = 1000; // 기본값
+		// 첫 루프의 Duration 계산 (랜덤 범위 적용)
+		if (CurrentLODLevel && CurrentLODLevel->RequiredModule)
+		{
+			CurrentLoopDuration = CurrentLODLevel->RequiredModule->GetEmitterDuration();
+		}
+		else
+		{
+			CurrentLoopDuration = 1.0f;
+		}
+
+		// 메모리 할당 목표치 설정
+		int32 TargetMaxParticles = 1000;
 		if (InTemplate)
 		{
 			TargetMaxParticles = InTemplate->GetPeakActiveParticles();
 		}
 
-		// 4. 초기 할당 (Resize 호출)
+		// 초기 할당 (Resize 호출)
 		if (TargetMaxParticles > 0)
 		{
 			int32 InitialCount = 10;
@@ -599,9 +723,7 @@ struct FParticleEmitterInstance
 				InitialCount = CurrentLODLevel->PeakActiveParticles;
 			}
 
-			// 최소 10개, 최대 100개로 초기 할당 제한 (실무적 최적화)
 			InitialCount = FMath::Clamp(InitialCount, 10, 100);
-
 			Resize(InitialCount);
 		}
 	}

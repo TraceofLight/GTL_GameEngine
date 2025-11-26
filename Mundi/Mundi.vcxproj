@@ -104,7 +104,7 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Generated;$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Scripting;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTex\;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTK;$(SolutionDir)Mundi\ThirdParty\Include\Lua;$(SolutionDir)Mundi\ThirdParty\Include\sol;$(SolutionDir)Mundi\ThirdParty\Include;$(SolutionDir)Mundi\ThirdParty\Include\FBX;$(ProjectDir)Source\Runtime\Engine\Animation;$(ProjectDir)Source\Runtime\Engine\GameFramework\Camera;$(ProjectDir)Source\Runtime\Engine\Particle;$(ProjectDir)Source\Runtime\Engine\SkeletalViewer;$(ProjectDir)Source\Runtime\Renderer\PostProcessing;$(ProjectDir)Source\Runtime\Engine\Particle\Color;$(ProjectDir)Source\Runtime\Engine\Particle\Lifetime;$(ProjectDir)Source\Runtime\Engine\Particle\Location;$(ProjectDir)Source\Runtime\Engine\Particle\Size;$(ProjectDir)Source\Runtime\Engine\Particle\Spawn;$(ProjectDir)Source\Runtime\Engine\Particle\TypeData;$(ProjectDir)Source\Runtime\Engine\Particle\Velocity;$(ProjectDir)Source\Runtime\Engine\Particle\Rotation;$(ProjectDir)Source\Runtime\Engine\Audio</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Generated;$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Scripting;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTex\;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTK;$(SolutionDir)Mundi\ThirdParty\Include\Lua;$(SolutionDir)Mundi\ThirdParty\Include\sol;$(SolutionDir)Mundi\ThirdParty\Include;$(SolutionDir)Mundi\ThirdParty\Include\FBX;$(ProjectDir)Source\Runtime\Engine\Animation;$(ProjectDir)Source\Runtime\Engine\GameFramework\Camera;$(ProjectDir)Source\Runtime\Engine\Particle;$(ProjectDir)Source\Runtime\Engine\SkeletalViewer;$(ProjectDir)Source\Runtime\Renderer\PostProcessing;$(ProjectDir)Source\Runtime\Engine\Particle\Color;$(ProjectDir)Source\Runtime\Engine\Particle\Lifetime;$(ProjectDir)Source\Runtime\Engine\Particle\Location;$(ProjectDir)Source\Runtime\Engine\Particle\Size;$(ProjectDir)Source\Runtime\Engine\Particle\Spawn;$(ProjectDir)Source\Runtime\Engine\Particle\TypeData;$(ProjectDir)Source\Runtime\Engine\Particle\Velocity;$(ProjectDir)Source\Runtime\Engine\Particle\Rotation;$(ProjectDir)Source\Runtime\Engine\Particle\SubUV;$(ProjectDir)Source\Runtime\Engine\Audio</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 /bigobj /MP %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
@@ -112,7 +112,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK_debug.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK_debug.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <Manifest>
@@ -139,7 +139,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Generated;$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Scripting;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTex\;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTK;$(SolutionDir)Mundi\ThirdParty\Include\Lua;$(SolutionDir)Mundi\ThirdParty\Include\sol;$(SolutionDir)Mundi\ThirdParty\Include;$(SolutionDir)Mundi\ThirdParty\Include\FBX;$(ProjectDir)Source\Runtime\Engine\Animation;$(ProjectDir)Source\Runtime\Engine\GameFramework\Camera;$(ProjectDir)Source\Runtime\Engine\Particle;$(ProjectDir)Source\Runtime\Engine\SkeletalViewer;$(ProjectDir)Source\Runtime\Renderer\PostProcessing;$(ProjectDir)Source\Runtime\Engine\Particle\Color;$(ProjectDir)Source\Runtime\Engine\Particle\Lifetime;$(ProjectDir)Source\Runtime\Engine\Particle\Location;$(ProjectDir)Source\Runtime\Engine\Particle\Size;$(ProjectDir)Source\Runtime\Engine\Particle\Spawn;$(ProjectDir)Source\Runtime\Engine\Particle\TypeData;$(ProjectDir)Source\Runtime\Engine\Particle\Velocity;$(ProjectDir)Source\Runtime\Engine\Particle\Rotation;$(ProjectDir)Source\Runtime\Engine\Audio</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Generated;$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Scripting;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTex\;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTK;$(SolutionDir)Mundi\ThirdParty\Include\Lua;$(SolutionDir)Mundi\ThirdParty\Include\sol;$(SolutionDir)Mundi\ThirdParty\Include;$(SolutionDir)Mundi\ThirdParty\Include\FBX;$(ProjectDir)Source\Runtime\Engine\Animation;$(ProjectDir)Source\Runtime\Engine\GameFramework\Camera;$(ProjectDir)Source\Runtime\Engine\Particle;$(ProjectDir)Source\Runtime\Engine\SkeletalViewer;$(ProjectDir)Source\Runtime\Renderer\PostProcessing;$(ProjectDir)Source\Runtime\Engine\Particle\Color;$(ProjectDir)Source\Runtime\Engine\Particle\Lifetime;$(ProjectDir)Source\Runtime\Engine\Particle\Location;$(ProjectDir)Source\Runtime\Engine\Particle\Size;$(ProjectDir)Source\Runtime\Engine\Particle\Spawn;$(ProjectDir)Source\Runtime\Engine\Particle\TypeData;$(ProjectDir)Source\Runtime\Engine\Particle\Velocity;$(ProjectDir)Source\Runtime\Engine\Particle\Rotation;$(ProjectDir)Source\Runtime\Engine\Particle\SubUV;$(ProjectDir)Source\Runtime\Engine\Audio</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 /bigobj /MP %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
@@ -149,7 +149,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\$(Configuration)\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <Manifest>
@@ -174,7 +174,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Generated;$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Scripting;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTex\;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTK;$(SolutionDir)Mundi\ThirdParty\Include\Lua;$(SolutionDir)Mundi\ThirdParty\Include\sol;$(SolutionDir)Mundi\ThirdParty\Include;$(SolutionDir)Mundi\ThirdParty\Include\FBX;$(ProjectDir)Source\Runtime\Engine\Animation;$(ProjectDir)Source\Runtime\Engine\GameFramework\Camera;$(ProjectDir)Source\Runtime\Engine\Particle;$(ProjectDir)Source\Runtime\Engine\SkeletalViewer;$(ProjectDir)Source\Runtime\Renderer\PostProcessing;$(ProjectDir)Source\Runtime\Engine\Particle\Color;$(ProjectDir)Source\Runtime\Engine\Particle\Lifetime;$(ProjectDir)Source\Runtime\Engine\Particle\Location;$(ProjectDir)Source\Runtime\Engine\Particle\Size;$(ProjectDir)Source\Runtime\Engine\Particle\Spawn;$(ProjectDir)Source\Runtime\Engine\Particle\TypeData;$(ProjectDir)Source\Runtime\Engine\Particle\Velocity;$(ProjectDir)Source\Runtime\Engine\Particle\Rotation;$(ProjectDir)Source\Runtime\Engine\Audio</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Generated;$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Scripting;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTex\;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTK;$(SolutionDir)Mundi\ThirdParty\Include\Lua;$(SolutionDir)Mundi\ThirdParty\Include\sol;$(SolutionDir)Mundi\ThirdParty\Include;$(SolutionDir)Mundi\ThirdParty\Include\FBX;$(ProjectDir)Source\Runtime\Engine\Animation;$(ProjectDir)Source\Runtime\Engine\GameFramework\Camera;$(ProjectDir)Source\Runtime\Engine\Particle;$(ProjectDir)Source\Runtime\Engine\SkeletalViewer;$(ProjectDir)Source\Runtime\Renderer\PostProcessing;$(ProjectDir)Source\Runtime\Engine\Particle\Color;$(ProjectDir)Source\Runtime\Engine\Particle\Lifetime;$(ProjectDir)Source\Runtime\Engine\Particle\Location;$(ProjectDir)Source\Runtime\Engine\Particle\Size;$(ProjectDir)Source\Runtime\Engine\Particle\Spawn;$(ProjectDir)Source\Runtime\Engine\Particle\TypeData;$(ProjectDir)Source\Runtime\Engine\Particle\Velocity;$(ProjectDir)Source\Runtime\Engine\Particle\Rotation;$(ProjectDir)Source\Runtime\Engine\Particle\SubUV;$(ProjectDir)Source\Runtime\Engine\Audio</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 /bigobj /MP %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
@@ -182,7 +182,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\Debug\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\Debug\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\Debug\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK_debug.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK_debug.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -206,7 +206,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Generated;$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Scripting;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTex\;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTK;$(SolutionDir)Mundi\ThirdParty\Include\Lua;$(SolutionDir)Mundi\ThirdParty\Include\sol;$(SolutionDir)Mundi\ThirdParty\Include;$(SolutionDir)Mundi\ThirdParty\Include\FBX;$(ProjectDir)Source\Runtime\Engine\Animation;$(ProjectDir)Source\Runtime\Engine\GameFramework\Camera;$(ProjectDir)Source\Runtime\Engine\Particle;$(ProjectDir)Source\Runtime\Engine\SkeletalViewer;$(ProjectDir)Source\Runtime\Renderer\PostProcessing;$(ProjectDir)Source\Runtime\Engine\Particle\Color;$(ProjectDir)Source\Runtime\Engine\Particle\Lifetime;$(ProjectDir)Source\Runtime\Engine\Particle\Location;$(ProjectDir)Source\Runtime\Engine\Particle\Size;$(ProjectDir)Source\Runtime\Engine\Particle\Spawn;$(ProjectDir)Source\Runtime\Engine\Particle\TypeData;$(ProjectDir)Source\Runtime\Engine\Particle\Velocity;$(ProjectDir)Source\Runtime\Engine\Particle\Rotation;$(ProjectDir)Source\Runtime\Engine\Audio</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)Generated;$(ProjectDir)Source\Runtime\Core\Object;$(ProjectDir)Source\Runtime\Core\Math;$(ProjectDir)Source\Runtime\Core\Containers;$(ProjectDir)Source\Runtime\Core\Misc;$(ProjectDir)Source\Runtime\Core\Memory;$(ProjectDir)Source\Runtime\Engine\GameFramework;$(ProjectDir)Source\Runtime\Engine\Scripting;$(ProjectDir)Source\Runtime\Engine\Components;$(ProjectDir)Source\Runtime\Engine\Collision;$(ProjectDir)Source\Runtime\Engine\Spatial;$(ProjectDir)Source\Runtime\RHI;$(ProjectDir)Source\Runtime\Renderer;$(ProjectDir)Source\Runtime\AssetManagement;$(ProjectDir)Source\Runtime\InputCore;$(ProjectDir)Source\Editor;$(ProjectDir)Source\Slate;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTex\;$(SolutionDir)Mundi\ThirdParty\Include\DirectXTK;$(SolutionDir)Mundi\ThirdParty\Include\Lua;$(SolutionDir)Mundi\ThirdParty\Include\sol;$(SolutionDir)Mundi\ThirdParty\Include;$(SolutionDir)Mundi\ThirdParty\Include\FBX;$(ProjectDir)Source\Runtime\Engine\Animation;$(ProjectDir)Source\Runtime\Engine\GameFramework\Camera;$(ProjectDir)Source\Runtime\Engine\Particle;$(ProjectDir)Source\Runtime\Engine\SkeletalViewer;$(ProjectDir)Source\Runtime\Renderer\PostProcessing;$(ProjectDir)Source\Runtime\Engine\Particle\Color;$(ProjectDir)Source\Runtime\Engine\Particle\Lifetime;$(ProjectDir)Source\Runtime\Engine\Particle\Location;$(ProjectDir)Source\Runtime\Engine\Particle\Size;$(ProjectDir)Source\Runtime\Engine\Particle\Spawn;$(ProjectDir)Source\Runtime\Engine\Particle\TypeData;$(ProjectDir)Source\Runtime\Engine\Particle\Velocity;$(ProjectDir)Source\Runtime\Engine\Particle\Rotation;$(ProjectDir)Source\Runtime\Engine\Particle\SubUV;$(ProjectDir)Source\Runtime\Engine\Audio</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 /bigobj /MP %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
@@ -216,7 +216,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Mundi\ThirdParty\Library\Lua\Release\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTex\Release\;$(SolutionDir)Mundi\ThirdParty\Library\FBX\Release\;$(SolutionDir)Mundi\ThirdParty\Library\DirectXTK\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
+      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -353,6 +353,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand $(EncodedScript)" Condition="'$(EncodedScript)' != ''" />
   </Target>
   <ItemGroup>
+    <ClCompile Include="Generated\UParticleModuleSubUV.generated.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -386,6 +387,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Core\Math\Vector.cpp" />
     <ClCompile Include="Source\Runtime\Core\Memory\MemoryManager.cpp" />
     <ClCompile Include="Source\Runtime\Core\Memory\PlatformTime.cpp" />
+    <ClCompile Include="Source\Runtime\Core\Misc\Base64.cpp" />
     <ClCompile Include="Source\Runtime\Core\Misc\Color.cpp" />
     <ClCompile Include="Source\Runtime\Core\Misc\FName.cpp" />
     <ClCompile Include="Source\Runtime\Core\Misc\MiniDump.cpp" />
@@ -499,6 +501,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleRotationRate.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Size\ParticleModuleSize.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Spawn\ParticleModuleSpawn.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\SubUV\ParticleModuleSubUV.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\TypeData\ParticleModuleTypeDataBase.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\DynamicEmitterDataBase.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.cpp" />
@@ -681,6 +684,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\UParticleModuleMeshRotationRate.generated.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Generated\UParticleModuleSubUV.generated.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Source\Editor\Clipboard\ClipboardManager.h" />
     <ClInclude Include="Source\Editor\FbxLoader.h" />
@@ -713,6 +717,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Core\Memory\MemoryManager.h" />
     <ClInclude Include="Source\Runtime\Core\Memory\PlatformTime.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\Archive.h" />
+    <ClInclude Include="Source\Runtime\Core\Misc\Base64.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\Color.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\Delegates.h" />
     <ClInclude Include="Source\Runtime\Core\Misc\Enums.h" />
@@ -845,6 +850,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleRotationRate.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Size\ParticleModuleSize.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Spawn\ParticleModuleSpawn.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\SubUV\ParticleModuleSubUV.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\TypeData\ParticleModuleTypeDataBase.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\GameObject.h" />
