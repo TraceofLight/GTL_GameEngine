@@ -33,7 +33,7 @@
               "InterpolationMethod" : 2,
               "LODValidity" : 255,
               "ModuleType" : "UParticleModuleSubUV",
-              "RandomImageChanges" : 4,
+              "RandomImageChanges" : 1,
               "StartingFrame" : 0.000000,
               "b3DDrawMode" : false,
               "bEnabled" : true,
@@ -41,7 +41,7 @@
               "bSpawnModule" : true,
               "bSupported3DDrawMode" : false,
               "bUpdateModule" : true,
-              "bUseRealTime" : true
+              "bUseRealTime" : false
             }],
           "PeakActiveParticles" : 10,
           "RequiredModule" : {

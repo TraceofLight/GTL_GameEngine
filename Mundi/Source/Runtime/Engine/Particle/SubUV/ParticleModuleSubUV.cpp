@@ -196,26 +196,26 @@ void UParticleModuleSubUV::Serialize(bool bIsLoading, JSON& InOutHandle)
 	if (bIsLoading)
 	{
 		JSON& SubUV = InOutHandle;
-		if (SubUV.hasKey("InterpolationMethod"))
+		if (InOutHandle.hasKey("InterpolationMethod"))
 		{
-			int32 MethodInt = SubUV["InterpolationMethod"].ToInt();
+			int32 MethodInt = InOutHandle["InterpolationMethod"].ToInt();
 			InterpolationMethod = static_cast<EParticleSubUVInterpMethod>(MethodInt);
 		}
-		if (SubUV.hasKey("bUseRealTime"))
+		if (InOutHandle.hasKey("bUseRealTime"))
 		{
-			bUseRealTime = SubUV["bUseRealTime"].ToBool();
+			bUseRealTime = InOutHandle["bUseRealTime"].ToBool();
 		}
-		if (SubUV.hasKey("StartingFrame"))
+		if (InOutHandle.hasKey("StartingFrame"))
 		{
-			StartingFrame = SubUV["StartingFrame"].ToFloat();
+			StartingFrame = InOutHandle["StartingFrame"].ToFloat();
 		}
-		if (SubUV.hasKey("FrameRate"))
+		if (InOutHandle.hasKey("FrameRate"))
 		{
-			FrameRate = SubUV["FrameRate"].ToFloat();
+			FrameRate = InOutHandle["FrameRate"].ToFloat();
 		}
-		if (SubUV.hasKey("RandomImageChanges"))
+		if (InOutHandle.hasKey("RandomImageChanges"))
 		{
-			RandomImageChanges = SubUV["RandomImageChanges"].ToInt();
+			RandomImageChanges = InOutHandle["RandomImageChanges"].ToInt();
 		}
 	}
 	else

@@ -16,6 +16,7 @@
 #include "Beam/ParticleModuleBeamSource.h"
 #include "Beam/ParticleModuleBeamTarget.h"
 #include "Beam/ParticleModuleBeamNoise.h"
+#include "SubUV/ParticleModuleSubUV.h"
 
 UParticleLODLevel::UParticleLODLevel()
 	: Level(0)
@@ -194,6 +195,7 @@ static UParticleModule* CreateModuleByTypeName(const FString& TypeName)
 	if (TypeName == "UParticleModuleBeamSource") return NewObject<UParticleModuleBeamSource>();
 	if (TypeName == "UParticleModuleBeamTarget") return NewObject<UParticleModuleBeamTarget>();
 	if (TypeName == "UParticleModuleBeamNoise") return NewObject<UParticleModuleBeamNoise>();
+	if (TypeName == "UParticleModuleSubUV") return NewObject<UParticleModuleSubUV>();
 	return nullptr;
 }
 
