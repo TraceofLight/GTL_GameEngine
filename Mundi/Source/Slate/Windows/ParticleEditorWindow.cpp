@@ -631,7 +631,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// 파일: Save, Load
 	// ================================================================
-	if (RenderIconButton("Save", IconSave, "Save", "Save Particle System"))
+	if (RenderIconButton("Save", IconSave, "Save", "파티클 시스템을 .psys 파일로 저장\n기본 경로: Data/Particle/"))
 	{
 		if (ActiveState->CurrentSystem)
 		{
@@ -669,7 +669,7 @@ void SParticleEditorWindow::RenderToolbar()
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("Load", IconLoad, "Load", "Load Particle System"))
+	if (RenderIconButton("Load", IconLoad, "Load", ".psys 파일에서 파티클 시스템 로드\n기본 경로: Data/Particle/"))
 	{
 		std::filesystem::path LoadPath = FPlatformProcess::OpenLoadFileDialog(
 			L"Data/Particle",
@@ -687,7 +687,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// 시뮬레이션: Restart Sim, Restart Level
 	// ================================================================
-	if (RenderIconButton("RestartSim", IconRestartSim, "Restart Sim", "Restart Particle Simulation"))
+	if (RenderIconButton("RestartSim", IconRestartSim, "Restart Sim", "파티클 시뮬레이션 재시작\n모든 파티클과 누적 시간 리셋"))
 	{
 		if (ActiveState->PreviewActor)
 		{
@@ -701,7 +701,7 @@ void SParticleEditorWindow::RenderToolbar()
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("RestartLevel", IconRestartLevel, "Restart Level", "Reset Level and Simulation"))
+	if (RenderIconButton("RestartLevel", IconRestartLevel, "Restart Level", "Actor 위치/회전 리셋 및 시뮬레이션 재시작\n원점 (0, 0, 0)으로 초기화"))
 	{
 		if (ActiveState->PreviewActor)
 		{
@@ -724,13 +724,13 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// 편집: Undo, Redo
 	// ================================================================
-	if (RenderIconButton("Undo", IconUndo, "Undo", "Undo (Ctrl+Z)"))
+	if (RenderIconButton("Undo", IconUndo, "Undo", "마지막 작업 실행 취소 (Ctrl+Z)\n(TBD)"))
 	{
 		// TODO: Undo 구현
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("Redo", IconRedo, "Redo", "Redo (Ctrl+Y)"))
+	if (RenderIconButton("Redo", IconRedo, "Redo", "실행 취소한 작업 다시 실행 (Ctrl+Y)\n(TBD)"))
 	{
 		// TODO: Redo 구현
 	}
@@ -740,7 +740,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// Thumbnail - 선택된 이미터의 썸네일 캡처
 	// ================================================================
-	if (RenderIconButton("Thumbnail", IconThumbnail, "Thumbnail", "Capture Thumbnail for Selected Emitter"))
+	if (RenderIconButton("Thumbnail", IconThumbnail, "Thumbnail", "선택된 Emitter의 64x64 썸네일 캡처\n저장 경로: Data/ParticleThumbnails/"))
 	{
 		// 선택된 이미터가 있으면 썸네일 캡처
 		if (ActiveState->SelectedEmitter && ActiveState->CurrentSystem)
@@ -780,7 +780,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// 뷰 옵션: Bounds (토글)
 	// ================================================================
-	if (RenderIconButton("Bounds", IconBounds, "Bounds", "Toggle Bounds Display", ActiveState->bShowBounds))
+	if (RenderIconButton("Bounds", IconBounds, "Bounds", "바운딩 박스 표시 토글\n뷰포트에 파티클 시스템 경계 표시", ActiveState->bShowBounds))
 	{
 		ActiveState->bShowBounds = !ActiveState->bShowBounds;
 	}
@@ -790,7 +790,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// Origin Axis (토글)
 	// ================================================================
-	if (RenderIconButton("OriginAxis", IconOriginAxis, "Origin Axis", "Toggle Origin Axis Display", ActiveState->bShowOriginAxis))
+	if (RenderIconButton("OriginAxis", IconOriginAxis, "Origin Axis", "원점 축 기즈모 표시 토글\nEmitter 원점에 X(빨강) Y(초록) Z(파랑) 축 표시", ActiveState->bShowOriginAxis))
 	{
 		ActiveState->bShowOriginAxis = !ActiveState->bShowOriginAxis;
 	}
@@ -800,7 +800,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// Background Color (클릭 시 컬러피커 팝업 - OnRender에서 렌더링)
 	// ================================================================
-	if (RenderIconButton("BgColor", IconBackgroundColor, "BG Color", "Change Background Color", bShowColorPicker))
+	if (RenderIconButton("BgColor", IconBackgroundColor, "BG Color", "뷰포트 배경색 변경\n기본값: 어두운 회색 (0.1, 0.1, 0.1)", bShowColorPicker))
 	{
 		bShowColorPicker = !bShowColorPicker;
 	}
@@ -810,13 +810,13 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// LOD 관련: Regen LOD 버튼들
 	// ================================================================
-	if (RenderIconButton("RegenLODDup", IconRegenLOD, "Regen LOD", "Regenerate Lowest LOD (Duplicate Highest)"))
+	if (RenderIconButton("RegenLODDup", IconRegenLOD, "Regen LOD", "최상위 LOD를 복제하여 최하위 LOD 재생성\n(TBD)"))
 	{
 		// TODO: LOD 재생성 (최하위, 최상위 복제)
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("RegenLOD", IconRegenLOD, "Regen LOD", "Regenerate Lowest LOD"))
+	if (RenderIconButton("RegenLOD", IconRegenLOD, "Regen LOD", "최하위 LOD 자동 재생성\n(TBD)"))
 	{
 		// TODO: LOD 재생성 (최하위)
 	}
@@ -826,13 +826,13 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// LOD 네비게이션: Lowest, Lower
 	// ================================================================
-	if (RenderIconButton("LowestLOD", IconLowestLOD, "Lowest LOD", "Go to Lowest LOD"))
+	if (RenderIconButton("LowestLOD", IconLowestLOD, "Lowest LOD", "최하위 디테일 LOD로 이동 (LOD 0)"))
 	{
 		CurrentLODIndex = 0;
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("LowerLOD", IconLowerLOD, "Lower LOD", "Go to Lower LOD"))
+	if (RenderIconButton("LowerLOD", IconLowerLOD, "Lower LOD", "낮은 디테일 LOD로 이동"))
 	{
 		if (CurrentLODIndex > 0)
 		{
@@ -845,7 +845,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// LOD 추가 및 선택
 	// ================================================================
-	if (RenderIconButton("AddLODBefore", IconAddLOD, "Add LOD", "Add LOD Before Current"))
+	if (RenderIconButton("AddLODBefore", IconAddLOD, "Add LOD", "현재 LOD 앞에 새 LOD 추가\n(TBD)"))
 	{
 		// TODO: LOD 추가 (현재 앞에)
 	}
@@ -856,6 +856,11 @@ void SParticleEditorWindow::RenderToolbar()
 	ImGui::BeginGroup();
 	{
 		ImGui::Text("LOD");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("현재 LOD 인덱스 (0 = 최고 디테일)\n수동 편집으로 특정 LOD로 이동");
+		}
+
 		ImGui::SetNextItemWidth(40);
 		ImGui::InputInt("##LODIndex", &CurrentLODIndex, 0, 0);
 		if (CurrentLODIndex < 0)
@@ -866,7 +871,7 @@ void SParticleEditorWindow::RenderToolbar()
 	ImGui::EndGroup();
 
 	ImGui::SameLine();
-	if (RenderIconButton("AddLODAfter", IconAddLOD, "Add LOD", "Add LOD After Current"))
+	if (RenderIconButton("AddLODAfter", IconAddLOD, "Add LOD", "현재 LOD 뒤에 새 LOD 추가\n(TBD)"))
 	{
 		// TODO: LOD 추가 (현재 뒤에)
 	}
@@ -876,7 +881,7 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// LOD 네비게이션: Higher
 	// ================================================================
-	if (RenderIconButton("HigherLOD", IconHigherLOD, "Higher LOD", "Go to Higher LOD"))
+	if (RenderIconButton("HigherLOD", IconHigherLOD, "Higher LOD", "높은 디테일 LOD로 이동"))
 	{
 		++CurrentLODIndex;
 		// TODO: 최대 LOD 수에 맞게 클램프
