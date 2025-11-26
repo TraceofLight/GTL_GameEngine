@@ -247,9 +247,15 @@ struct FParticleEmitterInstance
 	 * @details PreSpawn → 모듈 실행 → PostSpawn 순서로 파티클 생성
 	 *
 	 * [스폰 파이프라인]
-	 * 1. PreSpawn: 파티클 기본값 초기화
-	 * 2. SpawnModules: 각 모듈이 파티클 속성 설정 (Color, Size, Velocity 등)
-	 * 3. PostSpawn: 서브프레임 보정 및 활성 파티클 등록
+	 * 1. 동적 메모리 확장: 공간이 부족하면 자동으로 늘림
+	 * 2. PreSpawn: 파티클 기본값 초기화
+	 * 3. SpawnModules: 각 모듈이 파티클 속성 설정 (Color, Size, Velocity 등)
+	 * 4. PostSpawn: 서브프레임 보정 및 활성 파티클 등록
+	 *
+	 * [동적 메모리 확장 (Lazy Allocation)]
+	 * Init에서는 최소한의 메모리만 할당 (10~100개)
+	 * 실제로 더 많은 파티클이 필요할 때 자동으로 Resize
+	 * 이렇게 하면 메모리 낭비를 줄이면서도 제한 없이 파티클 생성 가능
 	 *
 	 * [서브프레임 분산]
 	 * 한 프레임에 여러 개를 생성할 때, 시간을 균등하게 분산:
@@ -279,10 +285,45 @@ struct FParticleEmitterInstance
 			return;
 		}
 
+		// ========== 동적 메모리 확장 (Lazy Allocation) ==========
+		// 생성하려는 개수만큼 공간이 부족하면 자동으로 늘린다
+		//
+		// [왜 필요한가?]
+		// Init에서는 메모리 낭비를 줄이기 위해 최소한만 할당 (10~100개)
+		// 하지만 실제로 더 많은 파티클이 필요할 수 있음
+		// 이때 자동으로 메모리를 늘려서 제한 없이 파티클 생성
+		//
+		// [성장 전략: 1.5배 성장]
+		// 예: 현재 100개, 150개 필요 → 225개로 확장 (150 * 1.5)
+		// 이렇게 하면 Realloc 호출 횟수를 줄여 성능 최적화
+		int32 RequiredCount = ActiveParticles + Count;
+		if (RequiredCount > MaxActiveParticles)
+		{
+			// 1.5배 성장 (필요한 개수 + 50% 여유분)
+			int32 NewMax = RequiredCount + (RequiredCount / 2);
+
+			// 절대 한계치 체크 (옵션)
+			// 에디터에서 설정한 PeakActiveParticles를 넘지 않도록 제한할 수 있음
+			// 현재는 제한 없이 무한 확장 가능
+			if (SpriteTemplate)
+			{
+				int32 AbsoluteLimit = SpriteTemplate->GetPeakActiveParticles();
+				if (AbsoluteLimit > 0)
+				{
+					NewMax = FMath::Min(NewMax, AbsoluteLimit);
+				}
+			}
+
+			// 메모리 확장 실행
+			// Resize는 기존 데이터를 보존하면서 확장함 (Realloc 사용)
+			Resize(NewMax);
+		}
+
 		// ========== 생성 루프 ==========
 		for (int32 i = 0; i < Count; i++)
 		{
 			// 메모리 풀이 꽉 찼으면 생성 중단
+			// (절대 한계치에 도달했거나, Resize 실패 시)
 			if (ActiveParticles >= MaxActiveParticles)
 			{
 				break;
