@@ -83,7 +83,7 @@ int32 UParticleLODLevel::CalculateMaxActiveParticleCount()
 		{
 			// Lifetime 모듈의 최대값 사용
 			// 실제로는 캐스팅해서 값을 가져와야 함
-			Lifetime = 5.0f;  // 임시 값
+			Lifetime = static_cast<UParticleModuleLifetime*>(Module)->Lifetime.Max;
 			break;
 		}
 	}

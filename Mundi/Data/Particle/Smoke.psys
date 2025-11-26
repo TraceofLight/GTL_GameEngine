@@ -45,8 +45,8 @@
             }, {
               "LODValidity" : 255,
               "Lifetime" : {
-                "Max" : 15.000000,
-                "Min" : 15.000000,
+                "Max" : 30.000000,
+                "Min" : 30.000000,
                 "bIsUniform" : true
               },
               "ModuleType" : "UParticleModuleLifetime",
@@ -91,7 +91,7 @@
               "bSupported3DDrawMode" : false,
               "bUpdateModule" : false
             }],
-          "PeakActiveParticles" : 180,
+          "PeakActiveParticles" : 1080,
           "RequiredModule" : {
             "AxisLockOption" : 0,
             "BlendMode" : 1,
@@ -226,7 +226,7 @@
               "bSupported3DDrawMode" : false,
               "bUpdateModule" : false
             }],
-          "PeakActiveParticles" : 300,
+          "PeakActiveParticles" : 180,
           "RequiredModule" : {
             "AxisLockOption" : 0,
             "BlendMode" : 2,
