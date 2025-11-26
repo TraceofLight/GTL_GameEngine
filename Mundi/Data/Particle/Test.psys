@@ -63,12 +63,12 @@
             "BlendMode" : 1,
             "EmitterDuration" : 3.000000,
             "EmitterDurationLow" : 2.000000,
-            "EmitterLoops" : 1,
+            "EmitterLoops" : 0,
             "EmitterNormalsMode" : 0,
             "InterpolationMethod" : 0,
             "LODValidity" : 255,
             "MaterialPath" : "Data/Particle/Boom.dds",
-            "MaxDrawCount" : 500,
+            "MaxDrawCount" : 0,
             "ModuleType" : "UParticleModuleRequired",
             "ScreenAlignment" : 0,
             "SortMode" : 0,
@@ -114,12 +114,12 @@
             "bSupported3DDrawMode" : false,
             "bUpdateModule" : false
           },
-          "bEnabled" : true
+          "bEnabled" : false
         }],
       "ThumbnailTexturePath" : "",
       "bCollapsed" : false,
       "bDisabledLODsKeepEmitterAlive" : false,
-      "bIsEnabled" : true,
+      "bIsEnabled" : false,
       "bIsSoloing" : false
     }, {
       "DetailMode" : 0,
@@ -195,7 +195,7 @@
             "InterpolationMethod" : 0,
             "LODValidity" : 255,
             "MaterialPath" : "",
-            "MaxDrawCount" : 500,
+            "MaxDrawCount" : 0,
             "ModuleType" : "UParticleModuleRequired",
             "ScreenAlignment" : 0,
             "SortMode" : 0,
@@ -213,7 +213,11 @@
             "bUseLocalSpace" : false
           },
           "SpawnModule" : {
-            "BurstList" : [],
+            "BurstList" : [{
+                "Count" : 10,
+                "CountLow" : 0,
+                "Time" : 0.000000
+              }],
             "BurstMethod" : 0,
             "BurstScale" : {
               "Max" : 1.000000,
@@ -236,7 +240,7 @@
             "bEnabled" : true,
             "bFinalUpdateModule" : false,
             "bProcessBurstList" : true,
-            "bProcessSpawnRate" : true,
+            "bProcessSpawnRate" : false,
             "bSpawnModule" : false,
             "bSupported3DDrawMode" : false,
             "bUpdateModule" : false

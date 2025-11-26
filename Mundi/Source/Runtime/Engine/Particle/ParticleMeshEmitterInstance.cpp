@@ -144,6 +144,8 @@ bool FParticleMeshEmitterInstance::FillReplayData(FDynamicEmitterReplayDataBase&
 
 		// BlendMode (렌더러에서 블렌드 스테이트 분기용)
 		MeshData.BlendMode = CurrentLODLevel->RequiredModule->GetBlendMode();
+
+		MeshData.MaxDrawCount = CurrentLODLevel->RequiredModule->GetMaxDrawCount();
 	}
 
 	// 5. 메시 전용 데이터 설정 (MeshTypeData에서)

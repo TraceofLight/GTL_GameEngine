@@ -517,7 +517,7 @@ struct FParticleEmitterInstance
 		// 이미 충분한 크기면 리턴
 		if (NewMaxActiveParticles <= MaxActiveParticles)
 		{
-			return true;
+			return false;
 		}
 
 		// Reallocate particle data (preserves existing data)

@@ -357,6 +357,10 @@ void UParticleSystemComponent::UpdateEmitters(float DeltaTime)
 					Instance->bEmitterIsDone = true;
 					break;
 				}
+				else
+				{
+					Instance->bEmitterIsDone = false;
+				}
 
 				// 다음 루프 시작 - 시간 조정
 				Instance->EmitterTime -= Instance->CurrentLoopDuration;

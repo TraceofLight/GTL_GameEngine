@@ -7,6 +7,7 @@
 #include "SceneView.h"
 #include "ParticleEmitterInstance.h"
 #include "ParticleMeshEmitterInstance.h"
+#include "SubUV/ParticleModuleSubUV.h"
 #include "Source/Runtime/AssetManagement/StaticMesh.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/Renderer/Material.h"
@@ -107,7 +108,7 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 
 	// 2. Source 데이터 가져오기
 	const FDynamicSpriteEmitterReplayDataBase& SourceData = Source;
-	const int32 ParticleCount = SourceData.ActiveParticleCount;
+	const int32 ParticleCount = SourceData.MaxDrawCount != 0 ? std::min(SourceData.ActiveParticleCount, SourceData.MaxDrawCount) : SourceData.ActiveParticleCount;
 	const uint8* ParticleData = SourceData.DataContainer.ParticleData;
 	const uint16* ParticleIndices = SourceData.DataContainer.ParticleIndices;
 	const int32 ParticleStride = SourceData.ParticleStride;
@@ -116,6 +117,12 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 	{
 		return;
 	}
+
+	// SubUV 설정 가져오기
+	const int32 SubImages_Horizontal = SourceData.SubImages_Horizontal;
+	const int32 SubImages_Vertical = SourceData.SubImages_Vertical;
+	const int32 TotalSubImages = SubImages_Horizontal * SubImages_Vertical;
+	const bool bHasSubUV = (TotalSubImages > 1) && (SourceData.SubUVDataOffset > 0);
 
 	// 3. 파티클 정렬 (필요한 경우)
 	TArray<FParticleOrder> ParticleOrder;
@@ -150,23 +157,43 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 	for (int32 ParticleIndex = 0; ParticleIndex < ParticleCount; ++ParticleIndex)
 	{
 		// 정렬된 인덱스 사용
-		// 주의: FillReplayData에서 ActiveParticles만큼만 연속으로 복사했으므로
-		// ParticleIndices를 사용하지 않고 SortedParticleIndex를 직접 사용해야 함
 		const int32 SortedParticleIndex = ParticleOrder[ParticleIndex].ParticleIndex;
 		const int32 CurrentIndex = ParticleIndices[SortedParticleIndex];
 		const uint8* ParticlePtr = ParticleData + (CurrentIndex * ParticleStride);
-		//const uint8* ParticlePtr = ParticleData + (SortedParticleIndex * ParticleStride);
 		const FBaseParticle& Particle = *reinterpret_cast<const FBaseParticle*>(ParticlePtr);
+
+		// SubUV 데이터 읽기 (모듈이 활성화된 경우)
+		float SubImageIndex = 0.0f;
+		if (bHasSubUV)
+		{
+			const FSubUVPayloadData* SubUVData = 
+				reinterpret_cast<const FSubUVPayloadData*>(ParticlePtr + SourceData.SubUVDataOffset);
+			SubImageIndex = SubUVData->ImageIndex;
+		}
+
+		// SubUV UV 좌표 계산
+		// ImageIndex = 정수부(현재 프레임) + 소수부(다음 프레임과의 보간값)
+		const int32 CurrentFrame = static_cast<int32>(SubImageIndex);
+		const float BlendFactor = SubImageIndex - static_cast<float>(CurrentFrame);
+		
+		// 프레임을 UV 좌표로 변환
+		// Frame -> (Row, Col) -> UV (0~1 범위)
+		const int32 Col = CurrentFrame % SubImages_Horizontal;
+		const int32 Row = CurrentFrame / SubImages_Horizontal;
+		const float USize = 1.0f / static_cast<float>(SubImages_Horizontal);
+		const float VSize = 1.0f / static_cast<float>(SubImages_Vertical);
+		const float UStart = Col * USize;
+		const float VStart = Row * VSize;
 
 		// 정점 인덱스 계산
 		const int32 BaseVertexIndex = ParticleIndex * 4;
 
-		// UV 좌표 (쿼드의 4개 코너)
+		// UV 좌표 (쿼드의 4개 코너) - SubUV 적용
 		const FVector2D UVs[4] = {
-			FVector2D(0.0f, 0.0f), // 좌상단
-			FVector2D(1.0f, 0.0f), // 우상단
-			FVector2D(0.0f, 1.0f), // 좌하단
-			FVector2D(1.0f, 1.0f)  // 우하단
+			FVector2D(UStart,          VStart),          // 좌상단
+			FVector2D(UStart + USize,  VStart),          // 우상단
+			FVector2D(UStart,          VStart + VSize),  // 좌하단
+			FVector2D(UStart + USize,  VStart + VSize)   // 우하단
 		};
 
 		// 각 코너에 대해 정점 생성
@@ -181,7 +208,7 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 			Vertex.ParticleId = static_cast<float>(SortedParticleIndex);
 			Vertex.Size = FVector2D(Particle.Size.X, Particle.Size.Y);
 			Vertex.Rotation = Particle.Rotation;
-			Vertex.SubImageIndex = 0.0f; // TODO: SubUV support
+			Vertex.SubImageIndex = SubImageIndex; // 셰이더에서 보간에 사용 가능
 			Vertex.Color = Particle.Color;
 			Vertex.TexCoord = UVs[CornerIndex];
 
@@ -251,7 +278,7 @@ void FDynamicMeshEmitterData::GetDynamicMeshElementsEmitter(
 
 	// 2. Source 데이터 가져오기
 	const FDynamicMeshEmitterReplayData& SourceData = Source;
-	const int32 ParticleCount = SourceData.ActiveParticleCount;
+	const int32 ParticleCount = SourceData.MaxDrawCount != 0 ? std::min(SourceData.ActiveParticleCount, SourceData.MaxDrawCount) : SourceData.ActiveParticleCount;
 	const uint8* ParticleData = SourceData.DataContainer.ParticleData;
 	const uint16* ParticleIndices = SourceData.DataContainer.ParticleIndices;
 	const int32 ParticleStride = SourceData.ParticleStride;
@@ -333,6 +360,11 @@ void FDynamicMeshEmitterData::GetDynamicMeshElementsEmitter(
 	// 5. 인스턴스 버퍼 업데이트
 	if (MeshInstance && MeshInstance->InstanceBuffer && !InstanceData.empty())
 	{
+#if defined(DEBUG) || defined(_DEBUG)
+		D3D11_BUFFER_DESC desc;
+		MeshInstance->InstanceBuffer->GetDesc(&desc);
+		uint32 VertexCountInBuffer = desc.ByteWidth / sizeof(FMeshParticleInstanceVertex);
+#endif
 		GEngine.GetRHIDevice()->VertexBufferUpdate(MeshInstance->InstanceBuffer, InstanceData);
 	}
 
