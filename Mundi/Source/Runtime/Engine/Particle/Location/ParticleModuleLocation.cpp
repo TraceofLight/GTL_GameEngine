@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "ParticleModuleLocation.h"
 
+IMPLEMENT_CLASS(UParticleModuleLocation)
+
 UParticleModuleLocation::UParticleModuleLocation()
 	: StartLocation(FVector::Zero())
 {
