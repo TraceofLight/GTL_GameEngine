@@ -802,12 +802,27 @@ void UParticleModuleDetailRenderer::RenderSpawnModule(UParticleModuleSpawn* Modu
 
 				ImGui::SetNextItemWidth(60);
 				ImGui::DragFloat("Time", &Burst.Time, 0.01f, 0.0f, 100.0f);
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("Burst가 발생하는 시간 (초 단위, Emitter 시작 기준)");
+				}
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(60);
 				ImGui::DragInt("Count", &Burst.Count, 1, 0, 1000);
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("생성할 파티클 개수\n"
+						"CountLow가 -1이면 고정값, 그 외에는 최대값");
+				}
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(60);
 				ImGui::DragInt("CountLow", &Burst.CountLow, 1, -1, 1000);
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("최소 파티클 개수\n"
+						"-1: Count 고정값으로 사용\n"
+						"0 이상: CountLow~Count 범위에서 랜덤 생성");
+				}
 				ImGui::SameLine();
 
 				if (ImGui::Button("X"))

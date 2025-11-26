@@ -30,6 +30,9 @@ SPreviewWindow::SPreviewWindow()
 
 SPreviewWindow::~SPreviewWindow()
 {
+    // 렌더 타겟 해제
+    ReleaseRenderTarget();
+
     // Clean up tabs if any
     for (int i = 0; i < Tabs.Num(); ++i)
     {
@@ -760,16 +763,61 @@ void SPreviewWindow::OnRender()
 
         // Viewport rendering area (전체 높이 사용)
         ImGui::BeginChild("ViewportRenderArea", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollbar);
-        ImVec2 childPos = ImGui::GetWindowPos();
-        ImVec2 childSize = ImGui::GetWindowSize();
-        ImVec2 rectMin = childPos;
-        ImVec2 rectMax(childPos.x + childSize.x, childPos.y + childSize.y);
-        CenterRect.Left = rectMin.x; CenterRect.Top = rectMin.y; CenterRect.Right = rectMax.x; CenterRect.Bottom = rectMax.y; CenterRect.UpdateMinMax();
+
+        // 뷰포트 크기 가져오기
+        const ImVec2 ViewportSize = ImGui::GetContentRegionAvail();
+        const uint32 NewWidth = static_cast<uint32>(ViewportSize.x);
+        const uint32 NewHeight = static_cast<uint32>(ViewportSize.y);
+
+        // 렌더 타겟 업데이트 (크기 변경 시)
+        if (NewWidth > 0 && NewHeight > 0)
+        {
+            UpdateViewportRenderTarget(NewWidth, NewHeight);
+
+            // 스켈레탈 메쉬 씬을 전용 렌더 타겟에 렌더링
+            RenderToPreviewRenderTarget();
+
+            // ImGui에 렌더 결과 표시
+            ID3D11ShaderResourceView* PreviewSRV = GetPreviewShaderResourceView();
+            if (PreviewSRV)
+            {
+                // 이미지 렌더링 전 위치 저장
+                ImVec2 ImagePos = ImGui::GetCursorScreenPos();
+
+                ImTextureID TextureID = reinterpret_cast<ImTextureID>(PreviewSRV);
+                ImGui::Image(TextureID, ViewportSize);
+
+                // CenterRect 업데이트 (이미지 실제 렌더링 영역)
+                CenterRect.Left = ImagePos.x;
+                CenterRect.Top = ImagePos.y;
+                CenterRect.Right = ImagePos.x + ViewportSize.x;
+                CenterRect.Bottom = ImagePos.y + ViewportSize.y;
+                CenterRect.UpdateMinMax();
+
+                // 팝업/모달이 열려있지 않을 때만 입력 처리
+                if (!ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+                {
+                    // 마우스가 이미지 위에 있는지 확인하여 뷰포트 입력으로 간주
+                    ImVec2 MousePos = ImGui::GetMousePos();
+                    if (MousePos.x >= ImagePos.x && MousePos.x <= ImagePos.x + ViewportSize.x &&
+                        MousePos.y >= ImagePos.y && MousePos.y <= ImagePos.y + ViewportSize.y)
+                    {
+                        ImGui::SetItemAllowOverlap();
+                    }
+                }
+            }
+        }
+        else
+        {
+            // 유효하지 않은 크기일 경우 CenterRect 초기화
+            CenterRect = FRect(0, 0, 0, 0);
+            CenterRect.UpdateMinMax();
+        }
 
         // Recording 상태 오버레이 (우하단)
         if (ActiveState && ActiveState->bIsRecording)
         {
-            ImGui::SetCursorPos(ImVec2(childSize.x - 180, childSize.y - 40));
+            ImGui::SetCursorPos(ImVec2(ViewportSize.x - 180, ViewportSize.y - 40));
             ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.05f, 0.05f, 0.85f));
             ImGui::BeginChild("RecordingOverlay", ImVec2(170, 30), true, ImGuiWindowFlags_NoScrollbar);
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.2f, 0.2f, 1.0f));
@@ -1783,6 +1831,12 @@ void SPreviewWindow::OnMouseMove(FVector2D MousePos)
 {
     if (!ActiveState || !ActiveState->Viewport) return;
 
+    // 팝업/모달이 열려있으면 뷰포트 입력 무시
+    if (ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+    {
+        return;
+    }
+
     if (CenterRect.Contains(MousePos))
     {
         FVector2D LocalPos = MousePos - FVector2D(CenterRect.Left, CenterRect.Top);
@@ -1793,6 +1847,12 @@ void SPreviewWindow::OnMouseMove(FVector2D MousePos)
 void SPreviewWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
     if (!ActiveState || !ActiveState->Viewport) return;
+
+    // 팝업/모달이 열려있으면 뷰포트 입력 무시
+    if (ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+    {
+        return;
+    }
 
     if (CenterRect.Contains(MousePos))
     {
@@ -1884,6 +1944,12 @@ void SPreviewWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 void SPreviewWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 {
     if (!ActiveState || !ActiveState->Viewport) return;
+
+    // 팝업/모달이 열려있으면 뷰포트 입력 무시
+    if (ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+    {
+        return;
+    }
 
     if (CenterRect.Contains(MousePos))
     {
@@ -2299,4 +2365,269 @@ void SPreviewWindow::RebuildNotifyTracks(ViewerState* State)
         State->NotifyTrackNames.push_back(TrackNameBuf);
         State->UsedTrackNumbers.insert(TrackNumber);
     }
+}
+
+// ============================================================================
+// Render Target Management (전용 렌더 타겟 관리)
+// ============================================================================
+
+/**
+ * @brief 전용 렌더 타겟 생성
+ */
+void SPreviewWindow::CreateRenderTarget(uint32 Width, uint32 Height)
+{
+    // 기존 렌더 타겟 해제
+    ReleaseRenderTarget();
+
+    if (Width == 0 || Height == 0)
+    {
+        return;
+    }
+
+    if (!Device)
+    {
+        return;
+    }
+
+    // 렌더 타겟 텍스처 생성 (DXGI_FORMAT_B8G8R8A8_UNORM - D2D 호환)
+    D3D11_TEXTURE2D_DESC TextureDesc = {};
+    TextureDesc.Width = Width;
+    TextureDesc.Height = Height;
+    TextureDesc.MipLevels = 1;
+    TextureDesc.ArraySize = 1;
+    TextureDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    TextureDesc.SampleDesc.Count = 1;
+    TextureDesc.SampleDesc.Quality = 0;
+    TextureDesc.Usage = D3D11_USAGE_DEFAULT;
+    TextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    TextureDesc.CPUAccessFlags = 0;
+    TextureDesc.MiscFlags = 0;
+
+    HRESULT hr = Device->CreateTexture2D(&TextureDesc, nullptr, &PreviewRenderTargetTexture);
+    if (FAILED(hr))
+    {
+        UE_LOG("PreviewWindow: 렌더 타겟 텍스처 생성 실패");
+        return;
+    }
+
+    // 렌더 타겟 뷰 생성
+    D3D11_RENDER_TARGET_VIEW_DESC RTVDesc = {};
+    RTVDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    RTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    RTVDesc.Texture2D.MipSlice = 0;
+
+    hr = Device->CreateRenderTargetView(PreviewRenderTargetTexture, &RTVDesc, &PreviewRenderTargetView);
+    if (FAILED(hr))
+    {
+        UE_LOG("PreviewWindow: 렌더 타겟 뷰 생성 실패");
+        ReleaseRenderTarget();
+        return;
+    }
+
+    // 셰이더 리소스 뷰 생성 (ImGui::Image용)
+    D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+    SRVDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    SRVDesc.Texture2D.MostDetailedMip = 0;
+    SRVDesc.Texture2D.MipLevels = 1;
+
+    hr = Device->CreateShaderResourceView(PreviewRenderTargetTexture, &SRVDesc, &PreviewShaderResourceView);
+    if (FAILED(hr))
+    {
+        UE_LOG("PreviewWindow: 셰이더 리소스 뷰 생성 실패");
+        ReleaseRenderTarget();
+        return;
+    }
+
+    // 깊이 스텐실 텍스처 생성
+    D3D11_TEXTURE2D_DESC DepthDesc = {};
+    DepthDesc.Width = Width;
+    DepthDesc.Height = Height;
+    DepthDesc.MipLevels = 1;
+    DepthDesc.ArraySize = 1;
+    DepthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    DepthDesc.SampleDesc.Count = 1;
+    DepthDesc.SampleDesc.Quality = 0;
+    DepthDesc.Usage = D3D11_USAGE_DEFAULT;
+    DepthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    DepthDesc.CPUAccessFlags = 0;
+    DepthDesc.MiscFlags = 0;
+
+    hr = Device->CreateTexture2D(&DepthDesc, nullptr, &PreviewDepthStencilTexture);
+    if (FAILED(hr))
+    {
+        UE_LOG("PreviewWindow: 깊이 스텐실 텍스처 생성 실패");
+        ReleaseRenderTarget();
+        return;
+    }
+
+    // 깊이 스텐실 뷰 생성
+    D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
+    DSVDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    DSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    DSVDesc.Texture2D.MipSlice = 0;
+
+    hr = Device->CreateDepthStencilView(PreviewDepthStencilTexture, &DSVDesc, &PreviewDepthStencilView);
+    if (FAILED(hr))
+    {
+        UE_LOG("PreviewWindow: 깊이 스텐실 뷰 생성 실패");
+        ReleaseRenderTarget();
+        return;
+    }
+
+    PreviewRenderTargetWidth = Width;
+    PreviewRenderTargetHeight = Height;
+}
+
+/**
+ * @brief 전용 렌더 타겟 해제
+ */
+void SPreviewWindow::ReleaseRenderTarget()
+{
+    if (PreviewDepthStencilView)
+    {
+        PreviewDepthStencilView->Release();
+        PreviewDepthStencilView = nullptr;
+    }
+
+    if (PreviewDepthStencilTexture)
+    {
+        PreviewDepthStencilTexture->Release();
+        PreviewDepthStencilTexture = nullptr;
+    }
+
+    if (PreviewShaderResourceView)
+    {
+        PreviewShaderResourceView->Release();
+        PreviewShaderResourceView = nullptr;
+    }
+
+    if (PreviewRenderTargetView)
+    {
+        PreviewRenderTargetView->Release();
+        PreviewRenderTargetView = nullptr;
+    }
+
+    if (PreviewRenderTargetTexture)
+    {
+        PreviewRenderTargetTexture->Release();
+        PreviewRenderTargetTexture = nullptr;
+    }
+
+    PreviewRenderTargetWidth = 0;
+    PreviewRenderTargetHeight = 0;
+}
+
+/**
+ * @brief 렌더 타겟 크기 업데이트 (리사이즈 처리)
+ */
+void SPreviewWindow::UpdateViewportRenderTarget(uint32 NewWidth, uint32 NewHeight)
+{
+    // 크기가 변경되지 않았으면 스킵
+    if (PreviewRenderTargetWidth == NewWidth && PreviewRenderTargetHeight == NewHeight)
+    {
+        return;
+    }
+
+    // 새 크기로 렌더 타겟 재생성
+    CreateRenderTarget(NewWidth, NewHeight);
+}
+
+/**
+ * @brief 스켈레탈 메쉬 프리뷰를 전용 렌더 타겟에 렌더링
+ */
+void SPreviewWindow::RenderToPreviewRenderTarget()
+{
+    if (!PreviewRenderTargetView || !PreviewDepthStencilView || !ActiveState)
+    {
+        return;
+    }
+
+    if (!ActiveState->Viewport || !ActiveState->Client)
+    {
+        return;
+    }
+
+    D3D11RHI* RHI = GEngine.GetRHIDevice();
+    if (!RHI)
+    {
+        return;
+    }
+
+    ID3D11DeviceContext* Context = RHI->GetDeviceContext();
+
+    // 현재 렌더 타겟 백업
+    ID3D11RenderTargetView* OldRTV = nullptr;
+    ID3D11DepthStencilView* OldDSV = nullptr;
+    Context->OMGetRenderTargets(1, &OldRTV, &OldDSV);
+
+    // D3D 뷰포트 백업
+    UINT NumViewports = 1;
+    D3D11_VIEWPORT OldViewport;
+    Context->RSGetViewports(&NumViewports, &OldViewport);
+
+    // 렌더 타겟 클리어
+    const float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
+    Context->ClearRenderTargetView(PreviewRenderTargetView, ClearColor);
+    Context->ClearDepthStencilView(PreviewDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+    // 프리뷰 전용 렌더 타겟 설정
+    Context->OMSetRenderTargets(1, &PreviewRenderTargetView, PreviewDepthStencilView);
+
+    // 프리뷰 전용 뷰포트 설정
+    D3D11_VIEWPORT D3DViewport = {};
+    D3DViewport.TopLeftX = 0.0f;
+    D3DViewport.TopLeftY = 0.0f;
+    D3DViewport.Width = static_cast<float>(PreviewRenderTargetWidth);
+    D3DViewport.Height = static_cast<float>(PreviewRenderTargetHeight);
+    D3DViewport.MinDepth = 0.0f;
+    D3DViewport.MaxDepth = 1.0f;
+    Context->RSSetViewports(1, &D3DViewport);
+
+    // Viewport 크기 업데이트
+    ActiveState->Viewport->Resize(0, 0, PreviewRenderTargetWidth, PreviewRenderTargetHeight);
+
+    // 본 오버레이 재구축 및 기즈모 위치 업데이트
+    bool bNeedsRebuild = false;
+    bool bIsAnimationPlaying = ActiveState->bIsPlaying;
+
+    if (ActiveState->bShowBones)
+    {
+        // 애니메이션 재생 중이거나 Dirty 플래그가 설정되어 있으면 재구축
+        if (bIsAnimationPlaying || ActiveState->bBoneLinesDirty)
+        {
+            bNeedsRebuild = true;
+            ActiveState->bBoneLinesDirty = false;
+        }
+    }
+
+    if (bNeedsRebuild && ActiveState->PreviewActor && ActiveState->CurrentMesh)
+    {
+        if (ULineComponent* LineComp = ActiveState->PreviewActor->GetBoneLineComponent())
+        {
+            LineComp->SetLineVisible(true);
+        }
+        // 애니메이션 재생 중이면 모든 본 업데이트
+        ActiveState->PreviewActor->RebuildBoneLines(ActiveState->SelectedBoneIndex, bIsAnimationPlaying);
+    }
+
+    // 애니메이션 재생 중이고 본이 선택되어 있으면 기즈모 위치도 실시간 업데이트
+    if (bIsAnimationPlaying && ActiveState->SelectedBoneIndex >= 0 && ActiveState->PreviewActor)
+    {
+        ActiveState->PreviewActor->RepositionAnchorToBone(ActiveState->SelectedBoneIndex);
+    }
+
+    // 스켈레탈 메쉬 씬 렌더링
+    if (ActiveState->Client)
+    {
+        ActiveState->Client->Draw(ActiveState->Viewport);
+    }
+
+    // 원래 렌더 타겟 복원
+    Context->OMSetRenderTargets(1, &OldRTV, OldDSV);
+    Context->RSSetViewports(1, &OldViewport);
+
+    // 백업한 렌더 타겟 Release
+    if (OldRTV) OldRTV->Release();
+    if (OldDSV) OldDSV->Release();
 }

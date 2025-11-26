@@ -127,4 +127,23 @@ private:
     bool bShowNewNotifyDialog = false;
     bool bShowNewNotifyStateDialog = false;
     char NewNotifyNameBuffer[128] = "";
+
+    // 전용 렌더 타겟 (스켈레탈 메쉬 프리뷰용)
+    ID3D11Texture2D* PreviewRenderTargetTexture = nullptr;
+    ID3D11RenderTargetView* PreviewRenderTargetView = nullptr;
+    ID3D11ShaderResourceView* PreviewShaderResourceView = nullptr;
+    ID3D11Texture2D* PreviewDepthStencilTexture = nullptr;
+    ID3D11DepthStencilView* PreviewDepthStencilView = nullptr;
+    uint32 PreviewRenderTargetWidth = 0;
+    uint32 PreviewRenderTargetHeight = 0;
+
+    // 렌더 타겟 관리
+    void CreateRenderTarget(uint32 Width, uint32 Height);
+    void ReleaseRenderTarget();
+    void UpdateViewportRenderTarget(uint32 NewWidth, uint32 NewHeight);
+    void RenderToPreviewRenderTarget();
+
+public:
+    // 렌더 타겟 접근자
+    ID3D11ShaderResourceView* GetPreviewShaderResourceView() const { return PreviewShaderResourceView; }
 };

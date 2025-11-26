@@ -60,6 +60,13 @@ public:
 	// 패널 접근용 (친구 클래스나 콜백을 위해)
 	ParticleViewerState* GetActiveState() const { return ActiveState; }
 
+	// 렌더 타겟 관리
+	void UpdateViewportRenderTarget(uint32 NewWidth, uint32 NewHeight);
+	void RenderToPreviewRenderTarget();
+
+	// 렌더 타겟 접근자
+	ID3D11ShaderResourceView* GetPreviewShaderResourceView() const { return PreviewShaderResourceView; }
+
 	// 모듈 UI 아이콘 접근자
 	UTexture* GetIconCurveEditor() const { return IconCurveEditor; }
 	UTexture* GetIconCheckbox() const { return IconCheckbox; }
@@ -144,6 +151,19 @@ private:
 
 	// 에디터 상태
 	float BackgroundColor[3] = { 0.1f, 0.1f, 0.1f };
+
+	// 전용 렌더 타겟 (파티클 프리뷰용)
+	ID3D11Texture2D* PreviewRenderTargetTexture = nullptr;
+	ID3D11RenderTargetView* PreviewRenderTargetView = nullptr;
+	ID3D11ShaderResourceView* PreviewShaderResourceView = nullptr;
+	ID3D11Texture2D* PreviewDepthStencilTexture = nullptr;
+	ID3D11DepthStencilView* PreviewDepthStencilView = nullptr;
+	uint32 PreviewRenderTargetWidth = 0;
+	uint32 PreviewRenderTargetHeight = 0;
+
+	// 렌더 타겟 관리 (내부용)
+	void CreateRenderTarget(uint32 Width, uint32 Height);
+	void ReleaseRenderTarget();
 };
 
 // ============================================================================

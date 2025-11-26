@@ -49,9 +49,23 @@ public:
 	ID3D11ShaderResourceView* GetThumbnail(const std::string& FilePath);
 
 	/**
+	 * @brief Base64 인코딩된 DDS 데이터로부터 썸네일 생성
+	 * @param Base64Data Base64 인코딩된 DDS 데이터
+	 * @param CacheKey 캐시 키 (예: "ParticleEmitter_UUID")
+	 * @return 썸네일 ShaderResourceView
+	 */
+	ID3D11ShaderResourceView* GetThumbnailFromBase64(const std::string& Base64Data, const std::string& CacheKey);
+
+	/**
 	 * @brief 캐시 초기화
 	 */
 	void ClearCache();
+
+	/**
+	 * @brief 특정 썸네일 캐시 무효화
+	 * @param Key 캐시 키 (파일 경로 또는 고유 키)
+	 */
+	void InvalidateThumbnail(const std::string& Key);
 
 private:
 	FThumbnailManager() = default;
@@ -75,6 +89,11 @@ private:
 	 * @brief 이미지 파일용 썸네일 생성
 	 */
 	FThumbnailData* CreateImageThumbnail(const std::string& FilePath);
+
+	/**
+	 * @brief .psys 파일용 썸네일 생성 (파일 내부 Base64 데이터 사용)
+	 */
+	FThumbnailData* CreatePsysThumbnail(const std::string& FilePath);
 
 private:
 	ID3D11Device* Device = nullptr;
