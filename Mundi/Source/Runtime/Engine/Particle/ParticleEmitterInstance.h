@@ -362,6 +362,14 @@ struct FParticleEmitterInstance
 			// ========== 1단계: PreSpawn (기본값 초기화) ==========
 			PreSpawn(Particle, InitialLocation, InitialVelocity);
 
+			// ========== 1.5단계: Payload 메모리 초기화 ==========
+			// Payload 영역(FBaseParticle 뒤)을 0으로 초기화하여 쓰레기 값 방지
+			if (PayloadOffset > 0 && ParticleStride > PayloadOffset)
+			{
+				int32 PayloadSize = ParticleStride - PayloadOffset;
+				memset(ParticlePtr + PayloadOffset, 0, PayloadSize);
+			}
+
 			// ========== 2단계: Spawn 모듈 실행 ==========
 			// 각 모듈이 파티클 속성을 설정 (Color, Size, Velocity, Lifetime 등)
 			for (int32 ModuleIndex = 0; ModuleIndex < CurrentLODLevel->SpawnModules.Num(); ModuleIndex++)

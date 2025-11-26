@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "ParticleModuleMeshRotationRate.h"
 #include "Particle.h"
+#include "ParticleEmitterInstance.h"
 
 UParticleModuleMeshRotationRate::UParticleModuleMeshRotationRate()
 	: StartRotationRate(FVector::Zero())
@@ -19,10 +20,13 @@ uint32 UParticleModuleMeshRotationRate::RequiredBytes(UParticleModuleTypeDataBas
 
 void UParticleModuleMeshRotationRate::Spawn(FParticleEmitterInstance* Owner, int32 Offset, float SpawnTime, FBaseParticle* ParticleBase)
 {
-	if (!ParticleBase)
+	if (!ParticleBase || !Owner)
 	{
 		return;
 	}
+
+	// MeshRotation 모듈이 활성화됨을 표시
+	Owner->bMeshRotationActive = true;
 
 	// Payload 위치 계산 (FBaseParticle 뒤의 추가 데이터 영역)
 	FMeshRotationPayloadData* PayloadData =
