@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "SWindow.h"
 #include "Enums.h"
 
@@ -112,6 +112,7 @@ private:
     UTexture* IconShadow = nullptr;
     UTexture* IconShadowAA = nullptr;
     UTexture* IconSkinning = nullptr;
+    UTexture* IconParticle = nullptr;
 
     // 뷰포트 레이아웃 전환 아이콘
     UTexture* IconSingleToMultiViewport = nullptr;  // 단일 뷰포트 아이콘

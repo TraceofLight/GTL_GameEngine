@@ -724,6 +724,7 @@ void FSceneRenderer::GatherVisibleProxies()
 	const bool bUseAntiAliasing = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_FXAA);
 	const bool bUseBillboard = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Billboard);
 	const bool bUseIcon = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_EditorIcon);
+	const bool bDrawParticles = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Particles);
 
 	// Helper lambda to collect components from an actor
 	auto CollectComponentsFromActor = [&](AActor* Actor, bool bIsEditorActor)
@@ -794,7 +795,10 @@ void FSceneRenderer::GatherVisibleProxies()
 					}
 					else if (UParticleSystemComponent* ParticleComponent = Cast<UParticleSystemComponent>(PrimitiveComponent))
 					{
-						Proxies.Particles.Add(ParticleComponent);
+						if (bDrawParticles)
+						{
+							Proxies.Particles.Add(ParticleComponent);
+						}
 					}
 				}
 				else
