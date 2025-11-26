@@ -32,8 +32,8 @@
               "LODValidity" : 255,
               "ModuleType" : "UParticleModuleSize",
               "StartSize" : {
-                "Max" : [15.000000, 15.000000, 15.000000],
-                "Min" : [15.000000, 15.000000, 15.000000],
+                "Max" : [10.000000, 10.000000, 10.000000],
+                "Min" : [10.000000, 10.000000, 10.000000],
                 "bIsUniform" : true
               },
               "b3DDrawMode" : false,
