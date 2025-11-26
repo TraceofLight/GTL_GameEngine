@@ -227,6 +227,9 @@ struct FParticleEmitterInstance
 	 */
 	void PostSpawn(FBaseParticle& Particle, float Interp, float SpawnTime)
 	{
+		// OldLocation 저장 (보간 전 위치)
+		Particle.OldLocation = Particle.Location;
+
 		// 서브프레임 보정: 프레임 중간에 태어났다면 그 시간만큼 이동시켜줌
 		// Velocity는 이미 모듈에서 설정되어 있음
 		if (SpawnTime > 0.0f)
@@ -234,11 +237,24 @@ struct FParticleEmitterInstance
 			Particle.Location += Particle.Velocity * SpawnTime;
 		}
 
+		// ================================================================
+		// 파티클 Flags 설정 (Sort에서 중요!)
+		// ================================================================
+		// 1. 고유 순차 번호 저장 (STATE_CounterMask 영역에)
+		//    - 같은 깊이의 파티클들 간 순서를 결정
+		//    - 이 값이 없으면 동일 깊이 파티클들이 매 프레임 순서가 바뀌어 깜빡임 발생
+		Particle.Flags |= (ParticleCounter & STATE_CounterMask);
+
+		// 2. "방금 생성됨" 플래그 설정
+		//    - Update 모듈에서 첫 프레임인지 판단 가능
+		//    - 다음 Tick에서 클리어됨
+		Particle.Flags |= STATE_Particle_JustSpawned;
+
 		// 활성 파티클 개수 증가 (중요!)
 		// 이 시점에서 파티클이 "살아있는" 상태로 등록됨
 		ActiveParticles++;
 
-		// 고유 ID 증가 (디버깅/추적용)
+		// 고유 ID 카운터 증가
 		ParticleCounter++;
 	}
 
@@ -414,6 +430,9 @@ struct FParticleEmitterInstance
 		// --- Pass 1 & 2: 수명 관리 및 기본 물리 이동 ---
 		// BEGIN_UPDATE_LOOP 매크로 사용 (역순 순회로 안전한 Kill 처리)
 		BEGIN_UPDATE_LOOP
+
+		// "방금 생성됨" 플래그 클리어 (이번 Tick에서 처리했으므로 더 이상 "방금"이 아님)
+		Particle.Flags &= ~STATE_Particle_JustSpawned;
 
 		// 수명 업데이트
 		Particle.RelativeTime += DeltaTime / Particle.Lifetime;
