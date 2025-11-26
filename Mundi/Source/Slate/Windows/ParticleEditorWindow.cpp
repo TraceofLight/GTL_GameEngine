@@ -1999,6 +1999,10 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 			{
 				CurrentTypeStr = "Mesh";
 			}
+			else if (LODLevel->TypeDataModule->IsA<UParticleModuleTypeDataBeam>())
+			{
+				CurrentTypeStr = "Beam";
+			}
 			else
 			{
 				CurrentTypeStr = "Sprite";
@@ -2033,7 +2037,19 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 		}
 		ImGui::Separator();
 		ImGui::MenuItem("GPU Sprites", nullptr, false, false); // TODO
-		ImGui::MenuItem("Beam", nullptr, false, false); // TODO
+		if (ImGui::MenuItem("Beam"))
+		{
+			// 기존 TypeData 제거
+			if (LODLevel->TypeDataModule)
+			{
+				delete LODLevel->TypeDataModule;
+				LODLevel->TypeDataModule = nullptr;
+			}
+			// 새 Beam TypeData 생성
+			UParticleModuleTypeDataBeam* BeamTypeData = new UParticleModuleTypeDataBeam();
+			LODLevel->TypeDataModule = BeamTypeData;
+			RefreshEmitterInstances();
+		}
 		ImGui::MenuItem("Ribbon", nullptr, false, false); // TODO
 		ImGui::EndMenu();
 	}

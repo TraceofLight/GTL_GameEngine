@@ -133,3 +133,29 @@ struct FDynamicMeshEmitterData : public FDynamicSpriteEmitterData
 		non-simulating 'replay' particle systems, this data may have come straight from disk! */
 	FDynamicMeshEmitterReplayData Source;
 };
+
+struct FDynamicBeamEmitterData : public FDynamicSpriteEmitterDataBase
+{
+	virtual int32 GetDynamicVertexStride() const override;
+
+	virtual const FDynamicEmitterReplayDataBase& GetSource() const override
+	{
+		return Source;
+	}
+
+	/**
+	 * Initialize the dynamic beam emitter data
+	 * @param bInSelected - Whether this emitter is selected in the editor
+	 */
+	void Init(bool bInSelected)
+	{
+		bSelected = bInSelected;
+		// 빔은 포인트가 2개 이상이면 유효
+		bValid = (Source.BeamPoints.Num() >= 2);
+	}
+
+	virtual void GetDynamicMeshElementsEmitter(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) const override;
+
+	/** The frame source data for beam particles */
+	FDynamicBeamEmitterReplayData Source;
+};

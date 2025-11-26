@@ -68,3 +68,24 @@ struct FMeshRotationPayloadData
 		, RotationRate(FVector::Zero())
 	{}
 };
+
+/**
+ * 빔 파티클의 각 포인트 데이터
+ * Source에서 Target까지 빔을 구성하는 점들
+ */
+struct FBeamPoint
+{
+	FVector Position;       // 월드 위치
+	FVector Tangent;        // 빔 방향 벡터 (정규화됨)
+	float Width;            // 해당 지점의 빔 폭
+	float Parameter;        // 0.0 = Source, 1.0 = Target
+	FLinearColor Color;     // 해당 지점의 색상
+
+	FBeamPoint()
+		: Position(FVector::Zero())
+		, Tangent(FVector(1.0f, 0.0f, 0.0f))
+		, Width(10.0f)
+		, Parameter(0.0f)
+		, Color(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f))
+	{}
+};

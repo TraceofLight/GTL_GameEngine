@@ -340,6 +340,10 @@ void UParticleModuleDetailRenderer::RenderModuleDetails(UParticleModule* Module)
 	{
 		RenderTypeDataMeshModule(TypeDataMesh);
 	}
+	else if (UParticleModuleTypeDataBeam* TypeDataBeam = Cast<UParticleModuleTypeDataBeam>(Module))
+	{
+		RenderTypeDataBeamModule(TypeDataBeam);
+	}
 	else if (UParticleModuleRotation* Rotation = Cast<UParticleModuleRotation>(Module))
 	{
 		RenderRotationModule(Rotation);
@@ -972,5 +976,80 @@ void UParticleModuleDetailRenderer::RenderMeshRotationRateModule(UParticleModule
 	{
 		RenderVectorDistribution("Start Rotation Rate (Deg/s)", Module->StartRotationRate);
 		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "X=Pitch, Y=Yaw, Z=Roll");
+	}
+}
+
+// ============================================================================
+// TypeData Beam 모듈 렌더링
+// ============================================================================
+
+void UParticleModuleDetailRenderer::RenderTypeDataBeamModule(UParticleModuleTypeDataBeam* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	// Beam Endpoint 섹션
+	if (BeginSection("Beam Endpoints", true))
+	{
+		// Source Offset
+		float SrcVec[3] = { Module->SourceOffset.X, Module->SourceOffset.Y, Module->SourceOffset.Z };
+		if (ImGui::DragFloat3("Source Offset", SrcVec, 1.0f))
+		{
+			Module->SourceOffset.X = SrcVec[0];
+			Module->SourceOffset.Y = SrcVec[1];
+			Module->SourceOffset.Z = SrcVec[2];
+		}
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Offset from emitter location (start)");
+
+		// Target Offset
+		float TgtVec[3] = { Module->TargetOffset.X, Module->TargetOffset.Y, Module->TargetOffset.Z };
+		if (ImGui::DragFloat3("Target Offset", TgtVec, 1.0f))
+		{
+			Module->TargetOffset.X = TgtVec[0];
+			Module->TargetOffset.Y = TgtVec[1];
+			Module->TargetOffset.Z = TgtVec[2];
+		}
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Offset from emitter location (end)");
+	}
+
+	// Beam Shape 섹션
+	if (BeginSection("Beam Shape", true))
+	{
+		// Beam Width
+		RenderFloatDistribution("Beam Width", Module->BeamWidth);
+
+		// Segments
+		int32 Segments = Module->Segments;
+		if (ImGui::InputInt("Segments", &Segments))
+		{
+			Module->Segments = std::max(1, Segments);
+		}
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Number of segments (more = smoother)");
+
+		// Taper
+		ImGui::Checkbox("Taper Beam", &Module->bTaperBeam);
+		if (Module->bTaperBeam)
+		{
+			ImGui::DragFloat("Taper Factor", &Module->TaperFactor, 0.01f, 0.0f, 1.0f);
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "0 = full taper, 1 = no taper");
+		}
+	}
+
+	// Rendering 섹션
+	if (BeginSection("Rendering", true))
+	{
+		// Sheets
+		int32 Sheets = Module->Sheets;
+		if (ImGui::InputInt("Sheets", &Sheets))
+		{
+			Module->Sheets = std::max(1, Sheets);
+		}
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Number of sheets (for visibility from all angles)");
+
+		// UV Tiling
+		ImGui::DragFloat("UV Tiling", &Module->UVTiling, 0.1f, 0.1f, 100.0f);
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Texture repeat along beam length");
 	}
 }

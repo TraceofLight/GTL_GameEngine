@@ -389,6 +389,10 @@ void UShader::CreateInputLayout(ID3D11Device* Device, const FString& InShaderPat
 		{
 			FinalKey += "#PARTICLE_MESH";
 		}
+		else if (Macro.Name == "PARTICLE_BEAM" && Macro.Definition == "1")
+		{
+			FinalKey += "#PARTICLE_BEAM";
+		}
 	}
 
 	TArray<D3D11_INPUT_ELEMENT_DESC> descArray = UResourceManager::GetInstance().GetProperInputLayout(FinalKey);

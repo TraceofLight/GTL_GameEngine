@@ -87,6 +87,23 @@ struct FMeshParticleInstanceVertex
 	float RelativeTime;
 };
 
+/**
+ * 빔 파티클용 버텍스 구조체 (경량화 버전)
+ * - 빔은 C++에서 빌보딩 계산 완료, Position이 최종 월드 좌표
+ * - 언리얼 FParticleBeamTrailVertex 참고하되 필요한 것만 포함
+ */
+struct FParticleBeamVertex
+{
+	/** 최종 월드 위치 (빌보딩 적용 완료) */
+	FVector Position;       // 12 bytes
+	/** 버텍스 컬러 */
+	FLinearColor Color;     // 16 bytes
+	/** UV 좌표 U (빔 길이 방향 0~1, Tiling 적용됨) */
+	float Tex_U;            // 4 bytes
+	/** UV 좌표 V (폭 방향: 0=상단, 1=하단) */
+	float Tex_V;            // 4 bytes
+};  // Total: 36 bytes
+
 
 /**
 * 스키닝용 정점 구조체

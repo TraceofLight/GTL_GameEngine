@@ -101,3 +101,47 @@ private:
 	/** 소유 ParticleSystem (변경 전파용) */
 	UParticleSystem* OwnerSystem = nullptr;
 };
+
+/**
+ * @brief 빔 타입 데이터
+ * @details Source에서 Target까지 이어지는 빔/레이저/번개 파티클 렌더링
+ *
+ * @param SourceOffset 빔 시작점 오프셋 (에미터 기준)
+ * @param TargetOffset 빔 끝점 오프셋 (에미터 기준)
+ * @param BeamWidth 빔 폭
+ * @param Segments 빔을 구성하는 세그먼트 수
+ * @param bTaperBeam 끝으로 갈수록 가늘어짐
+ * @param Sheets 렌더링 시트 수 (여러 각도에서 보이게)
+ * @param UVTiling UV 타일링
+ */
+UCLASS()
+class UParticleModuleTypeDataBeam :
+	public UParticleModuleTypeDataBase
+{
+	DECLARE_CLASS(UParticleModuleTypeDataBeam, UParticleModuleTypeDataBase)
+
+public:
+	// === 빔 엔드포인트 ===
+	FVector SourceOffset;           // 소스 위치 오프셋 (에미터 기준)
+	FVector TargetOffset;           // 타겟 위치 오프셋 (에미터 기준)
+
+	// === 빔 형태 ===
+	FFloatDistribution BeamWidth;   // 빔 폭
+	int32 Segments;                 // 세그먼트 수 (기본 10)
+	bool bTaperBeam;                // 끝으로 갈수록 가늘어짐
+	float TaperFactor;              // Taper 비율 (0~1, 끝점에서의 폭 비율)
+
+	// === 렌더링 ===
+	int32 Sheets;                   // 시트 수 (기본 1)
+	float UVTiling;                 // UV 타일링
+
+	UParticleModuleTypeDataBeam();
+	~UParticleModuleTypeDataBeam() override = default;
+
+	// Serialize/Duplicate
+	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
+	void DuplicateFrom(const UParticleModule* Source) override;
+
+	EDynamicEmitterType GetEmitterType() const override;
+	const char* GetVertexFactoryName() const override;
+};

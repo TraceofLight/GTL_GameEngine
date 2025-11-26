@@ -15,6 +15,7 @@
 // --- 파티클 타입 선택 ---
 // #define PARTICLE 1         // 스프라이트 파티클 (빌보드)
 // #define PARTICLE_MESH 1    // 메시 파티클 (3D 메시)
+// #define PARTICLE_BEAM 1    // 빔 파티클 (C++에서 빌보딩 완료)
 
 // --- Material 구조체 (OBJ 머티리얼 정보) ---
 // 주의: SPECULAR_COLOR 매크로에서 사용하므로 include 전에 정의 필요
@@ -131,7 +132,7 @@ struct VS_INPUT
 	float2 TexCoord : TEXCOORD0;
 	float4 Tangent : TANGENT0;
 	float4 Color : COLOR;
-	
+
 	// Per-instance data (slot 1) - 순서와 타입이 C++ Input Layout과 정확히 일치해야 함
 	float4 InstanceColor : INSTANCE_COLOR;                // offset 0:  DXGI_FORMAT_R32G32B32A32_FLOAT
 	float4 InstanceTransform0 : INSTANCE_TRANSFORM0;      // offset 16: DXGI_FORMAT_R32G32B32A32_FLOAT
@@ -141,6 +142,14 @@ struct VS_INPUT
 	int4 InstanceSubUVParams : INSTANCE_SUBUVPARAMS;      // offset 80: DXGI_FORMAT_R16G16B16A16_SINT
 	float InstanceSubUVLerp : INSTANCE_SUBUVLERP;         // offset 88: DXGI_FORMAT_R32_FLOAT
 	float InstanceRelativeTime : INSTANCE_RELATIVETIME;   // offset 92: DXGI_FORMAT_R32_FLOAT
+#elif PARTICLE_BEAM
+	/** 최종 월드 위치 (C++에서 빌보딩 완료) */
+	float3 Position : POSITION;
+	/** 버텍스 컬러 */
+	float4 Color : COLOR;
+	/** UV 좌표 */
+	float Tex_U : TEXCOORD0;
+	float Tex_V : TEXCOORD1;
 #else
 	float3 Position : POSITION;
 	float3 Normal : NORMAL0;
@@ -260,6 +269,33 @@ PS_INPUT mainVS(VS_INPUT Input)
 	// Use instance color
 	Color = Input.InstanceColor;
 	Out.TexCoord = Input.TexCoord;
+#elif PARTICLE_BEAM
+	// 빔 파티클: Position이 이미 최종 월드 좌표 (C++에서 빌보딩 완료)
+	float4 WorldPos = float4(Input.Position, 1.0f);
+	Out.WorldPos = WorldPos.xyz;
+
+	// View-Projection 변환
+	float4x4 VP = mul(ViewMatrix, ProjectionMatrix);
+	Out.Position = mul(WorldPos, VP);
+
+	// UV 좌표
+	Out.TexCoord = float2(Input.Tex_U, Input.Tex_V);
+
+	// 빔은 카메라를 향하므로 노멀은 카메라 방향
+	worldNormal = normalize(CameraPosition - WorldPos.xyz);
+	Out.Normal = worldNormal;
+
+	// TBN 매트릭스 (빔의 경우 간단하게 설정)
+	float3 Right = normalize(cross(float3(0, 1, 0), worldNormal));
+	float3 Up = normalize(cross(worldNormal, Right));
+	row_major float3x3 TBN;
+	TBN._m00_m01_m02 = Right;
+	TBN._m10_m11_m12 = Up;
+	TBN._m20_m21_m22 = worldNormal;
+	Out.TBN = TBN;
+
+	// 버텍스 컬러 사용
+	Color = Input.Color;
 #else
 
 #if GPU_SKINNING

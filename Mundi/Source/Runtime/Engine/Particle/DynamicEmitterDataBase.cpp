@@ -7,6 +7,7 @@
 #include "SceneView.h"
 #include "ParticleEmitterInstance.h"
 #include "ParticleMeshEmitterInstance.h"
+#include "ParticleBeamEmitterInstance.h"
 #include "Source/Runtime/AssetManagement/StaticMesh.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/Renderer/Material.h"
@@ -410,4 +411,180 @@ void FDynamicMeshEmitterData::GetDynamicMeshElementsEmitter(
 
 		OutMeshBatchElements.Add(BatchElement);
 	}
+}
+
+// ============== FDynamicBeamEmitterData ==============
+
+int32 FDynamicBeamEmitterData::GetDynamicVertexStride() const
+{
+	return sizeof(FParticleBeamVertex);
+}
+
+void FDynamicBeamEmitterData::GetDynamicMeshElementsEmitter(
+	TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) const
+{
+	// 1. 유효성 검사
+	if (!bValid || Source.BeamPoints.Num() < 2)
+	{
+		return;
+	}
+
+	// 2. Source 데이터 가져오기
+	const FDynamicBeamEmitterReplayData& SourceData = Source;
+	const TArray<FBeamPoint>& BeamPoints = SourceData.BeamPoints;
+	const int32 NumPoints = BeamPoints.Num();
+	const int32 NumSegments = NumPoints - 1;
+	const int32 Sheets = FMath::Max(1, SourceData.Sheets);
+	const float UVTiling = SourceData.UVTiling;
+
+	// 3. 버텍스 및 인덱스 데이터 생성
+	// 각 시트마다: (NumPoints * 2) 버텍스, (NumSegments * 6) 인덱스
+	const int32 VertexCountPerSheet = NumPoints * 2;
+	const int32 IndexCountPerSheet = NumSegments * 6;
+	const int32 TotalVertexCount = VertexCountPerSheet * Sheets;
+	const int32 TotalIndexCount = IndexCountPerSheet * Sheets;
+
+	TArray<FParticleBeamVertex> Vertices;
+	Vertices.reserve(TotalVertexCount);
+
+	TArray<uint32> Indices;
+	Indices.reserve(TotalIndexCount);
+
+	// 카메라 방향 (빌보딩용)
+	// ViewRotation에서 Forward 방향 계산
+	FVector CameraForward = View->ViewRotation.RotateVector(FVector(1.0f, 0.0f, 0.0f));
+	FVector CameraLocation = View->ViewLocation;
+
+	// 4. 각 시트에 대해 버텍스 생성
+	for (int32 SheetIndex = 0; SheetIndex < Sheets; ++SheetIndex)
+	{
+		// 시트 회전 각도 (180도씩 분할)
+		float SheetAngle = (PI / Sheets) * SheetIndex;
+
+		int32 BaseVertexIndex = Vertices.Num();
+
+		// 각 빔 포인트에 대해 2개의 버텍스 생성 (상단, 하단)
+		for (int32 PointIndex = 0; PointIndex < NumPoints; ++PointIndex)
+		{
+			const FBeamPoint& Point = BeamPoints[PointIndex];
+
+			// 빔 방향 (Tangent)
+			FVector BeamDirection = Point.Tangent;
+
+			// 카메라를 향하는 방향 계산
+			FVector ToCamera = (CameraLocation - Point.Position);
+			ToCamera.Normalize();
+
+			// 빔과 수직이면서 카메라를 향하는 방향
+			FVector RightVector = FVector::Cross(BeamDirection, ToCamera);
+			if (RightVector.SizeSquared() < 0.0001f)
+			{
+				// 빔이 카메라를 직접 향하는 경우, 대체 벡터 사용
+				RightVector = FVector(0.0f, 1.0f, 0.0f);
+			}
+			RightVector.Normalize();
+
+			// 시트 회전 적용
+			if (SheetIndex > 0)
+			{
+				// BeamDirection을 축으로 RightVector 회전
+				FQuat RotQuat = FQuat::FromAxisAngle(BeamDirection, SheetAngle);
+				RightVector = RotQuat.RotateVector(RightVector);
+			}
+
+			// 빔 폭의 절반
+			float HalfWidth = Point.Width * 0.5f;
+
+			// UV 계산
+			float U = Point.Parameter * UVTiling;
+
+			// 상단 버텍스
+			FParticleBeamVertex TopVertex;
+			TopVertex.Position = Point.Position + RightVector * HalfWidth;
+			TopVertex.Color = Point.Color;
+			TopVertex.Tex_U = U;
+			TopVertex.Tex_V = 0.0f;
+			Vertices.Add(TopVertex);
+
+			// 하단 버텍스
+			FParticleBeamVertex BottomVertex;
+			BottomVertex.Position = Point.Position - RightVector * HalfWidth;
+			BottomVertex.Color = Point.Color;
+			BottomVertex.Tex_U = U;
+			BottomVertex.Tex_V = 1.0f;
+			Vertices.Add(BottomVertex);
+		}
+
+		// 인덱스 생성 (삼각형 스트립을 삼각형 리스트로 변환)
+		for (int32 SegIndex = 0; SegIndex < NumSegments; ++SegIndex)
+		{
+			int32 V0 = BaseVertexIndex + (SegIndex * 2) + 0; // 현재 상단
+			int32 V1 = BaseVertexIndex + (SegIndex * 2) + 1; // 현재 하단
+			int32 V2 = BaseVertexIndex + (SegIndex * 2) + 2; // 다음 상단
+			int32 V3 = BaseVertexIndex + (SegIndex * 2) + 3; // 다음 하단
+
+			// 삼각형 1: V0 - V2 - V1
+			Indices.Add(V0);
+			Indices.Add(V2);
+			Indices.Add(V1);
+
+			// 삼각형 2: V1 - V2 - V3
+			Indices.Add(V1);
+			Indices.Add(V2);
+			Indices.Add(V3);
+		}
+	}
+
+	// 5. GPU 버퍼 업데이트
+	FParticleBeamEmitterInstance* BeamInstance =
+		static_cast<FParticleBeamEmitterInstance*>(OwnerInstance);
+
+	if (BeamInstance && BeamInstance->BeamVertexBuffer && !Vertices.empty())
+	{
+		ID3D11DeviceContext* Context = GEngine.GetRHIDevice()->GetDeviceContext();
+		if (Context)
+		{
+			// Vertex Buffer 업데이트
+			D3D11_MAPPED_SUBRESOURCE MappedResource;
+			HRESULT hr = Context->Map(BeamInstance->BeamVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource);
+			if (SUCCEEDED(hr))
+			{
+				memcpy(MappedResource.pData, Vertices.GetData(), Vertices.Num() * sizeof(FParticleBeamVertex));
+				Context->Unmap(BeamInstance->BeamVertexBuffer, 0);
+			}
+
+			// Index Buffer 업데이트
+			hr = Context->Map(BeamInstance->BeamIndexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource);
+			if (SUCCEEDED(hr))
+			{
+				memcpy(MappedResource.pData, Indices.GetData(), Indices.Num() * sizeof(uint32));
+				Context->Unmap(BeamInstance->BeamIndexBuffer, 0);
+			}
+		}
+	}
+
+	// 6. FMeshBatchElement 생성
+	FMeshBatchElement BatchElement;
+
+	BatchElement.VertexBuffer = BeamInstance ? BeamInstance->BeamVertexBuffer : nullptr;
+	BatchElement.IndexBuffer = BeamInstance ? BeamInstance->BeamIndexBuffer : nullptr;
+
+	BatchElement.VertexStride = sizeof(FParticleBeamVertex);
+	BatchElement.IndexCount = TotalIndexCount;
+	BatchElement.StartIndex = 0;
+	BatchElement.BaseVertexIndex = 0;
+	BatchElement.WorldMatrix = FMatrix::Identity();
+
+	assert(OwnerInstance != nullptr);
+	assert(OwnerInstance->Component != nullptr);
+	BatchElement.ObjectID = OwnerInstance->Component->UUID;
+	BatchElement.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+	// 머티리얼 설정
+	if (SourceData.MaterialInterface)
+	{
+		BatchElement.Material = SourceData.MaterialInterface;
+	}
+
+	OutMeshBatchElements.Add(BatchElement);
 }

@@ -576,6 +576,17 @@ void UResourceManager::InitShaderILMap()
 	ShaderToInputLayoutMap["Shaders/Shadows/DepthOnly_VS.hlsl#PARTICLE_MESH"] = layout;
 	ShaderToInputLayoutMap["Shaders/Materials/UberLit.hlsl#PARTICLE_MESH"] = layout;
 	layout.clear();
+
+	// ────────────────────────────────
+	// Beam Particle 렌더링 (FParticleBeamVertex)
+	// C++에서 빌보딩 완료된 월드 좌표를 직접 전달
+	// ────────────────────────────────
+	layout.Add({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 });    // Position (12 bytes)
+	layout.Add({ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 });   // Color (16 bytes)
+	layout.Add({ "TEXCOORD", 0, DXGI_FORMAT_R32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 });         // Tex_U (4 bytes)
+	layout.Add({ "TEXCOORD", 1, DXGI_FORMAT_R32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 });         // Tex_V (4 bytes)
+	ShaderToInputLayoutMap["Shaders/Materials/UberLit.hlsl#PARTICLE_BEAM"] = layout;
+	layout.clear();
 }
 
 TArray<D3D11_INPUT_ELEMENT_DESC>& UResourceManager::GetProperInputLayout(const FString& InShaderName)

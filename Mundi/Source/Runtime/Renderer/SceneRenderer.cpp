@@ -56,6 +56,7 @@
 #include "DynamicEmitterDataBase.h"
 #include "DynamicEmitterReplayDataBase.h"
 #include "ParticleEmitterInstance.h"
+#include "VertexData.h"
 
 FSceneRenderer::FSceneRenderer(UWorld* InWorld, FSceneView* InView, URenderer* InOwnerRenderer)
 	: World(InWorld)
@@ -1077,25 +1078,39 @@ void FSceneRenderer::RenderParticlesPass()
 				break;
 			}
 
-			// Mesh 파티클인지 Sprite 파티클인지 확인
+			// 에미터 타입에 따라 셰이더 매크로 및 설정 결정
 			bool bIsMeshParticle = false;
-			if (EmitterData->GetSource().eEmitterType == EDynamicEmitterType::Mesh)
+			bool bIsBeamParticle = false;
+			EDynamicEmitterType EmitterType = EmitterData->GetSource().eEmitterType;
+
+			if (EmitterType == EDynamicEmitterType::Mesh)
 			{
 				bIsMeshParticle = true;
 				ParticleShaderMacros = View->ViewShaderMacros; // 메시 파티클은 뷰 모드 매크로도 포함
 				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE_MESH", "1" });
-				
+
 				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
-				
+
 				// 메시 파티클 통계
 				ParticleStats.MeshEmitters++;
+			}
+			else if (EmitterType == EDynamicEmitterType::Beam2)
+			{
+				bIsBeamParticle = true;
+				//ParticleShaderMacros = View->ViewShaderMacros;
+				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE_BEAM", "1" });
+
+				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
+
+				// 빔 파티클 통계 (스프라이트 카테고리로 집계)
+				ParticleStats.SpriteEmitters++;
 			}
 			else
 			{
 				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE", "1" });
 
 				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
-				
+
 				// 스프라이트 파티클 통계
 				ParticleStats.SpriteEmitters++;
 			}
@@ -1144,6 +1159,12 @@ void FSceneRenderer::RenderParticlesPass()
 
 					ParticleStats.TotalInsertedInstances += LastBatchElement.InstanceCount;
 				}
+			}
+			else if (bIsBeamParticle)
+			{
+				// 빔 파티클: 버텍스 버퍼 크기에서 실제 버텍스 수 계산
+				LastBatchElement.VertexBuffer->GetDesc(&BufferDesc);
+				ParticleStats.TotalInsertedVertices += BufferDesc.ByteWidth / sizeof(FParticleBeamVertex);
 			}
 			else
 			{

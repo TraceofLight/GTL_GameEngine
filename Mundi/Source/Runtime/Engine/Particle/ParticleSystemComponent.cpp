@@ -3,6 +3,7 @@
 #include "ParticleEmitterInstance.h"
 #include "ParticleSpriteEmitterInstance.h"
 #include "ParticleMeshEmitterInstance.h"
+#include "ParticleBeamEmitterInstance.h"
 #include "ParticleDataContainer.h"
 #include "ParticleSystem.h"
 #include "ParticleEmitter.h"
@@ -544,6 +545,10 @@ void UParticleSystemComponent::CreateEmitterInstances()
 			if (EmitterType == EDynamicEmitterType::Mesh)
 			{
 				NewInstance = new FParticleMeshEmitterInstance();
+			}
+			else if (EmitterType == EDynamicEmitterType::Beam2)
+			{
+				NewInstance = new FParticleBeamEmitterInstance();
 			}
 		}
 

@@ -1,6 +1,7 @@
 #pragma once
 #include "ParticleTypes.h"
 #include "ParticleDataContainer.h"
+#include "Particle.h"  // FBeamPoint
 
 /**
  * Dynamic particle emitter types
@@ -172,4 +173,25 @@ struct FDynamicMeshEmitterReplayData
 	//	Ar << LockedAxis;
 	//}
 
+};
+
+/** Source data for Beam emitters */
+struct FDynamicBeamEmitterReplayData
+	: public FDynamicSpriteEmitterReplayDataBase
+{
+	/** 빔 포인트 배열 (Source에서 Target까지) */
+	TArray<FBeamPoint> BeamPoints;
+
+	/** 시트 수 (여러 각도에서 보이게 하기 위함) */
+	int32 Sheets;
+
+	/** UV 타일링 */
+	float UVTiling;
+
+	/** Constructor */
+	FDynamicBeamEmitterReplayData()
+		: Sheets(1)
+		, UVTiling(1.0f)
+	{
+	}
 };

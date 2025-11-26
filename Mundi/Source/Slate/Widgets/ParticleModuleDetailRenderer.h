@@ -9,6 +9,7 @@ class UParticleModuleLocation;
 class UParticleModuleSize;
 class UParticleModuleVelocity;
 class UParticleModuleTypeDataMesh;
+class UParticleModuleTypeDataBeam;
 class UParticleModuleRotation;
 class UParticleModuleRotationRate;
 class UParticleModuleMeshRotation;
@@ -39,6 +40,7 @@ private:
 	static void RenderSizeModule(UParticleModuleSize* Module);
 	static void RenderVelocityModule(UParticleModuleVelocity* Module);
 	static void RenderTypeDataMeshModule(UParticleModuleTypeDataMesh* Module);
+	static void RenderTypeDataBeamModule(UParticleModuleTypeDataBeam* Module);
 	static void RenderRotationModule(UParticleModuleRotation* Module);
 	static void RenderRotationRateModule(UParticleModuleRotationRate* Module);
 	static void RenderMeshRotationModule(UParticleModuleMeshRotation* Module);

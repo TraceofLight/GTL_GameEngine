@@ -483,6 +483,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\Particle\DynamicEmitterReplayDataBase.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Lifetime\ParticleModuleLifetime.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Location\ParticleModuleLocation.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\ParticleBeamEmitterInstance.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\ParticleEmitter.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\ParticleLODLevel.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\ParticleMeshEmitterInstance.cpp" />
@@ -822,6 +823,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\Particle\Lifetime\ParticleModuleLifetime.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Location\ParticleModuleLocation.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Particle.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\ParticleBeamEmitterInstance.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleDataContainer.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleEmitter.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleEmitterInstance.h" />
