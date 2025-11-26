@@ -509,7 +509,7 @@ void SViewportWindow::LoadToolbarIcons(ID3D11Device* Device)
 	IconSkinning->Load(GDataDir + "/Default/Icon/Viewport_Skinning.png", Device);
 
 	IconParticle = NewObject<UTexture>();
-	IconParticle->Load(GDataDir + "/Default/Icon/Viewport_Particle.png", Device);
+	IconParticle->Load(GDataDir + "/Default/Icon/Viewport_Particle.dds", Device);
 
 	// 뷰포트 레이아웃 전환 아이콘 로드
 	IconSingleToMultiViewport = NewObject<UTexture>();

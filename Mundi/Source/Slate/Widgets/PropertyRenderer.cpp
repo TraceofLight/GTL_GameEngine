@@ -24,6 +24,7 @@
 #include "Source/Runtime/Core/Misc/Enums.h"
 #include "AnimStateMachine.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystem.h"
+#include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
 
 // Disable warnings for third-party library
 #pragma warning(push)
@@ -256,6 +257,14 @@ bool UPropertyRenderer::RenderPropertyInternal(const FProperty& Property, void* 
 
 			{
 				LightComponent->UpdateLightData();
+			}
+		}
+		else if (UParticleSystemComponent* ParticleComp = Cast<UParticleSystemComponent>(Obj))
+		{
+			// 모듈이 아닌 Template 프로퍼티가 변경된 경우에만 UpdateInstances 호출
+			if (strcmp(Property.Name, "Template") == 0)
+			{
+				ParticleComp->UpdateInstances();
 			}
 		}
 	}
@@ -1909,7 +1918,7 @@ bool UPropertyRenderer::RenderSingleMaterialSlot(const char* Label, UMaterialInt
 		if (ImGui::ColorEdit3(AmbientLabel.c_str(), &TempColor.R))
 		{
 			MeshComponent->SetMaterialColorByUser(MaterialIndex, "AmbientColor", TempColor);
-			bElementChanged = true;
+		 bElementChanged = true;
 		}
 
 		// SpecularColor
@@ -2191,8 +2200,6 @@ bool UPropertyRenderer::RenderTextureSelectionCombo(const char* Label, UTexture*
 
 	return bChanged;
 }
-
-
 
 
 bool UPropertyRenderer::RenderSoundSelectionComboSimple(const char* Label, USound* CurrentSound, USound*& OutNewSound)

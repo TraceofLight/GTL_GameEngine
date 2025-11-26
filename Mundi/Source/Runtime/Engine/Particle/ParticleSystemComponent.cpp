@@ -33,6 +33,7 @@ UParticleSystemComponent::UParticleSystemComponent()
 	// 파티클 업데이트를 위해 매 프레임 Tick 활성화
 	bCanEverTick = true;
 	InitializeComponent();
+	//ActivateSystem(true);
 }
 
 /**
