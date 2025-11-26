@@ -7,6 +7,25 @@ struct FParticleEmitterInstance;
 class UParticleModuleTypeDataBase;
 
 /**
+ * @brief 파티클 모듈 타입
+ * @details 모듈의 카테고리를 구분하여 에디터에서 색상 구분에 사용
+ */
+enum class EModuleType : uint8
+{
+	General,    // 일반 모듈
+	TypeData,   // 타입 데이터 (Mesh, GPU Sprites 등)
+	Beam,       // 빔 모듈
+	Trail,      // 트레일 모듈
+	Spawn,      // 스폰 모듈
+	Required,   // 필수 모듈
+	Event,      // 이벤트 모듈
+	Light,      // 라이트 모듈
+	SubUV,      // 서브UV 모듈
+
+	Num
+};
+
+/**
  * @brief 파티클 모듈의 기본 클래스
  * @details 모든 파티클 모듈의 부모 클래스로, Spawn / Update / FinalUpdate 인터페이스 제공
  *
@@ -55,6 +74,12 @@ public:
 	 * @return true면 커브 에디터 버튼 표시
 	 */
 	virtual bool ModuleHasCurves() const { return false; }
+
+	/**
+	 * 모듈 타입 반환 (파생 클래스에서 오버라이드)
+	 * @return 모듈 타입 (에디터 색상 구분용)
+	 */
+	virtual EModuleType GetModuleType() const { return EModuleType::General; }
 
 	// Getters
 	bool IsSpawnModule() const { return bSpawnModule; }

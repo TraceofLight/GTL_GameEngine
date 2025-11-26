@@ -60,6 +60,10 @@ public:
 	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
 	void DuplicateFrom(const UParticleModule* Source) override;
 
+	// ==================== 모듈 타입 ====================
+
+	EModuleType GetModuleType() const override { return EModuleType::Spawn; }
+
 	// ==================== 스폰 계산 함수 ====================
 
 	/**

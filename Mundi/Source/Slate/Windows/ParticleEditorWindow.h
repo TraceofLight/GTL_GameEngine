@@ -417,6 +417,7 @@ private:
 	UTexture* IconBreak = nullptr;
 	UTexture* IconLinear = nullptr;
 	UTexture* IconConstant = nullptr;
+	UTexture* IconCubic = nullptr;
 	UTexture* IconFlatten = nullptr;
 	UTexture* IconStraighten = nullptr;
 	UTexture* IconShowAll = nullptr;

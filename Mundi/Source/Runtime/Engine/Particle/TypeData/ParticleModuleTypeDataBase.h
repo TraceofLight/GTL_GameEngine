@@ -23,6 +23,9 @@ public:
 	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
 	void DuplicateFrom(const UParticleModule* Source) override;
 
+	// Module Type
+	EModuleType GetModuleType() const override { return EModuleType::TypeData; }
+
 	virtual EDynamicEmitterType GetEmitterType() const;
 	virtual const char* GetVertexFactoryName() const;
 	virtual bool IsGPUSprites() const { return false; }

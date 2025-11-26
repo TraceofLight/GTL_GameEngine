@@ -179,6 +179,7 @@ enum class EEngineShowFlags : uint64
     SF_ShadowAntiAliasing = 1ull << 18,
 
     SF_Particles = 1ull << 19,  // Show/hide particle systems
+    SF_OriginAxis = 1ull << 20, // Show/hide origin axis (X/Y/Z)
 
     // Default enabled flags
     SF_DefaultEnabled = SF_Primitives | SF_StaticMeshes | SF_SkeletalMeshes | SF_Grid | SF_Lighting | SF_Decals |

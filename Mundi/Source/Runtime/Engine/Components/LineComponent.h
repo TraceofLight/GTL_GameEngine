@@ -36,6 +36,10 @@ public:
     void SetAlwaysOnTop(bool bInAlwaysOnTop) { bAlwaysOnTop = bInAlwaysOnTop; }
     bool IsAlwaysOnTop() const { return bAlwaysOnTop; }
 
+    // Line type (for SF_Grid vs SF_OriginAxis)
+    void SetIsOriginAxis(bool bInIsOriginAxis) { bIsOriginAxis = bInIsOriginAxis; }
+    bool IsOriginAxis() const { return bIsOriginAxis; }
+
     // ───── 복사 관련 ────────────────────────────
     void DuplicateSubObjects() override;
     DECLARE_DUPLICATE(ULineComponent)
@@ -44,4 +48,5 @@ private:
     TArray<ULine*> Lines;
     bool bLinesVisible = true;
     bool bAlwaysOnTop = false;
+    bool bIsOriginAxis = false; // true면 SF_OriginAxis로 제어, false면 SF_Grid로 제어
  };

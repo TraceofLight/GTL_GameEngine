@@ -11,6 +11,7 @@
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "Source/Runtime/Core/Object/ObjectFactory.h"
+#include "Source/Editor/Grid/GridActor.h"
 
 ParticleViewerState* ParticleViewerBootstrap::CreateViewerState(const char* Name, UWorld* InWorld, ID3D11Device* InDevice)
 {
@@ -85,6 +86,22 @@ ParticleViewerState* ParticleViewerBootstrap::CreateViewerState(const char* Name
 		Preview->SetTickInEditor(true);
 	}
 	State->PreviewActor = Preview;
+
+	// Origin Axis용 GridActor 생성 (그리드는 표시하지 않고 축만 표시)
+	AGridActor* GridActor = State->World->SpawnActor<AGridActor>();
+	if (GridActor)
+	{
+		GridActor->Initialize();
+		GridActor->ClearLines();
+		GridActor->CreateAxisLines(5.0f, FVector::Zero()); // 원점에 5유닛 길이의 축 생성
+
+		// LineComponent를 OriginAxis로 설정 (SF_OriginAxis 플래그로 제어)
+		ULineComponent* LineComp = GridActor->GetLineComponent();
+		if (LineComp)
+		{
+			LineComp->SetIsOriginAxis(true);
+		}
+	}
 
 	return State;
 }

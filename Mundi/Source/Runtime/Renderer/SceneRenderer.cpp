@@ -1912,9 +1912,20 @@ void FSceneRenderer::RenderGridLinesPass()
 		if (!LineComponent || LineComponent->IsAlwaysOnTop())
 			continue;
 
-		if (World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Grid))
+		// OriginAxis 타입은 SF_OriginAxis로, Grid 타입은 SF_Grid로 제어
+		if (LineComponent->IsOriginAxis())
 		{
-			LineComponent->CollectLineBatches(OwnerRenderer);
+			if (World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_OriginAxis))
+			{
+				LineComponent->CollectLineBatches(OwnerRenderer);
+			}
+		}
+		else
+		{
+			if (World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Grid))
+			{
+				LineComponent->CollectLineBatches(OwnerRenderer);
+			}
 		}
 	}
 	OwnerRenderer->EndLineBatch(FMatrix::Identity());

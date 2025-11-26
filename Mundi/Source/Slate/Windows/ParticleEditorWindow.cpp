@@ -393,6 +393,16 @@ void SParticleEditorWindow::OnUpdate(float DeltaSeconds)
 			RenderSettings.DisableShowFlag(EEngineShowFlags::SF_Grid);
 		}
 
+		// Origin Axis 토글
+		if (ActiveState->bShowOriginAxis)
+		{
+			RenderSettings.EnableShowFlag(EEngineShowFlags::SF_OriginAxis);
+		}
+		else
+		{
+			RenderSettings.DisableShowFlag(EEngineShowFlags::SF_OriginAxis);
+		}
+
 		// Post Process 토글 (Fog, FXAA)
 		if (ActiveState->bShowPostProcess)
 		{
@@ -1765,45 +1775,76 @@ void SParticleEmittersPanel::RenderModuleStack(UParticleEmitter* Emitter, int32 
 }
 
 // 모듈 클래스 이름으로부터 일관된 색상 생성 (정적 헬퍼)
-static FLinearColor GetModuleColor(const char* className)
+// 모듈 타입별 색상 테이블 (UE Cascade 기본 설정 기반)
+static const FLinearColor ModuleColors_Unselected[static_cast<int32>(EModuleType::Num)] =
 {
-	if (!className)
+	FLinearColor(0.55f, 0.62f, 0.70f, 1.0f),  // General - 밝은 파란 회색 (UE 기본값)
+	FLinearColor(0.3f, 0.7f, 0.7f, 1.0f),     // TypeData - 청록색
+	FLinearColor(0.5f, 0.3f, 0.7f, 1.0f),     // Beam - 보라색
+	FLinearColor(0.7f, 0.5f, 0.3f, 1.0f),     // Trail - 갈색
+	FLinearColor(0.7f, 0.3f, 0.3f, 1.0f),     // Spawn - 빨간색
+	FLinearColor(0.8f, 0.6f, 0.2f, 1.0f),     // Required - 노란색
+	FLinearColor(0.3f, 0.5f, 0.7f, 1.0f),     // Event - 파란색
+	FLinearColor(0.9f, 0.8f, 0.5f, 1.0f),     // Light - 밝은 노란색
+	FLinearColor(0.6f, 0.4f, 0.6f, 1.0f)      // SubUV - 자주색
+};
+
+static const FLinearColor ModuleColors_Selected[static_cast<int32>(EModuleType::Num)] =
+{
+	FLinearColor(0.70f, 0.75f, 0.82f, 1.0f),  // General - 매우 밝은 파란 회색
+	FLinearColor(0.4f, 0.8f, 0.8f, 1.0f),     // TypeData - 밝은 청록색
+	FLinearColor(0.6f, 0.4f, 0.8f, 1.0f),     // Beam - 밝은 보라색
+	FLinearColor(0.8f, 0.6f, 0.4f, 1.0f),     // Trail - 밝은 갈색
+	FLinearColor(0.8f, 0.4f, 0.4f, 1.0f),     // Spawn - 밝은 빨간색
+	FLinearColor(0.9f, 0.7f, 0.3f, 1.0f),     // Required - 밝은 노란색
+	FLinearColor(0.4f, 0.6f, 0.8f, 1.0f),     // Event - 밝은 파란색
+	FLinearColor(1.0f, 0.9f, 0.6f, 1.0f),     // Light - 매우 밝은 노란색
+	FLinearColor(0.7f, 0.5f, 0.7f, 1.0f)      // SubUV - 밝은 자주색
+};
+
+// 모듈 타입과 선택 상태에 따른 색상 반환 (General 타입은 클래스 이름으로 추가 세분화)
+static FLinearColor GetModuleColor(EModuleType ModuleType, bool bSelected, const char* ClassName = nullptr)
+{
+	int32 TypeIndex = static_cast<int32>(ModuleType);
+	if (TypeIndex < 0 || TypeIndex >= static_cast<int32>(EModuleType::Num))
 	{
-		return FLinearColor(0.4f, 0.4f, 0.4f, 1.0f); // 기본 회색
+		TypeIndex = static_cast<int32>(EModuleType::General);
 	}
 
-	if (strstr(className, "Required"))
+	// General 타입인 경우 클래스 이름으로 추가 세분화 (다양한 색상)
+	if (ModuleType == EModuleType::General && ClassName)
 	{
-		return FLinearColor(0.8f, 0.6f, 0.2f, 1.0f); // 노란색
+		if (strstr(ClassName, "Lifetime"))
+		{
+			return bSelected ? FLinearColor(0.5f, 0.75f, 0.5f, 1.0f) : FLinearColor(0.4f, 0.65f, 0.4f, 1.0f); // 녹색
+		}
+		else if (strstr(ClassName, "Size"))
+		{
+			return bSelected ? FLinearColor(0.6f, 0.6f, 0.85f, 1.0f) : FLinearColor(0.5f, 0.5f, 0.75f, 1.0f); // 파란색
+		}
+		else if (strstr(ClassName, "Velocity") || strstr(ClassName, "Acceleration"))
+		{
+			return bSelected ? FLinearColor(0.75f, 0.5f, 0.75f, 1.0f) : FLinearColor(0.65f, 0.4f, 0.65f, 1.0f); // 보라색
+		}
+		else if (strstr(ClassName, "Color"))
+		{
+			return bSelected ? FLinearColor(0.85f, 0.6f, 0.4f, 1.0f) : FLinearColor(0.75f, 0.5f, 0.3f, 1.0f); // 주황색
+		}
+		else if (strstr(ClassName, "Rotation"))
+		{
+			return bSelected ? FLinearColor(0.6f, 0.75f, 0.85f, 1.0f) : FLinearColor(0.5f, 0.65f, 0.75f, 1.0f); // 청록색
+		}
+		else if (strstr(ClassName, "Location"))
+		{
+			return bSelected ? FLinearColor(0.85f, 0.75f, 0.4f, 1.0f) : FLinearColor(0.75f, 0.65f, 0.3f, 1.0f); // 노란색
+		}
+		else if (strstr(ClassName, "Drag"))
+		{
+			return bSelected ? FLinearColor(0.75f, 0.6f, 0.6f, 1.0f) : FLinearColor(0.65f, 0.5f, 0.5f, 1.0f); // 갈색
+		}
 	}
-	else if (strstr(className, "Spawn"))
-	{
-		return FLinearColor(0.7f, 0.3f, 0.3f, 1.0f); // 빨간색
-	}
-	else if (strstr(className, "Lifetime"))
-	{
-		return FLinearColor(0.4f, 0.6f, 0.4f, 1.0f); // 녹색
-	}
-	else if (strstr(className, "Size"))
-	{
-		return FLinearColor(0.5f, 0.5f, 0.7f, 1.0f); // 파란색
-	}
-	else if (strstr(className, "Velocity") || strstr(className, "Acceleration"))
-	{
-		return FLinearColor(0.6f, 0.4f, 0.6f, 1.0f); // 보라색
-	}
-	else if (strstr(className, "Color"))
-	{
-		return FLinearColor(0.7f, 0.5f, 0.3f, 1.0f); // 주황색
-	}
-	else if (strstr(className, "TypeData"))
-	{
-		return FLinearColor(0.3f, 0.7f, 0.7f, 1.0f); // 청록색 (TypeData)
-	}
-	else
-	{
-		return FLinearColor(0.4f, 0.4f, 0.4f, 1.0f); // 기본 회색
-	}
+
+	return bSelected ? ModuleColors_Selected[TypeIndex] : ModuleColors_Unselected[TypeIndex];
 }
 
 void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 ModuleIndex, int32 EmitterIndex)
@@ -1811,21 +1852,18 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 	ParticleViewerState* State = Owner->GetActiveState();
 	bool bSelected = (State->SelectedEmitterIndex == EmitterIndex && State->SelectedModuleIndex == ModuleIndex);
 
-	// 모듈 타입에 따른 색상
-	const char* className = Module->GetClass() ? Module->GetClass()->Name : "Unknown";
-	FLinearColor moduleColorLinear = GetModuleColor(className);
+	// 모듈 타입과 선택 상태에 따른 색상 (클래스 이름 기반 세분화)
+	const char* moduleClassName = Module->GetClass() ? Module->GetClass()->Name : "Unknown";
+	EModuleType ModuleType = Module->GetModuleType();
+	FLinearColor moduleColorLinear = GetModuleColor(ModuleType, bSelected, moduleClassName);
 	ImVec4 moduleColor = ImVec4(moduleColorLinear.R, moduleColorLinear.G, moduleColorLinear.B, moduleColorLinear.A);
-
-	if (bSelected)
-	{
-		moduleColor = ImVec4(0.3f, 0.5f, 0.8f, 1.0f); // 선택 시 파란색
-	}
 
 	ImGui::PushStyleColor(ImGuiCol_Header, moduleColor);
 	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(moduleColor.x * 1.2f, moduleColor.y * 1.2f, moduleColor.z * 1.2f, 1.0f));
 
 	// 모듈 이름 추출 (UParticleModule 접두사 제거)
-	FString ModuleName = className;
+	const char* ClassName = Module->GetClass() ? Module->GetClass()->Name : "Unknown";
+	FString ModuleName = ClassName;
 	if (ModuleName.find("UParticleModule") == 0)
 	{
 		ModuleName = ModuleName.substr(15);
@@ -2007,60 +2045,61 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 				if (CurvePanel)
 				{
 					const char* ClassName = Module->GetClass()->Name;
-					FLinearColor BaseColor = GetModuleColor(ClassName);
+
+					// 이미터 정보를 포함한 Prefix (다른 이미터의 동일 모듈 구분용)
+					FString EmitterPrefix = "Emitter" + std::to_string(EmitterIndex) + ".";
 
 					if (bNewState)
 					{
-						// 모듈 타입별로 여러 커브 추가 (UE 스타일)
+						// 모듈 타입별로 여러 커브 추가
 						if (strstr(ClassName, "Velocity"))
 						{
-							// StartVelocity: X, Y, Z
-							CurvePanel->AddCurve(FString(ClassName) + ".StartVelocity.X", FLinearColor(1.0f, 0.3f, 0.3f, 1.0f), Module);
-							CurvePanel->AddCurve(FString(ClassName) + ".StartVelocity.Y", FLinearColor(0.3f, 1.0f, 0.3f, 1.0f), Module);
-							CurvePanel->AddCurve(FString(ClassName) + ".StartVelocity.Z", FLinearColor(0.3f, 0.3f, 1.0f, 1.0f), Module);
-							// StartVelocityRadial
-							CurvePanel->AddCurve(FString(ClassName) + ".StartVelocityRadial", FLinearColor(1.0f, 1.0f, 0.3f, 1.0f), Module);
+							// StartVelocity: X, Y, Z, W (Radial)
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartVelocity.X", FLinearColor(1.0f, 0.3f, 0.3f, 1.0f), Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartVelocity.Y", FLinearColor(0.3f, 1.0f, 0.3f, 1.0f), Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartVelocity.Z", FLinearColor(0.3f, 0.3f, 1.0f, 1.0f), Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartVelocity.W", FLinearColor(1.0f, 1.0f, 0.3f, 1.0f), Module);
 						}
 						else if (strstr(ClassName, "Size"))
 						{
 							// StartSize: X, Y, Z
-							CurvePanel->AddCurve(FString(ClassName) + ".StartSize.X", FLinearColor(1.0f, 0.3f, 0.3f, 1.0f), Module);
-							CurvePanel->AddCurve(FString(ClassName) + ".StartSize.Y", FLinearColor(0.3f, 1.0f, 0.3f, 1.0f), Module);
-							CurvePanel->AddCurve(FString(ClassName) + ".StartSize.Z", FLinearColor(0.3f, 0.3f, 1.0f, 1.0f), Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartSize.X", FLinearColor(1.0f, 0.3f, 0.3f, 1.0f), Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartSize.Y", FLinearColor(0.3f, 1.0f, 0.3f, 1.0f), Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartSize.Z", FLinearColor(0.3f, 0.3f, 1.0f, 1.0f), Module);
 						}
 						else if (strstr(ClassName, "Color"))
 						{
 							// StartColor: R, G, B, A
-							CurvePanel->AddCurve(FString(ClassName) + ".StartColor.R", FLinearColor(1.0f, 0.3f, 0.3f, 1.0f), Module);
-							CurvePanel->AddCurve(FString(ClassName) + ".StartColor.G", FLinearColor(0.3f, 1.0f, 0.3f, 1.0f), Module);
-							CurvePanel->AddCurve(FString(ClassName) + ".StartColor.B", FLinearColor(0.3f, 0.3f, 1.0f, 1.0f), Module);
-							CurvePanel->AddCurve(FString(ClassName) + ".StartAlpha", FLinearColor(0.8f, 0.8f, 0.8f, 1.0f), Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartColor.R", FLinearColor(1.0f, 0.3f, 0.3f, 1.0f), Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartColor.G", FLinearColor(0.3f, 1.0f, 0.3f, 1.0f), Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartColor.B", FLinearColor(0.3f, 0.3f, 1.0f, 1.0f), Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartColor.A", FLinearColor(1.0f, 1.0f, 1.0f, 1.0f), Module);
 						}
 						else if (strstr(ClassName, "Lifetime"))
 						{
 							// Lifetime (단일 float)
-							CurvePanel->AddCurve(FString(ClassName) + ".Lifetime", BaseColor, Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".Lifetime", FLinearColor(1.0f, 1.0f, 1.0f, 1.0f), Module);
 						}
 						else if (strstr(ClassName, "RotationRate") || strstr(ClassName, "MeshRotationRate"))
 						{
 							// RotationRate (단일 float - Degrees/Second)
-							CurvePanel->AddCurve(FString(ClassName) + ".StartRotationRate", BaseColor, Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartRotationRate", FLinearColor(1.0f, 1.0f, 1.0f, 1.0f), Module);
 						}
 						else if (strstr(ClassName, "Rotation") || strstr(ClassName, "MeshRotation"))
 						{
 							// StartRotation (단일 float - Degrees)
-							CurvePanel->AddCurve(FString(ClassName) + ".StartRotation", BaseColor, Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName + ".StartRotation", FLinearColor(1.0f, 1.0f, 1.0f, 1.0f), Module);
 						}
 						else
 						{
 							// 기본: 모듈 이름만
-							CurvePanel->AddCurve(FString(ClassName), BaseColor, Module);
+							CurvePanel->AddCurve(EmitterPrefix + ClassName, FLinearColor(1.0f, 1.0f, 1.0f, 1.0f), Module);
 						}
 					}
 					else
 					{
 						// 커브 에디터에서 제거 (해당 모듈의 모든 커브 제거)
-						CurvePanel->RemoveAllCurvesForModule(FString(ClassName));
+						CurvePanel->RemoveAllCurvesForModule(EmitterPrefix + ClassName);
 					}
 				}
 			}
@@ -2847,12 +2886,12 @@ SParticleCurveEditorPanel::SParticleCurveEditorPanel(SParticleEditorWindow* InOw
 
 void SParticleCurveEditorPanel::AddCurve(const FString& PropertyName, const FLinearColor& Color, UParticleModule* OwnerModule)
 {
-	// 이미 존재하는 커브인지 확인
+	// 이미 존재하는 커브인지 확인 (PropertyName + OwnerModule 모두 비교)
 	for (const FCurveData& Curve : Curves)
 	{
-		if (Curve.PropertyName == PropertyName)
+		if (Curve.PropertyName == PropertyName && Curve.OwnerModule == OwnerModule)
 		{
-			return;  // 중복 추가 방지
+			return;  // 동일한 모듈의 동일한 프로퍼티는 중복 추가 방지
 		}
 	}
 
@@ -2930,28 +2969,29 @@ bool SParticleCurveEditorPanel::HasCurve(const FString& PropertyName) const
 
 void SParticleCurveEditorPanel::LoadIcons()
 {
-	FString IconPath = "C:/Users/Jungle/Documents/My_UE_Icons_DDS/";
+	FString IconPath = "Data/Default/Icon/CurveEditor/";
 
 	// 뷰 컨트롤 아이콘
-	IconHorizontal = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Horizontal_40x.dds", false);
-	IconVertical = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Vertical_40x.dds", false);
-	IconFit = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_ZoomToFit_40x.dds", false);
-	IconPan = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Pan_40x.dds", false);
-	IconZoom = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Zoom_40x.dds", false);
+	IconHorizontal = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Horizontal_40x.dds", false);
+	IconVertical = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Vertical_40x.dds", false);
+	IconFit = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_ZoomToFit_40x.dds", false);
+	IconPan = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Pan_40x.dds", false);
+	IconZoom = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Zoom_40x.dds", false);
 
 	// 탄젠트/보간 모드 아이콘
-	IconAuto = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Auto_40x.dds", false);
-	IconUser = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_User_40x.dds", false);
-	IconBreak = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Break_40x.dds", false);
-	IconLinear = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Linear_40x.dds", false);
-	IconConstant = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Constant_40x.dds", false);
+	IconAuto = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Auto_40x.dds", false);
+	IconUser = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_User_40x.dds", false);
+	IconBreak = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Break_40x.dds", false);
+	IconLinear = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Linear_40x.dds", false);
+	IconConstant = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Constant_40x.dds", false);
+	IconCubic = UResourceManager::GetInstance().Load<UTexture>(IconPath + "GenericCurveEditor_48x.dds", false);
 
 	// 키 작업 아이콘
-	IconFlatten = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Flatten_40x.dds", false);
-	IconStraighten = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Straighten_40x.dds", false);
-	IconShowAll = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_ShowAll_40x.dds", false);
-	IconCreate = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_Create_40x.dds", false);
-	IconDelete = UResourceManager::GetInstance().Load<UTexture>(IconPath + "icon_CurveEditor_DeleteTab_40x.dds", false);
+	IconFlatten = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Flatten_40x.dds", false);
+	IconStraighten = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Straighten_40x.dds", false);
+	IconShowAll = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_ShowAll_40x.dds", false);
+	IconCreate = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_Create_40x.dds", false);
+	IconDelete = UResourceManager::GetInstance().Load<UTexture>(IconPath + "Icon_CurveEditor_DeleteTab_40x.dds", false);
 }
 
 ImVec2 SParticleCurveEditorPanel::CurveToScreen(float Time, float Value, const ImVec2& CanvasPos, const ImVec2& CanvasSize) const
@@ -3161,6 +3201,7 @@ void SParticleCurveEditorPanel::RenderToolbar()
 	bool bHasBreakTangent = false;
 	bool bHasLinearInterp = false;
 	bool bHasConstantInterp = false;
+	bool bHasCubicInterp = false;
 
 	if (Selection.CurveIndex >= 0 && Selection.CurveIndex < Curves.size() && !Selection.SelectedKeys.empty())
 	{
@@ -3175,6 +3216,7 @@ void SParticleCurveEditorPanel::RenderToolbar()
 				if (Key.TangentMode == ETangentMode::Break) bHasBreakTangent = true;
 				if (Key.InterpMode == EInterpMode::Linear) bHasLinearInterp = true;
 				if (Key.InterpMode == EInterpMode::Constant) bHasConstantInterp = true;
+				if (Key.InterpMode == EInterpMode::Cubic) bHasCubicInterp = true;
 			}
 		}
 	}
@@ -3243,6 +3285,7 @@ void SParticleCurveEditorPanel::RenderToolbar()
 					Curve.Keys[KeyIdx].InterpMode = EInterpMode::Linear;
 				}
 			}
+			UpdateModuleFromCurve(Selection.CurveIndex);
 		}
 	}
 	ImGui::SameLine();
@@ -3260,6 +3303,25 @@ void SParticleCurveEditorPanel::RenderToolbar()
 					Curve.Keys[KeyIdx].InterpMode = EInterpMode::Constant;
 				}
 			}
+			UpdateModuleFromCurve(Selection.CurveIndex);
+		}
+	}
+	ImGui::SameLine();
+
+	if (RenderIconButton("##Cubic", IconCubic, "Cubic (Bezier Curve)", bHasCubicInterp))
+	{
+		// 선택된 키의 보간 모드를 Cubic으로 변경
+		if (Selection.CurveIndex >= 0 && Selection.CurveIndex < Curves.size())
+		{
+			FCurveData& Curve = Curves[Selection.CurveIndex];
+			for (int32 KeyIdx : Selection.SelectedKeys)
+			{
+				if (KeyIdx >= 0 && KeyIdx < Curve.Keys.size())
+				{
+					Curve.Keys[KeyIdx].InterpMode = EInterpMode::Cubic;
+				}
+			}
+			UpdateModuleFromCurve(Selection.CurveIndex);
 		}
 	}
 
@@ -3422,7 +3484,7 @@ void SParticleCurveEditorPanel::RenderCurveList()
 		ImGui::PushID(GroupName.c_str());
 
 		ImVec2 GroupStartPos = ImGui::GetCursorScreenPos();
-		float GroupHeight = 36.0f; // 헤더 18px + 서브커브 라인 18px
+		float GroupHeight = 40.0f; // 여유 공간 확보 (헤더 + 서브커브 라인)
 
 		// 그룹 배경 (선택 시)
 		bool bIsGroupSelected = false;
@@ -3458,7 +3520,7 @@ void SParticleCurveEditorPanel::RenderCurveList()
 
 		// 서브커브들 (컬러박스, 가로 배치) - 헤더 아래 라인
 		float SubCurveX = GroupStartPos.x + 12;
-		float SubCurveY = GroupStartPos.y + 18; // 헤더 아래
+		float SubCurveY = GroupStartPos.y + 19; // 헤더 아래 (1px 간격 추가)
 		// 그룹 전체 클릭 감지 영역
 		ImVec2 MousePos = ImGui::GetMousePos();
 		bool bMouseInGroup = (MousePos.x >= GroupStartPos.x && MousePos.x <= GroupStartPos.x + 270 &&
@@ -3500,7 +3562,7 @@ void SParticleCurveEditorPanel::RenderCurveList()
 			}
 		}
 
-		ImVec2 CheckboxPos = ImVec2(GroupStartPos.x + 248, GroupStartPos.y + 18 + 2); // 헤더 아래 라인, 2px 왼쪽으로
+		ImVec2 CheckboxPos = ImVec2(GroupStartPos.x + 248, GroupStartPos.y + 19 + 2); // 헤더 아래 라인, 2px 왼쪽으로
 		ImGui::SetCursorScreenPos(CheckboxPos);
 		ImGui::PushID("checkbox");
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
@@ -3599,13 +3661,17 @@ void SParticleCurveEditorPanel::RenderCurveList()
 			}
 		}
 
-		// 좌측 컬러바 (그룹 전체 높이) - 모듈 인스턴스 기반 색상 사용
+		// 좌측 컬러바 (그룹 전체 높이) - 모듈 타입 + 선택 상태 기반 색상
 		ImVec2 BarMin = GroupStartPos;
 		ImVec2 BarMax = ImVec2(GroupStartPos.x + 4, GroupStartPos.y + GroupHeight);
 
-		// 첫 번째 커브의 OwnerModule로 모듈 인스턴스 색상 생성
+		// 첫 번째 커브의 OwnerModule로 모듈 타입 기반 색상 생성 (이미터 패널과 동일한 로직)
 		UParticleModule* OwnerModule = Curves[CurveIndices[0]].OwnerModule;
-		FLinearColor ModuleColor = GetColorFromModuleInstance(OwnerModule);
+		ParticleViewerState* State = Owner->GetActiveState();
+		bool bModuleSelected = (State && OwnerModule && State->SelectedModule == OwnerModule);
+		const char* ModuleClassName = (OwnerModule && OwnerModule->GetClass()) ? OwnerModule->GetClass()->Name : nullptr;
+		EModuleType ModuleType = OwnerModule ? OwnerModule->GetModuleType() : EModuleType::General;
+		FLinearColor ModuleColor = GetModuleColor(ModuleType, bModuleSelected, ModuleClassName);
 		ImU32 BarColor = ImGui::ColorConvertFloat4ToU32(ImVec4(ModuleColor.R, ModuleColor.G, ModuleColor.B, ModuleColor.A));
 		DrawList->AddRectFilled(BarMin, BarMax, BarColor);
 
@@ -3618,6 +3684,37 @@ void SParticleCurveEditorPanel::RenderCurveList()
 	// 빈 영역 우클릭 - 전체 제거 메뉴
 	if (ImGui::BeginPopupContextWindow("CurveListContext", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
 	{
+		bool bHasSelection = (Selection.CurveIndex >= 0 && Selection.CurveIndex < Curves.size());
+		if (ImGui::MenuItem("Remove Selected Curve", nullptr, false, bHasSelection))
+		{
+			if (bHasSelection)
+			{
+				UParticleModule* DeletedModule = Curves[Selection.CurveIndex].OwnerModule;
+				Curves.erase(Curves.begin() + Selection.CurveIndex);
+				Selection.ClearSelection();
+
+				// 해당 모듈의 다른 커브가 있는지 확인
+				if (DeletedModule)
+				{
+					bool bHasOtherCurves = false;
+					for (const FCurveData& Curve : Curves)
+					{
+						if (Curve.OwnerModule == DeletedModule)
+						{
+							bHasOtherCurves = true;
+							break;
+						}
+					}
+
+					// 모든 커브가 삭제되었으면 이미터 패널 아이콘 업데이트
+					if (!bHasOtherCurves)
+					{
+						DeletedModule->SetCurvesInEditor(false);
+					}
+				}
+			}
+		}
+
 		if (ImGui::MenuItem("Remove All Curves"))
 		{
 			Curves.clear();
@@ -3648,55 +3745,88 @@ void SParticleCurveEditorPanel::RenderCurveGrid()
 	// 캔버스 배경
 	DrawList->AddRectFilled(CanvasPos, ImVec2(CanvasPos.x + CanvasSize.x, CanvasPos.y + CanvasSize.y), IM_COL32(30, 30, 30, 255));
 
-	// 그리드 라인 렌더링
+	// 그리드 라인 렌더링 (실제 월드 좌표 기준)
 	{
-		// 수평 그리드 (Y축 값)
-		int32 NumHorizontalLines = 10;
-		for (int32 i = 0; i <= NumHorizontalLines; ++i)
+		// 적절한 그리드 간격 계산 (자동 스케일)
+		auto CalculateGridStep = [](float Range) -> float
 		{
-			float t = static_cast<float>(i) / static_cast<float>(NumHorizontalLines);
-			float Value = ViewMaxY - t * (ViewMaxY - ViewMinY);
-			ImVec2 Pos = CurveToScreen(ViewMinX, Value, CanvasPos, CanvasSize);
+			float PowerOf10 = powf(10.0f, floorf(log10f(Range)));
+			float NormalizedRange = Range / PowerOf10;
+			if (NormalizedRange < 2.0f)
+			{
+				return PowerOf10 * 0.2f;
+			}
+			else if (NormalizedRange < 5.0f)
+			{
+				return PowerOf10 * 0.5f;
+			}
+			else
+			{
+				return PowerOf10;
+			}
+		};
 
-			// 라인
-			DrawList->AddLine(
-				ImVec2(CanvasPos.x, Pos.y),
-				ImVec2(CanvasPos.x + CanvasSize.x, Pos.y),
-				IM_COL32(60, 60, 60, 255),
-				1.0f
-			);
+		float YRange = ViewMaxY - ViewMinY;
+		float XRange = ViewMaxX - ViewMinX;
+		float YStep = CalculateGridStep(YRange);
+		float XStep = CalculateGridStep(XRange);
 
-			// Y축 라벨 (좌측)
-			char Label[32];
-			snprintf(Label, sizeof(Label), "%.2f", Value);
-			DrawList->AddText(ImVec2(CanvasPos.x + 5, Pos.y - 8), IM_COL32(180, 180, 180, 255), Label);
+		// 수평 그리드 (Y축 값)
+		{
+			float StartY = floorf(ViewMinY / YStep) * YStep;
+			float EndY = ceilf(ViewMaxY / YStep) * YStep;
+
+			for (float Y = StartY; Y <= EndY; Y += YStep)
+			{
+				if (Y < ViewMinY || Y > ViewMaxY)
+				{
+					continue;
+				}
+
+				ImVec2 Pos = CurveToScreen(ViewMinX, Y, CanvasPos, CanvasSize);
+
+				DrawList->AddLine(
+					ImVec2(CanvasPos.x, Pos.y),
+					ImVec2(CanvasPos.x + CanvasSize.x, Pos.y),
+					IM_COL32(60, 60, 60, 255),
+					1.0f
+				);
+
+				char Label[32];
+				snprintf(Label, sizeof(Label), "%.2f", Y);
+				DrawList->AddText(ImVec2(CanvasPos.x + 5, Pos.y - 8), IM_COL32(180, 180, 180, 255), Label);
+			}
 		}
 
 		// 수직 그리드 (X축 시간)
-		int32 NumVerticalLines = 10;
-		for (int32 i = 0; i <= NumVerticalLines; ++i)
 		{
-			float t = static_cast<float>(i) / static_cast<float>(NumVerticalLines);
-			float Time = ViewMinX + t * (ViewMaxX - ViewMinX);
-			ImVec2 Pos = CurveToScreen(Time, ViewMinY, CanvasPos, CanvasSize);
+			float StartX = floorf(ViewMinX / XStep) * XStep;
+			float EndX = ceilf(ViewMaxX / XStep) * XStep;
 
-			// 라인
-			DrawList->AddLine(
-				ImVec2(Pos.x, CanvasPos.y),
-				ImVec2(Pos.x, CanvasPos.y + CanvasSize.y),
-				IM_COL32(60, 60, 60, 255),
-				1.0f
-			);
+			for (float X = StartX; X <= EndX; X += XStep)
+			{
+				if (X < ViewMinX || X > ViewMaxX)
+				{
+					continue;
+				}
 
-			// X축 라벨 (하단)
-			char Label[32];
-			snprintf(Label, sizeof(Label), "%.2f", Time);
-			DrawList->AddText(ImVec2(Pos.x - 15, CanvasPos.y + CanvasSize.y - 20), IM_COL32(180, 180, 180, 255), Label);
+				ImVec2 Pos = CurveToScreen(X, ViewMinY, CanvasPos, CanvasSize);
+
+				DrawList->AddLine(
+					ImVec2(Pos.x, CanvasPos.y),
+					ImVec2(Pos.x, CanvasPos.y + CanvasSize.y),
+					IM_COL32(60, 60, 60, 255),
+					1.0f
+				);
+
+				char Label[32];
+				snprintf(Label, sizeof(Label), "%.2f", X);
+				DrawList->AddText(ImVec2(Pos.x - 15, CanvasPos.y + CanvasSize.y - 20), IM_COL32(180, 180, 180, 255), Label);
+			}
 		}
 
 		// 중심 축 (X=0, Y=0) 강조
 		{
-			// Y=0 라인 (빨간색)
 			if (ViewMinY <= 0.0f && ViewMaxY >= 0.0f)
 			{
 				ImVec2 Pos = CurveToScreen(ViewMinX, 0.0f, CanvasPos, CanvasSize);
@@ -3708,7 +3838,6 @@ void SParticleCurveEditorPanel::RenderCurveGrid()
 				);
 			}
 
-			// X=0 라인 (초록색)
 			if (ViewMinX <= 0.0f && ViewMaxX >= 0.0f)
 			{
 				ImVec2 Pos = CurveToScreen(0.0f, ViewMinY, CanvasPos, CanvasSize);
@@ -3722,6 +3851,13 @@ void SParticleCurveEditorPanel::RenderCurveGrid()
 		}
 	}
 
+	// 전역 가장 가까운 키 찾기 (모든 커브 통틀어)
+	ImVec2 MousePos = ImGui::GetMousePos();
+	int32 GlobalClosestCurveIdx = -1;
+	int32 GlobalClosestKeyIdx = -1;
+	float GlobalClosestDistSq = FLT_MAX;
+	float KeyHitRadius = 12.0f;
+
 	// 커브 렌더링
 	for (int32 CurveIdx = 0; CurveIdx < Curves.size(); ++CurveIdx)
 	{
@@ -3731,8 +3867,46 @@ void SParticleCurveEditorPanel::RenderCurveGrid()
 			continue;
 		}
 
+		// 이 커브에서 가장 가까운 키 찾기
+		for (int32 i = 0; i < Curve.Keys.size(); ++i)
+		{
+			const FCurveKey& Key = Curve.Keys[i];
+			ImVec2 KeyPos = CurveToScreen(Key.Time, Key.Value, CanvasPos, CanvasSize);
+
+			float DistSq = (MousePos.x - KeyPos.x) * (MousePos.x - KeyPos.x) +
+			               (MousePos.y - KeyPos.y) * (MousePos.y - KeyPos.y);
+
+			if (DistSq <= KeyHitRadius * KeyHitRadius && DistSq < GlobalClosestDistSq)
+			{
+				GlobalClosestDistSq = DistSq;
+				GlobalClosestCurveIdx = CurveIdx;
+				GlobalClosestKeyIdx = i;
+			}
+		}
+
 		RenderCurve(Curve, CanvasPos, CanvasSize, DrawList);
 		RenderKeys(Curve, CurveIdx, CanvasPos, CanvasSize, DrawList);
+	}
+
+	// 전역 가장 가까운 키 또는 드래그 중인 키만 툴팁 표시
+	bool bIsDragging = (Selection.DragType == FCurveEditorSelection::EDragType::Key &&
+	                    Selection.CurveIndex >= 0 && Selection.CurveIndex < Curves.size());
+
+	if (bIsDragging && Selection.DragKeyIndex >= 0 && Selection.DragKeyIndex < Curves[Selection.CurveIndex].Keys.size())
+	{
+		const FCurveKey& Key = Curves[Selection.CurveIndex].Keys[Selection.DragKeyIndex];
+		ImGui::BeginTooltip();
+		ImGui::Text("Time: %.3f", Key.Time);
+		ImGui::Text("Value: %.3f", Key.Value);
+		ImGui::EndTooltip();
+	}
+	else if (GlobalClosestKeyIdx >= 0 && GlobalClosestCurveIdx >= 0)
+	{
+		const FCurveKey& Key = Curves[GlobalClosestCurveIdx].Keys[GlobalClosestKeyIdx];
+		ImGui::BeginTooltip();
+		ImGui::Text("Time: %.3f", Key.Time);
+		ImGui::Text("Value: %.3f", Key.Value);
+		ImGui::EndTooltip();
 	}
 
 	// 마우스 입력 처리
@@ -3755,10 +3929,12 @@ void SParticleCurveEditorPanel::HandleMouseInput(const ImVec2& CanvasPos, const 
 		return;
 	}
 
-	// 키 드래그 중인지 확인 (패닝보다 우선)
-	bool bIsDraggingKey = (Selection.DragType == FCurveEditorSelection::EDragType::Key);
+	// 키/탄젠트 드래그 중인지 확인 (패닝보다 우선)
+	bool bIsDraggingKey = (Selection.DragType == FCurveEditorSelection::EDragType::Key ||
+	                       Selection.DragType == FCurveEditorSelection::EDragType::ArriveTangent ||
+	                       Selection.DragType == FCurveEditorSelection::EDragType::LeaveTangent);
 
-	// 패닝 모드 (기본 ON, 단 키 드래그 중이 아닐 때만)
+	// 패닝 모드 (기본 ON, 단 키/탄젠트 드래그 중이 아닐 때만)
 	if (bPanMode && !bIsDraggingKey && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
 	{
 		if (!bIsPanning)
@@ -3904,17 +4080,30 @@ void SParticleCurveEditorPanel::RenderKeys(const FCurveData& Curve, int32 CurveI
 	ImU32 KeyColorBorder = IM_COL32(0, 0, 0, 255);
 
 	ImVec2 MousePos = ImGui::GetMousePos();
-	float KeyHitRadius = 12.0f; // 피킹 영역 확대 (8 -> 12)
+	float KeyHitRadius = 12.0f;
+
+	// 가장 가까운 키 추적
+	int32 ClosestKeyIndex = -1;
+	float ClosestDistSq = FLT_MAX;
+	bool bIsDragging = (Selection.DragType == FCurveEditorSelection::EDragType::Key &&
+	                    Selection.CurveIndex == CurveIndex);
 
 	for (int32 i = 0; i < Curve.Keys.size(); ++i)
 	{
 		FCurveKey& Key = const_cast<FCurveKey&>(Curve.Keys[i]);
 		ImVec2 KeyPos = CurveToScreen(Key.Time, Key.Value, CanvasPos, CanvasSize);
 
-		// 마우스 호버 체크
+		// 마우스와의 거리 계산
 		float DistSq = (MousePos.x - KeyPos.x) * (MousePos.x - KeyPos.x) +
 		               (MousePos.y - KeyPos.y) * (MousePos.y - KeyPos.y);
 		bool bIsHovered = (DistSq <= KeyHitRadius * KeyHitRadius);
+
+		// 가장 가까운 키 업데이트
+		if (bIsHovered && DistSq < ClosestDistSq)
+		{
+			ClosestDistSq = DistSq;
+			ClosestKeyIndex = i;
+		}
 
 		// 선택 여부 확인
 		bool bIsSelected = (Selection.CurveIndex == CurveIndex && Selection.IsKeySelected(i));
@@ -3932,119 +4121,100 @@ void SParticleCurveEditorPanel::RenderKeys(const FCurveData& Curve, int32 CurveI
 		DrawList->AddConvexPolyFilled(KeyPoints, 4, FillColor);
 		DrawList->AddPolyline(KeyPoints, 4, KeyColorBorder, ImDrawFlags_Closed, bIsHovered ? 2.0f : 1.0f);
 
-		// 호버 시 좌표 툴팁 표시
-		if (bIsHovered)
+		// 클릭 처리
+		if (bIsHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 		{
-			ImGui::BeginTooltip();
-			ImGui::Text("Time: %.3f", Key.Time);
-			ImGui::Text("Value: %.3f", Key.Value);
-			ImGui::EndTooltip();
+			Selection.CurveIndex = CurveIndex;
+			Selection.SelectedKeys.clear();
+			Selection.SelectedKeys.push_back(i);
+			Key.bSelected = true;
 
-			// 클릭 시 선택
-			if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+			// 다른 키 선택 해제
+			for (int32 j = 0; j < Curve.Keys.size(); ++j)
 			{
-				Selection.CurveIndex = CurveIndex;
-				Selection.SelectedKeys.clear();
-				Selection.SelectedKeys.push_back(i);
-				Key.bSelected = true;
-
-				// 다른 키 선택 해제
-				for (int32 j = 0; j < Curve.Keys.size(); ++j)
+				if (j != i)
 				{
-					if (j != i)
-					{
-						const_cast<FCurveKey&>(Curve.Keys[j]).bSelected = false;
-					}
-				}
-
-				// 해당 커브의 모듈을 디테일 패널에 표시
-				ParticleViewerState* State = Owner->GetActiveState();
-				if (State && Curve.OwnerModule)
-				{
-					State->SelectedModule = Curve.OwnerModule;
-
-					// 해당 모듈이 속한 이미터 찾기
-					for (int32 EmitterIdx = 0; EmitterIdx < State->CurrentSystem->GetNumEmitters(); ++EmitterIdx)
-					{
-						UParticleEmitter* Emitter = State->CurrentSystem->GetEmitter(EmitterIdx);
-						if (!Emitter) continue;
-
-						UParticleLODLevel* LOD = Emitter->GetLODLevel(0);
-						if (!LOD) continue;
-
-						bool bFound = false;
-
-						// Required
-						if (LOD->RequiredModule == State->SelectedModule)
-						{
-							State->SelectedEmitter = Emitter;
-							State->SelectedEmitterIndex = EmitterIdx;
-							State->SelectedModuleIndex = -1;
-							bFound = true;
-						}
-						// Spawn
-						else if (LOD->SpawnModule == State->SelectedModule)
-						{
-							State->SelectedEmitter = Emitter;
-							State->SelectedEmitterIndex = EmitterIdx;
-							State->SelectedModuleIndex = -2;
-							bFound = true;
-						}
-						// TypeData
-						else if (LOD->TypeDataModule == State->SelectedModule)
-						{
-							State->SelectedEmitter = Emitter;
-							State->SelectedEmitterIndex = EmitterIdx;
-							State->SelectedModuleIndex = -3;
-							bFound = true;
-						}
-						// 일반 모듈
-						else
-						{
-							for (int32 ModuleIdx = 0; ModuleIdx < LOD->Modules.size(); ++ModuleIdx)
-							{
-								if (LOD->Modules[ModuleIdx] == State->SelectedModule)
-								{
-									State->SelectedEmitter = Emitter;
-									State->SelectedEmitterIndex = EmitterIdx;
-									State->SelectedModuleIndex = ModuleIdx;
-									bFound = true;
-									break;
-								}
-							}
-						}
-
-						if (bFound) break;
-					}
+					const_cast<FCurveKey&>(Curve.Keys[j]).bSelected = false;
 				}
 			}
 
-			// 드래그 시작 (마우스 다운 상태에서 움직일 때)
-			if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && Selection.DragType == FCurveEditorSelection::EDragType::None)
+			// 해당 커브의 모듈을 디테일 패널에 표시
+			ParticleViewerState* State = Owner->GetActiveState();
+			if (State && Curve.OwnerModule)
 			{
-				Selection.DragType = FCurveEditorSelection::EDragType::Key;
-				Selection.DragKeyIndex = i;
-				Selection.DragStartPos = MousePos;
+				State->SelectedModule = Curve.OwnerModule;
+
+				// 해당 모듈이 속한 이미터 찾기
+				for (int32 EmitterIdx = 0; EmitterIdx < State->CurrentSystem->GetNumEmitters(); ++EmitterIdx)
+				{
+					UParticleEmitter* Emitter = State->CurrentSystem->GetEmitter(EmitterIdx);
+					if (!Emitter) continue;
+
+					UParticleLODLevel* LOD = Emitter->GetLODLevel(0);
+					if (!LOD) continue;
+
+					bool bFound = false;
+
+					if (LOD->RequiredModule == State->SelectedModule)
+					{
+						State->SelectedEmitter = Emitter;
+						State->SelectedEmitterIndex = EmitterIdx;
+						State->SelectedModuleIndex = -1;
+						bFound = true;
+					}
+					else if (LOD->SpawnModule == State->SelectedModule)
+					{
+						State->SelectedEmitter = Emitter;
+						State->SelectedEmitterIndex = EmitterIdx;
+						State->SelectedModuleIndex = -2;
+						bFound = true;
+					}
+					else if (LOD->TypeDataModule == State->SelectedModule)
+					{
+						State->SelectedEmitter = Emitter;
+						State->SelectedEmitterIndex = EmitterIdx;
+						State->SelectedModuleIndex = -3;
+						bFound = true;
+					}
+					else
+					{
+						for (int32 ModuleIdx = 0; ModuleIdx < LOD->Modules.size(); ++ModuleIdx)
+						{
+							if (LOD->Modules[ModuleIdx] == State->SelectedModule)
+							{
+								State->SelectedEmitter = Emitter;
+								State->SelectedEmitterIndex = EmitterIdx;
+								State->SelectedModuleIndex = ModuleIdx;
+								bFound = true;
+								break;
+							}
+						}
+					}
+
+					if (bFound) break;
+				}
 			}
 		}
 
-		// 드래그 중인 키 업데이트 (마우스가 노드에서 벗어나도 계속 드래그)
-		if (Selection.DragType == FCurveEditorSelection::EDragType::Key &&
-		    Selection.DragKeyIndex == i &&
-		    Selection.CurveIndex == CurveIndex &&
-		    ImGui::IsMouseDown(ImGuiMouseButton_Left))
+		// 드래그 시작
+		if (bIsHovered && ImGui::IsMouseDown(ImGuiMouseButton_Left) && Selection.DragType == FCurveEditorSelection::EDragType::None)
+		{
+			Selection.DragType = FCurveEditorSelection::EDragType::Key;
+			Selection.DragKeyIndex = i;
+			Selection.DragStartPos = MousePos;
+		}
+
+		// 드래그 중인 키 업데이트
+		if (bIsDragging && Selection.DragKeyIndex == i && ImGui::IsMouseDown(ImGuiMouseButton_Left))
 		{
 			float NewTime, NewValue;
 			ScreenToCurve(MousePos, CanvasPos, CanvasSize, NewTime, NewValue);
 
-			// 시간은 0.0 ~ 1.0 범위로 클램프
 			Key.Time = std::max(0.0f, std::min(1.0f, NewTime));
 
-			// Constant 값이면 모든 키의 값을 동일하게 변경 (수평선 유지)
 			if (Key.InterpMode == EInterpMode::Constant)
 			{
 				float ValueDelta = NewValue - Key.Value;
-				// 모든 키에 동일한 값 적용
 				for (int32 j = 0; j < Curve.Keys.size(); ++j)
 				{
 					const_cast<FCurveKey&>(Curve.Keys[j]).Value += ValueDelta;
@@ -4052,21 +4222,143 @@ void SParticleCurveEditorPanel::RenderKeys(const FCurveData& Curve, int32 CurveI
 			}
 			else
 			{
-				// Linear는 개별 키만 변경
 				Key.Value = NewValue;
 			}
 
-			// 드래그 중에도 실시간으로 모듈 값 업데이트
 			UpdateModuleFromCurve(CurveIndex);
+		}
+
+		// 탄젠트 핸들 렌더링 (Cubic 모드이고 선택된 키만)
+		if (bIsSelected && Key.InterpMode == EInterpMode::Cubic)
+		{
+			ImVec2 KeyPos = CurveToScreen(Key.Time, Key.Value, CanvasPos, CanvasSize);
+
+			// 탄젠트 핸들 목표 길이 (캔버스 너비의 8%)
+			float TargetHandleLengthPixels = CanvasSize.x * 0.08f;
+			float BaseScale = 0.15f * (ViewMaxX - ViewMinX);
+
+			// Arrive Tangent (왼쪽 핸들) - 뷰 좌표계에서 계산 후 스크린 길이 정규화
+			float ArriveDx = -BaseScale;
+			float ArriveDy = -Key.ArriveTangent * BaseScale;
+			ImVec2 ArriveHandlePos_Temp = CurveToScreen(Key.Time + ArriveDx, Key.Value + ArriveDy, CanvasPos, CanvasSize);
+			ImVec2 ArriveOffset = ImVec2(ArriveHandlePos_Temp.x - KeyPos.x, ArriveHandlePos_Temp.y - KeyPos.y);
+			float ArriveCurrentLength = std::sqrt(ArriveOffset.x * ArriveOffset.x + ArriveOffset.y * ArriveOffset.y);
+			if (ArriveCurrentLength > 0.001f)
+			{
+				float ArriveScale = TargetHandleLengthPixels / ArriveCurrentLength;
+				ArriveDx *= ArriveScale;
+				ArriveDy *= ArriveScale;
+			}
+			ImVec2 ArriveHandlePos = CurveToScreen(Key.Time + ArriveDx, Key.Value + ArriveDy, CanvasPos, CanvasSize);
+
+			// Leave Tangent (오른쪽 핸들) - 뷰 좌표계에서 계산 후 스크린 길이 정규화
+			float LeaveDx = BaseScale;
+			float LeaveDy = Key.LeaveTangent * BaseScale;
+			ImVec2 LeaveHandlePos_Temp = CurveToScreen(Key.Time + LeaveDx, Key.Value + LeaveDy, CanvasPos, CanvasSize);
+			ImVec2 LeaveOffset = ImVec2(LeaveHandlePos_Temp.x - KeyPos.x, LeaveHandlePos_Temp.y - KeyPos.y);
+			float LeaveCurrentLength = std::sqrt(LeaveOffset.x * LeaveOffset.x + LeaveOffset.y * LeaveOffset.y);
+			if (LeaveCurrentLength > 0.001f)
+			{
+				float LeaveScale = TargetHandleLengthPixels / LeaveCurrentLength;
+				LeaveDx *= LeaveScale;
+				LeaveDy *= LeaveScale;
+			}
+			ImVec2 LeaveHandlePos = CurveToScreen(Key.Time + LeaveDx, Key.Value + LeaveDy, CanvasPos, CanvasSize);
+
+			// 탄젠트 라인 그리기
+			ImU32 TangentLineColor = IM_COL32(150, 150, 150, 200);
+			DrawList->AddLine(KeyPos, ArriveHandlePos, TangentLineColor, 1.5f);
+			DrawList->AddLine(KeyPos, LeaveHandlePos, TangentLineColor, 1.5f);
+
+			// 탄젠트 핸들 (작은 원)
+			float HandleRadius = 4.0f;
+			ImU32 HandleColor = IM_COL32(200, 200, 200, 255);
+			ImU32 HandleColorHovered = IM_COL32(255, 255, 100, 255);
+
+			// Arrive Handle 호버/클릭 체크
+			float ArriveDistSq = (MousePos.x - ArriveHandlePos.x) * (MousePos.x - ArriveHandlePos.x) +
+			                     (MousePos.y - ArriveHandlePos.y) * (MousePos.y - ArriveHandlePos.y);
+			bool bArriveHovered = (ArriveDistSq <= HandleRadius * HandleRadius * 4);
+
+			if (bArriveHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+			{
+				Selection.DragType = FCurveEditorSelection::EDragType::ArriveTangent;
+				Selection.DragKeyIndex = i;
+				Selection.DragStartPos = MousePos;
+			}
+
+			// Leave Handle 호버/클릭 체크
+			float LeaveDistSq = (MousePos.x - LeaveHandlePos.x) * (MousePos.x - LeaveHandlePos.x) +
+			                    (MousePos.y - LeaveHandlePos.y) * (MousePos.y - LeaveHandlePos.y);
+			bool bLeaveHovered = (LeaveDistSq <= HandleRadius * HandleRadius * 4);
+
+			if (bLeaveHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+			{
+				Selection.DragType = FCurveEditorSelection::EDragType::LeaveTangent;
+				Selection.DragKeyIndex = i;
+				Selection.DragStartPos = MousePos;
+			}
+
+			// 핸들 렌더링
+			DrawList->AddCircleFilled(ArriveHandlePos, HandleRadius, bArriveHovered ? HandleColorHovered : HandleColor);
+			DrawList->AddCircle(ArriveHandlePos, HandleRadius, KeyColorBorder, 0, 1.5f);
+
+			DrawList->AddCircleFilled(LeaveHandlePos, HandleRadius, bLeaveHovered ? HandleColorHovered : HandleColor);
+			DrawList->AddCircle(LeaveHandlePos, HandleRadius, KeyColorBorder, 0, 1.5f);
+
+			// 탄젠트 핸들 드래그 처리
+			if ((Selection.DragType == FCurveEditorSelection::EDragType::ArriveTangent ||
+			     Selection.DragType == FCurveEditorSelection::EDragType::LeaveTangent) &&
+			    Selection.DragKeyIndex == i && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+			{
+				float HandleTime, HandleValue;
+				ScreenToCurve(MousePos, CanvasPos, CanvasSize, HandleTime, HandleValue);
+
+				float TimeDelta = HandleTime - Key.Time;
+				float ValueDelta = HandleValue - Key.Value;
+
+				// 기울기 = ValueDelta / TimeDelta
+				if (std::abs(TimeDelta) > 0.001f)
+				{
+					float Tangent = ValueDelta / TimeDelta;
+
+					if (Selection.DragType == FCurveEditorSelection::EDragType::ArriveTangent)
+					{
+						Key.ArriveTangent = Tangent;
+					}
+					else
+					{
+						Key.LeaveTangent = Tangent;
+					}
+
+					// Auto 모드일 때는 반대쪽 탄젠트도 동기화
+					if (Key.TangentMode == ETangentMode::Auto)
+					{
+						if (Selection.DragType == FCurveEditorSelection::EDragType::ArriveTangent)
+						{
+							Key.LeaveTangent = Tangent;
+						}
+						else
+						{
+							Key.ArriveTangent = Tangent;
+						}
+					}
+
+					UpdateModuleFromCurve(CurveIndex);
+				}
+			}
 		}
 	}
 
-	// 드래그 종료 (마우스 릴리즈 시점)
+	// 툴팁은 RenderCurveGrid에서 전역적으로 처리 (중복 방지)
+
+	// 드래그 종료
 	if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
 	{
-		if (Selection.DragType == FCurveEditorSelection::EDragType::Key)
+		if (Selection.DragType == FCurveEditorSelection::EDragType::Key ||
+		    Selection.DragType == FCurveEditorSelection::EDragType::ArriveTangent ||
+		    Selection.DragType == FCurveEditorSelection::EDragType::LeaveTangent)
 		{
-			// 키 드래그가 끝났으면 모듈 값 업데이트
 			UpdateModuleFromCurve(CurveIndex);
 		}
 
@@ -4089,8 +4381,18 @@ void SParticleCurveEditorPanel::UpdateModuleFromCurve(int32 CurveIndex)
 	if (Curve.Keys.empty())
 		return;
 
-	// 커브 이름 파싱: "UParticleModuleVelocity.StartVelocity.X" 또는 "UParticleModuleLifetime.Lifetime"
+	// 커브 이름 파싱: "Emitter0.UParticleModuleVelocity.StartVelocity.X" 또는 "UParticleModuleVelocity.StartVelocity.X"
 	FString PropertyName = Curve.PropertyName;
+
+	// EmitterPrefix 건너뛰기 (있는 경우)
+	if (PropertyName.find("Emitter") == 0)
+	{
+		size_t FirstDot = PropertyName.find('.');
+		if (FirstDot != FString::npos)
+		{
+			PropertyName = PropertyName.substr(FirstDot + 1);
+		}
+	}
 
 	// 첫 번째 점 찾기 (모듈 이름과 속성 구분)
 	size_t FirstDot = PropertyName.find('.');
@@ -4317,6 +4619,40 @@ void SParticleCurveEditorPanel::OnRender()
 		RenderCurveList();
 		ImGui::SameLine();
 		RenderCurveGrid();
+
+		// Delete 키로 선택된 커브 제거
+		if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
+		{
+			if (ImGui::IsKeyPressed(ImGuiKey_Delete))
+			{
+				if (Selection.CurveIndex >= 0 && Selection.CurveIndex < Curves.size())
+				{
+					UParticleModule* DeletedModule = Curves[Selection.CurveIndex].OwnerModule;
+					Curves.erase(Curves.begin() + Selection.CurveIndex);
+					Selection.ClearSelection();
+
+					// 해당 모듈의 다른 커브가 있는지 확인
+					if (DeletedModule)
+					{
+						bool bHasOtherCurves = false;
+						for (const FCurveData& Curve : Curves)
+						{
+							if (Curve.OwnerModule == DeletedModule)
+							{
+								bHasOtherCurves = true;
+								break;
+							}
+						}
+
+						// 모든 커브가 삭제되었으면 이미터 패널 아이콘 업데이트
+						if (!bHasOtherCurves)
+						{
+							DeletedModule->SetCurvesInEditor(false);
+						}
+					}
+				}
+			}
+		}
 	}
 	ImGui::End();
 }

@@ -60,6 +60,9 @@ public:
 	void Serialize(bool bIsLoading, JSON& InOutHandle) override;
 	void DuplicateFrom(const UParticleModule* Source) override;
 
+	// Module Type
+	EModuleType GetModuleType() const override { return EModuleType::Required; }
+
 	// Functions
 	float GetEmitterDuration() const;
 	int32 GetTotalSubImages() const;
