@@ -78,4 +78,8 @@ public:  // Make properties public for reflection system
 	/** 실시간 애니메이션 속도 (프레임/초) */
 	UPROPERTY()
 	float FrameRate;
+
+	/** Random/RandomBlend 모드에서 파티클 수명 동안 이미지가 변경되는 횟수 */
+	UPROPERTY()
+	int32 RandomImageChanges;
 };

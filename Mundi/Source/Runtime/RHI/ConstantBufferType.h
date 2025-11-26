@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 // b0 in VS
 #include "Color.h"
 #include "LightManager.h"
@@ -213,6 +213,15 @@ struct FSkinningBuffer
 	FMatrix SkinningMatrices[256];
 };
 
+// b6: SubUV 파티클 애니메이션 파라미터 (Sprite Particle용)
+struct FParticleSubUVBufferType
+{
+    int32 SubImages_Horizontal;   // 가로 타일 개수
+    int32 SubImages_Vertical;     // 세로 타일 개수
+    int32 bInterpolateUV;         // UV 보간 사용 여부 (RandomBlend)
+    int32 Padding;                // 정렬을 위한 패딩
+};
+
 #define CONSTANT_BUFFER_INFO(TYPE, SLOT, VS, PS) \
 constexpr uint32 TYPE##Slot = SLOT;\
 constexpr bool TYPE##IsVS = VS;\
@@ -236,7 +245,8 @@ MACRO(CameraBufferType)             \
 MACRO(FLightBufferType)             \
 MACRO(FViewportConstants)           \
 MACRO(FTileCullingBufferType)       \
-MACRO(FPointLightShadowBufferType)
+MACRO(FPointLightShadowBufferType)  \
+MACRO(FParticleSubUVBufferType)
 
 // 2. void*로만 전달해야 하는 큰 버퍼들
 #define CONSTANT_BUFFER_LIST_LARGE(MACRO) \
@@ -271,7 +281,10 @@ CONSTANT_BUFFER_INFO(CameraBufferType, 7, true, true)  // b7, VS+PS (UberLit.hls
 CONSTANT_BUFFER_INFO(FLightBufferType, 8, true, true)
 CONSTANT_BUFFER_INFO(FViewportConstants, 10, true, true)   // 뷰 포트 크기에 따라 전체 화면 복사를 보정하기 위해 설정 (10번 고유번호로 사용)
 CONSTANT_BUFFER_INFO(FTileCullingBufferType, 11, false, true)  // b11, PS only (UberLit.hlsl과 일치)
-CONSTANT_BUFFER_INFO(FPointLightShadowBufferType, 12, true, true)  // b11, VS only
+CONSTANT_BUFFER_INFO(FPointLightShadowBufferType, 12, true, true)  // b12, VS+PS
+CONSTANT_BUFFER_INFO(FParticleSubUVBufferType, 6, false, true)  // b6, PS only (Sprite Particle SubUV 파라미터)
+
+
 
 
 

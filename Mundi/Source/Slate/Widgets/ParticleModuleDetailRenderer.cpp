@@ -19,6 +19,7 @@
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotationRate.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleMeshRotation.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleMeshRotationRate.h"
+#include "Source/Runtime/Engine/Particle/SubUV/ParticleModuleSubUV.h"
 #include "Source/Runtime/Engine/Particle/ParticleEmitter.h"
 #include "Source/Runtime/Engine/Particle/ParticleTypes.h"
 #include "Source/Runtime/Renderer/Material.h"
@@ -306,6 +307,25 @@ bool UParticleModuleDetailRenderer::RenderBurstMethodCombo(const char* Label, EP
 	return false;
 }
 
+bool UParticleModuleDetailRenderer::RenderSubUVInterpMethodCombo(const char* Label, EParticleSubUVInterpMethod& Value)
+{
+	const char* Items[] = {
+		"None",
+		"Linear",
+		"Linear Blend",
+		"Random",
+		"Random Blend"
+	};
+
+	int CurrentItem = static_cast<int>(Value);
+	if (ImGui::Combo(Label, &CurrentItem, Items, IM_ARRAYSIZE(Items)))
+	{
+		Value = static_cast<EParticleSubUVInterpMethod>(CurrentItem);
+		return true;
+	}
+	return false;
+}
+
 // ============================================================================
 // 메인 렌더링 함수
 // ============================================================================
@@ -386,6 +406,10 @@ void UParticleModuleDetailRenderer::RenderModuleDetails(UParticleModule* Module)
 	else if (UParticleModuleMeshRotationRate* MeshRotationRate = Cast<UParticleModuleMeshRotationRate>(Module))
 	{
 		RenderMeshRotationRateModule(MeshRotationRate);
+	}
+	else if (UParticleModuleSubUV* SubUV = Cast<UParticleModuleSubUV>(Module))
+	{
+		RenderSubUVModule(SubUV);
 	}
 	else
 	{
@@ -1446,6 +1470,118 @@ void UParticleModuleDetailRenderer::RenderBeamNoiseModule(UParticleModuleBeamNoi
 
 			ImGui::Checkbox("Lock Endpoints", &Module->bLockEndpoints);
 			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Keep source/target positions fixed");
+		}
+	}
+}
+
+// ============================================================================
+// SubUV 모듈 렌더링
+// ============================================================================
+
+void UParticleModuleDetailRenderer::RenderSubUVModule(UParticleModuleSubUV* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	if (BeginSection("Sub UV Animation", true))
+	{
+		ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f), "텍스처 아틀라스 애니메이션");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("SubUV 모듈: 텍스처 아틀라스의 서브 이미지를 시간에 따라 전환\n"
+				"Required 모듈에서 SubImages 설정 필요");
+		}
+
+		// Interpolation Method
+		EParticleSubUVInterpMethod InterpMethod = Module->GetInterpolationMethod();
+		if (RenderSubUVInterpMethodCombo("Interpolation Method", InterpMethod))
+		{
+			Module->SetInterpolationMethod(InterpMethod);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("서브 이미지 보간 방식\n"
+				"None: 보간 없음, 프레임 단위로 전환\n"
+				"Linear: 수명 기반 선형 전환 (블렌딩 없음)\n"
+				"Linear Blend: 선형 보간과 프레임 블렌딩\n"
+				"Random: 일정 주기마다 랜덤 프레임 선택 (블렌딩 없음)\n"
+				"Random Blend: 일정 주기마다 랜덤 프레임 간 블렌딩\n"
+				"기본값: None");
+		}
+
+		// Random Image Changes (Random/RandomBlend 모드일 때만 표시)
+		if (InterpMethod == EParticleSubUVInterpMethod::Random || 
+		    InterpMethod == EParticleSubUVInterpMethod::RandomBlend)
+		{
+			int32 RandomImageChanges = Module->RandomImageChanges;
+			if (ImGui::DragInt("Random Image Changes", &RandomImageChanges, 0.1f, 1, 100))
+			{
+				Module->RandomImageChanges = std::max(1, RandomImageChanges);
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("파티클 수명 동안 랜덤 이미지가 변경되는 횟수\n"
+					"1: 한 번만 변경 (생성 시 선택된 랜덤 프레임 유지)\n"
+					"2: 수명의 절반마다 새로운 랜덤 프레임으로 변경\n"
+					"3+: 더 자주 변경 (수명을 N등분)\n"
+					"Random/RandomBlend 모드에서만 사용됨\n"
+					"기본값: 1");
+			}
+		}
+
+		// Use Real Time
+		bool bUseRealTime = Module->IsUseRealTime();
+		if (ImGui::Checkbox("Use Real Time", &bUseRealTime))
+		{
+			Module->SetUseRealTime(bUseRealTime);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("애니메이션 시간 기준\n"
+				"true: 실시간 기준 (FrameRate 사용)\n"
+				"false: 파티클 수명 기준 (RelativeTime 사용)\n"
+				"기본값: false");
+		}
+
+		// Starting Frame
+		float StartingFrame = Module->GetStartingFrame();
+		if (ImGui::DragFloat("Starting Frame", &StartingFrame, 0.1f, -1.0f, 1000.0f))
+		{
+			Module->SetStartingFrame(StartingFrame);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클 생성 시 시작 프레임\n"
+				"-1.0: 랜덤 프레임으로 시작\n"
+				"0.0: 첫 번째 프레임부터 시작\n"
+				"기본값: 0.0");
+		}
+
+		// Frame Rate (실시간 모드일 때만 유효)
+		if (bUseRealTime)
+		{
+			float FrameRate = Module->FrameRate;
+			if (ImGui::DragFloat("Frame Rate (fps)", &FrameRate, 0.1f, 0.0f, 1000.0f))
+			{
+				Module->FrameRate = std::max(0.0f, FrameRate);
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("실시간 애니메이션 속도 (초당 프레임 수)\n"
+					"'Use Real Time'이 활성화되어야 적용됨\n"
+					"기본값: 30.0");
+			}
+		}
+		else
+		{
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Frame Rate: (Use Real Time 비활성화)");
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("실시간 모드에서만 사용되는 프레임 속도\n"
+					"파티클 수명 기준 모드에서는 자동으로 전체 수명에 맞춰 애니메이션됨");
+			}
 		}
 	}
 }

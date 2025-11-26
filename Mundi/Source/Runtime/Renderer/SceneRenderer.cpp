@@ -1167,6 +1167,28 @@ void FSceneRenderer::RenderParticlesPass()
 
 				// 스프라이트 파티클 통계
 				ParticleStats.SpriteEmitters++;
+
+				// SubUV 상수 버퍼 업데이트 (Sprite Particle만 해당)
+				FParticleSubUVBufferType SubUVBuffer;
+				SubUVBuffer.SubImages_Horizontal = SpriteReplayData.SubImages_Horizontal;
+				SubUVBuffer.SubImages_Vertical = SpriteReplayData.SubImages_Vertical;
+				
+				// bInterpolateUV: RandomBlend 모드인지 확인
+				// InterpolationMethod는 RequiredModule에 저장되어 있음
+				bool bInterpolateUV = false;
+				if (SpriteReplayData.RequiredModule)
+				{
+					// RequiredModule에서 InterpolationMethod 가져오기
+					// NOTE: FParticleRequiredModule은 렌더 스레드용 데이터로, InterpolationMethod를 직접 저장하지 않음
+					// 대신 SubUVDataOffset이 0보다 크면 SubUV가 활성화된 것으로 판단
+					// RandomBlend 모드는 셰이더에서 SubImageIndex의 소수부를 보간에 사용함
+					bInterpolateUV = (SpriteReplayData.SubUVDataOffset > 0);
+				}
+				SubUVBuffer.bInterpolateUV = bInterpolateUV ? 1 : 0;
+				SubUVBuffer.Padding = 0;
+				
+				// 상수 버퍼 업데이트 (b6 슬롯)
+				RHIDevice->SetAndUpdateConstantBuffer(SubUVBuffer);
 			}
 
 			// 파티클용 셰이더 로드

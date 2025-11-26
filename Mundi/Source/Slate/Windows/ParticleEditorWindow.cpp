@@ -43,6 +43,7 @@ extern UGameEngine GEngine;
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotationRate.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleMeshRotation.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleMeshRotationRate.h"
+#include "Source/Runtime/Engine/Particle/SubUV/ParticleModuleSubUV.h"
 #include "Source/Slate/Widgets/ParticleModuleDetailRenderer.h"
 #include "Source/Slate/Widgets/PropertyRenderer.h"
 
@@ -2280,7 +2281,11 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 	// SubUV 서브메뉴
 	if (ImGui::BeginMenu("SubUV"))
 	{
-		ImGui::MenuItem("SubImage Index", nullptr, false, false); // TODO
+		if (ImGui::MenuItem("SubImage Index"))
+		{
+			UParticleModuleSubUV* Module = new UParticleModuleSubUV();
+			AddModuleAndUpdateInstances(LODLevel, Module);
+		}
 		ImGui::MenuItem("SubUV Movie", nullptr, false, false); // TODO
 		ImGui::EndMenu();
 	}

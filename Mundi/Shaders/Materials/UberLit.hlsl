@@ -70,9 +70,19 @@ cbuffer PixelConstBuffer : register(b4)
     uint bHasNormalTexture;
 };
 
+// b5: SkinningBuffer
 cbuffer SkinningBuffer : register(b5)
 {
     row_major float4x4 SkinningMatrices[256];
+};
+
+// b6: ParticleSubUVBuffer (PS) - SubUV 텍스처 애니메이션 파라미터
+cbuffer ParticleSubUVBuffer : register(b6)
+{
+    int SubImages_Horizontal;   // 가로 타일 개수
+    int SubImages_Vertical;     // 세로 타일 개수
+    int bInterpolateUV;         // UV 보간 사용 여부 (RandomBlend)
+    int SubUV_Padding;          // 정렬을 위한 패딩
 };
 
 // --- Material.SpecularColor 지원 매크로 ---
@@ -173,6 +183,9 @@ struct PS_INPUT
     row_major float3x3 TBN : TBN;
     float4 Color : COLOR;
     float2 TexCoord : TEXCOORD0;
+#if PARTICLE
+    float SubImageIndex : TEXCOORD1;  // SubUV 프레임 인덱스 (정수부 + 보간용 소수부)
+#endif
 };
 
 struct PS_OUTPUT
@@ -225,6 +238,7 @@ PS_INPUT mainVS(VS_INPUT Input)
 	float4x4 VP = mul(ViewMatrix, ProjectionMatrix);
 	Out.Position = mul(VertexWorldPosition, VP);
 	Out.TexCoord = UVForTexturing;
+    Out.SubImageIndex = Input.SubImageIndex;  // SubUV 프레임 인덱스 전달
 
 	worldNormal = normalize(CameraPosition - ParticleTranslatedWorldPosition);
 	Out.Normal = worldNormal;
@@ -403,7 +417,7 @@ PS_INPUT mainVS(VS_INPUT Input)
     Out.Color = Color;
 
 #elif LIGHTING_MODEL_PHONG
-    // Phong Shading: 픽셀별 계산을 위해 픽셀 셰이더로 데이터 전달
+    // Phong Shading: 픽셀별 계산을 위해 픽셀 셰더로 데이터 전달
     Out.Color = Color;
 
 #else
@@ -451,6 +465,73 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     //    uv += UVScrollSpeed * UVScrollTime;
     //}
 
+    float4 texColor;
+    
+#if PARTICLE
+    // Sprite Particle의 경우 SubUV 좌표 계산 및 텍스처 샘플링
+    // SubImageIndex는 버텍스 셰이더에서 전달된 값 사용
+    // Input.SubImageIndex = 정수부(현재 프레임) + 소수부(알파 블렌딩 가중치)
+    
+    // SubUV가 비활성화된 경우
+    if (SubImages_Horizontal <= 1 && SubImages_Vertical <= 1)
+    {
+        texColor = g_DiffuseTexColor.Sample(g_Sample, uv);
+    }
+    else
+    {
+        // 현재 프레임 인덱스 (정수부)
+        int CurrentFrame = int(Input.SubImageIndex);
+        float BlendWeight = frac(Input.SubImageIndex); // 소수부 = 알파 블렌딩 가중치
+        
+        // 프레임을 UV 좌표로 변환
+        int Col = CurrentFrame % SubImages_Horizontal;
+        int Row = CurrentFrame / SubImages_Horizontal;
+        
+        float USize = 1.0f / float(SubImages_Horizontal);
+        float VSize = 1.0f / float(SubImages_Vertical);
+        float UStart = float(Col) * USize;
+        float VStart = float(Row) * VSize;
+        
+        // 현재 프레임의 UV 좌표
+        float2 CurrentFrameUV = float2(UStart, VStart) + Input.TexCoord * float2(USize, VSize);
+        
+        // 텍스처 샘플링 - 블렌딩이 필요한 경우 (Linear_Blend, RandomBlend)
+        if (bInterpolateUV != 0 && BlendWeight > 0.0f)
+        {
+            // 다음 프레임 계산
+            int NextFrame = CurrentFrame + 1;
+            int TotalFrames = SubImages_Horizontal * SubImages_Vertical;
+            
+            // 마지막 프레임이면 첫 프레임으로 순환
+            if (NextFrame >= TotalFrames)
+            {
+                NextFrame = 0;
+            }
+            
+            int NextCol = NextFrame % SubImages_Horizontal;
+            int NextRow = NextFrame / SubImages_Horizontal;
+            float NextUStart = float(NextCol) * USize;
+            float NextVStart = float(NextRow) * VSize;
+            
+            float2 NextFrameUV = float2(NextUStart, NextVStart) + Input.TexCoord * float2(USize, VSize);
+            
+            // 두 프레임의 텍스처를 각각 샘플링
+            float4 CurrentTexColor = g_DiffuseTexColor.Sample(g_Sample, CurrentFrameUV);
+            float4 NextTexColor = g_DiffuseTexColor.Sample(g_Sample, NextFrameUV);
+            
+            // 알파 블렌딩: (1-weight) * current + weight * next
+            texColor = lerp(CurrentTexColor, NextTexColor, BlendWeight);
+        }
+        else
+        {
+            // 블렌딩 없음: 현재 프레임만 샘플링
+            texColor = g_DiffuseTexColor.Sample(g_Sample, CurrentFrameUV);
+        }
+    }
+#else
+    // 일반 메시의 경우 기존 방식대로
+    texColor = g_DiffuseTexColor.Sample(g_Sample, uv);
+#endif
 
 #ifdef VIEWMODE_WORLD_NORMAL
     // World Normal 시각화: Normal 벡터를 색상으로 변환
@@ -468,14 +549,11 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     return Output;
 #endif
 
-    // 텍스처 샘플링 (머트리얼 색상은 Gouraud는 VS에서 적용됨)
-    float4 texColor = g_DiffuseTexColor.Sample(g_Sample, uv);
-
 #if PARTICLE || PARTICLE_MESH
 	texColor *= Input.Color;
 #endif
 	
-    // 머트리얼의 SpecularExponent 사용, 머트리얼이 없으면 기본값 사용
+    // 머트리얼의 SpecularExponent 사용, 머티리얼이 없으면 기본값 사용
     float specPower = bHasMaterial ? Material.SpecularExponent : 32.0f;
 
 #if LIGHTING_MODEL_GOURAUD
@@ -698,7 +776,6 @@ PS_OUTPUT mainPS(PS_INPUT Input)
 
     // Directional light (diffuse + specular)
     float3 DirectionalLightColor = CalculateDirectionalLight(DirectionalLight, Input.WorldPos, ViewPos.xyz, normal, viewDir, baseColor, true, specPower, g_ShadowAtlas2D, g_ShadowSample);
-
 
     litColor += DirectionalLightColor;
 

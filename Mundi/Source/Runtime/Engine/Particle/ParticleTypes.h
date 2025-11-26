@@ -81,9 +81,10 @@ enum class EParticleSortMode : uint8
 enum class EParticleSubUVInterpMethod : uint8
 {
 	None,
-	Linear,
-	Random,
-	RandomBlend
+	Linear, // 현재와 다음 서브 이미지 블렌딩 없이 주어진 순서대로 부드럽게 전환합니다.
+	Linear_Blend, // 현재와 다음 서브 이미지를 블렌딩하여 주어진 순서대로 부드럽게 전환합니다.
+	Random, // 랜덤으로 선택된 두 프레임을 블랜딩없이 전환합니다. 폭발 파편, 불꽃 입자 등 다양한 변화를 주고 싶을 때 사용됩니다.
+	RandomBlend // 랜덤 프레임: 랜덤으로 선택된 두 프레임을 블렌딩하여 보여줍니다. 랜덤성과 부드러운 전환을 동시에 제공합니다.
 };
 
 // 이미터 노멀 모드

@@ -17,6 +17,7 @@ class UParticleModuleRotation;
 class UParticleModuleRotationRate;
 class UParticleModuleMeshRotation;
 class UParticleModuleMeshRotationRate;
+class UParticleModuleSubUV;
 class UParticleEmitter;
 
 /**
@@ -51,6 +52,7 @@ private:
 	static void RenderRotationRateModule(UParticleModuleRotationRate* Module);
 	static void RenderMeshRotationModule(UParticleModuleMeshRotation* Module);
 	static void RenderMeshRotationRateModule(UParticleModuleMeshRotationRate* Module);
+	static void RenderSubUVModule(UParticleModuleSubUV* Module);
 
 	// Distribution 타입 UI 헬퍼
 	static bool RenderFloatDistribution(const char* Label, struct FFloatDistribution& Dist);
@@ -62,6 +64,7 @@ private:
 	static bool RenderSortModeCombo(const char* Label, enum class EParticleSortMode& Value);
 	static bool RenderBlendModeCombo(const char* Label, enum class EParticleBlendMode& Value);
 	static bool RenderBurstMethodCombo(const char* Label, enum class EParticleBurstMethod& Value);
+	static bool RenderSubUVInterpMethodCombo(const char* Label, enum class EParticleSubUVInterpMethod& Value);
 
 	// 섹션 헬퍼
 	static bool BeginSection(const char* Label, bool bDefaultOpen = true);

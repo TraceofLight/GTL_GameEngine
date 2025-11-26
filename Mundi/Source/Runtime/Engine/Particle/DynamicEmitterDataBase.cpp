@@ -172,29 +172,16 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 			SubImageIndex = SubUVData->ImageIndex;
 		}
 
-		// SubUV UV 좌표 계산
-		// ImageIndex = 정수부(현재 프레임) + 소수부(다음 프레임과의 보간값)
-		const int32 CurrentFrame = static_cast<int32>(SubImageIndex);
-		const float BlendFactor = SubImageIndex - static_cast<float>(CurrentFrame);
-		
-		// 프레임을 UV 좌표로 변환
-		// Frame -> (Row, Col) -> UV (0~1 범위)
-		const int32 Col = CurrentFrame % SubImages_Horizontal;
-		const int32 Row = CurrentFrame / SubImages_Horizontal;
-		const float USize = 1.0f / static_cast<float>(SubImages_Horizontal);
-		const float VSize = 1.0f / static_cast<float>(SubImages_Vertical);
-		const float UStart = Col * USize;
-		const float VStart = Row * VSize;
-
 		// 정점 인덱스 계산
 		const int32 BaseVertexIndex = ParticleIndex * 4;
 
-		// UV 좌표 (쿼드의 4개 코너) - SubUV 적용
+		// UV 좌표 (쿼드의 4개 코너) - 원본 0~1 범위 사용
+		// SubUV 계산은 셰이더에서 수행 (보간 지원을 위해)
 		const FVector2D UVs[4] = {
-			FVector2D(UStart,          VStart),          // 좌상단
-			FVector2D(UStart + USize,  VStart),          // 우상단
-			FVector2D(UStart,          VStart + VSize),  // 좌하단
-			FVector2D(UStart + USize,  VStart + VSize)   // 우하단
+			FVector2D(0.0f, 0.0f),  // 좌상단
+			FVector2D(1.0f, 0.0f),  // 우상단
+			FVector2D(0.0f, 1.0f),  // 좌하단
+			FVector2D(1.0f, 1.0f)   // 우하단
 		};
 
 		// 각 코너에 대해 정점 생성
@@ -209,9 +196,9 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(
 			Vertex.ParticleId = static_cast<float>(SortedParticleIndex);
 			Vertex.Size = FVector2D(Particle.Size.X, Particle.Size.Y);
 			Vertex.Rotation = Particle.Rotation;
-			Vertex.SubImageIndex = SubImageIndex; // 셰이더에서 보간에 사용 가능
+			Vertex.SubImageIndex = SubImageIndex; // 셰이더에서 SubUV 계산에 사용
 			Vertex.Color = Particle.Color;
-			Vertex.TexCoord = UVs[CornerIndex];
+			Vertex.TexCoord = UVs[CornerIndex];  // 원본 UV (0~1 범위)
 
 			Vertices.Add(Vertex);
 		}
