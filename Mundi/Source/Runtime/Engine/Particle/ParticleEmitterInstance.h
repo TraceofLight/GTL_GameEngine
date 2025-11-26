@@ -100,6 +100,19 @@ struct FParticleEmitterInstance
 	// 이게 있어야 파티클이 부드럽게 이어져서 나옴
 	float SpawnFraction;
 
+	// ============== Duration/Loop 상태 관리 ==============
+	/** 에미터 경과 시간 (이 에미터만의 시간) */
+	float EmitterTime;
+
+	/** 현재 루프 번호 (0부터 시작) */
+	int32 LoopCount;
+
+	/** 이번 루프의 계산된 Duration (랜덤 범위가 있으면 루프 시작 시 한 번만 계산) */
+	float CurrentLoopDuration;
+
+	/** 스폰 완료 여부 (모든 루프가 끝났거나 Duration 초과) */
+	bool bEmitterIsDone;
+
 	// GPU 리소스
 	ID3D11Buffer* VertexBuffer = nullptr;
 	ID3D11Buffer* IndexBuffer = nullptr;
@@ -123,6 +136,10 @@ struct FParticleEmitterInstance
 		, ParticleCounter(0)
 		, MaxActiveParticles(0)
 		, SpawnFraction(0.0f)
+		, EmitterTime(0.0f)
+		, LoopCount(0)
+		, CurrentLoopDuration(0.0f)
+		, bEmitterIsDone(false)
 		, bMeshRotationActive(false)
 	{
 	}
@@ -549,44 +566,57 @@ struct FParticleEmitterInstance
 		ParticleCounter = 0;
 		SpawnFraction = 0.0f;
 
-		// 1. LOD 레벨 설정 (일단 0번 LOD 사용)
+		// Duration/Loop 상태 초기화
+		EmitterTime = 0.0f;
+		LoopCount = 0;
+		bEmitterIsDone = false;
+
+		// LOD 레벨 설정 (일단 0번 LOD 사용)
 		CurrentLODLevelIndex = 0;
 		if (InTemplate && InTemplate->GetNumLODs() > 0)
 		{
 			CurrentLODLevel = InTemplate->GetLODLevel(0);
 		}
 
-		// 2. Stride 계산 (가장 중요!)
-		// 기본 파티클 크기
+		// Stride 계산
 		ParticleSize = sizeof(FBaseParticle);
 		ParticleStride = ParticleSize;
 
-		// TODO: 모듈들이 요구하는 추가 메모리(Payload) 계산
+		// 모듈들이 요구하는 추가 메모리(Payload) 계산
 		if (CurrentLODLevel)
 		{
-		    for (int32 i = 0; i < CurrentLODLevel->Modules.Num(); i++)
+		    for (int32 i = 0; i < CurrentLODLevel->Modules.Num(); ++i)
 		    {
 		        UParticleModule* Module = CurrentLODLevel->Modules[i];
 		        ParticleStride += Module->RequiredBytes(CurrentLODLevel->TypeDataModule);
 		    }
 		}
 
-		// 2-1. Stride 16바이트 정렬 (SIMD 최적화)
-		// InParticleStride가 50이면 -> 64로, 100이면 -> 112로
+		// Stride 16바이트 정렬 (SIMD 최적화)
 		const int32 Alignment = 16;
 		ParticleStride = (ParticleStride + (Alignment - 1)) & ~(Alignment - 1);
 
-		// 3. PayloadOffset 계산 (기본 파티클 뒤에 모듈 데이터가 시작됨)
+		// PayloadOffset 계산 (기본 파티클 뒤에 모듈 데이터가 시작됨)
 		PayloadOffset = ParticleSize;
 
-		// 3. 메모리 할당 목표치 설정
-		int32 TargetMaxParticles = 1000; // 기본값
+		// 첫 루프의 Duration 계산 (랜덤 범위 적용)
+		if (CurrentLODLevel && CurrentLODLevel->RequiredModule)
+		{
+			CurrentLoopDuration = CurrentLODLevel->RequiredModule->GetEmitterDuration();
+		}
+		else
+		{
+			CurrentLoopDuration = 1.0f;
+		}
+
+		// 메모리 할당 목표치 설정
+		int32 TargetMaxParticles = 1000;
 		if (InTemplate)
 		{
 			TargetMaxParticles = InTemplate->GetPeakActiveParticles();
 		}
 
-		// 4. 초기 할당 (Resize 호출)
+		// 초기 할당 (Resize 호출)
 		if (TargetMaxParticles > 0)
 		{
 			int32 InitialCount = 10;
@@ -599,9 +629,7 @@ struct FParticleEmitterInstance
 				InitialCount = CurrentLODLevel->PeakActiveParticles;
 			}
 
-			// 최소 10개, 최대 100개로 초기 할당 제한 (실무적 최적화)
 			InitialCount = FMath::Clamp(InitialCount, 10, 100);
-
 			Resize(InitialCount);
 		}
 	}

@@ -233,6 +233,17 @@ void UParticleSystemComponent::ResetParticles()
 			Instance->ActiveParticles = 0;   // 활성 파티클 개수 0
 			Instance->ParticleCounter = 0;   // 파티클 ID 카운터 초기화
 			Instance->SpawnFraction = 0.0f;  // 서브프레임 누적값 초기화
+
+			// Duration/Loop 상태 초기화
+			Instance->EmitterTime = 0.0f;
+			Instance->LoopCount = 0;
+			Instance->bEmitterIsDone = false;
+
+			// 첫 루프의 Duration 재계산
+			if (Instance->CurrentLODLevel && Instance->CurrentLODLevel->RequiredModule)
+			{
+				Instance->CurrentLoopDuration = Instance->CurrentLODLevel->RequiredModule->GetEmitterDuration();
+			}
 		}
 	}
 
@@ -319,32 +330,54 @@ void UParticleSystemComponent::UpdateEmitters(float DeltaTime)
 			continue;
 		}
 
-		// ========== 1단계: 파티클 생성 (Spawning) ==========
+		// ========== 0단계: 에미터 시간 업데이트 및 루프 처리 ==========
 
-		// Duration/Loops 체크: 유한 루프 에미터가 완료되었는지 확인
-		bool bEmitterCompleted = false;
 		UParticleModuleRequired* RequiredModule = Instance->CurrentLODLevel->RequiredModule;
-		if (RequiredModule)
+
+		// 이전 프레임 시간 저장 (Burst 계산용)
+		float OldEmitterTime = Instance->EmitterTime;
+
+		// 에미터 시간 업데이트
+		Instance->EmitterTime += DeltaTime;
+
+		// 루프 경계 체크 및 처리
+		if (RequiredModule && Instance->CurrentLoopDuration > 0.0f)
 		{
 			int32 EmitterLoops = RequiredModule->GetEmitterLoops();
 
-			// EmitterLoops > 0 이면 유한 루프 (0 = 무한 루프)
-			if (EmitterLoops > 0)
+			// 현재 루프의 Duration을 초과했는지 체크
+			while (Instance->EmitterTime >= Instance->CurrentLoopDuration)
 			{
-				float Duration = RequiredModule->GetEmitterDuration();
-				float TotalDuration = Duration * static_cast<float>(EmitterLoops);
+				// 루프 완료 처리
+				Instance->LoopCount++;
 
-				// 누적 시간이 총 지속 시간을 초과하면 스폰 완료
-				if (AccumulatedTime >= TotalDuration)
+				// 유한 루프이고 모든 루프가 완료됨
+				if (EmitterLoops > 0 && Instance->LoopCount >= EmitterLoops)
 				{
-					bEmitterCompleted = true;
+					Instance->bEmitterIsDone = true;
+					break;
 				}
+
+				// 다음 루프 시작 - 시간 조정
+				Instance->EmitterTime -= Instance->CurrentLoopDuration;
+				OldEmitterTime = 0.0f;  // 새 루프의 시작
+
+				// bDurationRecalcEachLoop가 true면 다음 루프의 Duration 재계산
+				if (RequiredModule->IsDurationRecalcEachLoop())
+				{
+					Instance->CurrentLoopDuration = RequiredModule->GetEmitterDuration();
+				}
+
+				// SpawnFraction 리셋 (새 루프 시작)
+				Instance->SpawnFraction = 0.0f;
 			}
 		}
 
+		// ========== 1단계: 파티클 생성 (Spawning) ==========
+
 		// 현재 LOD 레벨의 스폰 모듈 가져오기
 		UParticleModuleSpawn* SpawnModule = Instance->CurrentLODLevel->SpawnModule;
-		if (SpawnModule && !bEmitterCompleted)
+		if (SpawnModule && !Instance->bEmitterIsDone)
 		{
 			// 이번 프레임에 생성할 파티클 개수 계산
 			int32 SpawnNumber = 0;      // 실제 생성할 개수
@@ -353,63 +386,38 @@ void UParticleSystemComponent::UpdateEmitters(float DeltaTime)
 			// ----------------------------------------------------------------
 			// [방법 1] SpawnRate 기반 생성 (연속적 생성)
 			// ----------------------------------------------------------------
-			// 예: SpawnRate=30 → 초당 30개 생성
-			// DeltaTime=0.016초(60fps) → 0.48개 생성
-			//
-			// SpawnFraction 누적 방식:
-			//   - Instance->SpawnFraction에 소수점 누적 저장
-			//   - 1.0 이상이 되면 그때 파티클 1개 생성
-			//   - 이렇게 하면 프레임마다 부드럽게 파티클이 나옴
-			// ----------------------------------------------------------------
 			bool bShouldSpawn = SpawnModule->GetSpawnAmount(
 				DeltaTime,                     // DeltaTime (경과 시간)
 				SpawnNumber,                   // OutNumber (출력: 생성할 개수)
-				SpawnRate,                     // OutRate (출력: 초당 생성률, 디버깅/통계용)
+				SpawnRate,                     // OutRate (출력: 초당 생성률)
 				Instance->SpawnFraction        // InOutSpawnFraction (입출력: 소수점 누적값)
 			);
 
 			// [방법 2] Burst 기반 생성 (특정 시간에 대량 생성)
-			// 예: t=0.0초에 50개, t=2.0초에 100개 폭발적 생성
 			if (SpawnModule->bProcessBurstList)
 			{
-				// 에미터 지속 시간 가져오기 (루프 계산용)
-				float Duration = 0.0f;
-				if (Instance->CurrentLODLevel->RequiredModule)
-				{
-					Duration = Instance->CurrentLODLevel->RequiredModule->GetEmitterDuration();
-				}
-
-				// OldTime과 NewTime 사이에 Burst가 있는지 체크
+				// 에미터별 시간으로 Burst 체크 (루프 내 상대 시간 사용)
 				int32 BurstCount = SpawnModule->GetBurstCount(
-					AccumulatedTime - DeltaTime,  // OldTime (이전 시간)
-					AccumulatedTime,               // NewTime (현재 시간)
-					Duration                       // Duration (에미터 지속 시간)
+					OldEmitterTime,                    // OldTime (이전 시간)
+					Instance->EmitterTime,             // NewTime (현재 시간)
+					Instance->CurrentLoopDuration      // Duration (현재 루프의 Duration)
 				);
-				SpawnNumber += BurstCount;  // Rate 생성 + Burst 생성
+				SpawnNumber += BurstCount;
 			}
 
 			// 실제 파티클 생성 수행
 			if (SpawnNumber > 0)
 			{
-				// 생성 위치: 컴포넌트의 월드 위치
 				FVector SpawnLocation = GetWorldLocation();
-
-				// 초기 속도: 0 (모듈에서 덮어쓸 수 있음)
 				FVector InitialVelocity = FVector::Zero();
-
-				// 서브프레임 분산: 프레임 내에서 균등하게 시간 분산
-				// 예: 10개 생성, DeltaTime=0.016초
-				//     Increment=0.0016초 → 0.0000, 0.0016, 0.0032, ... 시간에 생성
-				//     이렇게 하면 부드러운 이펙트 효과
 				float Increment = (SpawnNumber > 1) ? (DeltaTime / SpawnNumber) : 0.0f;
 
-				// SpawnParticles 호출
 				Instance->SpawnParticles(
-					SpawnNumber,      // Count (생성할 개수)
-					0.0f,             // StartTime (첫 파티클 생성 시간, 0=프레임 시작)
-					Increment,        // Increment (파티클 간 시간 간격)
-					SpawnLocation,    // InitialLocation (초기 위치)
-					InitialVelocity   // InitialVelocity (초기 속도)
+					SpawnNumber,
+					0.0f,
+					Increment,
+					SpawnLocation,
+					InitialVelocity
 				);
 			}
 		}
