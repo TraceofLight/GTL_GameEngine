@@ -91,8 +91,8 @@ void UParticleSystemComponent::InitializeComponent()
 	// Template이 없을 때만 기본 파티클 시스템 생성 (Serialize로 로드한 경우 유지)
 	if (!Template)
 	{
-		UParticleSystem* FlareSystem = UParticleSystemComponent::CreateAppleMeshParticleSystem();
-		//UParticleSystem* FlareSystem = UParticleSystemComponent::CreateFlareParticleSystem();
+		//UParticleSystem* FlareSystem = UParticleSystemComponent::CreateAppleMeshParticleSystem();
+		UParticleSystem* FlareSystem = UParticleSystemComponent::CreateFlareParticleSystem();
 		Template = FlareSystem;
 	}
 
@@ -634,6 +634,7 @@ UParticleSystem* UParticleSystemComponent::CreateFlareParticleSystem()
 
 	// flare0.dds 텍스처를 사용하는 머티리얼 로드
 	UMaterial* FlareMaterial = UResourceManager::GetInstance().Load<UMaterial>("Data/Particle/flare0.dds");
+	//UMaterial* FlareMaterial = UResourceManager::GetInstance().Load<UMaterial>("Data/Particle/Boom.dds");
 	RequiredModule->SetMaterial(FlareMaterial);
 	RequiredModule->SetEmitterDuration(1.0f);
 	RequiredModule->SetEmitterLoops(0); // 무한 루프

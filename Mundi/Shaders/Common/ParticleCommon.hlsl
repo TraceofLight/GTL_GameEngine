@@ -35,8 +35,8 @@ void GetTangents(row_major float4x4 InverseViewMatrix,
 	//float3 UpVector = CameraUp.xyz;
 	
 	// Tangent vectors for camera facing position.
-	float3 RightVector = normalize(cross(float3(0, 0, 1), CameraDirection));
-	float3 UpVector = cross(CameraDirection, RightVector);
+	float3 RightVector = normalize(cross(CameraDirection, float3(0, 0, 1)));
+	float3 UpVector = cross(RightVector, CameraDirection);
 
 	// Determine the angle of rotation.
 	float SinRotation; // = 0

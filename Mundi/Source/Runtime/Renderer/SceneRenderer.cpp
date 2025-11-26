@@ -1075,7 +1075,6 @@ void FSceneRenderer::RenderParticlesPass()
 			{
 				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE", "1" });
 
-				RHIDevice->RSSetState(ERasterizerMode::Solid_NoCull); // TODO: 스프라이트 정점 순서 이슈 때문에 임시 조치. 수정 필요
 				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
 			}
 
