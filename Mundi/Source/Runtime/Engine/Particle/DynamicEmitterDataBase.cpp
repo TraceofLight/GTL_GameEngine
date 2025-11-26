@@ -280,7 +280,8 @@ void FDynamicMeshEmitterData::GetDynamicMeshElementsEmitter(
 		// FVector4 Transform[3]에 3x4 행렬 저장 (W에 Translation)
 		FVector Scale = Particle.Size;
 		FVector Location = Particle.Location;
-
+		FVector Rotation = Particle.Rotation;
+	
 		// 단순화: 회전 없이 스케일과 위치만 적용
 		// Row 0: Scale.X, 0, 0, Location.X
 		Instance.Transform[0] = FVector4(Scale.X, 0.0f, 0.0f, Location.X);

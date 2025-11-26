@@ -11,6 +11,8 @@
 #include "Source/Runtime/Engine/Particle/Size/ParticleModuleSize.h"
 #include "Source/Runtime/Engine/Particle/Velocity/ParticleModuleVelocity.h"
 #include "Source/Runtime/Engine/Particle/TypeData/ParticleModuleTypeDataBase.h"
+#include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotation.h"
+#include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotationRate.h"
 #include "Source/Runtime/Engine/Particle/ParticleEmitter.h"
 #include "Source/Runtime/Engine/Particle/ParticleTypes.h"
 #include "Source/Runtime/Renderer/Material.h"
@@ -335,6 +337,14 @@ void UParticleModuleDetailRenderer::RenderModuleDetails(UParticleModule* Module)
 	{
 		RenderTypeDataMeshModule(TypeDataMesh);
 	}
+	else if (UParticleModuleRotation* Rotation = Cast<UParticleModuleRotation>(Module))
+	{
+		RenderRotationModule(Rotation);
+	}
+	else if (UParticleModuleRotationRate* RotationRate = Cast<UParticleModuleRotationRate>(Module))
+	{
+		RenderRotationRateModule(RotationRate);
+	}
 	else
 	{
 		// 기본 모듈 정보
@@ -412,7 +422,7 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		ImGui::Text("Material:");
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 80.0f);
-		ImGui::InputText("##MaterialPath", const_cast<char*>(MaterialName.c_str()), MaterialName.size(), ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputText("##MaterialPath", const_cast<char*>(MaterialName.c_str()), MaterialName.size() + 1, ImGuiInputTextFlags_ReadOnly);
 		ImGui::SameLine();
 		if (ImGui::Button("Browse##Material", ImVec2(70, 0)))
 		{
@@ -764,7 +774,7 @@ void UParticleModuleDetailRenderer::RenderTypeDataMeshModule(UParticleModuleType
 		ImGui::Text("Mesh:");
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 80.0f);
-		ImGui::InputText("##MeshPath", const_cast<char*>(MeshName.c_str()), MeshName.size(), ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputText("##MeshPath", const_cast<char*>(MeshName.c_str()), MeshName.size() + 1, ImGuiInputTextFlags_ReadOnly);
 		ImGui::SameLine();
 		if (ImGui::Button("Browse##Mesh", ImVec2(70, 0)))
 		{
@@ -850,5 +860,39 @@ void UParticleModuleDetailRenderer::RenderTypeDataMeshModule(UParticleModuleType
 	if (BeginSection("Collision", false))
 	{
 		ImGui::Checkbox("Do Collisions", &Module->DoCollisions);
+	}
+}
+
+// ============================================================================
+// Rotation 모듈 렌더링
+// ============================================================================
+
+void UParticleModuleDetailRenderer::RenderRotationModule(UParticleModuleRotation* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	if (BeginSection("Initial Rotation", true))
+	{
+		RenderFloatDistribution("Start Rotation (Degrees)", Module->StartRotation);
+	}
+}
+
+// ============================================================================
+// Rotation Rate 모듈 렌더링
+// ============================================================================
+
+void UParticleModuleDetailRenderer::RenderRotationRateModule(UParticleModuleRotationRate* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	if (BeginSection("Rotation Rate", true))
+	{
+		RenderFloatDistribution("Start Rotation Rate (Deg/s)", Module->StartRotationRate);
 	}
 }

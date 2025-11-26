@@ -34,6 +34,8 @@ extern UGameEngine GEngine;
 #include "Source/Runtime/Engine/Particle/Size/ParticleModuleSize.h"
 #include "Source/Runtime/Engine/Particle/Velocity/ParticleModuleVelocity.h"
 #include "Source/Runtime/Engine/Particle/TypeData/ParticleModuleTypeDataBase.h"
+#include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotation.h"
+#include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotationRate.h"
 #include "Source/Slate/Widgets/ParticleModuleDetailRenderer.h"
 #include "Source/Slate/Widgets/PropertyRenderer.h"
 
@@ -2112,7 +2114,11 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 	// Rotation 서브메뉴
 	if (ImGui::BeginMenu("Rotation"))
 	{
-		ImGui::MenuItem("Initial Rotation", nullptr, false, false); // TODO
+		if (ImGui::MenuItem("Initial Rotation"))
+		{
+			UParticleModuleRotation* Module = new UParticleModuleRotation();
+			AddModuleAndUpdateInstances(LODLevel, Module);
+		}
 		ImGui::MenuItem("Rotation Over Life", nullptr, false, false); // TODO
 		ImGui::EndMenu();
 	}
@@ -2120,7 +2126,11 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 	// Rotation Rate 서브메뉴
 	if (ImGui::BeginMenu("Rotation Rate"))
 	{
-		ImGui::MenuItem("Initial Rotation Rate", nullptr, false, false); // TODO
+		if (ImGui::MenuItem("Initial Rotation Rate"))
+		{
+			UParticleModuleRotationRate* Module = new UParticleModuleRotationRate();
+			AddModuleAndUpdateInstances(LODLevel, Module);
+		}
 		ImGui::MenuItem("Rotation Rate Over Life", nullptr, false, false); // TODO
 		ImGui::EndMenu();
 	}
