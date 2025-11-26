@@ -43,6 +43,11 @@ public:
 	int32 InitialAllocationCount;
 	bool bIsSoloing;
 
+	// 에디터 UI 상태
+	bool bIsEnabled;                    // 이미터 활성화 여부 (눈 아이콘)
+	bool bWasEnabledBeforeSolo;         // 솔로 전 활성화 상태 (솔로 해제 시 복원용)
+	FString ThumbnailTexturePath;       // 썸네일 텍스처 경로
+
 	// 생성자/소멸자
 	UParticleEmitter();
 	~UParticleEmitter() override = default;

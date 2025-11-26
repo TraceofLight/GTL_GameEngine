@@ -27,14 +27,12 @@
  */
 UParticleSystemComponent::UParticleSystemComponent()
 	: Template(nullptr)              // 파티클 시스템 템플릿 (설계도)
-	, bIsActive(false)                // 활성화 상태 (false = 비활성)
 	, AccumulatedTime(0.0f)           // 누적 시간 (Burst 타이밍 계산용)
 	, CurrentDynamicData(nullptr)     // 렌더 데이터 (초기엔 nullptr)
 {
 	// 파티클 업데이트를 위해 매 프레임 Tick 활성화
 	bCanEverTick = true;
 	InitializeComponent();
-	ActivateSystem(true);
 }
 
 /**
@@ -308,6 +306,18 @@ void UParticleSystemComponent::UpdateEmitters(float DeltaTime)
 			continue;
 		}
 
+		// LOD 레벨 또는 에미터가 비활성화되어 있으면 스킵
+		if (!Instance->CurrentLODLevel->bEnabled)
+		{
+			continue;
+		}
+
+		// 에미터 자체의 활성화 상태 체크
+		if (Instance->SpriteTemplate && !Instance->SpriteTemplate->bIsEnabled)
+		{
+			continue;
+		}
+
 		// ========== 1단계: 파티클 생성 (Spawning) ==========
 
 		// 현재 LOD 레벨의 스폰 모듈 가져오기
@@ -442,6 +452,27 @@ void UParticleSystemComponent::UpdateDynamicData()
 			continue;  // 유효하지 않은 인스턴스는 스킵
 		}
 
+		// LOD 레벨 또는 에미터가 비활성화되어 있으면 스킵 (렌더링 제외)
+		if (Instance->CurrentLODLevel && !Instance->CurrentLODLevel->bEnabled)
+		{
+			CurrentDynamicData->DynamicEmitterDataArray.Add(nullptr);
+			continue;
+		}
+
+		// 에미터 자체의 활성화 상태 체크
+		if (Instance->SpriteTemplate && !Instance->SpriteTemplate->bIsEnabled)
+		{
+			CurrentDynamicData->DynamicEmitterDataArray.Add(nullptr);
+			continue;
+		}
+
+		// RenderMode가 None이면 렌더링 스킵
+		if (Instance->SpriteTemplate && Instance->SpriteTemplate->EmitterRenderMode == EEmitterRenderMode::None)
+		{
+			CurrentDynamicData->DynamicEmitterDataArray.Add(nullptr);
+			continue;
+		}
+
 		// 렌더 스레드용 데이터 생성 (파티클 데이터 스냅샷)
 		// bSelected = false (에디터에서 선택 안 됨)
 		FDynamicEmitterDataBase* NewEmitterData = Instance->GetDynamicData(false);
@@ -550,11 +581,7 @@ void UParticleSystemComponent::Serialize(const bool bIsLoading, JSON& InOutHandl
 			Template = UResourceManager::GetInstance().Load<UParticleSystem>(TemplatePath);
 		}
 
-		// bIsActive 로드
-		if (InOutHandle.hasKey("bIsActive"))
-		{
-			bIsActive = InOutHandle["bIsActive"].ToBool();
-		}
+		// bIsActive는 UActorComponent의 UPROPERTY로 자동 직렬화됨
 
 		// 로드 후 에미터 인스턴스 재생성
 		if (Template)
@@ -575,8 +602,7 @@ void UParticleSystemComponent::Serialize(const bool bIsLoading, JSON& InOutHandl
 			}
 		}
 
-		// bIsActive 저장
-		InOutHandle["bIsActive"] = bIsActive;
+		// bIsActive는 UActorComponent의 UPROPERTY로 자동 직렬화됨
 	}
 }
 

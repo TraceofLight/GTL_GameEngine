@@ -144,11 +144,6 @@ public:
 	 */
 	FParticleDynamicData* GetCurrentDynamicData() const { return CurrentDynamicData; }
 
-	// ============== State ==============
-	/** Whether the particle system is currently active */
-	// 파티클 시스템이 현재 활성화되어 있는지 여부
-	bool bIsActive;
-
 	/** Accumulated time for warmup */
 	// 웜업을 위한 누적 시간
 	float AccumulatedTime;

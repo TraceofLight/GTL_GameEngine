@@ -2,7 +2,9 @@
 #include "ParticleModule.h"
 
 UParticleModule::UParticleModule()
-	: bSpawnModule(false)
+	: bEnabled(true)                 // 기본적으로 활성화
+	, bCurvesInEditor(false)         // 커브 에디터에 표시 안 함
+	, bSpawnModule(false)
 	, bUpdateModule(false)
 	, bFinalUpdateModule(false)
 	, bSupported3DDrawMode(false)
@@ -114,15 +116,18 @@ void UParticleModule::Serialize(bool bIsLoading, JSON& InOutHandle)
 {
 	if (bIsLoading)
 	{
+		if (InOutHandle.hasKey("bEnabled")) bEnabled = InOutHandle["bEnabled"].ToBool();
 		if (InOutHandle.hasKey("bSpawnModule")) bSpawnModule = InOutHandle["bSpawnModule"].ToBool();
 		if (InOutHandle.hasKey("bUpdateModule")) bUpdateModule = InOutHandle["bUpdateModule"].ToBool();
 		if (InOutHandle.hasKey("bFinalUpdateModule")) bFinalUpdateModule = InOutHandle["bFinalUpdateModule"].ToBool();
 		if (InOutHandle.hasKey("bSupported3DDrawMode")) bSupported3DDrawMode = InOutHandle["bSupported3DDrawMode"].ToBool();
 		if (InOutHandle.hasKey("b3DDrawMode")) b3DDrawMode = InOutHandle["b3DDrawMode"].ToBool();
 		if (InOutHandle.hasKey("LODValidity")) LODValidity = static_cast<uint8>(InOutHandle["LODValidity"].ToInt());
+		// bCurvesInEditor는 런타임 상태이므로 직렬화하지 않음
 	}
 	else
 	{
+		InOutHandle["bEnabled"] = bEnabled;
 		InOutHandle["bSpawnModule"] = bSpawnModule;
 		InOutHandle["bUpdateModule"] = bUpdateModule;
 		InOutHandle["bFinalUpdateModule"] = bFinalUpdateModule;
@@ -143,6 +148,8 @@ void UParticleModule::DuplicateFrom(const UParticleModule* Source)
 		return;
 	}
 
+	bEnabled = Source->bEnabled;
+	bCurvesInEditor = false;  // 복제 시 커브 에디터 상태는 초기화
 	bSpawnModule = Source->bSpawnModule;
 	bUpdateModule = Source->bUpdateModule;
 	bFinalUpdateModule = Source->bFinalUpdateModule;

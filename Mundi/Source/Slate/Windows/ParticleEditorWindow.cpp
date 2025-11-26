@@ -13,10 +13,19 @@
 #include "Source/Runtime/Engine/GameFramework/World.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/AssetManagement/Texture.h"
+#include "Source/Runtime/RHI/D3D11RHI.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "ImGui/imgui.h"
 #include "Source/Editor/PlatformProcess.h"
+
+#ifdef _EDITOR
+#include "Source/Runtime/Engine/GameFramework/EditorEngine.h"
+extern UEditorEngine GEngine;
+#else
+#include "Source/Runtime/Engine/GameFramework/GameEngine.h"
+extern UGameEngine GEngine;
+#endif
 
 // 파티클 모듈 헤더
 #include "Source/Runtime/Engine/Particle/Color/ParticleModuleColor.h"
@@ -496,6 +505,16 @@ void SParticleEditorWindow::LoadToolbarIcons()
 	IconLowerLOD = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_LowerLOD.dds");
 	IconHigherLOD = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_HigherLOD.dds");
 	IconAddLOD = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Particle_AddLOD.dds");
+
+	// 모듈 UI 아이콘
+	IconCurveEditor = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/CurveEditor_32x.dds");
+	IconCheckbox = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/check_box_hovered.dds");
+	IconCheckboxChecked = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/check_box_checked.dds");
+
+	// 이미터 헤더 아이콘
+	IconEmitterSolo = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Emitter_Solo.dds");
+	IconRenderModeNormal = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/ParticleSprite_16x.dds");
+	IconRenderModeCross = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/RenderMode_Cross.dds");
 }
 
 bool SParticleEditorWindow::RenderIconButton(const char* id, UTexture* icon, const char* label, const char* tooltip, bool bActive)
@@ -715,11 +734,41 @@ void SParticleEditorWindow::RenderToolbar()
 	DrawVerticalSeparator();
 
 	// ================================================================
-	// Thumbnail
+	// Thumbnail - 선택된 이미터의 썸네일 캡처
 	// ================================================================
-	if (RenderIconButton("Thumbnail", IconThumbnail, "Thumbnail", "Capture Thumbnail"))
+	if (RenderIconButton("Thumbnail", IconThumbnail, "Thumbnail", "Capture Thumbnail for Selected Emitter"))
 	{
-		// TODO: 썸네일 캡처
+		// 선택된 이미터가 있으면 썸네일 캡처
+		if (ActiveState->SelectedEmitter && ActiveState->CurrentSystem)
+		{
+			D3D11RHI* RHI = GEngine.GetRHIDevice();
+			if (RHI)
+			{
+				ID3D11Texture2D* SceneColorTexture = RHI->GetCurrentSceneColorTexture();
+				if (SceneColorTexture)
+				{
+					// 썸네일 저장 경로 생성
+					FString ThumbnailDir = "Data/ParticleThumbnails/";
+					FString SystemName = ActiveState->CurrentSystem->GetName();
+					FString ThumbnailPath = ThumbnailDir + SystemName + "_" + std::to_string(ActiveState->SelectedEmitterIndex) + ".dds";
+
+					if (RHI->CaptureRenderTargetToDDS(SceneColorTexture, ThumbnailPath, 64, 64))
+					{
+						// 캡처 성공 - 경로 저장 및 텍스처 로드
+						ActiveState->SelectedEmitter->ThumbnailTexturePath = ThumbnailPath;
+						// 이미 로드된 텍스처가 있으면 Reload, 없으면 Load
+						if (UResourceManager::GetInstance().Get<UTexture>(ThumbnailPath))
+						{
+							UResourceManager::GetInstance().Reload<UTexture>(ThumbnailPath);
+						}
+						else
+						{
+							UResourceManager::GetInstance().Load<UTexture>(ThumbnailPath);
+						}
+					}
+				}
+			}
+		}
 	}
 
 	DrawVerticalSeparator();
@@ -1220,7 +1269,27 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 	ParticleViewerState* State = Owner->GetActiveState();
 	bool bSelected = (State->SelectedEmitterIndex == EmitterIndex && State->SelectedModuleIndex == -1);
 
-	// 이미터 색상으로 헤더 배경
+	// 시스템에 솔로가 있는지 확인 (솔로가 있으면 솔로가 아닌 이미터는 비활성화 표시)
+	bool bSystemHasSolo = false;
+	if (State && State->CurrentSystem)
+	{
+		for (int32 i = 0; i < State->CurrentSystem->GetNumEmitters(); ++i)
+		{
+			UParticleEmitter* E = State->CurrentSystem->GetEmitter(i);
+			if (E && E->bIsSoloing)
+			{
+				bSystemHasSolo = true;
+				break;
+			}
+		}
+	}
+	// 실질적으로 비활성화 상태인지 (Enable이 꺼져있거나, 솔로모드에서 솔로가 아닌 경우)
+	bool bEffectivelyDisabled = !Emitter->bIsEnabled || (bSystemHasSolo && !Emitter->bIsSoloing);
+
+	ImDrawList* DrawList = ImGui::GetWindowDrawList();
+	ImVec2 CursorPos = ImGui::GetCursorScreenPos();
+
+	// 이미터 색상
 	ImVec4 headerColor(
 		Emitter->EmitterEditorColor.R,
 		Emitter->EmitterEditorColor.G,
@@ -1228,10 +1297,302 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 		1.0f
 	);
 
-	ImGui::PushStyleColor(ImGuiCol_Header, headerColor);
-	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(headerColor.x * 1.2f, headerColor.y * 1.2f, headerColor.z * 1.2f, 1.0f));
+	const float HeaderWidth = 180.0f;
+	const float HeaderHeight = 60.0f;
+	const float ColorBarHeight = 3.0f;
+	const float ThumbnailSize = 36.0f;
+	const float IconSize = 20.0f;
+	const float Padding = 4.0f;
 
-	if (ImGui::Selectable(Emitter->EmitterName.c_str(), bSelected, 0, ImVec2(180, 24)))
+	// ============ 1) 상단 색상 바 ============
+	DrawList->AddRectFilled(
+		CursorPos,
+		ImVec2(CursorPos.x + HeaderWidth, CursorPos.y + ColorBarHeight),
+		IM_COL32(
+			static_cast<int>(headerColor.x * 255),
+			static_cast<int>(headerColor.y * 255),
+			static_cast<int>(headerColor.z * 255),
+			255
+		)
+	);
+
+	// ============ 2) 헤더 배경 ============
+	ImU32 bgColor = bSelected ? IM_COL32(60, 90, 130, 255) : IM_COL32(50, 50, 50, 255);
+	DrawList->AddRectFilled(
+		ImVec2(CursorPos.x, CursorPos.y + ColorBarHeight),
+		ImVec2(CursorPos.x + HeaderWidth, CursorPos.y + HeaderHeight),
+		bgColor
+	);
+
+	// 헤더 영역 저장 (나중에 클릭 처리용)
+	ImVec2 HeaderMin = CursorPos;
+	ImVec2 HeaderMax = ImVec2(CursorPos.x + HeaderWidth, CursorPos.y + HeaderHeight);
+
+	// ============ 3) 썸네일 영역 (우측) ============
+	float ThumbX = CursorPos.x + HeaderWidth - ThumbnailSize - Padding;
+	float ThumbY = CursorPos.y + ColorBarHeight + (HeaderHeight - ColorBarHeight - ThumbnailSize) * 0.5f;
+
+	// 썸네일 배경 (어두운 박스)
+	DrawList->AddRectFilled(
+		ImVec2(ThumbX, ThumbY),
+		ImVec2(ThumbX + ThumbnailSize, ThumbY + ThumbnailSize),
+		IM_COL32(20, 20, 20, 255)
+	);
+	DrawList->AddRect(
+		ImVec2(ThumbX, ThumbY),
+		ImVec2(ThumbX + ThumbnailSize, ThumbY + ThumbnailSize),
+		IM_COL32(70, 70, 70, 255)
+	);
+
+	// 썸네일 텍스처가 있으면 표시, 없으면 기본 아이콘
+	UTexture* ThumbTex = nullptr;
+	if (!Emitter->ThumbnailTexturePath.empty())
+	{
+		// 이미 로드된 텍스처가 있는지 확인, 없으면 로드 시도
+		ThumbTex = UResourceManager::GetInstance().Get<UTexture>(Emitter->ThumbnailTexturePath);
+		if (!ThumbTex)
+		{
+			// 파일이 존재하면 로드
+			if (std::filesystem::exists(Emitter->ThumbnailTexturePath))
+			{
+				ThumbTex = UResourceManager::GetInstance().Load<UTexture>(Emitter->ThumbnailTexturePath);
+			}
+		}
+	}
+
+	if (ThumbTex && ThumbTex->GetShaderResourceView())
+	{
+		// 썸네일 텍스처 표시
+		DrawList->AddImage(
+			(ImTextureID)ThumbTex->GetShaderResourceView(),
+			ImVec2(ThumbX, ThumbY),
+			ImVec2(ThumbX + ThumbnailSize, ThumbY + ThumbnailSize)
+		);
+	}
+	else
+	{
+		// 기본 아이콘 표시
+		UTexture* ThumbIcon = Owner->GetIconRenderModeNormal();
+		if (ThumbIcon && ThumbIcon->GetShaderResourceView())
+		{
+			float iconSize = 24.0f;
+			float iconX = ThumbX + (ThumbnailSize - iconSize) * 0.5f;
+			float iconY = ThumbY + (ThumbnailSize - iconSize) * 0.5f;
+			DrawList->AddImage(
+				(ImTextureID)ThumbIcon->GetShaderResourceView(),
+				ImVec2(iconX, iconY),
+				ImVec2(iconX + iconSize, iconY + iconSize)
+			);
+		}
+	}
+
+
+	// ============ 4) 이미터 이름 (좌상단) ============
+	float TextX = CursorPos.x + Padding;
+	float TextY = CursorPos.y + ColorBarHeight + Padding;
+
+	ImGui::SetCursorScreenPos(ImVec2(TextX, TextY));
+	ImGui::PushStyleColor(ImGuiCol_Text, bEffectivelyDisabled ? ImVec4(0.5f, 0.5f, 0.5f, 1.0f) : ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+	ImGui::TextUnformatted(Emitter->EmitterName.c_str());
+	ImGui::PopStyleColor();
+
+	// ============ 5) 아이콘 버튼 행 (좌하단) ============
+	float IconY = TextY + 24;  // 이미터 이름과 버튼 사이 간격 증가
+	float IconX = TextX;
+	const float IconSpacing = 4.0f;
+	const float BtnSize = IconSize + 6;
+
+	ImGui::PushID(("EmitterBtns" + std::to_string(EmitterIndex)).c_str());
+
+	// 투명 버튼 스타일
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.3f, 0.3f, 0.5f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.4f, 0.4f, 0.5f));
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+
+	// 5-1) Enable/Disable 토글 (체크박스)
+	ImGui::SetCursorScreenPos(ImVec2(IconX, IconY));
+	ImGui::PushID("enable");
+	bool bEnableClicked = ImGui::Button("##e", ImVec2(BtnSize, BtnSize));
+	bool bEnableHovered = ImGui::IsItemHovered();
+	ImGui::PopID();
+
+	// 체크박스 그리기
+	{
+		ImVec2 BtnMin = ImVec2(IconX, IconY);
+		ImVec2 BtnMax = ImVec2(IconX + BtnSize, IconY + BtnSize);
+		ImVec2 BtnCenter = ImVec2((BtnMin.x + BtnMax.x) * 0.5f, (BtnMin.y + BtnMax.y) * 0.5f);
+		float boxSize = 12.0f;
+		ImVec2 BoxMin = ImVec2(BtnCenter.x - boxSize * 0.5f, BtnCenter.y - boxSize * 0.5f);
+		ImVec2 BoxMax = ImVec2(BtnCenter.x + boxSize * 0.5f, BtnCenter.y + boxSize * 0.5f);
+
+		// 비활성화 상태면 흐린 색상
+		ImU32 boxColor = bEffectivelyDisabled ? IM_COL32(80, 80, 80, 255) : IM_COL32(150, 150, 150, 255);
+		ImU32 checkColor = bEffectivelyDisabled ? IM_COL32(60, 100, 60, 255) : IM_COL32(100, 200, 100, 255);
+
+		DrawList->AddRect(BoxMin, BoxMax, boxColor, 2.0f);
+		if (Emitter->bIsEnabled)
+		{
+			DrawList->AddLine(ImVec2(BoxMin.x + 2, BtnCenter.y), ImVec2(BtnCenter.x - 1, BoxMax.y - 3), checkColor, 2.0f);
+			DrawList->AddLine(ImVec2(BtnCenter.x - 1, BoxMax.y - 3), ImVec2(BoxMax.x - 2, BoxMin.y + 2), checkColor, 2.0f);
+		}
+	}
+	if (bEnableClicked)
+	{
+		Emitter->bIsEnabled = !Emitter->bIsEnabled;
+		// LODLevel->bEnabled 업데이트
+		ParticleViewerState* State = Owner->GetActiveState();
+		if (State && State->CurrentSystem)
+		{
+			State->CurrentSystem->SetupSoloing();
+		}
+	}
+	if (bEnableHovered)
+	{
+		ImGui::SetTooltip(Emitter->bIsEnabled ? "Disable Emitter" : "Enable Emitter");
+	}
+	IconX += BtnSize + IconSpacing;
+
+	// 5-2) RenderMode 토글
+	ImGui::SetCursorScreenPos(ImVec2(IconX, IconY));
+	ImGui::PushID("rendermode");
+	bool bRenderModeClicked = ImGui::Button("##r", ImVec2(BtnSize, BtnSize));
+	bool bRenderModeHovered = ImGui::IsItemHovered();
+	ImGui::PopID();
+
+	// RenderMode 아이콘 그리기
+	{
+		ImVec2 BtnMin = ImVec2(IconX, IconY);
+		ImVec2 BtnMax = ImVec2(IconX + BtnSize, IconY + BtnSize);
+		ImVec2 BtnCenter = ImVec2((BtnMin.x + BtnMax.x) * 0.5f, (BtnMin.y + BtnMax.y) * 0.5f);
+
+		UTexture* RenderModeIcon = nullptr;
+		const char* RenderModeTooltip = "Normal";
+
+		switch (Emitter->EmitterRenderMode)
+		{
+		case EEmitterRenderMode::Normal:
+			RenderModeIcon = Owner->GetIconRenderModeNormal();
+			RenderModeTooltip = "Render Mode: Normal (Sprite)";
+			if (RenderModeIcon && RenderModeIcon->GetShaderResourceView())
+			{
+				DrawList->AddImage((ImTextureID)RenderModeIcon->GetShaderResourceView(),
+					ImVec2(BtnMin.x + 3, BtnMin.y + 3), ImVec2(BtnMin.x + 3 + IconSize, BtnMin.y + 3 + IconSize));
+			}
+			break;
+		case EEmitterRenderMode::Point:
+			RenderModeTooltip = "Render Mode: Point";
+			DrawList->AddCircleFilled(BtnCenter, 4.0f, IM_COL32(200, 200, 200, 255));
+			break;
+		case EEmitterRenderMode::Cross:
+			RenderModeIcon = Owner->GetIconRenderModeCross();
+			RenderModeTooltip = "Render Mode: Cross";
+			if (RenderModeIcon && RenderModeIcon->GetShaderResourceView())
+			{
+				DrawList->AddImage((ImTextureID)RenderModeIcon->GetShaderResourceView(),
+					ImVec2(BtnMin.x + 3, BtnMin.y + 3), ImVec2(BtnMin.x + 3 + IconSize, BtnMin.y + 3 + IconSize));
+			}
+			break;
+		case EEmitterRenderMode::None:
+			RenderModeTooltip = "Render Mode: None (Hidden)";
+			{
+				float cs = 6.0f;
+				DrawList->AddLine(ImVec2(BtnCenter.x - cs, BtnCenter.y - cs), ImVec2(BtnCenter.x + cs, BtnCenter.y + cs), IM_COL32(180, 80, 80, 255), 2.0f);
+				DrawList->AddLine(ImVec2(BtnCenter.x + cs, BtnCenter.y - cs), ImVec2(BtnCenter.x - cs, BtnCenter.y + cs), IM_COL32(180, 80, 80, 255), 2.0f);
+			}
+			break;
+		}
+
+		if (bRenderModeClicked)
+		{
+			int32 mode = static_cast<int32>(Emitter->EmitterRenderMode);
+			mode = (mode + 1) % 4;
+			Emitter->EmitterRenderMode = static_cast<EEmitterRenderMode>(mode);
+		}
+		if (bRenderModeHovered)
+		{
+			ImGui::SetTooltip("%s (Click to change)", RenderModeTooltip);
+		}
+	}
+	IconX += BtnSize + IconSpacing;
+
+	// 5-3) Solo 토글
+	ImGui::SetCursorScreenPos(ImVec2(IconX, IconY));
+
+	// Solo 활성화 시 노란색 배경
+	if (Emitter->bIsSoloing)
+	{
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.6f, 0.1f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.7f, 0.2f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 0.8f, 0.3f, 1.0f));
+	}
+
+	ImGui::PushID("solo");
+	bool bSoloClicked = ImGui::Button("##s", ImVec2(BtnSize, BtnSize));
+	bool bSoloHovered = ImGui::IsItemHovered();
+	ImGui::PopID();
+
+	if (Emitter->bIsSoloing)
+	{
+		ImGui::PopStyleColor(3);
+	}
+
+	// Solo 아이콘 그리기
+	{
+		ImVec2 BtnMin = ImVec2(IconX, IconY);
+		ImVec2 BtnMax = ImVec2(IconX + BtnSize, IconY + BtnSize);
+		ImVec2 BtnCenter = ImVec2((BtnMin.x + BtnMax.x) * 0.5f, (BtnMin.y + BtnMax.y) * 0.5f);
+
+		UTexture* SoloIcon = Owner->GetIconEmitterSolo();
+		if (SoloIcon && SoloIcon->GetShaderResourceView())
+		{
+			DrawList->AddImage((ImTextureID)SoloIcon->GetShaderResourceView(),
+				ImVec2(BtnMin.x + 3, BtnMin.y + 3), ImVec2(BtnMin.x + 3 + IconSize, BtnMin.y + 3 + IconSize));
+		}
+		else
+		{
+			const char* label = "S";
+			ImVec2 textSize = ImGui::CalcTextSize(label);
+			ImVec2 textPos = ImVec2(BtnCenter.x - textSize.x * 0.5f, BtnCenter.y - textSize.y * 0.5f);
+			DrawList->AddText(textPos, Emitter->bIsSoloing ? IM_COL32(255, 255, 255, 255) : IM_COL32(180, 180, 180, 255), label);
+		}
+	}
+
+	if (bSoloClicked)
+	{
+		if (!Emitter->bIsSoloing)
+		{
+			Emitter->bWasEnabledBeforeSolo = Emitter->bIsEnabled;
+			Emitter->bIsSoloing = true;
+		}
+		else
+		{
+			Emitter->bIsSoloing = false;
+			Emitter->bIsEnabled = Emitter->bWasEnabledBeforeSolo;
+		}
+		// LODLevel->bEnabled 업데이트
+		ParticleViewerState* State = Owner->GetActiveState();
+		if (State && State->CurrentSystem)
+		{
+			State->CurrentSystem->SetupSoloing();
+		}
+	}
+	if (bSoloHovered)
+	{
+		ImGui::SetTooltip(Emitter->bIsSoloing ? "Disable Solo" : "Enable Solo");
+	}
+
+	ImGui::PopStyleVar();
+	ImGui::PopStyleColor(3);
+	ImGui::PopID();
+
+	// ============ 6) 헤더 배경 클릭으로 이미터 선택 ============
+	// 아이콘 버튼 영역 외 클릭 시 선택 처리
+	ImVec2 MousePos = ImGui::GetMousePos();
+	bool bMouseInHeader = (MousePos.x >= HeaderMin.x && MousePos.x <= HeaderMax.x &&
+	                       MousePos.y >= HeaderMin.y && MousePos.y <= HeaderMax.y);
+
+	if (bMouseInHeader && ImGui::IsMouseClicked(0) && !ImGui::IsAnyItemHovered())
 	{
 		State->SelectedEmitterIndex = EmitterIndex;
 		State->SelectedModuleIndex = -1;
@@ -1239,19 +1600,8 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 		State->SelectedModule = nullptr;
 	}
 
-	ImGui::PopStyleColor(2);
-
-	// 솔로 모드 체크박스
-	ImGui::SameLine(150);
-	bool bSoloing = Emitter->bIsSoloing;
-	if (ImGui::Checkbox(("##Solo" + std::to_string(EmitterIndex)).c_str(), &bSoloing))
-	{
-		Emitter->bIsSoloing = bSoloing;
-	}
-	if (ImGui::IsItemHovered())
-	{
-		ImGui::SetTooltip("Solo");
-	}
+	// 커서 위치 복원 (헤더 아래로)
+	ImGui::SetCursorScreenPos(ImVec2(CursorPos.x, CursorPos.y + HeaderHeight + 2));
 }
 
 void SParticleEmittersPanel::RenderModuleStack(UParticleEmitter* Emitter, int32 EmitterIndex)
@@ -1351,7 +1701,26 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 	}
 
 	ImGui::PushID(ModuleIndex + EmitterIndex * 1000);
-	if (ImGui::Selectable(ModuleName.c_str(), bSelected, 0, ImVec2(0, 20)))
+
+	// ============ 모듈 이름 + 우측 아이콘 UI ============
+	const float IconSize = 14.0f;
+	const float IconPadding = 4.0f;
+	const float IconRightMargin = 16.0f;  // 오른쪽 여백 (하이라이트와 아이콘 사이 간격)
+	float AvailWidth = ImGui::GetContentRegionAvail().x;
+	bool bHasCurves = Module->ModuleHasCurves();
+
+	// 아이콘 영역 너비 계산 (항상 2버튼 공간 확보 - 정렬 일관성)
+	// ImageButton(FramePadding=0) = IconSize, 버튼2개 + 패딩 + 여백
+	float IconAreaWidth = IconSize * 2 + IconPadding + IconRightMargin;
+
+	// 비활성화된 모듈은 이름을 흐리게
+	if (!Module->IsEnabled())
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 0.7f));
+	}
+
+	// 모듈 이름 (Selectable) - 우측에 아이콘 공간 확보
+	if (ImGui::Selectable(ModuleName.c_str(), bSelected, 0, ImVec2(AvailWidth - IconAreaWidth, 20)))
 	{
 		State->SelectedEmitterIndex = EmitterIndex;
 		State->SelectedModuleIndex = ModuleIndex;
@@ -1363,8 +1732,9 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 		}
 	}
 
-	// 드래그 앤 드롭 - 일반 모듈만 (Required/Spawn 제외)
-	// ModuleIndex: -1 = Required, -2 = Spawn, 0+ = 일반 모듈
+	// 드래그 앤 드롭 - 일반 모듈만 (Required/Spawn/TypeData 제외)
+	// ModuleIndex: -1 = Required, -2 = Spawn, -3 = TypeData, 0+ = 일반 모듈
+	// Selectable 바로 다음에 호출해야 Selectable에 드래그 소스/타겟이 붙음
 	if (ModuleIndex >= 0)
 	{
 		// 드래그 소스
@@ -1387,14 +1757,14 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 		// 드롭 타겟
 		if (ImGui::BeginDragDropTarget())
 		{
-			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MODULE_REORDER"))
+			if (const ImGuiPayload* imguiPayload = ImGui::AcceptDragDropPayload("MODULE_REORDER"))
 			{
 				struct ModuleDragPayload
 				{
 					int32 EmitterIndex;
 					int32 ModuleIndex;
 				};
-				ModuleDragPayload* data = (ModuleDragPayload*)payload->Data;
+				ModuleDragPayload* data = (ModuleDragPayload*)imguiPayload->Data;
 
 				// 같은 에미터 내에서만 순서 변경 가능
 				if (data->EmitterIndex == EmitterIndex && data->ModuleIndex != ModuleIndex)
@@ -1429,12 +1799,95 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 						{
 							--State->SelectedModuleIndex;
 						}
+
+						// EmitterInstance 업데이트 (페이로드 오프셋 재계산)
+						RefreshEmitterInstances();
 					}
 				}
 			}
 			ImGui::EndDragDropTarget();
 		}
 	}
+
+	// 비활성화 텍스트 색상 복원
+	if (!Module->IsEnabled())
+	{
+		ImGui::PopStyleColor();
+	}
+
+	// ============ 우측 정렬 아이콘 (커브 + 체크박스) ============
+	// ImageButton frame padding 제거로 일관된 크기 유지
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+
+	ImGui::SameLine(AvailWidth - IconAreaWidth + 16);  // 아이콘 시작 위치
+
+	// 1) 커브 버튼 (커브가 있는 모듈만 표시)
+	if (bHasCurves)
+	{
+		UTexture* CurveIcon = Owner->GetIconCurveEditor();
+		if (CurveIcon && CurveIcon->GetShaderResourceView())
+		{
+			bool bCurvesInEditor = Module->HasCurvesInEditor();
+
+			if (bCurvesInEditor)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.5f, 0.2f, 1.0f));
+			}
+			else
+			{
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.3f, 0.3f, 0.8f));
+			}
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.6f, 0.4f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.5f, 0.7f, 0.5f, 1.0f));
+
+			ImGui::PushID("curve");
+			if (ImGui::ImageButton("##c", (void*)CurveIcon->GetShaderResourceView(), ImVec2(IconSize, IconSize)))
+			{
+				Module->SetCurvesInEditor(!bCurvesInEditor);
+			}
+			ImGui::PopID();
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip(bCurvesInEditor ? "Remove from Curve Editor" : "Add to Curve Editor");
+			}
+			ImGui::PopStyleColor(3);
+		}
+		else
+		{
+			// 아이콘 없으면 Dummy로 공간 확보
+			ImGui::Dummy(ImVec2(IconSize, IconSize));
+		}
+	}
+	else
+	{
+		// 커브 버튼 없을 때 동일 공간 확보 (정렬 유지)
+		ImGui::Dummy(ImVec2(IconSize, IconSize));
+	}
+
+	ImGui::SameLine(0, IconPadding);
+
+	// 2) 체크박스 (모듈 활성화)
+	UTexture* CheckboxIcon = Module->IsEnabled() ? Owner->GetIconCheckboxChecked() : Owner->GetIconCheckbox();
+	if (CheckboxIcon && CheckboxIcon->GetShaderResourceView())
+	{
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.3f, 0.3f, 0.5f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.4f, 0.4f, 0.5f));
+
+		ImGui::PushID("enable");
+		if (ImGui::ImageButton("##e", (void*)CheckboxIcon->GetShaderResourceView(), ImVec2(IconSize, IconSize)))
+		{
+			Module->SetEnabled(!Module->IsEnabled());
+		}
+		ImGui::PopID();
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip(Module->IsEnabled() ? "Disable Module" : "Enable Module");
+		}
+		ImGui::PopStyleColor(3);
+	}
+
+	ImGui::PopStyleVar();  // FramePadding 복원
 
 	ImGui::PopID();
 

@@ -60,6 +60,16 @@ public:
 	// 패널 접근용 (친구 클래스나 콜백을 위해)
 	ParticleViewerState* GetActiveState() const { return ActiveState; }
 
+	// 모듈 UI 아이콘 접근자
+	UTexture* GetIconCurveEditor() const { return IconCurveEditor; }
+	UTexture* GetIconCheckbox() const { return IconCheckbox; }
+	UTexture* GetIconCheckboxChecked() const { return IconCheckboxChecked; }
+
+	// 이미터 헤더 아이콘 접근자
+	UTexture* GetIconEmitterSolo() const { return IconEmitterSolo; }
+	UTexture* GetIconRenderModeNormal() const { return IconRenderModeNormal; }
+	UTexture* GetIconRenderModeCross() const { return IconRenderModeCross; }
+
 private:
 	// 툴바 렌더링
 	void RenderToolbar();
@@ -85,6 +95,16 @@ private:
 	UTexture* IconLowerLOD = nullptr;
 	UTexture* IconHigherLOD = nullptr;
 	UTexture* IconAddLOD = nullptr;
+
+	// 모듈 UI 아이콘
+	UTexture* IconCurveEditor = nullptr;
+	UTexture* IconCheckbox = nullptr;
+	UTexture* IconCheckboxChecked = nullptr;
+
+	// 이미터 헤더 아이콘
+	UTexture* IconEmitterSolo = nullptr;
+	UTexture* IconRenderModeNormal = nullptr;   // Sprite
+	UTexture* IconRenderModeCross = nullptr;
 
 	// LOD 상태
 	int32 CurrentLODIndex = 0;

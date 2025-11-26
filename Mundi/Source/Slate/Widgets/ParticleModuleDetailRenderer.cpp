@@ -254,7 +254,9 @@ bool UParticleModuleDetailRenderer::RenderSortModeCombo(const char* Label, EPart
 
 bool UParticleModuleDetailRenderer::RenderBlendModeCombo(const char* Label, EParticleBlendMode& Value)
 {
+	// enum class EParticleBlendMode : None(0), Translucent(1), Additive(2)
 	const char* Items[] = {
+		"None",
 		"Translucent",
 		"Additive"
 	};

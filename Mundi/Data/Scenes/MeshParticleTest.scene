@@ -1,6 +1,6 @@
 {
   "Actors" : {
-    "1009" : {
+    "967" : {
       "ObjectName" : "ADirectionalLightActor_4",
       "OwnedComponents" : [{
           "CascadedAreaColorDebugValue" : 0.000000,
@@ -8,7 +8,7 @@
           "CascadedCount" : 4,
           "CascadedLinearBlendingValue" : 0.500000,
           "CascadedOverlapValue" : 0.200000,
-          "Id" : 1010,
+          "Id" : 969,
           "Intensity" : 1.000000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UDirectionalLightComponent_5",
@@ -29,17 +29,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1010,
+      "RootComponentId" : 969,
       "Tag" : "",
       "Type" : "ADirectionalLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1011" : {
+    "970" : {
       "ObjectName" : "AAmbientLightActor_4",
       "OwnedComponents" : [{
-          "Id" : 1012,
+          "Id" : 972,
           "Intensity" : 0.100000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UAmbientLightComponent_5",
@@ -59,17 +59,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1012,
+      "RootComponentId" : 972,
       "Tag" : "",
       "Type" : "AAmbientLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1016" : {
+    "973" : {
       "ObjectName" : "APlayerCameraManager_5",
       "OwnedComponents" : [{
-          "Id" : 1017,
+          "Id" : 974,
           "ObjectName" : "USceneComponent_9",
           "ParentId" : 0,
           "RelativeLocation" : [0.000000, 0.000000, 5.013232],
@@ -81,17 +81,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1017,
+      "RootComponentId" : 974,
       "Tag" : "",
       "Type" : "APlayerCameraManager",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1019" : {
+    "975" : {
       "ObjectName" : "스태틱 메시_0",
       "OwnedComponents" : [{
-          "Id" : 1020,
+          "Id" : 977,
           "MaterialSlots" : [{
               "AssetPath" : "texture",
               "Type" : "UMaterial"
@@ -111,32 +111,32 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1020,
+      "RootComponentId" : 977,
       "Tag" : "",
       "Type" : "AStaticMeshActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1023" : {
+    "978" : {
       "ObjectName" : "파티클 시스템_0",
       "OwnedComponents" : [{
-          "Id" : 1024,
+          "Id" : 980,
           "ObjectName" : "UParticleSystemComponent_3",
           "ParentId" : 0,
-          "RelativeLocation" : [2.967700, 1.800172, 4.035719],
-          "RelativeRotationEuler" : [0.047402, -67.556908, -0.039133],
+          "RelativeLocation" : [2.967700, -0.470345, 2.292624],
+          "RelativeRotationEuler" : [0.100332, -67.843361, -0.088056],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "TemplatePath" : "Data/Particle/Test.psys",
           "Type" : "UParticleSystemComponent",
           "bBlockComponent" : false,
           "bGenerateOverlapEvents" : true,
           "bHiddenInGame" : false,
-          "bIsActive" : false,
+          "bIsActive" : true,
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1024,
+      "RootComponentId" : 980,
       "Tag" : "",
       "Type" : "AParticleSystemActor",
       "bActorHiddenInGame" : false,
@@ -144,13 +144,13 @@
       "bTickInEditor" : false
     }
   },
-  "NextUUID" : 1585,
+  "NextUUID" : 988,
   "PerspectiveCamera" : {
     "FOV" : [60.000000],
     "FarClip" : [2000.000000],
-    "Location" : [3.683866, 14.598033, 13.224100],
+    "Location" : [2.810615, 11.710324, 10.097421],
     "NearClip" : [0.100000],
-    "Rotation" : [0.000000, 32.000011, -100.499359]
+    "Rotation" : [0.000000, 33.800488, -100.599098]
   },
   "Version" : 1
 }
