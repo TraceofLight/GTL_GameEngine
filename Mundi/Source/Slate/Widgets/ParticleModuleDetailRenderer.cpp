@@ -313,8 +313,8 @@ bool UParticleModuleDetailRenderer::RenderSubUVInterpMethodCombo(const char* Lab
 		"None",
 		"Linear",
 		"Linear Blend",
-		"Random",
-		"Random Blend"
+		"Random"
+		//"Random Blend" // 잘 작동 안함
 	};
 
 	int CurrentItem = static_cast<int>(Value);

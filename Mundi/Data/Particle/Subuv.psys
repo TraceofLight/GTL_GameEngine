@@ -12,9 +12,9 @@
               "LODValidity" : 255,
               "ModuleType" : "UParticleModuleVelocity",
               "StartVelocity" : {
-                "Max" : [0.000000, 0.000000, 4.600000],
-                "Min" : [0.000000, 0.000000, 4.600000],
-                "bIsUniform" : true
+                "Max" : [0.000000, 2.900000, 4.600000],
+                "Min" : [0.000000, -2.900000, 2.000000],
+                "bIsUniform" : false
               },
               "StartVelocityRadial" : {
                 "Max" : 0.000000,
@@ -42,8 +42,50 @@
               "bSupported3DDrawMode" : false,
               "bUpdateModule" : true,
               "bUseRealTime" : false
+            }, {
+              "LODValidity" : 255,
+              "ModuleType" : "UParticleModuleSize",
+              "StartSize" : {
+                "Max" : [10.000000, 10.000000, 10.000000],
+                "Min" : [5.000000, 5.000000, 5.000000],
+                "bIsUniform" : false
+              },
+              "b3DDrawMode" : false,
+              "bEnabled" : true,
+              "bFinalUpdateModule" : false,
+              "bSpawnModule" : true,
+              "bSupported3DDrawMode" : false,
+              "bUpdateModule" : false
+            }, {
+              "LODValidity" : 255,
+              "ModuleType" : "UParticleModuleRotation",
+              "StartRotation" : {
+                "Max" : 12.310000,
+                "Min" : 2.080000,
+                "bIsUniform" : false
+              },
+              "b3DDrawMode" : false,
+              "bEnabled" : true,
+              "bFinalUpdateModule" : false,
+              "bSpawnModule" : true,
+              "bSupported3DDrawMode" : false,
+              "bUpdateModule" : false
+            }, {
+              "LODValidity" : 255,
+              "ModuleType" : "UParticleModuleRotationRate",
+              "StartRotationRate" : {
+                "Max" : 80.000000,
+                "Min" : 60.000000,
+                "bIsUniform" : false
+              },
+              "b3DDrawMode" : false,
+              "bEnabled" : true,
+              "bFinalUpdateModule" : false,
+              "bSpawnModule" : true,
+              "bSupported3DDrawMode" : false,
+              "bUpdateModule" : false
             }],
-          "PeakActiveParticles" : 10,
+          "PeakActiveParticles" : 12,
           "RequiredModule" : {
             "AxisLockOption" : 0,
             "BlendMode" : 1,
@@ -53,13 +95,13 @@
             "EmitterNormalsMode" : 0,
             "InterpolationMethod" : 0,
             "LODValidity" : 255,
-            "MaterialPath" : "Data/Particle/SubuvEx.png.dds",
+            "MaterialPath" : "DerivedDataCache/Particle/Explosion_Alpha.png.dds",
             "MaxDrawCount" : 500,
             "ModuleType" : "UParticleModuleRequired",
             "ScreenAlignment" : 0,
             "SortMode" : 1,
-            "SubImages_Horizontal" : 6,
-            "SubImages_Vertical" : 6,
+            "SubImages_Horizontal" : 5,
+            "SubImages_Vertical" : 5,
             "b3DDrawMode" : false,
             "bDurationRecalcEachLoop" : false,
             "bEnabled" : true,
@@ -82,9 +124,9 @@
             "LODValidity" : 255,
             "ModuleType" : "UParticleModuleSpawn",
             "Rate" : {
-              "Max" : 2.000000,
+              "Max" : 10.000000,
               "Min" : 2.000000,
-              "bIsUniform" : true
+              "bIsUniform" : false
             },
             "RateScale" : {
               "Max" : 1.000000,
