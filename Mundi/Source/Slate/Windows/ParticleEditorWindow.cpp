@@ -1520,7 +1520,7 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 		}
 		if (bRenderModeHovered)
 		{
-			ImGui::SetTooltip("%s (Click to change)", RenderModeTooltip);
+			ImGui::SetTooltip("%s", RenderModeTooltip);
 		}
 	}
 	IconX += BtnSize + IconSpacing;
@@ -1569,8 +1569,24 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 
 	if (bSoloClicked)
 	{
+		ParticleViewerState* State = Owner->GetActiveState();
+
 		if (!Emitter->bIsSoloing)
 		{
+			// 다른 모든 이미터의 솔로 끄기 (하나만 솔로 가능)
+			if (State && State->CurrentSystem)
+			{
+				for (int32 i = 0; i < State->CurrentSystem->GetNumEmitters(); ++i)
+				{
+					UParticleEmitter* E = State->CurrentSystem->GetEmitter(i);
+					if (E && E != Emitter && E->bIsSoloing)
+					{
+						E->bIsSoloing = false;
+						E->bIsEnabled = E->bWasEnabledBeforeSolo;
+					}
+				}
+			}
+
 			Emitter->bWasEnabledBeforeSolo = Emitter->bIsEnabled;
 			Emitter->bIsSoloing = true;
 		}
@@ -1579,8 +1595,8 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 			Emitter->bIsSoloing = false;
 			Emitter->bIsEnabled = Emitter->bWasEnabledBeforeSolo;
 		}
+
 		// LODLevel->bEnabled 업데이트
-		ParticleViewerState* State = Owner->GetActiveState();
 		if (State && State->CurrentSystem)
 		{
 			State->CurrentSystem->SetupSoloing();
