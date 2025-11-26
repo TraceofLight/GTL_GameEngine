@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "ParticleModuleDetailRenderer.h"
 #include "ImGui/imgui.h"
+#include <algorithm>
 
 #include "Source/Runtime/Engine/Particle/ParticleModule.h"
 #include "Source/Runtime/Engine/Particle/ParticleModuleRequired.h"
@@ -436,27 +437,43 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 		ImGui::SameLine();
 		if (ImGui::Button("Browse##Material", ImVec2(70, 0)))
 		{
-			std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(
+			std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialogMultiExt(
 				L"Data",
-				L".dds",
-				L"Texture Files (*.dds;*.png;*.jpg)"
+				L"*.dds;*.png;*.jpg;*.tga;*.bmp",
+				L"Texture Files"
 			);
 			if (!SelectedPath.empty())
 			{
-				FString TexturePath = SelectedPath.string();
-				// 경로 정규화
-				for (char& c : TexturePath)
+				// 지원 확장자 체크
+				FString Extension = SelectedPath.extension().string();
+				std::transform(Extension.begin(), Extension.end(), Extension.begin(), ::tolower);
+
+				if (Extension != ".dds" && Extension != ".png" && Extension != ".jpg" &&
+				    Extension != ".jpeg" && Extension != ".tga" && Extension != ".bmp")
 				{
-					if (c == '\\')
-					{
-						c = '/';
-					}
+					UE_LOG("ParticleEditor: Unsupported texture format '%s'. Supported: dds, png, jpg, tga, bmp", Extension.c_str());
 				}
-				// 텍스처를 머티리얼로 로드
-				UMaterial* NewMaterial = UResourceManager::GetInstance().Load<UMaterial>(TexturePath);
-				if (NewMaterial)
+				else
 				{
-					Module->SetMaterial(NewMaterial);
+					FString TexturePath = SelectedPath.string();
+					// 경로 정규화
+					for (char& c : TexturePath)
+					{
+						if (c == '\\')
+						{
+							c = '/';
+						}
+					}
+					// 텍스처를 머티리얼로 로드
+					UMaterial* NewMaterial = UResourceManager::GetInstance().Load<UMaterial>(TexturePath);
+					if (NewMaterial)
+					{
+						Module->SetMaterial(NewMaterial);
+					}
+					else
+					{
+						UE_LOG("ParticleEditor: Failed to load material from '%s'", TexturePath.c_str());
+					}
 				}
 			}
 		}
@@ -788,28 +805,43 @@ void UParticleModuleDetailRenderer::RenderTypeDataMeshModule(UParticleModuleType
 		ImGui::SameLine();
 		if (ImGui::Button("Browse##Mesh", ImVec2(70, 0)))
 		{
-			std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(
+			std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialogMultiExt(
 				L"Data",
-				L".obj",
-				L"Mesh Files (*.obj;*.fbx)"
+				L"*.obj;*.fbx",
+				L"Mesh Files"
 			);
 			if (!SelectedPath.empty())
 			{
-				FString MeshPath = SelectedPath.string();
-				// 경로 정규화
-				for (char& c : MeshPath)
+				// 지원 확장자 체크
+				FString Extension = SelectedPath.extension().string();
+				std::transform(Extension.begin(), Extension.end(), Extension.begin(), ::tolower);
+
+				if (Extension != ".obj" && Extension != ".fbx")
 				{
-					if (c == '\\')
-					{
-						c = '/';
-					}
+					UE_LOG("ParticleEditor: Unsupported mesh format '%s'. Supported: obj, fbx", Extension.c_str());
 				}
-				// 메시 로드
-				UStaticMesh* NewMesh = UResourceManager::GetInstance().Load<UStaticMesh>(MeshPath);
-				if (NewMesh)
+				else
 				{
-					Module->Mesh = NewMesh;
-					Module->OnMeshChanged();
+					FString MeshPath = SelectedPath.string();
+					// 경로 정규화
+					for (char& c : MeshPath)
+					{
+						if (c == '\\')
+						{
+							c = '/';
+						}
+					}
+					// 메시 로드
+					UStaticMesh* NewMesh = UResourceManager::GetInstance().Load<UStaticMesh>(MeshPath);
+					if (NewMesh)
+					{
+						Module->Mesh = NewMesh;
+						Module->OnMeshChanged();
+					}
+					else
+					{
+						UE_LOG("ParticleEditor: Failed to load mesh from '%s'", MeshPath.c_str());
+					}
 				}
 			}
 		}

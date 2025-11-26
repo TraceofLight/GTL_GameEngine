@@ -95,9 +95,9 @@ bool UParticleModuleSpawn::GetSpawnAmount(float DeltaTime, int32& OutNumber, flo
 
 /**
  * 버스트 시간에 맞는 버스트 카운트 반환
- * @param OldTime 이전 시간
- * @param NewTime 현재 시간
- * @param Duration 이미터 지속 시간
+ * @param OldTime 이전 시간 (AccumulatedTime - DeltaTime)
+ * @param NewTime 현재 시간 (AccumulatedTime)
+ * @param Duration 이미터 지속 시간 (루프 계산용)
  * @return 버스트로 생성할 파티클 수
  */
 int32 UParticleModuleSpawn::GetBurstCount(float OldTime, float NewTime, float Duration)
@@ -107,13 +107,49 @@ int32 UParticleModuleSpawn::GetBurstCount(float OldTime, float NewTime, float Du
 		return 0;
 	}
 
+	// Duration이 0 이하면 루핑 불가능
+	if (Duration <= 0.0f)
+	{
+		Duration = 1.0f;
+	}
+
 	int32 TotalBurst = 0;
 	float Scale = BurstScale.GetValue();
 
+	// 루핑 이미터를 위해 시간을 Duration 내로 wrap
+	float WrappedOldTime = fmod(OldTime, Duration);
+	float WrappedNewTime = fmod(NewTime, Duration);
+
+	// 음수 방지 (fmod가 음수 결과를 반환할 수 있음)
+	if (WrappedOldTime < 0.0f)
+	{
+		WrappedOldTime += Duration;
+	}
+	if (WrappedNewTime < 0.0f)
+	{
+		WrappedNewTime += Duration;
+	}
+
 	for (const FParticleBurst& Burst : BurstList)
 	{
-		// 버스트 시간이 OldTime과 NewTime 사이에 있는지 확인
-		if (Burst.Time >= OldTime && Burst.Time < NewTime)
+		bool bShouldBurst = false;
+
+		// 시간이 wrap되지 않은 경우 (일반 케이스)
+		// 예: OldTime=0.3, NewTime=0.6, Burst.Time=0.5 → true
+		if (WrappedOldTime <= WrappedNewTime)
+		{
+			bShouldBurst = (Burst.Time >= WrappedOldTime && Burst.Time < WrappedNewTime);
+		}
+		// 시간이 wrap된 경우 (루프 경계를 넘은 케이스)
+		// 예: Duration=1.0, OldTime=0.9, NewTime=0.1 (wrap됨)
+		//     Burst.Time=0.0 또는 0.95 → 둘 다 true여야 함
+		else
+		{
+			// Burst.Time이 [WrappedOldTime, Duration) 또는 [0, WrappedNewTime) 구간에 있는지 체크
+			bShouldBurst = (Burst.Time >= WrappedOldTime) || (Burst.Time < WrappedNewTime);
+		}
+
+		if (bShouldBurst)
 		{
 			int32 Count = Burst.Count;
 

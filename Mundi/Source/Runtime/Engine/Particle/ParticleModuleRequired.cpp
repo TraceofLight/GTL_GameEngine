@@ -4,6 +4,7 @@
 #include "ParticleTypes.h"
 #include "Material.h"
 #include "ResourceManager.h"
+#include "PathUtils.h"
 
 UParticleModuleRequired::UParticleModuleRequired()
 	: Material(nullptr)
@@ -80,13 +81,15 @@ void UParticleModuleRequired::Serialize(bool bIsLoading, JSON& InOutHandle)
 
 	if (bIsLoading)
 	{
-		// Material 로드 (경로로 저장됨)
+		// Material 로드 (상대 경로로 저장됨)
 		if (InOutHandle.hasKey("MaterialPath"))
 		{
 			FString MaterialPath = InOutHandle["MaterialPath"].ToString();
 			if (!MaterialPath.empty())
 			{
-				Material = UResourceManager::GetInstance().Load<UMaterial>(MaterialPath);
+				// 상대 경로를 현재 작업 디렉토리 기준으로 해석
+				FString ResolvedPath = ResolveAssetPath(MaterialPath);
+				Material = UResourceManager::GetInstance().Load<UMaterial>(ResolvedPath);
 			}
 		}
 
@@ -109,10 +112,11 @@ void UParticleModuleRequired::Serialize(bool bIsLoading, JSON& InOutHandle)
 	}
 	else
 	{
-		// Material 저장 (경로)
+		// Material 저장
 		if (Material)
 		{
-			InOutHandle["MaterialPath"] = Material->GetFilePath();
+			FString RelativePath = MakeAssetRelativePath(Material->GetFilePath());
+			InOutHandle["MaterialPath"] = RelativePath;
 		}
 		else
 		{

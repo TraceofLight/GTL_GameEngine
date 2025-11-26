@@ -124,13 +124,15 @@ void UParticleModuleTypeDataMesh::Serialize(bool bIsLoading, JSON& InOutHandle)
 
 	if (bIsLoading)
 	{
-		// Mesh 로드 (경로로 저장됨)
+		// Mesh 로드
 		if (InOutHandle.hasKey("MeshPath"))
 		{
 			FString MeshPath = InOutHandle["MeshPath"].ToString();
 			if (!MeshPath.empty())
 			{
-				Mesh = UResourceManager::GetInstance().Load<UStaticMesh>(MeshPath);
+				// 상대 경로를 현재 작업 디렉토리 기준으로 해석
+				FString ResolvedPath = ResolveAssetPath(MeshPath);
+				Mesh = UResourceManager::GetInstance().Load<UStaticMesh>(ResolvedPath);
 			}
 		}
 
@@ -144,10 +146,11 @@ void UParticleModuleTypeDataMesh::Serialize(bool bIsLoading, JSON& InOutHandle)
 	}
 	else
 	{
-		// Mesh 저장 (경로)
+		// Mesh 저장
 		if (Mesh)
 		{
-			InOutHandle["MeshPath"] = Mesh->GetFilePath();
+			FString RelativePath = MakeAssetRelativePath(Mesh->GetFilePath());
+			InOutHandle["MeshPath"] = RelativePath;
 		}
 		else
 		{

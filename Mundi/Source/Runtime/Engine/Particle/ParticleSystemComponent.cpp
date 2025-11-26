@@ -321,9 +321,30 @@ void UParticleSystemComponent::UpdateEmitters(float DeltaTime)
 
 		// ========== 1단계: 파티클 생성 (Spawning) ==========
 
+		// Duration/Loops 체크: 유한 루프 에미터가 완료되었는지 확인
+		bool bEmitterCompleted = false;
+		UParticleModuleRequired* RequiredModule = Instance->CurrentLODLevel->RequiredModule;
+		if (RequiredModule)
+		{
+			int32 EmitterLoops = RequiredModule->GetEmitterLoops();
+
+			// EmitterLoops > 0 이면 유한 루프 (0 = 무한 루프)
+			if (EmitterLoops > 0)
+			{
+				float Duration = RequiredModule->GetEmitterDuration();
+				float TotalDuration = Duration * static_cast<float>(EmitterLoops);
+
+				// 누적 시간이 총 지속 시간을 초과하면 스폰 완료
+				if (AccumulatedTime >= TotalDuration)
+				{
+					bEmitterCompleted = true;
+				}
+			}
+		}
+
 		// 현재 LOD 레벨의 스폰 모듈 가져오기
 		UParticleModuleSpawn* SpawnModule = Instance->CurrentLODLevel->SpawnModule;
-		if (SpawnModule)
+		if (SpawnModule && !bEmitterCompleted)
 		{
 			// 이번 프레임에 생성할 파티클 개수 계산
 			int32 SpawnNumber = 0;      // 실제 생성할 개수

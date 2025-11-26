@@ -188,3 +188,60 @@ std::filesystem::path FPlatformProcess::OpenLoadFileDialog(const FWideString Bas
 
     return L""; // 취소 시 빈 경로 반환
 }
+
+// 다중 확장자 지원 버전
+std::filesystem::path FPlatformProcess::OpenLoadFileDialogMultiExt(const FWideString BaseDir, const FWideString Extensions, const FWideString Description)
+{
+    OPENFILENAMEW Ofn;
+    wchar_t SzFile[260] = {};
+    wchar_t SzInitialDir[260] = {};
+
+    // 1. 기본 경로 설정
+    fs::path AbsoluteBaseDir = fs::absolute(BaseDir);
+    if (!fs::exists(AbsoluteBaseDir) || !fs::is_directory(AbsoluteBaseDir))
+    {
+        fs::create_directories(AbsoluteBaseDir);
+    }
+    wcscpy_s(SzInitialDir, AbsoluteBaseDir.wstring().c_str());
+
+    // 2. 필터 문자열 동적 생성
+    // "Texture Files\0*.dds;*.png;*.jpg\0All Files\0*.*\0\0" 형식
+    FWideString FilterString;
+    FilterString += Description.c_str();
+    FilterString.push_back(L'\0');
+    FilterString += Extensions;  // e.g., "*.dds;*.png;*.jpg"
+    FilterString.push_back(L'\0');
+    FilterString += L"All Files";
+    FilterString.push_back(L'\0');
+    FilterString += L"*.*";
+    FilterString.push_back(L'\0');
+    FilterString.push_back(L'\0');
+
+    // 3. 다이얼로그 타이틀 동적 생성
+    FWideString TitleString = L"Open " + Description;
+
+    // 4. OPENFILENAME 구조체 초기화
+    ZeroMemory(&Ofn, sizeof(Ofn));
+    Ofn.lStructSize = sizeof(Ofn);
+    Ofn.hwndOwner = GetActiveWindow();
+    Ofn.lpstrFile = SzFile;
+    Ofn.nMaxFile = sizeof(SzFile) / sizeof(wchar_t);
+    Ofn.lpstrFilter = FilterString.c_str();
+    Ofn.nFilterIndex = 1;
+    Ofn.lpstrFileTitle = nullptr;
+    Ofn.nMaxFileTitle = 0;
+    Ofn.lpstrInitialDir = SzInitialDir;
+    Ofn.lpstrTitle = TitleString.c_str();
+    Ofn.lpstrDefExt = nullptr;  // 다중 확장자이므로 기본 확장자 없음
+
+    // 5. 플래그 설정
+    Ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_NOCHANGEDIR | OFN_ENABLESIZING;
+
+    // 6. GetOpenFileNameW 호출
+    if (GetOpenFileNameW(&Ofn) == TRUE)
+    {
+        return fs::path(SzFile);
+    }
+
+    return L"";
+}

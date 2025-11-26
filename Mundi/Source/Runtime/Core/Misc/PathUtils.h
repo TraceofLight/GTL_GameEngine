@@ -223,6 +223,144 @@ inline FString ACPToUTF8(const FString& InAcpStr)
 	return WideToUTF8(wide);
 }
 
+// ============================================================================
+// 에셋 경로 변환 유틸리티 (저장 / 로드용)
+// ============================================================================
+
+/**
+ * @brief 절대 경로를 프로젝트 상대 경로 (Data/...)로 변환합니다.
+ * @details 파티클 시스템, 씬 파일 등에서 에셋 경로를 저장할 때 사용합니다.
+ *          절대 경로를 상대 경로로 변환하여 다른 PC에서도 동작하도록 합니다.
+ *
+ * 예: "C:/Users/Jungle/Projects/Mundi/Data/Model/Box.obj" → "Data/Model/Box.obj"
+ * 예: "Data/Model/Box.obj" → "Data/Model/Box.obj" (이미 상대 경로면 그대로)
+ *
+ * @param InPath 변환할 경로 (절대 또는 상대)
+ * @return 프로젝트 상대 경로 ("Data/..."로 시작)
+ */
+inline FString MakeAssetRelativePath(const FString& InPath)
+{
+	if (InPath.empty())
+	{
+		return "";
+	}
+
+	FString NormalizedPath = NormalizePath(InPath);
+
+	// 이미 "Data/"로 시작하는 상대 경로인 경우 그대로 반환
+	FString DataPrefix = GDataDir + "/";
+	if (NormalizedPath.length() >= DataPrefix.length() &&
+		_strnicmp(NormalizedPath.c_str(), DataPrefix.c_str(), DataPrefix.length()) == 0)
+	{
+		return NormalizedPath;
+	}
+
+	try
+	{
+		FWideString WPath = UTF8ToWide(NormalizedPath);
+		fs::path AbsPath(WPath);
+
+		// 상대 경로인 경우 현재 디렉토리 기준으로 절대 경로로 변환
+		if (!AbsPath.is_absolute())
+		{
+			AbsPath = fs::absolute(AbsPath);
+		}
+		AbsPath = AbsPath.lexically_normal();
+
+		// 현재 작업 디렉토리
+		fs::path CurrentDir = fs::current_path();
+
+		// "/Data/" 패턴을 찾아서 그 이후 부분만 추출
+		FString AbsPathStr = NormalizePath(WideToUTF8(AbsPath.wstring()));
+
+		// "Data/" 또는 "/Data/" 위치 찾기 (대소문자 무관)
+		size_t DataPos = FString::npos;
+
+		// 다양한 패턴 시도: "/Data/", "\\Data\\", "/data/", etc.
+		for (const char* Pattern : { "/Data/", "/data/", "\\Data\\", "\\data\\" })
+		{
+			size_t Pos = AbsPathStr.find(Pattern);
+			if (Pos != FString::npos)
+			{
+				DataPos = Pos + 1;  // '/' 다음부터
+				break;
+			}
+		}
+
+		if (DataPos != FString::npos)
+		{
+			// "Data/..." 형태로 반환
+			return NormalizePath(AbsPathStr.substr(DataPos));
+		}
+
+		// "Data/" 패턴을 찾지 못한 경우, 현재 디렉토리 기준 상대 경로 시도
+		std::error_code EC;
+		fs::path RelPath = fs::relative(AbsPath, CurrentDir, EC);
+		if (!EC && !RelPath.empty())
+		{
+			return NormalizePath(WideToUTF8(RelPath.wstring()));
+		}
+
+		// 변환 실패 시 원본 반환
+		return NormalizedPath;
+	}
+	catch (const std::exception&)
+	{
+		return NormalizePath(InPath);
+	}
+}
+
+/**
+ * @brief 프로젝트 상대 경로를 현재 작업 디렉토리 기준 경로로 변환합니다.
+ * @details 파티클 시스템, 씬 파일 등에서 에셋 경로를 로드할 때 사용합니다.
+ *
+ * 예: "Data/Model/Box.obj" → "Data/Model/Box.obj" (현재 디렉토리에서 접근 가능)
+ *
+ * @param InRelativePath 프로젝트 상대 경로 ("Data/..."로 시작)
+ * @return 현재 작업 디렉토리 기준 접근 가능한 경로
+ */
+inline FString ResolveAssetPath(const FString& InRelativePath)
+{
+	if (InRelativePath.empty())
+	{
+		return "";
+	}
+
+	FString NormalizedPath = NormalizePath(InRelativePath);
+
+	// 이미 존재하는 경로인 경우 그대로 반환
+	FWideString WPath = UTF8ToWide(NormalizedPath);
+	if (fs::exists(fs::path(WPath)))
+	{
+		return NormalizedPath;
+	}
+
+	// 현재 작업 디렉토리 기준으로 경로 구성
+	try
+	{
+		fs::path CurrentDir = fs::current_path();
+		fs::path FullPath = CurrentDir / fs::path(WPath);
+
+		if (fs::exists(FullPath))
+		{
+			// 상대 경로로 반환 (ResourceManager가 정규화할 것임)
+			std::error_code EC;
+			fs::path RelPath = fs::relative(FullPath, CurrentDir, EC);
+			if (!EC && !RelPath.empty())
+			{
+				return NormalizePath(WideToUTF8(RelPath.wstring()));
+			}
+		}
+	}
+	catch (const std::exception&)
+	{
+		// 무시
+	}
+
+	// 변환 실패 시 원본 반환
+	return NormalizedPath;
+}
+
 inline FString ConvertDataPathToCachePath(const FString& InAssetPath)
 {
 	FString DataDirPrefix = GDataDir + "/";
