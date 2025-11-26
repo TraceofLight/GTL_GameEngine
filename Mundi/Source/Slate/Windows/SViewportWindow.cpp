@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "SViewportWindow.h"
 #include "World.h"
 #include "ImGui/imgui.h"
@@ -1566,6 +1566,16 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 			if (ImGui::IsItemHovered())
 			{
 				ImGui::SetTooltip("스키닝 통계를 표시합니다.");
+			}
+
+			bool bParticle = UStatsOverlayD2D::Get().IsParticlesVisible();
+			if (ImGui::Checkbox(" PARTICLE", &bParticle))
+			{
+				UStatsOverlayD2D::Get().ToggleParticles();
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("입자 효과 통계를 표시합니다.");
 			}
 
 			ImGui::EndMenu();

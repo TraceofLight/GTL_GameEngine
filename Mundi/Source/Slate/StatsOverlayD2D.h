@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <d2d1_1.h>
 #include <dwrite.h>
 
@@ -22,6 +22,7 @@ public:
     void SetShowShadow(bool b) { bShowShadow = b; }
     void SetShowGPU(bool b) { bShowGPU = b; }
     void SetShowSkinning(bool b) { bShowSkinning = b; }
+    void SetShowParticles(bool b) { bShowParticles = b; }
     void ToggleFPS() { bShowFPS = !bShowFPS; }
     void ToggleMemory() { bShowMemory = !bShowMemory; }
     void TogglePicking() { bShowPicking = !bShowPicking; }
@@ -31,6 +32,7 @@ public:
     void ToggleShadow() { bShowShadow = !bShowShadow; }
     void ToggleGPU() { bShowGPU = !bShowGPU; }
     void ToggleSkinning() { bShowSkinning = !bShowSkinning; }
+    void ToggleParticles() { bShowParticles = !bShowParticles; }
     bool IsFPSVisible() const { return bShowFPS; }
     bool IsMemoryVisible() const { return bShowMemory; }
     bool IsPickingVisible() const { return bShowPicking; }
@@ -40,6 +42,7 @@ public:
     bool IsShadowVisible() const { return bShowShadow; }
     bool IsGPUVisible() const { return bShowGPU; }
     bool IsSkinningVisible() const { return bShowSkinning; }
+    bool IsParticlesVisible() const { return bShowParticles; }
 
     void SetGPUTimer(FGPUTimer* InGPUTimer) { GPUTimer = InGPUTimer; }
 
@@ -63,6 +66,7 @@ private:
     bool bShowLights = false;
     bool bShowGPU = false;
     bool bShowSkinning = false;
+    bool bShowParticles = false;
 
     ID3D11Device* D3DDevice = nullptr;
     ID3D11DeviceContext* D3DContext = nullptr;

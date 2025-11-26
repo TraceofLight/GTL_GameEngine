@@ -46,6 +46,7 @@
 #include "LineComponent.h"
 #include "LightStats.h"
 #include "ShadowStats.h"
+#include "ParticleStats.h"
 #include "PlatformTime.h"
 #include "PostProcessing/VignettePass.h"
 #include "FbxLoader.h"
@@ -54,6 +55,7 @@
 #include "ParticleTypes.h"
 #include "DynamicEmitterDataBase.h"
 #include "DynamicEmitterReplayDataBase.h"
+#include "ParticleEmitterInstance.h"
 
 FSceneRenderer::FSceneRenderer(UWorld* InWorld, FSceneView* InView, URenderer* InOwnerRenderer)
 	: World(InWorld)
@@ -1016,6 +1018,13 @@ void FSceneRenderer::RenderParticlesPass()
 
 	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "ParticlePass", OwnerRenderer->GetGPUTimer());
 
+	// 파티클 통계 초기화
+	FParticleStats ParticleStats;
+	ParticleStats.TotalParticleSystems = static_cast<uint32>(Proxies.Particles.Num());
+	
+	// 렌더링 시간 측정 시작
+	auto RenderTimeStart = std::chrono::high_resolution_clock::now();
+
 	// 셰이더 경로
 	FString ShaderPath = "Shaders/Materials/UberLit.hlsl";
 
@@ -1032,6 +1041,10 @@ void FSceneRenderer::RenderParticlesPass()
 		
 		if (!DynamicData)
 			continue;
+
+		// 파티클 시스템 카운트 증가
+		ParticleStats.VisibleParticleSystems++;
+		ParticleStats.TotalEmitters += static_cast<uint32>(DynamicData->DynamicEmitterDataArray.Num());
 
 		for(FDynamicEmitterDataBase* EmitterData : DynamicData->DynamicEmitterDataArray)
 		{
@@ -1070,12 +1083,18 @@ void FSceneRenderer::RenderParticlesPass()
 				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE_MESH", "1" });
 				
 				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+				
+				// 메시 파티클 통계
+				ParticleStats.MeshEmitters++;
 			}
 			else
 			{
 				ParticleShaderMacros.push_back(FShaderMacro{ "PARTICLE", "1" });
 
 				RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
+				
+				// 스프라이트 파티클 통계
+				ParticleStats.SpriteEmitters++;
 			}
 
 			// 파티클용 셰이더 로드
@@ -1088,8 +1107,46 @@ void FSceneRenderer::RenderParticlesPass()
 				continue;
 			}
 
+			// 메시 배치 수집 전 배치 카운트 저장
+			int32 BatchCountBefore = ParticleBatchElements.Num();
+
 			// 메시 배치 수집
 			EmitterData->GetDynamicMeshElementsEmitter(ParticleBatchElements, View);
+
+			// 마지막으로 추가된 배치의 버퍼 메모리 사용량 집계: 메시 배치가 여러 개일 수 있으므로 마지막 배치만 확인
+			FMeshBatchElement& LastBatchElement = ParticleBatchElements.Last();
+			D3D11_BUFFER_DESC BufferDesc;
+			if (LastBatchElement.VertexBuffer)
+			{
+				LastBatchElement.VertexBuffer->GetDesc(&BufferDesc);
+				ParticleStats.VertexBufferMemoryBytes += BufferDesc.ByteWidth;
+			}
+			if (LastBatchElement.IndexBuffer)
+			{
+				LastBatchElement.IndexBuffer->GetDesc(&BufferDesc);
+				ParticleStats.IndexBufferMemoryBytes += BufferDesc.ByteWidth;
+			}
+
+			ParticleStats.RenderedParticles += ReplayData.ActiveParticleCount;
+			if (bIsMeshParticle)
+			{
+				LastBatchElement.VertexBuffer->GetDesc(&BufferDesc);
+				ParticleStats.TotalInsertedVertices += BufferDesc.ByteWidth / sizeof(FVertexDynamic);
+
+				if (LastBatchElement.InstanceBuffer)
+				{
+					D3D11_BUFFER_DESC BufferDesc;
+					LastBatchElement.InstanceBuffer->GetDesc(&BufferDesc);
+					ParticleStats.InstanceBufferMemoryBytes += BufferDesc.ByteWidth;
+
+					ParticleStats.TotalInsertedInstances += LastBatchElement.InstanceCount;
+				}
+			}
+			else
+			{
+				ParticleStats.TotalInsertedVertices += ReplayData.ActiveParticleCount * 4;
+			}
+			
 
 			// 수집된 파티클이 없으면 다음 에미터로
 			if (ParticleBatchElements.IsEmpty())
@@ -1097,17 +1154,54 @@ void FSceneRenderer::RenderParticlesPass()
 				continue;
 			}
 
-			// 파티클 배치에 셰이더 설정
-			for (FMeshBatchElement& BatchElement : ParticleBatchElements)
+			// 이 에미터가 렌더링되었으므로 카운트 증가
+			ParticleStats.VisibleEmitters++;
+
+			// 이 에미터에서 추가된 배치들에 대한 통계 수집
+			int32 BatchCountAfter = ParticleBatchElements.Num();
+			for (int32 i = BatchCountBefore; i < BatchCountAfter; ++i)
 			{
+				FMeshBatchElement& BatchElement = ParticleBatchElements[i];
+				
+				// 파티클 배치에 셰이더 설정
 				BatchElement.VertexShader = ShaderVariant->VertexShader;
 				BatchElement.PixelShader = ShaderVariant->PixelShader;
 				BatchElement.InputLayout = ShaderVariant->InputLayout;
-			}
+				
+				// 통계 수집
+				ParticleStats.TotalDrawCalls++;
+				
+				if (bIsMeshParticle)
+				{
+					uint32 TrianglesPerInstance = BatchElement.IndexCount / 3;
+					ParticleStats.TotalDrawedTriangles += TrianglesPerInstance * BatchElement.InstanceCount;
+					ParticleStats.TotalDrawedVertices += BatchElement.IndexCount * BatchElement.InstanceCount;
+				}
+				else
+				{
+					ParticleStats.TotalDrawedTriangles += BatchElement.IndexCount / 3;
+					ParticleStats.TotalDrawedVertices += BatchElement.IndexCount;
+				}
+			}		
 
 			DrawMeshBatches(ParticleBatchElements, true);
 		}
 	}
+
+	// 렌더링 시간 측정 종료
+	auto RenderTimeEnd = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> RenderDuration = RenderTimeEnd - RenderTimeStart;
+	ParticleStats.RenderTimeMS = RenderDuration.count();
+
+	// 활성 파티클 수 통계 (추가 정보)
+	// 이미 RenderedParticles에 집계되었으므로 TotalParticles에 복사
+	ParticleStats.TotalParticles = ParticleStats.RenderedParticles;
+
+	// 파생 통계 계산
+	ParticleStats.CalculateDerivedStats();
+
+	// 전역 통계 매니저에 업데이트
+	FParticleStatManager::GetInstance().UpdateStats(ParticleStats);
 
 	// 상태 복구
 	RHIDevice->RSSetState(ERasterizerMode::Solid);
@@ -1494,7 +1588,7 @@ void FSceneRenderer::RenderFinalOverlayLines()
     vp.TopLeftY = (float)View->ViewRect.MinY;
     vp.Width    = (float)View->ViewRect.Width();
     vp.Height   = (float)View->ViewRect.Height();
-    vp.MinDepth = 0.0f; vp.MaxDepth = 1.0f;
+    vp.MinDepth =  0.0f; vp.MaxDepth = 1.0f;
     RHIDevice->GetDeviceContext()->RSSetViewports(1, &vp);
 
     OwnerRenderer->BeginLineBatch();
@@ -1737,8 +1831,8 @@ void FSceneRenderer::ApplyScreenEffectsPass()
 	// 렌더 타겟 설정
 	RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTargetWithoutDepth);
 
-	// 텍스쳐 관련 설정
-	ID3D11ShaderResourceView* SourceSRV = RHIDevice->GetSRV(RHI_SRV_Index::SceneColorSource);
+	// 텍스처 관련 설정
+	ID3D11ShaderResourceView* SourceSRV = RHIDevice->GetCurrentSourceSRV();
 	ID3D11SamplerState* SamplerState = RHIDevice->GetSamplerState(RHI_Sampler_Index::LinearClamp);
 	if (!SourceSRV || !SamplerState)
 	{
