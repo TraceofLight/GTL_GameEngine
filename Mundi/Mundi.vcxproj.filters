@@ -724,6 +724,12 @@
     <ClCompile Include="Generated\AParticleSystemActor.generated.cpp">
       <Filter>Generated</Filter>
     </ClCompile>
+    <ClCompile Include="Generated\UParticleModuleRotation.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Generated\UParticleModuleRotationRate.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -1521,6 +1527,12 @@
       <Filter>Generated</Filter>
     </ClInclude>
     <ClInclude Include="Generated\AParticleSystemActor.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleModuleRotation.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleModuleRotationRate.generated.h">
       <Filter>Generated</Filter>
     </ClInclude>
   </ItemGroup>
