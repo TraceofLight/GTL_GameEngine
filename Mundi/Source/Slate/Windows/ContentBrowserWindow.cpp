@@ -109,6 +109,9 @@ void UContentBrowserWindow::RefreshCurrentDirectory()
 {
 	DisplayedFiles.clear();
 
+	// 썸네일 캐시 무효화 (Refresh 시 모든 썸네일 새로 로드)
+	FThumbnailManager::GetInstance().ClearCache();
+
 	if (!std::filesystem::exists(CurrentPath))
 	{
 		UE_LOG("ContentBrowserWindow: Path does not exist: %s", CurrentPath.string().c_str());

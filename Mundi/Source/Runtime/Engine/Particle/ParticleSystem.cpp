@@ -239,7 +239,7 @@ void UParticleSystem::Serialize(bool bIsLoading, JSON& InOutHandle)
 		if (InOutHandle.hasKey("SecondsBeforeInactive")) SecondsBeforeInactive = static_cast<float>(InOutHandle["SecondsBeforeInactive"].ToFloat());
 		if (InOutHandle.hasKey("Delay")) Delay = static_cast<float>(InOutHandle["Delay"].ToFloat());
 		if (InOutHandle.hasKey("bAutoDeactivate")) bAutoDeactivate = InOutHandle["bAutoDeactivate"].ToBool();
-
+		if (InOutHandle.hasKey("ThumbnailData")) ThumbnailData = InOutHandle["ThumbnailData"].ToString();
 		// LODDistances
 		LODDistances.clear();
 		if (InOutHandle.hasKey("LODDistances") && InOutHandle["LODDistances"].JSONType() == JSON::Class::Array)
@@ -281,7 +281,7 @@ void UParticleSystem::Serialize(bool bIsLoading, JSON& InOutHandle)
 		InOutHandle["SecondsBeforeInactive"] = SecondsBeforeInactive;
 		InOutHandle["Delay"] = Delay;
 		InOutHandle["bAutoDeactivate"] = bAutoDeactivate;
-
+		InOutHandle["ThumbnailData"] = ThumbnailData;
 		// LODDistances
 		JSON lodDistArray = JSON::Make(JSON::Class::Array);
 		for (float Dist : LODDistances)

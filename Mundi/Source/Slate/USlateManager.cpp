@@ -651,20 +651,9 @@ void USlateManager::Render()
 
 void USlateManager::RenderAfterUI()
 {
-    if (SkeletalViewerWindow)
-    {
-        SkeletalViewerWindow->OnRenderViewport();
-    }
-
-    if (BlendSpace2DEditorWindow)
-    {
-        BlendSpace2DEditorWindow->OnRenderViewport();
-    }
-
-    if (ParticleEditorWindow)
-    {
-        ParticleEditorWindow->OnRenderViewport();
-    }
+    // ImGui::Image 방식으로 전환하면서 OnRenderViewport 호출 불필요
+    // 각 윈도우의 RenderToPreviewRenderTarget이 전용 렌더 타겟에 렌더링함
+    // (OnRenderViewport를 호출하면 메인 백버퍼에 중복 렌더링됨)
 }
 
 void USlateManager::Update(float DeltaSeconds)

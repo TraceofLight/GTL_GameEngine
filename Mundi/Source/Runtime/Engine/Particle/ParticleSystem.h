@@ -61,6 +61,9 @@ public:
 	float Delay;
 	bool bAutoDeactivate;
 
+	// 썸네일 (Base64 인코딩된 DDS 데이터)
+	FString ThumbnailData;
+
 	// 생성자/소멸자
 	UParticleSystem();
 	~UParticleSystem() override = default;
