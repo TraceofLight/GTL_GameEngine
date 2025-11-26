@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "ConsoleWidget.h"
 #include "ObjectFactory.h"
 #include "GlobalConsole.h"
@@ -612,6 +612,11 @@ void UConsoleWidget::ExecCommand(const char* command_line)
 		UStatsOverlayD2D::Get().ToggleSkinning();
 		AddLog("STAT SKINNING TOGGLED");
 	}
+	else if (Stricmp(command_line, "STAT PARTICLE") == 0)
+	{
+		UStatsOverlayD2D::Get().ToggleParticles();
+		AddLog("STAT PARTICLES TOGGLED");
+	}
 	else if (Stricmp(command_line, "STAT ALL") == 0)
 	{
 		UStatsOverlayD2D::Get().SetShowFPS(true);
@@ -623,6 +628,7 @@ void UConsoleWidget::ExecCommand(const char* command_line)
 		UStatsOverlayD2D::Get().SetShowShadow(true);
 		UStatsOverlayD2D::Get().SetShowGPU(true);
 		UStatsOverlayD2D::Get().SetShowSkinning(true);
+		UStatsOverlayD2D::Get().SetShowParticles(true);
 		AddLog("STAT: ON");
 	}
 	else if (Stricmp(command_line, "STAT NONE") == 0)
@@ -636,6 +642,7 @@ void UConsoleWidget::ExecCommand(const char* command_line)
 		UStatsOverlayD2D::Get().SetShowShadow(false);
 		UStatsOverlayD2D::Get().SetShowGPU(false);
 		UStatsOverlayD2D::Get().SetShowSkinning(false);
+		UStatsOverlayD2D::Get().SetShowParticles(false);
 		AddLog("STAT: OFF");
 	}
 	else if (Stricmp(command_line, "SKINNING") == 0)

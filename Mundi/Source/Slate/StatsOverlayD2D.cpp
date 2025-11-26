@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include <d2d1_1.h>
 #include <dwrite.h>
 #include <dxgi1_2.h>
@@ -13,6 +13,7 @@
 #include "TileCullingStats.h"
 #include "LightStats.h"
 #include "ShadowStats.h"
+#include "ParticleStats.h"
 
 #pragma comment(lib, "d2d1")
 #pragma comment(lib, "dwrite")
@@ -169,7 +170,7 @@ static void DrawTextBlock(
 
 void UStatsOverlayD2D::Draw()
 {
-	if (!bInitialized || (!bShowFPS && !bShowMemory && !bShowPicking && !bShowDecal && !bShowTileCulling && !bShowLights && !bShowShadow && !bShowGPU && !bShowSkinning) || !SwapChain)
+	if (!bInitialized || (!bShowFPS && !bShowMemory && !bShowPicking && !bShowDecal && !bShowTileCulling && !bShowLights && !bShowShadow && !bShowGPU && !bShowSkinning && !bShowParticles) || !SwapChain)
 	{
 		return;
 	}
@@ -416,6 +417,80 @@ void UStatsOverlayD2D::Draw()
 		SafeRelease(BrushLawnGreen);
 
 		NextY += SkinningPanelHeight + Space;
+	}
+
+	if (bShowParticles)
+	{
+		const FParticleStats& ParticleStats = FParticleStatManager::GetInstance().GetStats();
+
+		// GPU 시간을 GPUTimer에서 가져오기
+		double GpuTimeMS = 0.0;
+		if (GPUTimer)
+		{
+			GpuTimeMS = GPUTimer->GetTime("ParticlePass");
+			GpuTimeMS = std::max(GpuTimeMS, 0.0);
+		}
+
+		wchar_t Buf[1024];
+		swprintf_s(Buf, 
+			L"[Particle Stats]\n"
+			L"Systems: %u / %u\n"
+			L"Emitters: %u / %u\n"
+			L"  Sprite: %u | Mesh: %u\n"
+			L"Particles: %u\n"
+			L"Inserted Vertices: %u\n"
+			L"Inserted Instances: %u\n"
+			L"Draw Calls: %u\n"
+			L"Drawed Triangles: %u\n"
+			L"Drawed Vertices: %u\n"
+			L"\n"
+			L"--- Timings ---\n"
+			L"CPU: %.3f ms\n"
+			L"GPU: %.3f ms\n"
+			L"Avg/System: %.3f ms\n"
+			L"Avg/Emitter: %.3f ms\n"
+			L"Avg/Particle: %.3f µs\n"
+			L"\n"
+			L"--- Memory ---\n"
+			L"Total: %.2f MB\n"
+			L"  VB: %.2f MB\n"
+			L"  IB: %.2f MB\n"
+			L"  Instance: %.2f MB",
+			ParticleStats.VisibleParticleSystems,
+			ParticleStats.TotalParticleSystems,
+			ParticleStats.VisibleEmitters,
+			ParticleStats.TotalEmitters,
+			ParticleStats.SpriteEmitters,
+			ParticleStats.MeshEmitters,
+			ParticleStats.RenderedParticles,
+			ParticleStats.TotalInsertedVertices,
+			ParticleStats.TotalInsertedInstances,
+			ParticleStats.TotalDrawCalls,
+			ParticleStats.TotalDrawedTriangles,
+			ParticleStats.TotalDrawedVertices,
+			ParticleStats.CpuTimeMS,
+			GpuTimeMS,
+			ParticleStats.AverageTimePerSystem,
+			ParticleStats.AverageTimePerEmitter,
+			ParticleStats.AverageTimePerParticle,
+			ParticleStats.GetTotalMemoryMB(),
+			static_cast<float>(ParticleStats.VertexBufferMemoryBytes) / (1024.0f * 1024.0f),
+			static_cast<float>(ParticleStats.IndexBufferMemoryBytes) / (1024.0f * 1024.0f),
+			static_cast<float>(ParticleStats.InstanceBufferMemoryBytes) / (1024.0f * 1024.0f)
+		);
+
+		constexpr float ParticlePanelHeight = 500.0f;
+		D2D1_RECT_F rc = D2D1::RectF(Margin, NextY, Margin + PanelWidth, NextY + ParticlePanelHeight);
+		
+		// 고유한 색상으로 파티클 통계 표시 (LimeGreen)
+		ID2D1SolidColorBrush* BrushLimeGreen = nullptr;
+		D2DContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::LimeGreen), &BrushLimeGreen);
+		
+		DrawTextBlock(D2DContext, TextFormat, Buf, rc, BrushBlack, BrushLimeGreen);
+		
+		SafeRelease(BrushLimeGreen);
+
+		NextY += ParticlePanelHeight + Space;
 	}
 
 	D2DContext->EndDraw();

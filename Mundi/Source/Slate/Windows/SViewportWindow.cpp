@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "SViewportWindow.h"
 #include "World.h"
 #include "ImGui/imgui.h"
@@ -88,6 +88,8 @@ SViewportWindow::~SViewportWindow()
 
 	IconSingleToMultiViewport = nullptr;
 	IconMultiToSingleViewport = nullptr;
+
+	IconParticle = nullptr;
 }
 
 bool SViewportWindow::Initialize(float StartX, float StartY, float Width, float Height, UWorld* World, ID3D11Device* Device, EViewportType InViewportType)
@@ -505,6 +507,9 @@ void SViewportWindow::LoadToolbarIcons(ID3D11Device* Device)
 
 	IconSkinning = NewObject<UTexture>();
 	IconSkinning->Load(GDataDir + "/Default/Icon/Viewport_Skinning.png", Device);
+
+	IconParticle = NewObject<UTexture>();
+	IconParticle->Load(GDataDir + "/Default/Icon/Viewport_Particle.png", Device);
 
 	// 뷰포트 레이아웃 전환 아이콘 로드
 	IconSingleToMultiViewport = NewObject<UTexture>();
@@ -1568,6 +1573,16 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 				ImGui::SetTooltip("스키닝 통계를 표시합니다.");
 			}
 
+			bool bParticle = UStatsOverlayD2D::Get().IsParticlesVisible();
+			if (ImGui::Checkbox(" PARTICLE", &bParticle))
+			{
+				UStatsOverlayD2D::Get().ToggleParticles();
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("입자 효과 통계를 표시합니다.");
+			}
+
 			ImGui::EndMenu();
 		}
 
@@ -1650,7 +1665,7 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		if (ImGui::IsItemHovered())
 		{
 			ImGui::SetTooltip("스태틱 메시 렌더링을 표시합니다.");
-		}
+			}
 
 		// Skeletal Mesh
 		bool bSkeletalMesh = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_SkeletalMeshes);
@@ -1668,6 +1683,24 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		if (ImGui::IsItemHovered())
 		{
 			ImGui::SetTooltip("스텔레탈 메시 렌더링을 표시합니다.");
+		}
+
+		// Particle
+		bool bParticle = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_Particles);
+		if (ImGui::Checkbox("##Particle", &bParticle))
+		{
+			RenderSettings.ToggleShowFlag(EEngineShowFlags::SF_Particles);
+		}
+		ImGui::SameLine();
+		if (IconParticle && IconParticle->GetShaderResourceView())
+		{
+			ImGui::Image((void*)IconParticle->GetShaderResourceView(), IconSize);
+			ImGui::SameLine(0, 4);
+		}
+		ImGui::Text(" 파티클");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("파티클 시스템 렌더링을 표시합니다.");
 		}
 
 		// Billboard

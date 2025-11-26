@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -866,6 +866,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Renderer\LightManager.h" />
     <ClInclude Include="Source\Runtime\Renderer\Material.h" />
     <ClInclude Include="Source\Runtime\Renderer\MeshBatchElement.h" />
+    <ClInclude Include="Source\Runtime\Renderer\ParticleStats.h" />
     <ClInclude Include="Source\Runtime\Renderer\PostProcessing\FadeInOutPass.h" />
     <ClInclude Include="Source\Runtime\Renderer\PostProcessing\GammaPass.h" />
     <ClInclude Include="Source\Runtime\Renderer\PostProcessing\HeightFogPass.h" />
