@@ -12,6 +12,9 @@
 #include "Source/Runtime/Engine/Particle/Size/ParticleModuleSize.h"
 #include "Source/Runtime/Engine/Particle/Velocity/ParticleModuleVelocity.h"
 #include "Source/Runtime/Engine/Particle/TypeData/ParticleModuleTypeDataBase.h"
+#include "Source/Runtime/Engine/Particle/Beam/ParticleModuleBeamSource.h"
+#include "Source/Runtime/Engine/Particle/Beam/ParticleModuleBeamTarget.h"
+#include "Source/Runtime/Engine/Particle/Beam/ParticleModuleBeamNoise.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotation.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotationRate.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleMeshRotation.h"
@@ -355,6 +358,18 @@ void UParticleModuleDetailRenderer::RenderModuleDetails(UParticleModule* Module)
 	else if (UParticleModuleTypeDataBeam* TypeDataBeam = Cast<UParticleModuleTypeDataBeam>(Module))
 	{
 		RenderTypeDataBeamModule(TypeDataBeam);
+	}
+	else if (UParticleModuleBeamSource* BeamSource = Cast<UParticleModuleBeamSource>(Module))
+	{
+		RenderBeamSourceModule(BeamSource);
+	}
+	else if (UParticleModuleBeamTarget* BeamTarget = Cast<UParticleModuleBeamTarget>(Module))
+	{
+		RenderBeamTargetModule(BeamTarget);
+	}
+	else if (UParticleModuleBeamNoise* BeamNoise = Cast<UParticleModuleBeamNoise>(Module))
+	{
+		RenderBeamNoiseModule(BeamNoise);
 	}
 	else if (UParticleModuleRotation* Rotation = Cast<UParticleModuleRotation>(Module))
 	{
@@ -1306,29 +1321,8 @@ void UParticleModuleDetailRenderer::RenderTypeDataBeamModule(UParticleModuleType
 		return;
 	}
 
-	// Beam Endpoint 섹션
-	if (BeginSection("Beam Endpoints", true))
-	{
-		// Source Offset
-		float SrcVec[3] = { Module->SourceOffset.X, Module->SourceOffset.Y, Module->SourceOffset.Z };
-		if (ImGui::DragFloat3("Source Offset", SrcVec, 1.0f))
-		{
-			Module->SourceOffset.X = SrcVec[0];
-			Module->SourceOffset.Y = SrcVec[1];
-			Module->SourceOffset.Z = SrcVec[2];
-		}
-		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Offset from emitter location (start)");
-
-		// Target Offset
-		float TgtVec[3] = { Module->TargetOffset.X, Module->TargetOffset.Y, Module->TargetOffset.Z };
-		if (ImGui::DragFloat3("Target Offset", TgtVec, 1.0f))
-		{
-			Module->TargetOffset.X = TgtVec[0];
-			Module->TargetOffset.Y = TgtVec[1];
-			Module->TargetOffset.Z = TgtVec[2];
-		}
-		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Offset from emitter location (end)");
-	}
+	ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f), "빔 파티클 렌더링 설정");
+	ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "빔 위치는 Source/Target 모듈 사용");
 
 	// Beam Shape 섹션
 	if (BeginSection("Beam Shape", true))
@@ -1367,5 +1361,91 @@ void UParticleModuleDetailRenderer::RenderTypeDataBeamModule(UParticleModuleType
 		// UV Tiling
 		ImGui::DragFloat("UV Tiling", &Module->UVTiling, 0.1f, 0.1f, 100.0f);
 		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Texture repeat along beam length");
+	}
+}
+
+// ============================================================================
+// Beam Source 모듈 렌더링
+// ============================================================================
+
+void UParticleModuleDetailRenderer::RenderBeamSourceModule(UParticleModuleBeamSource* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	if (BeginSection("Beam Source", true))
+	{
+		ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f), "빔 시작점 설정");
+
+		float Offset[3] = { Module->SourceOffset.X, Module->SourceOffset.Y, Module->SourceOffset.Z };
+		if (ImGui::DragFloat3("Source Offset", Offset, 1.0f))
+		{
+			Module->SourceOffset = FVector(Offset[0], Offset[1], Offset[2]);
+		}
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Offset from emitter location (start)");
+	}
+}
+
+// ============================================================================
+// Beam Target 모듈 렌더링
+// ============================================================================
+
+void UParticleModuleDetailRenderer::RenderBeamTargetModule(UParticleModuleBeamTarget* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	if (BeginSection("Beam Target", true))
+	{
+		ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f), "빔 끝점 설정");
+
+		float Offset[3] = { Module->TargetOffset.X, Module->TargetOffset.Y, Module->TargetOffset.Z };
+		if (ImGui::DragFloat3("Target Offset", Offset, 1.0f))
+		{
+			Module->TargetOffset = FVector(Offset[0], Offset[1], Offset[2]);
+		}
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Offset from emitter location (end)");
+	}
+}
+
+// ============================================================================
+// Beam Noise 모듈 렌더링
+// ============================================================================
+
+void UParticleModuleDetailRenderer::RenderBeamNoiseModule(UParticleModuleBeamNoise* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	if (BeginSection("Beam Noise", true))
+	{
+		ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, 1.0f), "노이즈 효과");
+
+		ImGui::Checkbox("Enabled", &Module->bEnabled);
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("노이즈 효과 활성화/비활성화");
+		}
+
+		if (Module->bEnabled)
+		{
+			ImGui::DragFloat("Strength", &Module->Strength, 0.5f, 0.0f, 100.0f);
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Noise amplitude (displacement amount)");
+
+			ImGui::DragFloat("Frequency", &Module->Frequency, 0.1f, 0.1f, 10.0f);
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Spatial frequency (how often noise changes)");
+
+			ImGui::DragFloat("Speed", &Module->Speed, 0.1f, 0.0f, 10.0f);
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Animation speed");
+
+			ImGui::Checkbox("Lock Endpoints", &Module->bLockEndpoints);
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Keep source/target positions fixed");
+		}
 	}
 }

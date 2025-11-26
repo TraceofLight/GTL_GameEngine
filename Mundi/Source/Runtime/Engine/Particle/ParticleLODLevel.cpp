@@ -13,6 +13,9 @@
 #include "Rotation/ParticleModuleRotationRate.h"
 #include "Rotation/ParticleModuleMeshRotation.h"
 #include "Rotation/ParticleModuleMeshRotationRate.h"
+#include "Beam/ParticleModuleBeamSource.h"
+#include "Beam/ParticleModuleBeamTarget.h"
+#include "Beam/ParticleModuleBeamNoise.h"
 
 UParticleLODLevel::UParticleLODLevel()
 	: Level(0)
@@ -187,6 +190,10 @@ static UParticleModule* CreateModuleByTypeName(const FString& TypeName)
 	if (TypeName == "UParticleModuleRotationRate") return NewObject<UParticleModuleRotationRate>();
 	if (TypeName == "UParticleModuleMeshRotation") return NewObject<UParticleModuleMeshRotation>();
 	if (TypeName == "UParticleModuleMeshRotationRate") return NewObject<UParticleModuleMeshRotationRate>();
+	if (TypeName == "UParticleModuleTypeDataBeam") return NewObject<UParticleModuleTypeDataBeam>();
+	if (TypeName == "UParticleModuleBeamSource") return NewObject<UParticleModuleBeamSource>();
+	if (TypeName == "UParticleModuleBeamTarget") return NewObject<UParticleModuleBeamTarget>();
+	if (TypeName == "UParticleModuleBeamNoise") return NewObject<UParticleModuleBeamNoise>();
 	return nullptr;
 }
 

@@ -36,6 +36,9 @@ extern UGameEngine GEngine;
 #include "Source/Runtime/Engine/Particle/Size/ParticleModuleSize.h"
 #include "Source/Runtime/Engine/Particle/Velocity/ParticleModuleVelocity.h"
 #include "Source/Runtime/Engine/Particle/TypeData/ParticleModuleTypeDataBase.h"
+#include "Source/Runtime/Engine/Particle/Beam/ParticleModuleBeamSource.h"
+#include "Source/Runtime/Engine/Particle/Beam/ParticleModuleBeamTarget.h"
+#include "Source/Runtime/Engine/Particle/Beam/ParticleModuleBeamNoise.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotation.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotationRate.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleMeshRotation.h"
@@ -2305,6 +2308,31 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 		ImGui::MenuItem("Velocity Over Life", nullptr, false, false); // TODO
 		ImGui::MenuItem("Inherit Parent Velocity", nullptr, false, false); // TODO
 		ImGui::EndMenu();
+	}
+
+	// Beam 서브메뉴 (TypeData Beam이 있을 때만 표시)
+	bool bHasTypeDataBeam = LODLevel->TypeDataModule && Cast<UParticleModuleTypeDataBeam>(LODLevel->TypeDataModule);
+	if (bHasTypeDataBeam)
+	{
+		if (ImGui::BeginMenu("Beam"))
+		{
+			if (ImGui::MenuItem("Source"))
+			{
+				UParticleModuleBeamSource* Module = new UParticleModuleBeamSource();
+				AddModuleAndUpdateInstances(LODLevel, Module);
+			}
+			if (ImGui::MenuItem("Target"))
+			{
+				UParticleModuleBeamTarget* Module = new UParticleModuleBeamTarget();
+				AddModuleAndUpdateInstances(LODLevel, Module);
+			}
+			if (ImGui::MenuItem("Noise"))
+			{
+				UParticleModuleBeamNoise* Module = new UParticleModuleBeamNoise();
+				AddModuleAndUpdateInstances(LODLevel, Module);
+			}
+			ImGui::EndMenu();
+		}
 	}
 }
 

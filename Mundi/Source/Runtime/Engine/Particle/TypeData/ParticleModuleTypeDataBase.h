@@ -105,9 +105,8 @@ private:
 /**
  * @brief 빔 타입 데이터
  * @details Source에서 Target까지 이어지는 빔/레이저/번개 파티클 렌더링
+ *          빔 설정은 별도 모듈 사용: BeamSource, BeamTarget, BeamNoise
  *
- * @param SourceOffset 빔 시작점 오프셋 (에미터 기준)
- * @param TargetOffset 빔 끝점 오프셋 (에미터 기준)
  * @param BeamWidth 빔 폭
  * @param Segments 빔을 구성하는 세그먼트 수
  * @param bTaperBeam 끝으로 갈수록 가늘어짐
@@ -121,10 +120,6 @@ class UParticleModuleTypeDataBeam :
 	DECLARE_CLASS(UParticleModuleTypeDataBeam, UParticleModuleTypeDataBase)
 
 public:
-	// === 빔 엔드포인트 ===
-	FVector SourceOffset;           // 소스 위치 오프셋 (에미터 기준)
-	FVector TargetOffset;           // 타겟 위치 오프셋 (에미터 기준)
-
 	// === 빔 형태 ===
 	FFloatDistribution BeamWidth;   // 빔 폭
 	int32 Segments;                 // 세그먼트 수 (기본 10)

@@ -4,6 +4,9 @@
 
 // Forward declarations
 class UParticleModuleTypeDataBeam;
+class UParticleModuleBeamSource;
+class UParticleModuleBeamTarget;
+class UParticleModuleBeamNoise;
 struct FDynamicEmitterDataBase;
 struct FDynamicEmitterReplayDataBase;
 
@@ -17,8 +20,17 @@ struct FParticleBeamEmitterInstance : public FParticleEmitterInstance
 {
 	// ============== 멤버 변수 ==============
 
-	/** TypeData 모듈 참조 (빔 설정 포함) */
+	/** TypeData 모듈 참조 (빔 렌더링 설정) */
 	UParticleModuleTypeDataBeam* BeamTypeData;
+
+	/** 빔 소스 모듈 참조 (시작점 설정) */
+	UParticleModuleBeamSource* BeamSourceModule;
+
+	/** 빔 타겟 모듈 참조 (끝점 설정) */
+	UParticleModuleBeamTarget* BeamTargetModule;
+
+	/** 빔 노이즈 모듈 참조 (번개 효과) */
+	UParticleModuleBeamNoise* BeamNoiseModule;
 
 	/** 빔 포인트 배열 (Source에서 Target까지) */
 	TArray<FBeamPoint> BeamPoints;
@@ -26,6 +38,9 @@ struct FParticleBeamEmitterInstance : public FParticleEmitterInstance
 	/** GPU 버퍼 */
 	ID3D11Buffer* BeamVertexBuffer;
 	ID3D11Buffer* BeamIndexBuffer;
+
+	/** 노이즈 애니메이션용 타이머 */
+	float NoiseTime;
 
 	// ============== 생성자/소멸자 ==============
 
@@ -80,6 +95,11 @@ struct FParticleBeamEmitterInstance : public FParticleEmitterInstance
 	 * 월드 공간 Target 위치 반환
 	 */
 	FVector GetTargetPosition() const;
+
+	/**
+	 * 빔 포인트에 노이즈 적용 (번개 효과)
+	 */
+	void ApplyNoiseToBeamPoints();
 
 protected:
 	/**

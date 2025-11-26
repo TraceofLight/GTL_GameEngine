@@ -191,9 +191,7 @@ void UParticleModuleTypeDataMesh::DuplicateFrom(const UParticleModule* Source)
 // ========== UParticleModuleTypeDataBeam ==========
 
 UParticleModuleTypeDataBeam::UParticleModuleTypeDataBeam()
-	: SourceOffset(FVector::Zero())
-	, TargetOffset(FVector(100.0f, 0.0f, 0.0f))  // 기본: X축 방향 100 유닛
-	, BeamWidth(10.0f)
+	: BeamWidth(10.0f)
 	, Segments(10)
 	, bTaperBeam(false)
 	, TaperFactor(0.0f)
@@ -218,20 +216,6 @@ void UParticleModuleTypeDataBeam::Serialize(bool bIsLoading, JSON& InOutHandle)
 
 	if (bIsLoading)
 	{
-		// Source/Target Offset
-		if (InOutHandle.hasKey("SourceOffset"))
-		{
-			SourceOffset.X = static_cast<float>(InOutHandle["SourceOffset"][0].ToFloat());
-			SourceOffset.Y = static_cast<float>(InOutHandle["SourceOffset"][1].ToFloat());
-			SourceOffset.Z = static_cast<float>(InOutHandle["SourceOffset"][2].ToFloat());
-		}
-		if (InOutHandle.hasKey("TargetOffset"))
-		{
-			TargetOffset.X = static_cast<float>(InOutHandle["TargetOffset"][0].ToFloat());
-			TargetOffset.Y = static_cast<float>(InOutHandle["TargetOffset"][1].ToFloat());
-			TargetOffset.Z = static_cast<float>(InOutHandle["TargetOffset"][2].ToFloat());
-		}
-
 		// Beam 형태
 		if (InOutHandle.hasKey("BeamWidth")) BeamWidth = JsonToFloatDistribution(InOutHandle["BeamWidth"]);
 		if (InOutHandle.hasKey("Segments")) Segments = static_cast<int32>(InOutHandle["Segments"].ToInt());
@@ -244,19 +228,6 @@ void UParticleModuleTypeDataBeam::Serialize(bool bIsLoading, JSON& InOutHandle)
 	}
 	else
 	{
-		// Source/Target Offset
-		JSON srcArr = JSON::Make(JSON::Class::Array);
-		srcArr.append(SourceOffset.X);
-		srcArr.append(SourceOffset.Y);
-		srcArr.append(SourceOffset.Z);
-		InOutHandle["SourceOffset"] = srcArr;
-
-		JSON tgtArr = JSON::Make(JSON::Class::Array);
-		tgtArr.append(TargetOffset.X);
-		tgtArr.append(TargetOffset.Y);
-		tgtArr.append(TargetOffset.Z);
-		InOutHandle["TargetOffset"] = tgtArr;
-
 		// Beam 형태
 		InOutHandle["BeamWidth"] = FloatDistributionToJson(BeamWidth);
 		InOutHandle["Segments"] = Segments;
@@ -279,8 +250,6 @@ void UParticleModuleTypeDataBeam::DuplicateFrom(const UParticleModule* Source)
 		return;
 	}
 
-	SourceOffset = SrcBeam->SourceOffset;
-	TargetOffset = SrcBeam->TargetOffset;
 	BeamWidth = SrcBeam->BeamWidth;
 	Segments = SrcBeam->Segments;
 	bTaperBeam = SrcBeam->bTaperBeam;

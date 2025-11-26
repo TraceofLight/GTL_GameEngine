@@ -6,14 +6,21 @@
 #include "ParticleLODLevel.h"
 #include "ParticleModuleRequired.h"
 #include "TypeData/ParticleModuleTypeDataBase.h"
+#include "Beam/ParticleModuleBeamSource.h"
+#include "Beam/ParticleModuleBeamTarget.h"
+#include "Beam/ParticleModuleBeamNoise.h"
 
 // ============== 생성자/소멸자 ==============
 
 FParticleBeamEmitterInstance::FParticleBeamEmitterInstance()
 	: FParticleEmitterInstance()
 	, BeamTypeData(nullptr)
+	, BeamSourceModule(nullptr)
+	, BeamTargetModule(nullptr)
+	, BeamNoiseModule(nullptr)
 	, BeamVertexBuffer(nullptr)
 	, BeamIndexBuffer(nullptr)
+	, NoiseTime(0.0f)
 {
 }
 
@@ -43,6 +50,26 @@ void FParticleBeamEmitterInstance::Init(UParticleEmitter* InTemplate, UParticleS
 	if (CurrentLODLevel && CurrentLODLevel->TypeDataModule)
 	{
 		BeamTypeData = Cast<UParticleModuleTypeDataBeam>(CurrentLODLevel->TypeDataModule);
+	}
+
+	// 빔 관련 모듈 찾기
+	if (CurrentLODLevel)
+	{
+		for (UParticleModule* Module : CurrentLODLevel->Modules)
+		{
+			if (auto* Source = Cast<UParticleModuleBeamSource>(Module))
+			{
+				BeamSourceModule = Source;
+			}
+			else if (auto* Target = Cast<UParticleModuleBeamTarget>(Module))
+			{
+				BeamTargetModule = Target;
+			}
+			else if (auto* Noise = Cast<UParticleModuleBeamNoise>(Module))
+			{
+				BeamNoiseModule = Noise;
+			}
+		}
 	}
 
 	// GPU 버퍼 생성 (빔 버텍스용)
@@ -279,30 +306,102 @@ void FParticleBeamEmitterInstance::CalculateBeamPoints()
 		// 색상 (나중에 모듈에서 설정 가능)
 		Point.Color = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 	}
+
+	// 노이즈 모듈이 있으면 적용
+	if (BeamNoiseModule && BeamNoiseModule->bEnabled)
+	{
+		ApplyNoiseToBeamPoints();
+	}
+}
+
+// ============== ApplyNoiseToBeamPoints ==============
+
+void FParticleBeamEmitterInstance::ApplyNoiseToBeamPoints()
+{
+	if (!BeamNoiseModule || BeamPoints.Num() < 2)
+	{
+		return;
+	}
+
+	const float Strength = BeamNoiseModule->Strength;
+	const float Frequency = BeamNoiseModule->Frequency;
+	const bool bLockEndpoints = BeamNoiseModule->bLockEndpoints;
+
+	// 노이즈 타이머 업데이트 (고정 delta time 사용 - 약 60fps 기준)
+	NoiseTime += 0.016f * BeamNoiseModule->Speed;
+
+	// 빔 방향에 수직인 두 벡터 계산 (노이즈 적용 방향)
+	FVector BeamDir = (BeamPoints[BeamPoints.Num() - 1].Position - BeamPoints[0].Position).GetSafeNormal();
+	FVector UpVector = FVector(0.0f, 0.0f, 1.0f);
+
+	// 빔이 Z축과 평행하면 다른 축 사용
+	if (FMath::Abs(FVector::Dot(BeamDir, UpVector)) > 0.99f)
+	{
+		UpVector = FVector(1.0f, 0.0f, 0.0f);
+	}
+
+	FVector Right = FVector::Cross(BeamDir, UpVector).GetSafeNormal();
+	FVector Up = FVector::Cross(Right, BeamDir).GetSafeNormal();
+
+	for (int32 i = 0; i < BeamPoints.Num(); ++i)
+	{
+		// 끝점 잠금
+		if (bLockEndpoints && (i == 0 || i == BeamPoints.Num() - 1))
+		{
+			continue;
+		}
+
+		FBeamPoint& Point = BeamPoints[i];
+
+		// Perlin-like 노이즈 계산 (간단한 sin 기반)
+		float NoiseInput = Point.Parameter * Frequency * 10.0f + NoiseTime;
+		float NoiseX = sinf(NoiseInput * 1.7f) * cosf(NoiseInput * 0.9f);
+		float NoiseY = sinf(NoiseInput * 2.3f + 1.5f) * cosf(NoiseInput * 1.1f + 0.7f);
+
+		// 가장자리로 갈수록 노이즈 감소 (부드러운 연결)
+		float EdgeFalloff = 1.0f;
+		if (!bLockEndpoints)
+		{
+			// 끝점 고정이 아니면 가장자리 감쇠 없음
+			EdgeFalloff = 1.0f;
+		}
+		else
+		{
+			// 끝점에서 멀어질수록 감쇠
+			float DistFromEdge = FMath::Min(Point.Parameter, 1.0f - Point.Parameter);
+			EdgeFalloff = FMath::Clamp(DistFromEdge * 4.0f, 0.0f, 1.0f);  // 0~0.25 구간에서 0~1로 증가
+		}
+
+		// 노이즈 적용
+		Point.Position += Right * NoiseX * Strength * EdgeFalloff;
+		Point.Position += Up * NoiseY * Strength * EdgeFalloff;
+	}
 }
 
 // ============== GetSourcePosition ==============
 
 FVector FParticleBeamEmitterInstance::GetSourcePosition() const
 {
-	if (!Component || !BeamTypeData)
+	if (!Component)
 	{
 		return FVector::Zero();
 	}
 
-	// 에미터 월드 위치 + Source 오프셋
-	return Component->GetWorldLocation() + BeamTypeData->SourceOffset;
+	// BeamSourceModule에서 오프셋 가져오기 (없으면 기본값)
+	FVector Offset = BeamSourceModule ? BeamSourceModule->SourceOffset : FVector::Zero();
+	return Component->GetWorldLocation() + Offset;
 }
 
 // ============== GetTargetPosition ==============
 
 FVector FParticleBeamEmitterInstance::GetTargetPosition() const
 {
-	if (!Component || !BeamTypeData)
+	if (!Component)
 	{
 		return FVector(100.0f, 0.0f, 0.0f);
 	}
 
-	// 에미터 월드 위치 + Target 오프셋
-	return Component->GetWorldLocation() + BeamTypeData->TargetOffset;
+	// BeamTargetModule에서 오프셋 가져오기 (없으면 기본값)
+	FVector Offset = BeamTargetModule ? BeamTargetModule->TargetOffset : FVector(100.0f, 0.0f, 0.0f);
+	return Component->GetWorldLocation() + Offset;
 }
