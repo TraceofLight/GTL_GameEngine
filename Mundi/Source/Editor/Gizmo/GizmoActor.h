@@ -50,6 +50,10 @@ public:
 
     bool GetbIsDragging() const { return bIsDragging; }
 
+    // Interaction enabled control (for tool windows like Particle Editor)
+    void SetInteractionEnabled(bool bEnabled) { bInteractionEnabled = bEnabled; }
+    bool IsInteractionEnabled() const { return bInteractionEnabled; }
+
     void NextMode(EGizmoMode GizmoMode);
     TArray<USceneComponent*>* GetGizmoComponents();
 
@@ -92,6 +96,7 @@ protected:
     bool bRender = false;
     bool bIsHovering = false;
     bool bIsDragging = false;
+    bool bInteractionEnabled = true;  // Set to false when tool windows (e.g., Particle Editor) are focused
     EGizmoMode CurrentMode;
     EGizmoSpace CurrentSpace = EGizmoSpace::World;
     

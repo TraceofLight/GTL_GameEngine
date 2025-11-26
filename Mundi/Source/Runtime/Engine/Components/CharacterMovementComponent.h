@@ -44,6 +44,7 @@ enum class EMovementMode : uint8
  * - 점프 (타이머 기반)
  * - 이동 모드 관리 (Walking, Falling, Flying)
  */
+UCLASS(DisplayName="캐릭터 무브먼트 컴포넌트", Description="Character의 이동, 중력, 점프 등을 처리하는 컴포넌트입니다")
 class UCharacterMovementComponent : public UActorComponent
 {
 public:

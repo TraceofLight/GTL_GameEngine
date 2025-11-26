@@ -5,7 +5,7 @@
 class AActor;
 class UWorld;
 
-UCLASS(DisplayName="UActorComponent", Description="UActorComponent 컴포넌트")
+UCLASS(DisplayName="액터 컴포넌트", Description="액터에게 능력을 부여하는 컴포넌트입니다")
 class UActorComponent : public UObject
 {
 public:
@@ -62,7 +62,7 @@ public:
     // ─────────────── 컴포넌트 보호
     void SetNative(const bool bValue) { bIsNative = bValue; }
     bool IsNative() const {return bIsNative; }
-    
+
     // 상태 쿼리
     bool IsRegistered()    const { return bRegistered; }
     void SetRegistered(bool bInRegistered) { bRegistered = bInRegistered; }
@@ -71,7 +71,7 @@ public:
     // ───── 복사 관련 ────────────────────────────
     void DuplicateSubObjects() override;
     void PostDuplicate() override;
-    
+
 
     // ───── 직렬화 ────────────────────────────
     void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
@@ -80,7 +80,7 @@ protected:
     AActor* Owner = nullptr;     // 소유 액터
 
     // 생성 시 고정 데이터
-    bool bIsNative = false;      // 액터의 기본 구성 컴포넌트인지 여부. 활성화되면 보호되어 UI에서 삭제 불가 상태가 됨 
+    bool bIsNative = false;      // 액터의 기본 구성 컴포넌트인지 여부. 활성화되면 보호되어 UI에서 삭제 불가 상태가 됨
     bool bIsEditable = true;    //UI에서 Edit이 가능한가
     bool bCanEverTick = false;   // 컴포넌트 설계상 틱 지원 여부
 

@@ -21,13 +21,13 @@ class APawn;
  * - Control Rotation 관리
  * - OnPossess/OnUnpossess 이벤트
  */
-UCLASS(DisplayName = "AController", Description = "Pawn을 빙의하여 제어하는 기본 Controller 클래스입니다.")
+UCLASS(DisplayName = "컨트롤러", Description = "폰에 빙의하여 제어하는 기본 컨트롤러 클래스입니다.")
 class AController : public AActor
 {
 public:
-	
+
 	GENERATED_REFLECTION_BODY()
-	
+
 
 	AController();
 	virtual ~AController() override;

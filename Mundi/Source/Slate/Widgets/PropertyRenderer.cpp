@@ -23,6 +23,7 @@
 #include "Source/Runtime/Engine/Animation/BlendSpace2D.h"
 #include "Source/Runtime/Core/Misc/Enums.h"
 #include "AnimStateMachine.h"
+#include "Source/Runtime/Engine/Particle/ParticleSystem.h"
 
 // Disable warnings for third-party library
 #pragma warning(push)
@@ -52,6 +53,8 @@ TArray<FString> UPropertyRenderer::CachedScriptPaths;
 TArray<const char*> UPropertyRenderer::CachedScriptItems;
 TArray<FString> UPropertyRenderer::CachedAnimStateMachinePaths;
 TArray<const char*> UPropertyRenderer::CachedAnimStateMachineItems;
+TArray<FString> UPropertyRenderer::CachedParticleSystemPaths;
+TArray<const char*> UPropertyRenderer::CachedParticleSystemItems;
 
 static bool ItemsGetter(void* Data, int Index, const char** CItem)
 {
@@ -540,6 +543,17 @@ void UPropertyRenderer::CacheResources()
             CachedAnimStateMachineItems.push_back(CachedAnimStateMachinePaths[i].c_str());
         }
     }
+
+    // 8. ParticleSystem (.psys) - ResourceManager에서 프리로드된 파일 목록 사용
+    if (CachedParticleSystemPaths.IsEmpty() && CachedParticleSystemItems.IsEmpty())
+    {
+        CachedParticleSystemPaths = ResMgr.GetAllFilePaths<UParticleSystem>();
+        CachedParticleSystemItems.Add("None");
+        for (size_t i = 0; i < CachedParticleSystemPaths.size(); ++i)
+        {
+            CachedParticleSystemItems.push_back(CachedParticleSystemPaths[i].c_str());
+        }
+    }
 }
 
 void UPropertyRenderer::ClearResourcesCache()
@@ -562,6 +576,8 @@ void UPropertyRenderer::ClearResourcesCache()
 	CachedAnimSequenceItems.Empty();
 	CachedAnimStateMachinePaths.Empty();
 	CachedAnimStateMachineItems.Empty();
+	CachedParticleSystemPaths.Empty();
+	CachedParticleSystemItems.Empty();
 }
 
 // ===== 타입별 렌더링 구현 =====
@@ -782,6 +798,11 @@ bool UPropertyRenderer::RenderAssetPtrProperty(const FProperty& Prop, void* Inst
 		CachedPaths = &CachedAnimStateMachinePaths;
 		CachedItems = &CachedAnimStateMachineItems;
 	}
+	else if (AssetTypeName == "UParticleSystem")
+	{
+		CachedPaths = &CachedParticleSystemPaths;
+		CachedItems = &CachedParticleSystemItems;
+	}
 	// 필요시 추가 타입 지원
 	else
 	{
@@ -845,12 +866,16 @@ bool UPropertyRenderer::RenderAssetPtrProperty(const FProperty& Prop, void* Inst
 			{
 				*ObjPtr = ResMgr.Load<UAnimStateMachine>(SelectedPath);
 			}
+			else if (AssetTypeName == "UParticleSystem")
+			{
+				*ObjPtr = ResMgr.Load<UParticleSystem>(SelectedPath);
+			}
 		}
 		bChanged = true;
 	}
 
-	// Edit 버튼 추가 (AnimStateMachine, SkeletalMesh 등)
-	if (AssetTypeName == "UAnimStateMachine" || AssetTypeName == "USkeletalMesh")
+	// Edit 버튼 추가 (AnimStateMachine, SkeletalMesh, ParticleSystem 등)
+	if (AssetTypeName == "UAnimStateMachine" || AssetTypeName == "USkeletalMesh" || AssetTypeName == "UParticleSystem")
 	{
 		ImGui::SameLine();
 
@@ -871,6 +896,14 @@ bool UPropertyRenderer::RenderAssetPtrProperty(const FProperty& Prop, void* Inst
 					{
 						SLATE.OpenSkeletalMeshViewerWithFile(FilePath.c_str());
 					}
+					else if (AssetTypeName == "UParticleSystem")
+					{
+						UParticleSystem* ParticleSys = Cast<UParticleSystem>(CurrentObj);
+						if (ParticleSys)
+						{
+							SLATE.OpenParticleEditorWindowWithSystem(ParticleSys);
+						}
+					}
 				}
 			}
 			else
@@ -884,6 +917,10 @@ bool UPropertyRenderer::RenderAssetPtrProperty(const FProperty& Prop, void* Inst
 				{
 					SLATE.OpenSkeletalMeshViewer();
 				}
+				else if (AssetTypeName == "UParticleSystem")
+				{
+					SLATE.OpenParticleEditorWindow();
+				}
 			}
 		}
 
@@ -896,6 +933,10 @@ bool UPropertyRenderer::RenderAssetPtrProperty(const FProperty& Prop, void* Inst
 			else if (AssetTypeName == "USkeletalMesh")
 			{
 				ImGui::SetTooltip("Open SkeletalMesh Viewer");
+			}
+			else if (AssetTypeName == "UParticleSystem")
+			{
+				ImGui::SetTooltip("Open Particle Editor");
 			}
 		}
 	}

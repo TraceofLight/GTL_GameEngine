@@ -316,51 +316,6 @@ void USlateManager::CloseAnimStateMachineWindow()
 	AnimStateMachineWindow = nullptr;
 }
 
-void USlateManager::OpenParticlePreviewWindow()
-{
-	if (ParticlePreviewWindow)
-	{
-		return;
-	}
-
-	ParticlePreviewWindow = new SParticlePreviewWindow();
-
-	// 중앙에 적당한 크기로 열기
-	const float toolbarHeight = 50.0f;
-	const float availableHeight = Rect.GetHeight() - toolbarHeight;
-	const float w = 800.0f;
-	const float h = 600.0f;
-	const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
-	const float y = Rect.Top + toolbarHeight + (availableHeight - h) * 0.5f;
-
-	ParticlePreviewWindow->Initialize(x, y, w, h, World, Device);
-}
-
-void USlateManager::OpenParticlePreviewWindowWithFile(const char* FilePath)
-{
-	if (!ParticlePreviewWindow)
-	{
-		OpenParticlePreviewWindow();
-	}
-
-	if (ParticlePreviewWindow && FilePath && FilePath[0] != '\0')
-	{
-		ParticlePreviewWindow->LoadParticleSystem(FilePath);
-		UE_LOG("Opening ParticlePreviewWindow with file: %s", FilePath);
-	}
-}
-
-void USlateManager::CloseParticlePreviewWindow()
-{
-	if (!ParticlePreviewWindow)
-	{
-		return;
-	}
-
-	delete ParticlePreviewWindow;
-	ParticlePreviewWindow = nullptr;
-}
-
 void USlateManager::OpenParticleEditorWindow()
 {
 	if (ParticleEditorWindow)
@@ -373,8 +328,8 @@ void USlateManager::OpenParticleEditorWindow()
 	// 중앙에 적당한 크기로 열기
 	const float toolbarHeight = 50.0f;
 	const float availableHeight = Rect.GetHeight() - toolbarHeight;
-	const float w = Rect.GetWidth() * 0.90f;
-	const float h = availableHeight * 0.90f;
+	const float w = Rect.GetWidth() * 0.92f;
+	const float h = availableHeight * 0.92f;
 	const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
 	const float y = Rect.Top + toolbarHeight + (availableHeight - h) * 0.5f;
 
@@ -391,6 +346,19 @@ void USlateManager::OpenParticleEditorWindowWithSystem(UParticleSystem* System)
 	if (ParticleEditorWindow && System)
 	{
 		ParticleEditorWindow->SetParticleSystem(System);
+	}
+}
+
+void USlateManager::OpenParticleEditorWindowWithFile(const char* FilePath)
+{
+	if (!ParticleEditorWindow)
+	{
+		OpenParticleEditorWindow();
+	}
+
+	if (ParticleEditorWindow && FilePath)
+	{
+		ParticleEditorWindow->LoadParticleSystem(FilePath);
 	}
 }
 
@@ -630,18 +598,6 @@ void USlateManager::Render()
         AnimStateMachineWindow->OnRender();
     }
 
-    // Render Particle Preview Window
-    if (ParticlePreviewWindow)
-    {
-        ParticlePreviewWindow->OnRender();
-
-        // 윈도우가 닫혔으면 삭제
-        if (!ParticlePreviewWindow->IsOpen())
-        {
-            CloseParticlePreviewWindow();
-        }
-    }
-
     // Render Particle Editor Window (Cascade 스타일)
     if (ParticleEditorWindow)
     {
@@ -735,11 +691,6 @@ void USlateManager::Update(float DeltaSeconds)
         BlendSpace2DEditorWindow->OnUpdate(DeltaSeconds);
     }
 
-    if (ParticlePreviewWindow)
-    {
-        ParticlePreviewWindow->OnUpdate(DeltaSeconds);
-    }
-
     if (ParticleEditorWindow)
     {
         ParticleEditorWindow->OnUpdate(DeltaSeconds);
@@ -805,6 +756,16 @@ void USlateManager::Update(float DeltaSeconds)
 void USlateManager::ProcessInput()
 {
     const FVector2D MousePosition = INPUT.GetMousePosition();
+
+    // Check if any tool window is focused and should block editor input
+    bool bToolWindowBlockingInput = (ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput());
+
+    // Update main editor gizmo interaction state BEFORE processing any input
+    // This ensures the gizmo doesn't respond to global InputManager state
+    if (World && World->GetGizmoActor())
+    {
+        World->GetGizmoActor()->SetInteractionEnabled(!bToolWindowBlockingInput);
+    }
 
     if (SkeletalViewerWindow && SkeletalViewerWindow->Rect.Contains(MousePosition))
     {
@@ -875,7 +836,15 @@ void USlateManager::ProcessInput()
     }
 
     // ParticleEditorWindow가 포커스된 경우 EditorWorld 입력 차단
-    if (ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput())
+    bool bParticleEditorFocused = ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput();
+
+    // Update main editor gizmo interaction state based on tool window focus
+    if (World->GetGizmoActor())
+    {
+        World->GetGizmoActor()->SetInteractionEnabled(!bParticleEditorFocused);
+    }
+
+    if (bParticleEditorFocused)
     {
         return;
     }

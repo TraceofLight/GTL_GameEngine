@@ -115,6 +115,7 @@ public:
 	void CreateTextBillboardMesh();
 	void CreateTextBillboardTexture();
 	void PreLoadAnimStateMachines();
+	void PreLoadParticleSystems();
 
 	// --- 캐시 관리 ---
 	FMeshBVH* GetMeshBVH(const FString& ObjPath);

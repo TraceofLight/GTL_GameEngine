@@ -60,6 +60,7 @@ void UResourceManager::Initialize(ID3D11Device* InDevice, ID3D11DeviceContext* I
     CreateDefaultMaterial();
     CreateDefaultStaticMesh();
 	PreLoadAnimStateMachines();
+	PreLoadParticleSystems();
 }
 
 // 전체 해제
@@ -643,6 +644,37 @@ void UResourceManager::PreLoadAnimStateMachines()
 			FString PathStr = NormalizePath(WideToUTF8(WPathStr));
 
 			Load<UAnimStateMachine>(PathStr);
+		}
+	}
+}
+
+void UResourceManager::PreLoadParticleSystems()
+{
+	// Data 폴더 전체에서 .psys 파일 검색
+	FWideString WDataDir = UTF8ToWide(GDataDir);
+	const fs::path DataDir(WDataDir);
+
+	if (!fs::exists(DataDir) || !fs::is_directory(DataDir))
+	{
+		return;
+	}
+
+	for (const auto& Entry : fs::recursive_directory_iterator(DataDir))
+	{
+		if (!Entry.is_regular_file())
+			continue;
+
+		const fs::path& Path = Entry.path();
+
+		FWideString Extension = Path.extension().wstring();
+		std::ranges::transform(Extension, Extension.begin(), ::towlower);
+
+		if (Extension == L".psys")
+		{
+			FWideString WPathStr = Path.wstring();
+			FString PathStr = NormalizePath(WideToUTF8(WPathStr));
+
+			Load<UParticleSystem>(PathStr);
 		}
 	}
 }

@@ -184,6 +184,10 @@ private:
 	// 삭제 기능
 	void DeleteEmitter(UParticleSystem* System, int32 EmitterIndex);
 	void DeleteSelectedModule();
+
+	// 헬퍼: 모듈 추가 후 EmitterInstance 업데이트
+	void AddModuleAndUpdateInstances(class UParticleLODLevel* LODLevel, UParticleModule* Module);
+	void RefreshEmitterInstances();
 };
 
 /**

@@ -24,7 +24,7 @@ class UCameraComponent;
  * - 마우스 커서 제어
  * - 입력 우선순위 관리
  */
-UCLASS(DisplayName = "APlayerController", Description = "플레이어 입력을 처리하는 Controller 클래스입니다.")
+UCLASS(DisplayName = "플레이어 컨트롤러", Description = "플레이어 입력을 처리하는 컨트롤러 클래스입니다.")
 class APlayerController : public AController
 {
 public:

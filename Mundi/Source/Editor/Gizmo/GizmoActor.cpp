@@ -393,6 +393,12 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 
 void AGizmoActor::ProcessGizmoInteraction(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY)
 {
+	// Skip interaction when disabled (e.g., when Particle Editor is focused)
+	if (!bInteractionEnabled)
+	{
+		return;
+	}
+
 	if (!SelectionManager)
 	{
 		return;
@@ -565,6 +571,12 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 
 void AGizmoActor::ProcessGizmoModeSwitch()
 {
+	// Skip mode switch when interaction is disabled (e.g., when Particle Editor is focused)
+	if (!bInteractionEnabled)
+	{
+		return;
+	}
+
 	// 우클릭 드래그 중에는 기즈모 모드/스페이스 변경 불가
 	if (InputManager->IsMouseButtonDown(RightButton) || bIsDragging) // 드래그 중 변경 불가
 	{

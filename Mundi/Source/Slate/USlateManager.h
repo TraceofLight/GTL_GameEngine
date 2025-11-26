@@ -6,7 +6,6 @@
 #include "Windows/SViewportWindow.h"
 #include "Windows/PreviewWindow.h"
 #include "Windows/BlendSpace2DEditorWindow.h"
-#include "Windows/ParticlePreviewWindow.h"
 #include "Windows/ParticleEditorWindow.h"
 
 class SSceneIOWindow; // 새로 추가할 UI
@@ -93,15 +92,10 @@ public:
 	void CloseAnimStateMachineWindow();
 	bool IsAnimStateMachineWindowOpen() const { return SkeletalViewerWindow != nullptr; }
 
-	// Particle Preview Window 관리
-	void OpenParticlePreviewWindow();
-	void OpenParticlePreviewWindowWithFile(const char* FilePath);
-	void CloseParticlePreviewWindow();
-	bool IsParticlePreviewWindowOpen() const { return ParticlePreviewWindow != nullptr; }
-
-	// Particle Editor Window 관리 (Cascade 스타일)
+	// Particle Editor Window 관리
 	void OpenParticleEditorWindow();
 	void OpenParticleEditorWindowWithSystem(class UParticleSystem* System);
+	void OpenParticleEditorWindowWithFile(const char* FilePath);
 	void CloseParticleEditorWindow();
 	bool IsParticleEditorWindowOpen() const { return ParticleEditorWindow != nullptr; }
 
@@ -156,9 +150,6 @@ private:
 
     // Blend Space 2D Editor window
     SBlendSpace2DEditorWindow* BlendSpace2DEditorWindow = nullptr;
-
-    // Particle Preview window
-    SParticlePreviewWindow* ParticlePreviewWindow = nullptr;
 
     // Particle Editor window (Cascade 스타일)
     SParticleEditorWindow* ParticleEditorWindow = nullptr;

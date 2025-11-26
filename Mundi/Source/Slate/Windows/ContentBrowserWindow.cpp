@@ -472,10 +472,10 @@ void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 	}
 	else if (ext == ".psys")
 	{
-		// ParticlePreviewWindow 열기
+		// ParticleEditorWindow 열기
 		std::string pathStr = Entry.Path.string();
-		USlateManager::GetInstance().OpenParticlePreviewWindowWithFile(pathStr.c_str());
-		UE_LOG("Opening ParticlePreviewWindow for: %s", Entry.FileName.c_str());
+		USlateManager::GetInstance().OpenParticleEditorWindowWithFile(pathStr.c_str());
+		UE_LOG("Opening ParticleEditorWindow for: %s", Entry.FileName.c_str());
 	}
 	else if (ext == ".obj")
 	{

@@ -16,6 +16,7 @@
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "ImGui/imgui.h"
+#include "Source/Editor/PlatformProcess.h"
 
 // 파티클 모듈 헤더
 #include "Source/Runtime/Engine/Particle/Color/ParticleModuleColor.h"
@@ -25,6 +26,7 @@
 #include "Source/Runtime/Engine/Particle/Velocity/ParticleModuleVelocity.h"
 #include "Source/Runtime/Engine/Particle/TypeData/ParticleModuleTypeDataBase.h"
 #include "Source/Slate/Widgets/ParticleModuleDetailRenderer.h"
+#include "Source/Slate/Widgets/PropertyRenderer.h"
 
 extern float CLIENTWIDTH;
 extern float CLIENTHEIGHT;
@@ -499,7 +501,7 @@ void SParticleEditorWindow::LoadToolbarIcons()
 bool SParticleEditorWindow::RenderIconButton(const char* id, UTexture* icon, const char* label, const char* tooltip, bool bActive)
 {
 	const float IconSize = 24.0f;
-	const float ButtonWidth = 70.0f;
+	const float ButtonWidth = 75.0f;
 	const float ButtonHeight = 48.0f;
 
 	bool bClicked = false;
@@ -586,7 +588,7 @@ void SParticleEditorWindow::RenderToolbar()
 	}
 
 	// 툴바 스타일 설정
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(3, 2));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 2));
 
 	// 수직 구분선 그리기 헬퍼 람다
 	auto DrawVerticalSeparator = [&]()
@@ -608,13 +610,53 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	if (RenderIconButton("Save", IconSave, "Save", "Save Particle System"))
 	{
-		// TODO: 파티클 시스템 저장
+		if (ActiveState->CurrentSystem)
+		{
+			FString FilePath = ActiveState->CurrentSystem->GetFilePath();
+			if (FilePath.empty() || FilePath == "NewParticleSystem.psys")
+			{
+				// 경로가 없으면 다이얼로그 열기
+				std::filesystem::path SavePath = FPlatformProcess::OpenSaveFileDialog(
+					L"Data/Particle",
+					L".psys",
+					L"Particle System",
+					L"NewParticleSystem.psys"
+				);
+				if (!SavePath.empty())
+				{
+					FilePath = SavePath.string();
+				}
+			}
+
+			if (!FilePath.empty())
+			{
+				if (ActiveState->CurrentSystem->SaveToFile(FilePath))
+				{
+					ActiveState->LoadedSystemPath = FilePath;
+
+					// ResourceManager에 등록 (새 파일인 경우)
+					FString NormalizedPath = NormalizePath(FilePath);
+					UResourceManager::GetInstance().Add<UParticleSystem>(NormalizedPath, ActiveState->CurrentSystem);
+
+					// PropertyRenderer 캐시 클리어 (드롭다운 갱신)
+					UPropertyRenderer::ClearResourcesCache();
+				}
+			}
+		}
 	}
 
 	ImGui::SameLine();
 	if (RenderIconButton("Load", IconLoad, "Load", "Load Particle System"))
 	{
-		// TODO: 파일 다이얼로그 열기
+		std::filesystem::path LoadPath = FPlatformProcess::OpenLoadFileDialog(
+			L"Data/Particle",
+			L".psys",
+			L"Particle System"
+		);
+		if (!LoadPath.empty())
+		{
+			LoadParticleSystem(LoadPath.string());
+		}
 	}
 
 	DrawVerticalSeparator();
@@ -1226,6 +1268,12 @@ void SParticleEmittersPanel::RenderModuleStack(UParticleEmitter* Emitter, int32 
 		RenderModuleItem(static_cast<UParticleModule*>(LODLevel->SpawnModule), -2, EmitterIndex);
 	}
 
+	// TypeData 모듈 (Mesh, Beam 등)
+	if (LODLevel->TypeDataModule)
+	{
+		RenderModuleItem(static_cast<UParticleModule*>(LODLevel->TypeDataModule), -3, EmitterIndex);
+	}
+
 	ImGui::Separator();
 
 	// 일반 모듈들
@@ -1271,6 +1319,10 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 	else if (strstr(className, "Color"))
 	{
 		moduleColor = ImVec4(0.7f, 0.5f, 0.3f, 1.0f); // 주황색
+	}
+	else if (strstr(className, "TypeData"))
+	{
+		moduleColor = ImVec4(0.3f, 0.7f, 0.7f, 1.0f); // 청록색 (TypeData)
 	}
 	else
 	{
@@ -1426,6 +1478,9 @@ void SParticleEmittersPanel::AddNewEmitter(UParticleSystem* System)
 	// 시스템에 이미터 추가
 	System->Emitters.Add(NewEmitter);
 
+	// 시스템 빌드 (EmitterInstance 생성을 위해 필요)
+	System->BuildEmitters();
+
 	// 선택 상태 업데이트
 	ParticleViewerState* State = Owner->GetActiveState();
 	if (State)
@@ -1434,6 +1489,16 @@ void SParticleEmittersPanel::AddNewEmitter(UParticleSystem* System)
 		State->SelectedModuleIndex = -1;
 		State->SelectedEmitter = NewEmitter;
 		State->SelectedModule = nullptr;
+
+		// Preview Actor의 EmitterInstance 업데이트
+		if (State->PreviewActor)
+		{
+			UParticleSystemComponent* PSC = State->PreviewActor->GetParticleSystemComponent();
+			if (PSC)
+			{
+				PSC->UpdateInstances(true);
+			}
+		}
 	}
 }
 
@@ -1462,8 +1527,49 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 	// TypeData 서브메뉴
 	if (ImGui::BeginMenu("TypeData"))
 	{
+		// 현재 TypeData가 있는지 확인
+		bool bHasTypeData = (LODLevel->TypeDataModule != nullptr);
+		FString CurrentTypeStr = "None";
+		if (bHasTypeData)
+		{
+			if (LODLevel->TypeDataModule->IsA<UParticleModuleTypeDataMesh>())
+			{
+				CurrentTypeStr = "Mesh";
+			}
+			else
+			{
+				CurrentTypeStr = "Sprite";
+			}
+		}
+		ImGui::Text("Current: %s", CurrentTypeStr.c_str());
+		ImGui::Separator();
+
+		if (ImGui::MenuItem("Sprite (Default)"))
+		{
+			// TypeData 제거 (기본 스프라이트로)
+			if (LODLevel->TypeDataModule)
+			{
+				delete LODLevel->TypeDataModule;
+				LODLevel->TypeDataModule = nullptr;
+			}
+			RefreshEmitterInstances();
+		}
+		if (ImGui::MenuItem("Mesh"))
+		{
+			// 기존 TypeData 제거
+			if (LODLevel->TypeDataModule)
+			{
+				delete LODLevel->TypeDataModule;
+				LODLevel->TypeDataModule = nullptr;
+			}
+			// 새 Mesh TypeData 생성
+			UParticleModuleTypeDataMesh* MeshTypeData = new UParticleModuleTypeDataMesh();
+			MeshTypeData->SetOwnerSystem(State->CurrentSystem);
+			LODLevel->TypeDataModule = MeshTypeData;
+			RefreshEmitterInstances();
+		}
+		ImGui::Separator();
 		ImGui::MenuItem("GPU Sprites", nullptr, false, false); // TODO
-		ImGui::MenuItem("Mesh", nullptr, false, false); // TODO
 		ImGui::MenuItem("Beam", nullptr, false, false); // TODO
 		ImGui::MenuItem("Ribbon", nullptr, false, false); // TODO
 		ImGui::EndMenu();
@@ -1501,7 +1607,7 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 		if (ImGui::MenuItem("Initial Color"))
 		{
 			UParticleModuleColor* Module = new UParticleModuleColor();
-			LODLevel->Modules.Add(Module);
+			AddModuleAndUpdateInstances(LODLevel, Module);
 		}
 		ImGui::MenuItem("Color Over Life", nullptr, false, false); // TODO
 		ImGui::MenuItem("Scale Color/Life", nullptr, false, false); // TODO
@@ -1523,7 +1629,7 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 		if (ImGui::MenuItem("Lifetime"))
 		{
 			UParticleModuleLifetime* Module = new UParticleModuleLifetime();
-			LODLevel->Modules.Add(Module);
+			AddModuleAndUpdateInstances(LODLevel, Module);
 		}
 		ImGui::EndMenu();
 	}
@@ -1534,7 +1640,7 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 		if (ImGui::MenuItem("Initial Location"))
 		{
 			UParticleModuleLocation* Module = new UParticleModuleLocation();
-			LODLevel->Modules.Add(Module);
+			AddModuleAndUpdateInstances(LODLevel, Module);
 		}
 		ImGui::MenuItem("World Offset", nullptr, false, false); // TODO
 		ImGui::MenuItem("Bone/Socket Location", nullptr, false, false); // TODO
@@ -1580,7 +1686,7 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 		if (ImGui::MenuItem("Initial Size"))
 		{
 			UParticleModuleSize* Module = new UParticleModuleSize();
-			LODLevel->Modules.Add(Module);
+			AddModuleAndUpdateInstances(LODLevel, Module);
 		}
 		ImGui::MenuItem("Size By Life", nullptr, false, false); // TODO
 		ImGui::MenuItem("Size Scale", nullptr, false, false); // TODO
@@ -1620,7 +1726,7 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 		if (ImGui::MenuItem("Initial Velocity"))
 		{
 			UParticleModuleVelocity* Module = new UParticleModuleVelocity();
-			LODLevel->Modules.Add(Module);
+			AddModuleAndUpdateInstances(LODLevel, Module);
 		}
 		ImGui::MenuItem("Velocity Over Life", nullptr, false, false); // TODO
 		ImGui::MenuItem("Inherit Parent Velocity", nullptr, false, false); // TODO
@@ -1720,6 +1826,9 @@ void SParticleEmittersPanel::DeleteEmitter(UParticleSystem* System, int32 Emitte
 		State->SelectedModuleIndex = -1;
 		State->SelectedEmitter = nullptr;
 		State->SelectedModule = nullptr;
+
+		// EmitterInstance 업데이트
+		RefreshEmitterInstances();
 	}
 }
 
@@ -1780,6 +1889,45 @@ void SParticleEmittersPanel::DeleteSelectedModule()
 	// 선택 상태 초기화
 	State->SelectedModuleIndex = -1;
 	State->SelectedModule = nullptr;
+
+	// EmitterInstance 업데이트
+	RefreshEmitterInstances();
+}
+
+void SParticleEmittersPanel::AddModuleAndUpdateInstances(UParticleLODLevel* LODLevel, UParticleModule* Module)
+{
+	if (!LODLevel || !Module)
+	{
+		return;
+	}
+
+	LODLevel->Modules.Add(Module);
+	RefreshEmitterInstances();
+}
+
+void SParticleEmittersPanel::RefreshEmitterInstances()
+{
+	ParticleViewerState* State = Owner->GetActiveState();
+	if (!State)
+	{
+		return;
+	}
+
+	// 시스템 리빌드
+	if (State->CurrentSystem)
+	{
+		State->CurrentSystem->BuildEmitters();
+	}
+
+	// Preview Actor의 EmitterInstance 업데이트
+	if (State->PreviewActor)
+	{
+		UParticleSystemComponent* PSC = State->PreviewActor->GetParticleSystemComponent();
+		if (PSC)
+		{
+			PSC->UpdateInstances(true);
+		}
+	}
 }
 
 // ============================================================================

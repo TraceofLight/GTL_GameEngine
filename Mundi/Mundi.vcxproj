@@ -556,7 +556,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Slate\Windows\ControlPanelWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ExperimentalFeatureWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ParticleEditorWindow.cpp" />
-    <ClCompile Include="Source\Slate\Windows\ParticlePreviewWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\PropertyWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\AnimStateMachineWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SceneWindow.cpp" />
@@ -900,7 +899,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Slate\Windows\ControlPanelWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ExperimentalFeatureWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ParticleEditorWindow.h" />
-    <ClInclude Include="Source\Slate\Windows\ParticlePreviewWindow.h" />
     <ClInclude Include="Source\Slate\Windows\PropertyWindow.h" />
     <ClInclude Include="Source\Slate\Windows\AnimStateMachineWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SceneWindow.h" />

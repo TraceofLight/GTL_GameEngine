@@ -20,6 +20,7 @@
 #include "Source/Runtime/AssetManagement/StaticMesh.h"
 #include "Source/Runtime/Renderer/Material.h"
 #include "Source/Runtime/Engine/Components/BillboardComponent.h"
+#include "Source/Editor/Gizmo/GizmoArrowComponent.h"
 
 /**
  * 생성자: 파티클 시스템 컴포넌트 초기화
@@ -77,6 +78,28 @@ void UParticleSystemComponent::OnRegister(UWorld* InWorld)
 	{
 		CREATE_EDITOR_COMPONENT(SpriteComponent, UBillboardComponent);
 		SpriteComponent->SetTexture(GDataDir + "/Default/Icon/S_Emitter.PNG");
+	}
+
+	// PIE가 아닐 때만 에디터 전용 방향 기즈모 생성 (초록색 화살표)
+	if (!DirectionGizmo && InWorld && !InWorld->bPie)
+	{
+		CREATE_EDITOR_COMPONENT(DirectionGizmo, UGizmoArrowComponent);
+
+		// 기즈모 메쉬 설정 (DirectionalLight와 동일한 화살표)
+		DirectionGizmo->SetStaticMesh(GDataDir + "/Default/Gizmo/TranslationHandle.obj");
+		DirectionGizmo->SetMaterialByName(0, "Shaders/UI/Gizmo.hlsl");
+
+		// 월드 스케일 사용 (스크린 상수 스케일 아님)
+		DirectionGizmo->SetUseScreenConstantScale(false);
+
+		// 기본 스케일 설정
+		DirectionGizmo->SetDefaultScale(FVector(2.0f, 2.0f, 2.0f));
+
+		// 초록색 기즈모
+		DirectionGizmo->SetColor(FVector(0.2f, 0.8f, 0.2f));
+
+		// 기즈모 업데이트
+		UpdateDirectionGizmo();
 	}
 }
 
@@ -576,6 +599,7 @@ void UParticleSystemComponent::DuplicateSubObjects()
 
 	// 에디터 전용 컴포넌트는 복제하지 않음 (OnRegister에서 재생성)
 	SpriteComponent = nullptr;
+	DirectionGizmo = nullptr;
 
 	if (Template)
 	{
@@ -889,4 +913,22 @@ UParticleSystem* UParticleSystemComponent::CreateAppleMeshParticleSystem()
 	ParticleSystem->BuildEmitters();
 
 	return ParticleSystem;
+}
+
+// ============== Direction Gizmo ==============
+
+/**
+ * 방향 기즈모 업데이트 (파티클 시스템의 Forward 방향 표시)
+ */
+void UParticleSystemComponent::UpdateDirectionGizmo()
+{
+	if (!DirectionGizmo)
+	{
+		return;
+	}
+
+	// Forward 방향 계산 (Z-Up Left-handed 좌표계에서 X축이 Forward)
+	FQuat Rotation = GetWorldRotation();
+	FVector ForwardDir = Rotation.RotateVector(FVector(1.0f, 0.0f, 0.0f));
+	DirectionGizmo->SetDirection(ForwardDir);
 }

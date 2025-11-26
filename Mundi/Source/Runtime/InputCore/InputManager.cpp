@@ -303,12 +303,13 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
         
     case WM_KEYUP:
     case WM_SYSKEYUP:
-        if (!IsKeyBoardCapture)  // ImGui가 키보드를 사용하지 않을 때만
+        // 키 릴리즈는 항상 처리 (키가 눌린 상태로 고정되는 것을 방지)
+        // ImGui가 키보드를 캡처 중이더라도 키를 뗀 것은 반영해야 함
         {
             // Virtual Key Code 추출
             int KeyCode = static_cast<int>(wParam);
             UpdateKeyState(KeyCode, false);
-            
+
             // 디버그 출력
             if (bEnableDebugLogging)
             {

@@ -10,8 +10,13 @@
 #include "Source/Runtime/Engine/Particle/Location/ParticleModuleLocation.h"
 #include "Source/Runtime/Engine/Particle/Size/ParticleModuleSize.h"
 #include "Source/Runtime/Engine/Particle/Velocity/ParticleModuleVelocity.h"
+#include "Source/Runtime/Engine/Particle/TypeData/ParticleModuleTypeDataBase.h"
 #include "Source/Runtime/Engine/Particle/ParticleEmitter.h"
 #include "Source/Runtime/Engine/Particle/ParticleTypes.h"
+#include "Source/Runtime/Renderer/Material.h"
+#include "Source/Runtime/AssetManagement/ResourceManager.h"
+#include "Source/Runtime/AssetManagement/StaticMesh.h"
+#include "Source/Editor/PlatformProcess.h"
 
 // ============================================================================
 // 섹션 헬퍼
@@ -324,6 +329,10 @@ void UParticleModuleDetailRenderer::RenderModuleDetails(UParticleModule* Module)
 	{
 		RenderVelocityModule(Velocity);
 	}
+	else if (UParticleModuleTypeDataMesh* TypeDataMesh = Cast<UParticleModuleTypeDataMesh>(Module))
+	{
+		RenderTypeDataMeshModule(TypeDataMesh);
+	}
 	else
 	{
 		// 기본 모듈 정보
@@ -384,8 +393,59 @@ void UParticleModuleDetailRenderer::RenderRequiredModule(UParticleModuleRequired
 	// Emitter 섹션
 	if (BeginSection("Emitter", true))
 	{
-		// Material (TODO: Material 선택 UI)
-		ImGui::Text("Material: %s", Module->GetMaterial() ? "Set" : "None");
+		// Material 선택 UI
+		UMaterial* CurrentMaterial = Module->GetMaterial();
+		FString MaterialName = "None";
+		if (CurrentMaterial)
+		{
+			MaterialName = CurrentMaterial->GetFilePath();
+			// 경로에서 파일명만 추출
+			size_t LastSlash = MaterialName.find_last_of("/\\");
+			if (LastSlash != FString::npos)
+			{
+				MaterialName = MaterialName.substr(LastSlash + 1);
+			}
+		}
+
+		ImGui::Text("Material:");
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 80.0f);
+		ImGui::InputText("##MaterialPath", const_cast<char*>(MaterialName.c_str()), MaterialName.size(), ImGuiInputTextFlags_ReadOnly);
+		ImGui::SameLine();
+		if (ImGui::Button("Browse##Material", ImVec2(70, 0)))
+		{
+			std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(
+				L"Data",
+				L".dds",
+				L"Texture Files (*.dds;*.png;*.jpg)"
+			);
+			if (!SelectedPath.empty())
+			{
+				FString TexturePath = SelectedPath.string();
+				// 경로 정규화
+				for (char& c : TexturePath)
+				{
+					if (c == '\\')
+					{
+						c = '/';
+					}
+				}
+				// 텍스처를 머티리얼로 로드
+				UMaterial* NewMaterial = UResourceManager::GetInstance().Load<UMaterial>(TexturePath);
+				if (NewMaterial)
+				{
+					Module->SetMaterial(NewMaterial);
+				}
+			}
+		}
+		if (CurrentMaterial)
+		{
+			ImGui::SameLine();
+			if (ImGui::Button("X##ClearMaterial", ImVec2(20, 0)))
+			{
+				Module->SetMaterial(nullptr);
+			}
+		}
 
 		// Screen Alignment
 		EParticleScreenAlignment Alignment = Module->GetScreenAlignment();
@@ -668,5 +728,125 @@ void UParticleModuleDetailRenderer::RenderVelocityModule(UParticleModuleVelocity
 
 		// World Space
 		ImGui::Checkbox("In World Space", &Module->bInWorldSpace);
+	}
+}
+
+// ============================================================================
+// TypeData Mesh 모듈 렌더링
+// ============================================================================
+
+void UParticleModuleDetailRenderer::RenderTypeDataMeshModule(UParticleModuleTypeDataMesh* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	// Mesh 섹션
+	if (BeginSection("Mesh Data", true))
+	{
+		// Mesh 선택 UI
+		UStaticMesh* CurrentMesh = Module->Mesh;
+		FString MeshName = "None";
+		if (CurrentMesh)
+		{
+			MeshName = CurrentMesh->GetFilePath();
+			// 경로에서 파일명만 추출
+			size_t LastSlash = MeshName.find_last_of("/\\");
+			if (LastSlash != FString::npos)
+			{
+				MeshName = MeshName.substr(LastSlash + 1);
+			}
+		}
+
+		ImGui::Text("Mesh:");
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 80.0f);
+		ImGui::InputText("##MeshPath", const_cast<char*>(MeshName.c_str()), MeshName.size(), ImGuiInputTextFlags_ReadOnly);
+		ImGui::SameLine();
+		if (ImGui::Button("Browse##Mesh", ImVec2(70, 0)))
+		{
+			std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(
+				L"Data",
+				L".obj",
+				L"Mesh Files (*.obj;*.fbx)"
+			);
+			if (!SelectedPath.empty())
+			{
+				FString MeshPath = SelectedPath.string();
+				// 경로 정규화
+				for (char& c : MeshPath)
+				{
+					if (c == '\\')
+					{
+						c = '/';
+					}
+				}
+				// 메시 로드
+				UStaticMesh* NewMesh = UResourceManager::GetInstance().Load<UStaticMesh>(MeshPath);
+				if (NewMesh)
+				{
+					Module->Mesh = NewMesh;
+					Module->OnMeshChanged();
+				}
+			}
+		}
+		if (CurrentMesh)
+		{
+			ImGui::SameLine();
+			if (ImGui::Button("X##ClearMesh", ImVec2(20, 0)))
+			{
+				Module->Mesh = nullptr;
+				Module->OnMeshChanged();
+			}
+		}
+	}
+
+	// Rendering 섹션
+	if (BeginSection("Rendering", true))
+	{
+		// Cast Shadows
+		if (ImGui::Checkbox("Cast Shadows", &Module->bCastShadows))
+		{
+			Module->OnMeshChanged();
+		}
+
+		// Override Material
+		if (ImGui::Checkbox("Override Material", &Module->bOverrideMaterial))
+		{
+			Module->OnMeshChanged();
+		}
+
+		// Mesh Alignment
+		const char* AlignmentItems[] = { "None", "Z-Axis", "X-Axis", "Y-Axis" };
+		int32 CurrentAlignment = static_cast<int32>(Module->MeshAlignment);
+		if (ImGui::Combo("Mesh Alignment", &CurrentAlignment, AlignmentItems, IM_ARRAYSIZE(AlignmentItems)))
+		{
+			Module->MeshAlignment = static_cast<EParticleAxisLock>(CurrentAlignment);
+			Module->OnMeshChanged();
+		}
+	}
+
+	// Rotation Offset 섹션
+	if (BeginSection("Rotation Offset", true))
+	{
+		if (ImGui::DragFloat("Pitch", &Module->Pitch, 1.0f, -180.0f, 180.0f, "%.1f"))
+		{
+			Module->OnMeshChanged();
+		}
+		if (ImGui::DragFloat("Yaw", &Module->Yaw, 1.0f, -180.0f, 180.0f, "%.1f"))
+		{
+			Module->OnMeshChanged();
+		}
+		if (ImGui::DragFloat("Roll", &Module->Roll, 1.0f, -180.0f, 180.0f, "%.1f"))
+		{
+			Module->OnMeshChanged();
+		}
+	}
+
+	// Collision 섹션
+	if (BeginSection("Collision", false))
+	{
+		ImGui::Checkbox("Do Collisions", &Module->DoCollisions);
 	}
 }

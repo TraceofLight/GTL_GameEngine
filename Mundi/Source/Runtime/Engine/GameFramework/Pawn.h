@@ -21,13 +21,13 @@ class UInputComponent;
  * - 입력 바인딩 설정 (SetupPlayerInputComponent)
  * - 기본 이동 입력 처리
  */
-UCLASS(DisplayName = "APawn", Description = "Pawn 클래스")
+UCLASS(DisplayName = "폰", Description = "Controller에 의해 빙의될 수 있는 액터입니다")
 class APawn : public AActor
 {
 public:
-	
+
 	GENERATED_REFLECTION_BODY()
-	
+
 
 	APawn();
 	virtual ~APawn() override;

@@ -4,6 +4,10 @@
 #include "ParticleSystemActor.h"
 #include "ParticleSystemComponent.h"
 #include "CameraActor.h"
+#include "AmbientLightActor.h"
+#include "DirectionalLightActor.h"
+#include "Source/Runtime/Engine/Components/AmbientLightComponent.h"
+#include "Source/Runtime/Engine/Components/DirectionalLightComponent.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "Source/Runtime/Core/Object/ObjectFactory.h"
@@ -41,6 +45,36 @@ ParticleViewerState* ParticleViewerBootstrap::CreateViewerState(const char* Name
 	if (Camera)
 	{
 		Camera->SetActorLocation(FVector(5, 0, 2));
+	}
+
+	// 프리뷰 라이팅 설정 (UE Cascade 스타일)
+	// Ambient Light - 전역 조명
+	AAmbientLightActor* AmbientLight = State->World->SpawnActor<AAmbientLightActor>();
+	if (AmbientLight)
+	{
+		UAmbientLightComponent* AmbientComp = AmbientLight->GetLightComponent();
+		if (AmbientComp)
+		{
+			AmbientComp->SetIntensity(0.5f);
+			AmbientComp->SetLightColor(FLinearColor(0.3f, 0.35f, 0.4f, 1.0f));
+		}
+	}
+
+	// Directional Light - 주 광원 (UE 기본 회전: Pitch=304.736, Yaw=39.84)
+	ADirectionalLightActor* DirectionalLight = State->World->SpawnActor<ADirectionalLightActor>();
+	if (DirectionalLight)
+	{
+		// 위에서 비스듬히 비추는 각도 설정 (Roll=-55도, Yaw=40도)
+		FQuat LightRotation = FQuat::MakeFromEulerZYX(FVector(-55.0f, 40.0f, 0.0f));
+		DirectionalLight->SetActorRotation(LightRotation);
+
+		UDirectionalLightComponent* DirLightComp = DirectionalLight->GetLightComponent();
+		if (DirLightComp)
+		{
+			DirLightComp->SetIntensity(1.5f);
+			DirLightComp->SetLightColor(FLinearColor(1.0f, 0.98f, 0.95f, 1.0f));
+			DirLightComp->SetCastShadows(false);  // 프리뷰에서는 그림자 비활성화
+		}
 	}
 
 	// 프리뷰 ParticleSystemActor 스폰
