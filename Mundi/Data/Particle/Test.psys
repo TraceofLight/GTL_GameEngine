@@ -1,0 +1,146 @@
+{
+  "Delay" : 0.000000,
+  "Emitters" : [{
+      "DetailMode" : 0,
+      "EmitterEditorColor" : [0.950000, 0.500000, 0.460000, 1.000000],
+      "EmitterName" : "New Sprite Emitter",
+      "EmitterRenderMode" : 0,
+      "InitialAllocationCount" : 0,
+      "LODLevels" : [{
+          "Level" : 0,
+          "Modules" : [{
+              "LODValidity" : 255,
+              "ModuleType" : "UParticleModuleVelocity",
+              "StartVelocity" : {
+                "Max" : [0.000000, 0.000000, 3.000000],
+                "Min" : [0.000000, 0.000000, 1.000000],
+                "bIsUniform" : false
+              },
+              "StartVelocityRadial" : {
+                "Max" : 0.000000,
+                "Min" : 0.000000,
+                "bIsUniform" : true
+              },
+              "b3DDrawMode" : false,
+              "bFinalUpdateModule" : false,
+              "bInWorldSpace" : false,
+              "bSpawnModule" : true,
+              "bSupported3DDrawMode" : false,
+              "bUpdateModule" : false
+            }, {
+              "LODValidity" : 255,
+              "ModuleType" : "UParticleModuleLocation",
+              "StartLocation" : {
+                "Max" : [0.000000, 0.000000, 0.000000],
+                "Min" : [0.000000, 0.000000, 0.000000],
+                "bIsUniform" : true
+              },
+              "b3DDrawMode" : false,
+              "bFinalUpdateModule" : false,
+              "bSpawnModule" : true,
+              "bSupported3DDrawMode" : false,
+              "bUpdateModule" : false
+            }, {
+              "LODValidity" : 255,
+              "Lifetime" : {
+                "Max" : 3.250000,
+                "Min" : 1.000000,
+                "bIsUniform" : false
+              },
+              "ModuleType" : "UParticleModuleLifetime",
+              "b3DDrawMode" : false,
+              "bFinalUpdateModule" : false,
+              "bSpawnModule" : true,
+              "bSupported3DDrawMode" : false,
+              "bUpdateModule" : false
+            }, {
+              "LODValidity" : 255,
+              "ModuleType" : "UParticleModuleSize",
+              "StartSize" : {
+                "Max" : [1.000000, 1.000000, 1.000000],
+                "Min" : [1.000000, 1.000000, 1.000000],
+                "bIsUniform" : false
+              },
+              "b3DDrawMode" : false,
+              "bFinalUpdateModule" : false,
+              "bSpawnModule" : true,
+              "bSupported3DDrawMode" : false,
+              "bUpdateModule" : false
+            }],
+          "PeakActiveParticles" : 60,
+          "RequiredModule" : {
+            "AxisLockOption" : 0,
+            "EmitterDuration" : 3.000000,
+            "EmitterDurationLow" : 2.000000,
+            "EmitterLoops" : 1,
+            "EmitterNormalsMode" : 0,
+            "InterpolationMethod" : 0,
+            "LODValidity" : 255,
+            "MaterialPath" : "C:/Users/Jungle/Documents/Projects/gtl_w12_team7/Mundi/DerivedDataCache/Textures/Boom.png.dds",
+            "MaxDrawCount" : 500,
+            "ModuleType" : "UParticleModuleRequired",
+            "ScreenAlignment" : 0,
+            "SortMode" : 0,
+            "SubImages_Horizontal" : 1,
+            "SubImages_Vertical" : 1,
+            "b3DDrawMode" : false,
+            "bDurationRecalcEachLoop" : false,
+            "bFinalUpdateModule" : false,
+            "bKillOnCompleted" : false,
+            "bKillOnDeactivate" : false,
+            "bSpawnModule" : false,
+            "bSupported3DDrawMode" : false,
+            "bUpdateModule" : false,
+            "bUseLocalSpace" : false
+          },
+          "SpawnModule" : {
+            "BurstList" : [],
+            "BurstMethod" : 0,
+            "BurstScale" : {
+              "Max" : 1.000000,
+              "Min" : 1.000000,
+              "bIsUniform" : true
+            },
+            "LODValidity" : 255,
+            "ModuleType" : "UParticleModuleSpawn",
+            "Rate" : {
+              "Max" : 30.000000,
+              "Min" : 10.000000,
+              "bIsUniform" : false
+            },
+            "RateScale" : {
+              "Max" : 1.000000,
+              "Min" : 1.000000,
+              "bIsUniform" : true
+            },
+            "b3DDrawMode" : false,
+            "bFinalUpdateModule" : false,
+            "bProcessBurstList" : false,
+            "bProcessSpawnRate" : true,
+            "bSpawnModule" : false,
+            "bSupported3DDrawMode" : false,
+            "bUpdateModule" : false
+          },
+          "bEnabled" : true
+        }],
+      "bCollapsed" : false,
+      "bDisabledLODsKeepEmitterAlive" : false,
+      "bIsSoloing" : false
+    }],
+  "FileType" : "ParticleSystem",
+  "FixedRelativeBoundingBox" : [0.000000, 0.000000, 0.000000],
+  "LODDistanceCheckTime" : 0.250000,
+  "LODDistances" : [1000.000000],
+  "LODMethod" : 0,
+  "SecondsBeforeInactive" : 1.000000,
+  "SystemUpdateMode" : 0,
+  "UpdateTime_Delta" : 0.000000,
+  "UpdateTime_FPS" : 0.000000,
+  "Version" : 1,
+  "WarmupTickRate" : 0,
+  "WarmupTime" : 0.000000,
+  "bAutoDeactivate" : true,
+  "bOrientZAxisTowardCamera" : false,
+  "bRegenerateLODDuplicate" : false,
+  "bUseFixedRelativeBoundingBox" : false
+}

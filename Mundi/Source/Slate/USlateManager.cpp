@@ -891,19 +891,21 @@ void USlateManager::OnMouseMove(FVector2D MousePos)
 
 void USlateManager::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
-    if (SkeletalViewerWindow && SkeletalViewerWindow->Rect.Contains(MousePos))
+    // 플로팅 윈도우가 열려있고 마우스가 그 영역 안에 있으면 해당 윈도우에 이벤트 전달
+    // IsOpen 체크를 추가하여 윈도우가 실제로 열려있는지 확인
+    if (SkeletalViewerWindow && SkeletalViewerWindow->IsOpen() && SkeletalViewerWindow->Rect.Contains(MousePos))
     {
         SkeletalViewerWindow->OnMouseDown(MousePos, Button);
         return;
     }
 
-    if (BlendSpace2DEditorWindow && BlendSpace2DEditorWindow->Rect.Contains(MousePos))
+    if (BlendSpace2DEditorWindow && BlendSpace2DEditorWindow->IsOpen() && BlendSpace2DEditorWindow->Rect.Contains(MousePos))
     {
         BlendSpace2DEditorWindow->OnMouseDown(MousePos, Button);
         return;
     }
 
-    if (ParticleEditorWindow && ParticleEditorWindow->Rect.Contains(MousePos))
+    if (ParticleEditorWindow && ParticleEditorWindow->IsOpen() && ParticleEditorWindow->Rect.Contains(MousePos))
     {
         ParticleEditorWindow->OnMouseDown(MousePos, Button);
         return;

@@ -36,6 +36,7 @@ ParticleViewerState* ParticleViewerBootstrap::CreateViewerState(const char* Name
 	Client->SetWorld(State->World);
 	Client->SetViewportType(EViewportType::Perspective);
 	Client->SetViewMode(EViewMode::VMI_Lit_Phong);
+	Client->SetPickingEnabled(false);  // 플로팅 윈도우에서는 피킹 비활성화
 
 	State->Client = Client;
 	State->Viewport->SetViewportClient(Client);

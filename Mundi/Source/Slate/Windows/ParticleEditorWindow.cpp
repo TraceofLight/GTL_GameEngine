@@ -1140,6 +1140,12 @@ void SParticleEmittersPanel::OnRender()
 		{
 			State->CurrentSystem = new UParticleSystem();
 			State->CurrentSystem->SetFilePath("NewParticleSystem.psys");
+
+			// PreviewActor에도 설정하여 렌더링되도록 함
+			if (State->PreviewActor)
+			{
+				State->PreviewActor->SetParticleSystem(State->CurrentSystem);
+			}
 		}
 
 		UParticleSystem* System = State->CurrentSystem;
