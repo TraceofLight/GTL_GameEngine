@@ -111,7 +111,7 @@ public:
 	void SetBlendMode(EParticleBlendMode InMode) { BlendMode = InMode; }
 
 protected:
-	UMaterial* Material;
+	UMaterial* Material = nullptr;
 	float EmitterDuration;
 	float EmitterDurationLow;
 	int32 EmitterLoops;
