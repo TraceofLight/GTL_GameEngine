@@ -45,7 +45,7 @@ public:
 	bool bShowBounds = false;
 	bool bShowOriginAxis = true;
 	bool bShowGrid = true;
-	float BackgroundColor[3] = { 0.1f, 0.1f, 0.1f };
+	float BackgroundColor[3] = { 0.0f, 0.0f, 0.0f };
 
 	// View Overlays
 	bool bShowParticleCounts = false;

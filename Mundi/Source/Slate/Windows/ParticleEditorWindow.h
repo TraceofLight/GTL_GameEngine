@@ -13,6 +13,145 @@ class ParticleViewerState;
 struct ID3D11Device;
 class UTexture;
 
+// ============================================================================
+// Curve Editor Data Structures
+// ============================================================================
+
+/**
+ * @brief 커브 보간 모드
+ */
+enum class EInterpMode : uint8
+{
+	Linear,      // 선형 보간
+	Constant,    // 상수 (계단식)
+	Cubic        // 3차 베지어 곡선
+};
+
+/**
+ * @brief 탄젠트 모드
+ */
+enum class ETangentMode : uint8
+{
+	Auto,           // 자동 탄젠트 (부드러운 곡선)
+	User,           // 사용자 정의
+	Break,          // 탄젠트 분리 (입력/출력 독립)
+	AutoClamped     // 클램핑된 자동 탄젠트
+};
+
+/**
+ * @brief 커브 키프레임 데이터
+ */
+struct FCurveKey
+{
+	float Time;              // X축: 시간
+	float Value;             // Y축: 값
+	EInterpMode InterpMode;  // 보간 모드
+	ETangentMode TangentMode; // 탄젠트 모드
+	float ArriveTangent;     // 입력 탄젠트
+	float LeaveTangent;      // 출력 탄젠트
+	bool bSelected;          // 선택 상태
+
+	FCurveKey()
+		: Time(0.0f)
+		, Value(0.0f)
+		, InterpMode(EInterpMode::Cubic)
+		, TangentMode(ETangentMode::Auto)
+		, ArriveTangent(0.0f)
+		, LeaveTangent(0.0f)
+		, bSelected(false)
+	{
+	}
+
+	FCurveKey(float InTime, float InValue)
+		: Time(InTime)
+		, Value(InValue)
+		, InterpMode(EInterpMode::Cubic)
+		, TangentMode(ETangentMode::Auto)
+		, ArriveTangent(0.0f)
+		, LeaveTangent(0.0f)
+		, bSelected(false)
+	{
+	}
+};
+
+/**
+ * @brief 커브 데이터 (속성 1개)
+ */
+struct FCurveData
+{
+	TArray<FCurveKey> Keys;      // 키프레임 배열 (시간 순 정렬)
+	FLinearColor Color;          // 커브 색상
+	FString PropertyName;        // 속성 이름 (예: "StartVelocityRadial")
+	bool bVisible;               // 표시 여부
+	bool bSelected;              // 선택 상태
+	class UParticleModule* OwnerModule;  // 이 커브를 소유한 모듈 인스턴스
+
+	FCurveData()
+		: Color(1.0f, 1.0f, 1.0f, 1.0f)
+		, bVisible(true)
+		, bSelected(false)
+		, OwnerModule(nullptr)
+	{
+	}
+
+	FCurveData(const FString& InName, const FLinearColor& InColor)
+		: Color(InColor)
+		, PropertyName(InName)
+		, bVisible(true)
+		, bSelected(false)
+		, OwnerModule(nullptr)
+	{
+	}
+};
+
+/**
+ * @brief 커브 에디터 선택 상태
+ */
+struct FCurveEditorSelection
+{
+	int32 CurveIndex;            // 선택된 커브 인덱스 (-1이면 없음)
+	TArray<int32> SelectedKeys;  // 선택된 키 인덱스들
+
+	// 드래그 상태
+	enum class EDragType : uint8
+	{
+		None,
+		Key,              // 키 드래그
+		ArriveTangent,    // 입력 탄젠트 핸들
+		LeaveTangent      // 출력 탄젠트 핸들
+	};
+
+	EDragType DragType;
+	int32 DragKeyIndex;          // 드래그 중인 키 인덱스
+	ImVec2 DragStartPos;         // 드래그 시작 위치 (스크린 좌표)
+
+	FCurveEditorSelection()
+		: CurveIndex(-1)
+		, DragType(EDragType::None)
+		, DragKeyIndex(-1)
+		, DragStartPos(0, 0)
+	{
+	}
+
+	void ClearSelection()
+	{
+		CurveIndex = -1;
+		SelectedKeys.clear();
+	}
+
+	bool IsKeySelected(int32 KeyIndex) const
+	{
+		for (int32 Idx : SelectedKeys)
+		{
+			if (Idx == KeyIndex)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+};
+
 // Forward declarations for panel classes
 class SParticleViewportPanel;
 class SParticleDetailPanel;
@@ -59,6 +198,7 @@ public:
 
 	// 패널 접근용 (친구 클래스나 콜백을 위해)
 	ParticleViewerState* GetActiveState() const { return ActiveState; }
+	SParticleCurveEditorPanel* GetCurveEditorPanel() const { return CurveEditorPanel; }
 
 	// 렌더 타겟 관리
 	void UpdateViewportRenderTarget(uint32 NewWidth, uint32 NewHeight);
@@ -146,11 +286,7 @@ private:
 	bool bIsOpen = true;
 	bool bInitialPlacementDone = false;
 	bool bRequestFocus = false;
-	bool bShowColorPicker = false;
 	bool bIsFocused = false;
-
-	// 에디터 상태
-	float BackgroundColor[3] = { 0.1f, 0.1f, 0.1f };
 
 	// 전용 렌더 타겟 (파티클 프리뷰용)
 	ID3D11Texture2D* PreviewRenderTargetTexture = nullptr;
@@ -239,6 +375,67 @@ public:
 	SParticleCurveEditorPanel(SParticleEditorWindow* InOwner);
 	virtual void OnRender() override;
 
+	// 커브 관리
+	void AddCurve(const FString& PropertyName, const FLinearColor& Color, class UParticleModule* OwnerModule = nullptr);
+	void RemoveCurve(const FString& PropertyName);
+	void RemoveAllCurves();
+	void RemoveAllCurvesForModule(const FString& ModuleName);
+	bool HasCurve(const FString& PropertyName) const;
+
 private:
 	SParticleEditorWindow* Owner = nullptr;
+
+	// 커브 데이터
+	TArray<FCurveData> Curves;           // 등록된 커브 목록
+	FCurveEditorSelection Selection;     // 선택 상태
+
+	// 뷰 상태
+	float ViewMinX = -0.1f;              // 보이는 시간 범위 (최소)
+	float ViewMaxX = 1.1f;               // 보이는 시간 범위 (최대)
+	float ViewMinY = -0.5f;              // 보이는 값 범위 (최소)
+	float ViewMaxY = 1.5f;               // 보이는 값 범위 (최대)
+
+	// 툴바 상태
+	bool bPanMode = true;                // 패닝 모드 (기본 ON)
+	bool bZoomMode = false;              // 줌 모드
+	bool bShowAll = true;                // 모든 커브 표시
+
+	// 마우스 입력 상태
+	ImVec2 PanStartMousePos;             // 패닝 시작 위치
+	float PanStartViewMinX, PanStartViewMaxX;
+	float PanStartViewMinY, PanStartViewMaxY;
+	bool bIsPanning = false;
+
+	// 툴바 아이콘
+	UTexture* IconHorizontal = nullptr;
+	UTexture* IconVertical = nullptr;
+	UTexture* IconFit = nullptr;
+	UTexture* IconPan = nullptr;
+	UTexture* IconZoom = nullptr;
+	UTexture* IconAuto = nullptr;
+	UTexture* IconUser = nullptr;
+	UTexture* IconBreak = nullptr;
+	UTexture* IconLinear = nullptr;
+	UTexture* IconConstant = nullptr;
+	UTexture* IconFlatten = nullptr;
+	UTexture* IconStraighten = nullptr;
+	UTexture* IconShowAll = nullptr;
+	UTexture* IconCreate = nullptr;
+	UTexture* IconDelete = nullptr;
+
+	// 헬퍼 함수
+	void LoadIcons();
+	ImVec2 CurveToScreen(float Time, float Value, const ImVec2& CanvasPos, const ImVec2& CanvasSize) const;
+	void ScreenToCurve(const ImVec2& ScreenPos, const ImVec2& CanvasPos, const ImVec2& CanvasSize, float& OutTime, float& OutValue) const;
+	void FitView();
+	void FitViewHorizontal();
+	void FitViewVertical();
+	void RenderToolbar();
+	void RenderCurveList();
+	void RenderCurveGrid();
+	void HandleMouseInput(const ImVec2& CanvasPos, const ImVec2& CanvasSize);
+	void RenderCurve(const FCurveData& Curve, const ImVec2& CanvasPos, const ImVec2& CanvasSize, ImDrawList* DrawList);
+	void RenderKeys(const FCurveData& Curve, int32 CurveIndex, const ImVec2& CanvasPos, const ImVec2& CanvasSize, ImDrawList* DrawList);
+	void UpdateModuleFromCurve(int32 CurveIndex);
+	FLinearColor GetColorFromModuleInstance(class UParticleModule* Module);
 };

@@ -41,6 +41,10 @@ public:
     void SetSkinningMode(ESkinningMode In) { SkinningMode = In; }
     ESkinningMode GetSkinningMode() const { return SkinningMode; }
 
+    // Background Color (for preview windows)
+    void SetBackgroundColor(float R, float G, float B) { BackgroundColor[0] = R; BackgroundColor[1] = G; BackgroundColor[2] = B; }
+    const float* GetBackgroundColor() const { return BackgroundColor; }
+
 private:
     EEngineShowFlags ShowFlags = EEngineShowFlags::SF_DefaultEnabled;
     EViewMode ViewMode = EViewMode::VMI_Lit_Phong;
@@ -58,4 +62,7 @@ private:
 
 	// SkinningMode
 	ESkinningMode SkinningMode = ESkinningMode::GPU;
+
+    // Background Color (for preview windows)
+    float BackgroundColor[3] = { 0.0f, 0.0f, 0.0f };  // 기본값: 검은색
 };

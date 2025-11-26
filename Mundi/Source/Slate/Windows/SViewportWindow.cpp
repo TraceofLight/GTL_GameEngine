@@ -18,6 +18,7 @@
 #include "SkeletalMeshActor.h"
 #include "ParticleSystemActor.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
+#include "Source/Runtime/Engine/Particle/ParticleSystem.h"
 #include "ResourceManager.h"
 #include <filesystem>
 
@@ -2269,16 +2270,21 @@ void SViewportWindow::SpawnActorFromFile(const char* FilePath, const FVector& Wo
 	else if (extension == ".psys")
 	{
 		// ParticleSystem Actor 생성
-		AParticleSystemActor* actor = world->SpawnActor<AParticleSystemActor>(FTransform(WorldLocation, FQuat::Identity(), FVector::One()));
-		if (actor)
+		AParticleSystemActor* Actor = world->SpawnActor<AParticleSystemActor>(FTransform(WorldLocation, FQuat::Identity(), FVector::One()));
+		if (Actor)
 		{
-			// TODO: .psys 파일 로딩 구현 후 SetParticleSystem 호출
-			// 현재는 기본 파티클 시스템 사용
-			UParticleSystem* DefaultPS = UParticleSystemComponent::CreateFlareParticleSystem();
-			actor->SetParticleSystem(DefaultPS);
-			actor->ObjectName = path.filename().string().c_str();
-			UE_LOG("ParticleSystemActor spawned at (%f, %f, %f)",
-				WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
+			UParticleSystem* LoadedPS = NewObject<UParticleSystem>();
+			if (LoadedPS && LoadedPS->LoadFromFileInternal(FString(FilePath)))
+			{
+				Actor->SetParticleSystem(LoadedPS);
+				Actor->ObjectName = path.filename().stem().string().c_str();
+				UE_LOG("ParticleSystemActor spawned from %s at (%f, %f, %f)",
+					FilePath, WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
+			}
+			else
+			{
+				UE_LOG("ERROR: Failed to load .psys file: %s", FilePath);
+			}
 		}
 		else
 		{

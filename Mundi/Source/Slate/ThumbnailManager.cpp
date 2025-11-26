@@ -6,6 +6,7 @@
 #include "JsonSerializer.h"
 #include <DirectXTex.h>
 #include <algorithm>
+#include <sys/stat.h>
 
 void FThumbnailManager::Initialize(ID3D11Device* InDevice, ID3D11DeviceContext* InDeviceContext)
 {
@@ -53,11 +54,27 @@ void FThumbnailManager::Shutdown()
 
 ID3D11ShaderResourceView* FThumbnailManager::GetThumbnail(const std::string& FilePath)
 {
-	// 캐시에 있으면 반환
+	// 파일 수정 시간 확인
+	struct stat FileStats;
+	int64 CurrentModifiedTime = 0;
+	if (stat(FilePath.c_str(), &FileStats) == 0)
+	{
+		CurrentModifiedTime = static_cast<int64>(FileStats.st_mtime);
+	}
+
+	// 캐시에 있고 파일이 수정되지 않았으면 캐시된 썸네일 반환
 	auto It = ThumbnailCache.find(FilePath);
 	if (It != ThumbnailCache.end())
 	{
-		return It->second.SRV;
+		if (It->second.LastModifiedTime == CurrentModifiedTime)
+		{
+			return It->second.SRV;
+		}
+		else
+		{
+			// 파일이 수정됨, 캐시 무효화
+			InvalidateThumbnail(FilePath);
+		}
 	}
 
 	// 확장자 추출
@@ -94,6 +111,8 @@ ID3D11ShaderResourceView* FThumbnailManager::GetThumbnail(const std::string& Fil
 
 	if (ThumbnailData && ThumbnailData->SRV)
 	{
+		// 파일 수정 시간 저장
+		ThumbnailData->LastModifiedTime = CurrentModifiedTime;
 		return ThumbnailData->SRV;
 	}
 
