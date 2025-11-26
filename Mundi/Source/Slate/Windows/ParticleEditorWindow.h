@@ -146,11 +146,7 @@ private:
 	bool bIsOpen = true;
 	bool bInitialPlacementDone = false;
 	bool bRequestFocus = false;
-	bool bShowColorPicker = false;
 	bool bIsFocused = false;
-
-	// 에디터 상태
-	float BackgroundColor[3] = { 0.1f, 0.1f, 0.1f };
 
 	// 전용 렌더 타겟 (파티클 프리뷰용)
 	ID3D11Texture2D* PreviewRenderTargetTexture = nullptr;

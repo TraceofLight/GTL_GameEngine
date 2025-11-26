@@ -279,41 +279,63 @@ void SParticleEditorWindow::OnRender()
 			}
 			ViewportRect.UpdateMinMax();
 		}
+
+		// 패널들을 항상 앞으로 가져오기 (메인 윈도우 클릭 시에도 패널 유지)
+		ImGuiWindow* ViewportWin = ImGui::FindWindowByName("##ParticleViewport");
+		ImGuiWindow* DetailWin = ImGui::FindWindowByName("Details##ParticleDetail");
+		ImGuiWindow* EmittersWin = ImGui::FindWindowByName("Emitters##ParticleEmitters");
+		ImGuiWindow* CurveWin = ImGui::FindWindowByName("Curve Editor##ParticleCurve");
+
+		if (ViewportWin) ImGui::BringWindowToDisplayFront(ViewportWin);
+		if (DetailWin) ImGui::BringWindowToDisplayFront(DetailWin);
+		if (EmittersWin) ImGui::BringWindowToDisplayFront(EmittersWin);
+		if (CurveWin) ImGui::BringWindowToDisplayFront(CurveWin);
+
+		// 열려있는 모든 팝업을 패널들보다 위로 (BG Color, 모듈 우클릭 등)
+		ImGuiContext* g = ImGui::GetCurrentContext();
+		if (g && g->OpenPopupStack.Size > 0)
+		{
+			for (int i = 0; i < g->OpenPopupStack.Size; ++i)
+			{
+				ImGuiPopupData& PopupData = g->OpenPopupStack[i];
+				if (PopupData.Window)
+				{
+					ImGui::BringWindowToDisplayFront(PopupData.Window);
+				}
+			}
+		}
+
+		// 컬러피커 팝업 렌더링 (메인 윈도우 내부, 패널들 위에 오버레이)
+		if (ImGui::BeginPopup("##BgColorPopup", ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
+		{
+
+			if (ActiveState)
+			{
+				ImGui::Text("Background Color");
+				ImGui::Separator();
+
+				ImGui::ColorPicker3("##BgColorPicker", ActiveState->BackgroundColor,
+					ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_DisplayHex);
+
+				ImGui::Separator();
+				ImGui::Text("RGB: %.3f, %.3f, %.3f",
+					ActiveState->BackgroundColor[0],
+					ActiveState->BackgroundColor[1],
+					ActiveState->BackgroundColor[2]);
+
+				ImGui::Separator();
+
+				if (ImGui::Button("OK", ImVec2(120, 0)))
+				{
+					ImGui::CloseCurrentPopup();
+				}
+			}
+
+			ImGui::EndPopup();
+		}
 	}
 	ImGui::End();
 	ImGui::PopStyleVar(2);  // WindowRounding, WindowBorderSize
-
-	// ParticleEditor가 포커스되어 있으면 모든 패널을 최상위로 올림 (항상)
-	if (bIsFocused)
-	{
-		ImGui::SetWindowFocus("##ParticleViewport");
-		ImGui::SetWindowFocus("Details##ParticleDetail");
-		ImGui::SetWindowFocus("Emitters##ParticleEmitters");
-		ImGui::SetWindowFocus("Curve Editor##ParticleCurve");
-	}
-
-	// 컬러피커 윈도우 렌더링 (패널 포커스 이후에 렌더링하여 최상위에 표시)
-	if (bShowColorPicker)
-	{
-		ImGui::SetNextWindowSize(ImVec2(300, 350), ImGuiCond_FirstUseEver);
-		ImGuiWindowFlags popupFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
-		if (ImGui::Begin("Color Picker##BgColorPicker", &bShowColorPicker, popupFlags))
-		{
-			ImGui::Text("Background Color");
-			ImGui::Separator();
-			ImGui::ColorPicker3("##BgColorPickerWidget", ActiveState->BackgroundColor,
-				ImGuiColorEditFlags_PickerHueWheel);
-			ImGui::Separator();
-			if (ImGui::Button("OK", ImVec2(120, 0)))
-			{
-				bShowColorPicker = false;
-			}
-		}
-		ImGui::End();
-
-		// 컬러피커를 최상위로 (패널 포커스 후에 호출)
-		ImGui::SetWindowFocus("Color Picker##BgColorPicker");
-	}
 
 	// Rename 다이얼로그 렌더링 (최상위 모달)
 	RenderRenameEmitterDialog();
@@ -342,6 +364,13 @@ void SParticleEditorWindow::OnUpdate(float DeltaSeconds)
 	if (ActiveState->World)
 	{
 		URenderSettings& RenderSettings = ActiveState->World->GetRenderSettings();
+
+		// Background Color 동기화
+		RenderSettings.SetBackgroundColor(
+			ActiveState->BackgroundColor[0],
+			ActiveState->BackgroundColor[1],
+			ActiveState->BackgroundColor[2]
+		);
 
 		// Grid 토글
 		if (ActiveState->bShowGrid)
@@ -818,11 +847,11 @@ void SParticleEditorWindow::RenderToolbar()
 	DrawVerticalSeparator();
 
 	// ================================================================
-	// Background Color (클릭 시 컬러피커 팝업 - OnRender에서 렌더링)
+	// Background Color (팝업)
 	// ================================================================
-	if (RenderIconButton("BgColor", IconBackgroundColor, "BG Color", "뷰포트 배경색 변경\n기본값: 어두운 회색 (0.1, 0.1, 0.1)", bShowColorPicker))
+	if (RenderIconButton("BgColor", IconBackgroundColor, "BG Color", "뷰포트 배경색 변경\n클릭하여 컬러피커 열기", false))
 	{
-		bShowColorPicker = !bShowColorPicker;
+		ImGui::OpenPopup("##BgColorPopup");
 	}
 
 	DrawVerticalSeparator();
@@ -2791,8 +2820,8 @@ void SParticleEditorWindow::RenderToPreviewRenderTarget()
 	D3D11_VIEWPORT OldViewport;
 	Context->RSGetViewports(&NumViewports, &OldViewport);
 
-	// 렌더 타겟 클리어
-	const float ClearColor[4] = { BackgroundColor[0], BackgroundColor[1], BackgroundColor[2], 1.0f };
+	// 렌더 타겟 클리어 (ActiveState의 BackgroundColor 사용)
+	const float ClearColor[4] = { ActiveState->BackgroundColor[0], ActiveState->BackgroundColor[1], ActiveState->BackgroundColor[2], 1.0f };
 	Context->ClearRenderTargetView(PreviewRenderTargetView, ClearColor);
 	Context->ClearDepthStencilView(PreviewDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 

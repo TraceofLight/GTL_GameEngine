@@ -642,7 +642,47 @@ void USlateManager::Render()
         if (!CurrentAssets.IsEmpty())
         {
             ImGui::Separator();
-            ImGui::TextWrapped("%s", CurrentAssets[0].c_str());
+
+            // 윈도우 너비에 맞춰 텍스트 자르기 (1줄 유지)
+            FString AssetPath = CurrentAssets[0];
+            float AvailableWidth = ImGui::GetContentRegionAvail().x;
+
+            // 텍스트 크기 계산
+            ImVec2 TextSize = ImGui::CalcTextSize(AssetPath.c_str());
+
+            // 너비 초과 시 "..."로 자르기
+            if (TextSize.x > AvailableWidth)
+            {
+                const char* Ellipsis = "...";
+                float EllipsisWidth = ImGui::CalcTextSize(Ellipsis).x;
+                float TargetWidth = AvailableWidth - EllipsisWidth;
+
+                // 이진 탐색으로 적절한 길이 찾기
+                int32 Left = 0;
+                int32 Right = static_cast<int32>(AssetPath.length());
+                int32 BestLength = 0;
+
+                while (Left <= Right)
+                {
+                    int32 Mid = (Left + Right) / 2;
+                    FString Truncated = AssetPath.substr(0, Mid);
+                    float Width = ImGui::CalcTextSize(Truncated.c_str()).x;
+
+                    if (Width <= TargetWidth)
+                    {
+                        BestLength = Mid;
+                        Left = Mid + 1;
+                    }
+                    else
+                    {
+                        Right = Mid - 1;
+                    }
+                }
+
+                AssetPath = AssetPath.substr(0, BestLength) + Ellipsis;
+            }
+
+            ImGui::Text("%s", AssetPath.c_str());
         }
 
         ImGui::End();
