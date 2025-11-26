@@ -423,6 +423,14 @@ void UStatsOverlayD2D::Draw()
 	{
 		const FParticleStats& ParticleStats = FParticleStatManager::GetInstance().GetStats();
 
+		// GPU 시간을 GPUTimer에서 가져오기
+		double GpuTimeMS = 0.0;
+		if (GPUTimer)
+		{
+			GpuTimeMS = GPUTimer->GetTime("ParticlePass");
+			GpuTimeMS = std::max(GpuTimeMS, 0.0);
+		}
+
 		wchar_t Buf[1024];
 		swprintf_s(Buf, 
 			L"[Particle Stats]\n"
@@ -437,7 +445,8 @@ void UStatsOverlayD2D::Draw()
 			L"Drawed Vertices: %u\n"
 			L"\n"
 			L"--- Timings ---\n"
-			L"Total: %.3f ms\n"
+			L"CPU: %.3f ms\n"
+			L"GPU: %.3f ms\n"
 			L"Avg/System: %.3f ms\n"
 			L"Avg/Emitter: %.3f ms\n"
 			L"Avg/Particle: %.3f µs\n"
@@ -459,7 +468,8 @@ void UStatsOverlayD2D::Draw()
 			ParticleStats.TotalDrawCalls,
 			ParticleStats.TotalDrawedTriangles,
 			ParticleStats.TotalDrawedVertices,
-			ParticleStats.RenderTimeMS,
+			ParticleStats.CpuTimeMS,
+			GpuTimeMS,
 			ParticleStats.AverageTimePerSystem,
 			ParticleStats.AverageTimePerEmitter,
 			ParticleStats.AverageTimePerParticle,
@@ -469,7 +479,7 @@ void UStatsOverlayD2D::Draw()
 			static_cast<float>(ParticleStats.InstanceBufferMemoryBytes) / (1024.0f * 1024.0f)
 		);
 
-		constexpr float ParticlePanelHeight = 480.0f;
+		constexpr float ParticlePanelHeight = 500.0f;
 		D2D1_RECT_F rc = D2D1::RectF(Margin, NextY, Margin + PanelWidth, NextY + ParticlePanelHeight);
 		
 		// 고유한 색상으로 파티클 통계 표시 (LimeGreen)

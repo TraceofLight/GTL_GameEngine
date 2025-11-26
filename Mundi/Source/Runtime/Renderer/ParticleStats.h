@@ -23,13 +23,14 @@ struct FParticleStats
 	
 	// 렌더링 통계
 	uint32 TotalDrawCalls = 0;              // 총 드로우 콜 수
-	uint32 TotalInsertedVertices = 0;               // 총 정점 수
-	uint32 TotalDrawedVertices = 0;				// 총 인덱스 개수
-	uint32 TotalDrawedTriangles = 0;              // 총 삼각형 수
+	uint32 TotalInsertedVertices = 0;       // 총 정점 수
+	uint32 TotalDrawedVertices = 0;         // 총 인덱스 개수
+	uint32 TotalDrawedTriangles = 0;        // 총 삼각형 수
 	uint32 TotalInsertedInstances = 0;
 	
 	// 성능 지표
-	double RenderTimeMS = 0.0;              // 파티클 렌더링 시간 (밀리초)
+	double CpuTimeMS = 0.0;                 // CPU 렌더링 시간 (밀리초)
+	double GpuTimeMS = 0.0;                 // GPU 렌더링 시간 (밀리초) - GPUTimer에서 수집
 	double AverageTimePerSystem = 0.0;      // 시스템당 평균 시간
 	double AverageTimePerEmitter = 0.0;     // 에미터당 평균 시간
 	double AverageTimePerParticle = 0.0;    // 파티클당 평균 시간
@@ -55,7 +56,8 @@ struct FParticleStats
 		TotalDrawedVertices = 0;
 		TotalDrawedTriangles = 0;
 		TotalInsertedInstances = 0;
-		RenderTimeMS = 0.0;
+		CpuTimeMS = 0.0;
+		GpuTimeMS = 0.0;
 		AverageTimePerSystem = 0.0;
 		AverageTimePerEmitter = 0.0;
 		AverageTimePerParticle = 0.0;
@@ -67,22 +69,24 @@ struct FParticleStats
 	// 파생 통계 계산 (평균 등)
 	void CalculateDerivedStats()
 	{
+		double TotalTimeMS = CpuTimeMS + GpuTimeMS;
+
 		// 시스템당 평균 렌더 시간
 		if (VisibleParticleSystems > 0)
 		{
-			AverageTimePerSystem = RenderTimeMS / static_cast<double>(VisibleParticleSystems);
+			AverageTimePerSystem = TotalTimeMS / static_cast<double>(VisibleParticleSystems);
 		}
 		
 		// 에미터당 평균 렌더 시간
 		if (VisibleEmitters > 0)
 		{
-			AverageTimePerEmitter = RenderTimeMS / static_cast<double>(VisibleEmitters);
+			AverageTimePerEmitter = TotalTimeMS / static_cast<double>(VisibleEmitters);
 		}
-		
+
 		// 파티클당 평균 렌더 시간 (마이크로초 단위로 표시)
 		if (RenderedParticles > 0)
 		{
-			AverageTimePerParticle = (RenderTimeMS * 1000.0) / static_cast<double>(RenderedParticles);
+			AverageTimePerParticle = (TotalTimeMS * 1000.0) / static_cast<double>(RenderedParticles);
 		}
 	}
 	

@@ -630,7 +630,6 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 	}
 }
 
-
 //====================================================================================
 // Private 헬퍼 함수 구현
 //====================================================================================
@@ -1022,8 +1021,8 @@ void FSceneRenderer::RenderParticlesPass()
 	FParticleStats ParticleStats;
 	ParticleStats.TotalParticleSystems = static_cast<uint32>(Proxies.Particles.Num());
 	
-	// 렌더링 시간 측정 시작
-	auto RenderTimeStart = std::chrono::high_resolution_clock::now();
+	// CPU 렌더링 시간 측정 시작
+	auto CpuTimeStart = std::chrono::high_resolution_clock::now();
 
 	// 셰이더 경로
 	FString ShaderPath = "Shaders/Materials/UberLit.hlsl";
@@ -1188,10 +1187,10 @@ void FSceneRenderer::RenderParticlesPass()
 		}
 	}
 
-	// 렌더링 시간 측정 종료
-	auto RenderTimeEnd = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> RenderDuration = RenderTimeEnd - RenderTimeStart;
-	ParticleStats.RenderTimeMS = RenderDuration.count();
+	// CPU 렌더링 시간 측정 종료
+	auto CpuTimeEnd = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> CpuDuration = CpuTimeEnd - CpuTimeStart;
+	ParticleStats.CpuTimeMS = CpuDuration.count();
 
 	// 활성 파티클 수 통계 (추가 정보)
 	// 이미 RenderedParticles에 집계되었으므로 TotalParticles에 복사
