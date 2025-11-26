@@ -9,6 +9,10 @@
 #include "Color/ParticleModuleColor.h"
 #include "Size/ParticleModuleSize.h"
 #include "Location/ParticleModuleLocation.h"
+#include "Rotation/ParticleModuleRotation.h"
+#include "Rotation/ParticleModuleRotationRate.h"
+#include "Rotation/ParticleModuleMeshRotation.h"
+#include "Rotation/ParticleModuleMeshRotationRate.h"
 
 UParticleLODLevel::UParticleLODLevel()
 	: Level(0)
@@ -179,6 +183,10 @@ static UParticleModule* CreateModuleByTypeName(const FString& TypeName)
 	if (TypeName == "UParticleModuleLocation") return NewObject<UParticleModuleLocation>();
 	if (TypeName == "UParticleModuleTypeDataSprite") return NewObject<UParticleModuleTypeDataSprite>();
 	if (TypeName == "UParticleModuleTypeDataMesh") return NewObject<UParticleModuleTypeDataMesh>();
+	if (TypeName == "UParticleModuleRotation") return NewObject<UParticleModuleRotation>();
+	if (TypeName == "UParticleModuleRotationRate") return NewObject<UParticleModuleRotationRate>();
+	if (TypeName == "UParticleModuleMeshRotation") return NewObject<UParticleModuleMeshRotation>();
+	if (TypeName == "UParticleModuleMeshRotationRate") return NewObject<UParticleModuleMeshRotationRate>();
 	return nullptr;
 }
 

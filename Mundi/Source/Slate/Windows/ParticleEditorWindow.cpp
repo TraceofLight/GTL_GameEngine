@@ -36,6 +36,8 @@ extern UGameEngine GEngine;
 #include "Source/Runtime/Engine/Particle/TypeData/ParticleModuleTypeDataBase.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotation.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotationRate.h"
+#include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleMeshRotation.h"
+#include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleMeshRotationRate.h"
 #include "Source/Slate/Widgets/ParticleModuleDetailRenderer.h"
 #include "Source/Slate/Widgets/PropertyRenderer.h"
 
@@ -2119,6 +2121,11 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 			UParticleModuleRotation* Module = new UParticleModuleRotation();
 			AddModuleAndUpdateInstances(LODLevel, Module);
 		}
+		if (ImGui::MenuItem("Mesh Rotation (3D)"))
+		{
+			UParticleModuleMeshRotation* Module = new UParticleModuleMeshRotation();
+			AddModuleAndUpdateInstances(LODLevel, Module);
+		}
 		ImGui::MenuItem("Rotation Over Life", nullptr, false, false); // TODO
 		ImGui::EndMenu();
 	}
@@ -2129,6 +2136,11 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 		if (ImGui::MenuItem("Initial Rotation Rate"))
 		{
 			UParticleModuleRotationRate* Module = new UParticleModuleRotationRate();
+			AddModuleAndUpdateInstances(LODLevel, Module);
+		}
+		if (ImGui::MenuItem("Mesh Rotation Rate (3D)"))
+		{
+			UParticleModuleMeshRotationRate* Module = new UParticleModuleMeshRotationRate();
 			AddModuleAndUpdateInstances(LODLevel, Module);
 		}
 		ImGui::MenuItem("Rotation Rate Over Life", nullptr, false, false); // TODO

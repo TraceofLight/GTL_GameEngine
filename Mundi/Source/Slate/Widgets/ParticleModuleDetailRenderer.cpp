@@ -13,6 +13,8 @@
 #include "Source/Runtime/Engine/Particle/TypeData/ParticleModuleTypeDataBase.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotation.h"
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotationRate.h"
+#include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleMeshRotation.h"
+#include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleMeshRotationRate.h"
 #include "Source/Runtime/Engine/Particle/ParticleEmitter.h"
 #include "Source/Runtime/Engine/Particle/ParticleTypes.h"
 #include "Source/Runtime/Renderer/Material.h"
@@ -344,6 +346,14 @@ void UParticleModuleDetailRenderer::RenderModuleDetails(UParticleModule* Module)
 	else if (UParticleModuleRotationRate* RotationRate = Cast<UParticleModuleRotationRate>(Module))
 	{
 		RenderRotationRateModule(RotationRate);
+	}
+	else if (UParticleModuleMeshRotation* MeshRotation = Cast<UParticleModuleMeshRotation>(Module))
+	{
+		RenderMeshRotationModule(MeshRotation);
+	}
+	else if (UParticleModuleMeshRotationRate* MeshRotationRate = Cast<UParticleModuleMeshRotationRate>(Module))
+	{
+		RenderMeshRotationRateModule(MeshRotationRate);
 	}
 	else
 	{
@@ -894,5 +904,41 @@ void UParticleModuleDetailRenderer::RenderRotationRateModule(UParticleModuleRota
 	if (BeginSection("Rotation Rate", true))
 	{
 		RenderFloatDistribution("Start Rotation Rate (Deg/s)", Module->StartRotationRate);
+	}
+}
+
+// ============================================================================
+// Mesh Rotation 모듈 렌더링 (3D 회전)
+// ============================================================================
+
+void UParticleModuleDetailRenderer::RenderMeshRotationModule(UParticleModuleMeshRotation* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	if (BeginSection("Mesh Rotation (3D)", true))
+	{
+		RenderVectorDistribution("Start Rotation (Degrees)", Module->StartRotation);
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "X=Pitch, Y=Yaw, Z=Roll");
+	}
+}
+
+// ============================================================================
+// Mesh Rotation Rate 모듈 렌더링 (3D 회전 속도)
+// ============================================================================
+
+void UParticleModuleDetailRenderer::RenderMeshRotationRateModule(UParticleModuleMeshRotationRate* Module)
+{
+	if (!Module)
+	{
+		return;
+	}
+
+	if (BeginSection("Mesh Rotation Rate (3D)", true))
+	{
+		RenderVectorDistribution("Start Rotation Rate (Deg/s)", Module->StartRotationRate);
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "X=Pitch, Y=Yaw, Z=Roll");
 	}
 }

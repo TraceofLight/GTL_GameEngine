@@ -492,6 +492,8 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\Particle\ParticleSystem.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\ParticleSystemComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\ParticleViewerBootstrap.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleMeshRotation.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleMeshRotationRate.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleRotation.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleRotationRate.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Size\ParticleModuleSize.cpp" />
@@ -674,6 +676,8 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\AParticleSystemActor.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleRotation.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleRotationRate.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleMeshRotation.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleMeshRotationRate.generated.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -833,6 +837,8 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleTypes.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleViewerBootstrap.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleViewerState.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleMeshRotation.h" />
+    <ClInclude Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleMeshRotationRate.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleRotation.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Rotation\ParticleModuleRotationRate.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Size\ParticleModuleSize.h" />
@@ -1010,6 +1016,8 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\AParticleSystemActor.generated.h" />
     <ClInclude Include="Generated\UParticleModuleRotation.generated.h" />
     <ClInclude Include="Generated\UParticleModuleRotationRate.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleMeshRotation.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleMeshRotationRate.generated.h" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Shaders\Common\LightingBuffers.hlsl" />

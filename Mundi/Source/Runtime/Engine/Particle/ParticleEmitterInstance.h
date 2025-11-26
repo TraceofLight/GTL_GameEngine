@@ -104,6 +104,9 @@ struct FParticleEmitterInstance
 	ID3D11Buffer* VertexBuffer = nullptr;
 	ID3D11Buffer* IndexBuffer = nullptr;
 
+	// MeshRotation Payload 활성화 여부 (MeshRotation 모듈이 추가된 경우에만 true)
+	bool bMeshRotationActive = false;
+
 	FParticleEmitterInstance()
 		: SpriteTemplate(nullptr)
 		, Component(nullptr)
@@ -120,6 +123,7 @@ struct FParticleEmitterInstance
 		, ParticleCounter(0)
 		, MaxActiveParticles(0)
 		, SpawnFraction(0.0f)
+		, bMeshRotationActive(false)
 	{
 	}
 
@@ -447,6 +451,14 @@ struct FParticleEmitterInstance
 		// 기본 물리 업데이트 (위치 이동)
 		Particle.Location += Particle.Velocity * DeltaTime;
 		Particle.Rotation += Particle.RotationRate * DeltaTime;
+
+		// 메시 파티클 3D 회전 업데이트 (MeshRotation 모듈이 추가된 경우에만)
+		if (bMeshRotationActive && PayloadOffset > 0)
+		{
+			FMeshRotationPayloadData* MeshRotPayload =
+				reinterpret_cast<FMeshRotationPayloadData*>(ParticlePtr + PayloadOffset);
+			MeshRotPayload->Rotation += MeshRotPayload->RotationRate * DeltaTime;
+		}
 
 		END_UPDATE_LOOP
 

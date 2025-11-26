@@ -39,8 +39,6 @@ struct FBaseParticle
 
 	int32 Flags;					// Flags indicating various particle states
 
-	// TODO: Add additional particle properties as needed
-
 	FBaseParticle()
 		: Location(FVector::Zero())
 		, OldLocation(FVector::Zero())
@@ -54,4 +52,19 @@ struct FBaseParticle
 		, Color(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f))
 	{
 	}
+};
+
+/**
+ * 메시 파티클용 3D 회전 Payload 데이터
+ * FBaseParticle 뒤에 붙는 추가 데이터 (RequiredBytes로 공간 확보)
+ */
+struct FMeshRotationPayloadData
+{
+	FVector Rotation;      // 현재 3D 회전 (라디안: Pitch, Yaw, Roll)
+	FVector RotationRate;  // 3D 회전 속도 (라디안/초)
+
+	FMeshRotationPayloadData()
+		: Rotation(FVector::Zero())
+		, RotationRate(FVector::Zero())
+	{}
 };

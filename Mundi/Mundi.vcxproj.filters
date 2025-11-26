@@ -730,6 +730,12 @@
     <ClCompile Include="Generated\UParticleModuleRotationRate.generated.cpp">
       <Filter>Generated</Filter>
     </ClCompile>
+    <ClCompile Include="Generated\UParticleModuleMeshRotation.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="Generated\UParticleModuleMeshRotationRate.generated.cpp">
+      <Filter>Generated</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -1533,6 +1539,12 @@
       <Filter>Generated</Filter>
     </ClInclude>
     <ClInclude Include="Generated\UParticleModuleRotationRate.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleModuleMeshRotation.generated.h">
+      <Filter>Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="Generated\UParticleModuleMeshRotationRate.generated.h">
       <Filter>Generated</Filter>
     </ClInclude>
   </ItemGroup>

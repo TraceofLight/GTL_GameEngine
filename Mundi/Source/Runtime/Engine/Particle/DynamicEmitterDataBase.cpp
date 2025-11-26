@@ -280,15 +280,33 @@ void FDynamicMeshEmitterData::GetDynamicMeshElementsEmitter(
 		// FVector4 Transform[3]에 3x4 행렬 저장 (W에 Translation)
 		FVector Scale = Particle.Size;
 		FVector Location = Particle.Location;
-		FVector Rotation = Particle.Rotation;
-	
-		// 단순화: 회전 없이 스케일과 위치만 적용
-		// Row 0: Scale.X, 0, 0, Location.X
-		Instance.Transform[0] = FVector4(Scale.X, 0.0f, 0.0f, Location.X);
-		// Row 1: 0, Scale.Y, 0, Location.Y
-		Instance.Transform[1] = FVector4(0.0f, Scale.Y, 0.0f, Location.Y);
-		// Row 2: 0, 0, Scale.Z, Location.Z
-		Instance.Transform[2] = FVector4(0.0f, 0.0f, Scale.Z, Location.Z);
+
+		// Payload에서 3D 회전 읽기
+		FVector MeshRotation = FVector::Zero();
+		if (SourceData.bMeshRotationActive && SourceData.MeshRotationOffset > 0)
+		{
+			const FMeshRotationPayloadData* MeshRotPayload =
+				reinterpret_cast<const FMeshRotationPayloadData*>(ParticlePtr + SourceData.MeshRotationOffset);
+			MeshRotation = MeshRotPayload->Rotation;
+		}
+
+		// 회전 행렬 계산 (라디안 → 도 변환 후 쿼터니언)
+		FVector RotDeg(RadiansToDegrees(MeshRotation.X),
+		               RadiansToDegrees(MeshRotation.Y),
+		               RadiansToDegrees(MeshRotation.Z));
+		FQuat RotQuat = FQuat::MakeFromEulerZYX(RotDeg);
+		FMatrix RotMatrix = RotQuat.ToMatrix();
+
+		// Scale * Rotation 행렬 구성 후 Translation 적용
+		// Row 0: Scale.X * RotMatrix Row 0, Location.X
+		Instance.Transform[0] = FVector4(
+			RotMatrix.M[0][0] * Scale.X, RotMatrix.M[0][1] * Scale.Y, RotMatrix.M[0][2] * Scale.Z, Location.X);
+		// Row 1: Scale.Y * RotMatrix Row 1, Location.Y
+		Instance.Transform[1] = FVector4(
+			RotMatrix.M[1][0] * Scale.X, RotMatrix.M[1][1] * Scale.Y, RotMatrix.M[1][2] * Scale.Z, Location.Y);
+		// Row 2: Scale.Z * RotMatrix Row 2, Location.Z
+		Instance.Transform[2] = FVector4(
+			RotMatrix.M[2][0] * Scale.X, RotMatrix.M[2][1] * Scale.Y, RotMatrix.M[2][2] * Scale.Z, Location.Z);
 
 		// Velocity
 		FVector Velocity = Particle.Velocity;

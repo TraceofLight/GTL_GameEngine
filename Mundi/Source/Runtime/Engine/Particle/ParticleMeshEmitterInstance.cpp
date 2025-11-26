@@ -153,6 +153,11 @@ bool FParticleMeshEmitterInstance::FillReplayData(FDynamicEmitterReplayDataBase&
 		MeshData.MeshAsset = MeshTypeData->Mesh;
 	}
 
+	// 6. MeshRotation Payload 오프셋 설정
+	// bMeshRotationActive 플래그가 true인 경우에만 활성화
+	MeshData.MeshRotationOffset = bMeshRotationActive ? PayloadOffset : 0;
+	MeshData.bMeshRotationActive = bMeshRotationActive;
+
 	return true;
 }
 

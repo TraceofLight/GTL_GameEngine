@@ -11,6 +11,8 @@ class UParticleModuleVelocity;
 class UParticleModuleTypeDataMesh;
 class UParticleModuleRotation;
 class UParticleModuleRotationRate;
+class UParticleModuleMeshRotation;
+class UParticleModuleMeshRotationRate;
 class UParticleEmitter;
 
 /**
@@ -39,6 +41,8 @@ private:
 	static void RenderTypeDataMeshModule(UParticleModuleTypeDataMesh* Module);
 	static void RenderRotationModule(UParticleModuleRotation* Module);
 	static void RenderRotationRateModule(UParticleModuleRotationRate* Module);
+	static void RenderMeshRotationModule(UParticleModuleMeshRotation* Module);
+	static void RenderMeshRotationRateModule(UParticleModuleMeshRotationRate* Module);
 
 	// Distribution 타입 UI 헬퍼
 	static bool RenderFloatDistribution(const char* Label, struct FFloatDistribution& Dist);
