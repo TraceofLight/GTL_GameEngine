@@ -62,6 +62,9 @@ public:
 	void SetEmitterName(const FString& InName);
 	bool AutogenerateLowestLODLevel();
 
+	// Setters
+	void SetPeakActiveParticles(int32 InPeakActiveParticles) { PeakActiveParticles = InPeakActiveParticles; }
+
 	// Getters
 	const FString& GetEmitterName() const { return EmitterName; }
 	int32 GetNumLODs() const { return static_cast<int32>(LODLevels.size()); }

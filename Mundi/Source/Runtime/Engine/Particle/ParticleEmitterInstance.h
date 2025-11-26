@@ -344,7 +344,11 @@ struct FParticleEmitterInstance
 			// 현재는 제한 없이 무한 확장 가능
 			if (SpriteTemplate)
 			{
+				// FIX ME: 사실 이렇게 매프레임 캐싱을 해버라면 캐싱의 의미가 없지만, PeakActiveParticles가 갱신되야 할 타이밍에 갱신이 안되서 이렇게 임시 조치를 함.
+				SpriteTemplate->CacheEmitterModuleInfo(); 
 				int32 AbsoluteLimit = SpriteTemplate->GetPeakActiveParticles();
+
+				//UE_LOG("PeakActiveParticles for Emitter: %d", AbsoluteLimit);
 				if (AbsoluteLimit > 0)
 				{
 					NewMax = FMath::Min(NewMax, AbsoluteLimit);
@@ -409,7 +413,7 @@ struct FParticleEmitterInstance
 	 *
 	 * @param Index - Index of the particle to kill (제거할 파티클의 활성 인덱스, 0 ~ ActiveParticles-1)
 	 *
-	 * @note 마지막 파티클과 자리를 바꾼 뒤 ActiveParticles를 감소시킴
+	 * @note 마지막 파티클과 자리를 바꿨 뒤 ActiveParticles를 감소시킴
 	 * @note 이 방식으로 중간에 빈 구멍이 생기지 않아 메모리 효율적
 	 * @warning 순회 중 호출 시 역순으로 순회해야 인덱스 꼬임 방지
 	 */
@@ -508,7 +512,7 @@ struct FParticleEmitterInstance
 	 * @param bSetMaxActiveCount - If true, update peak active particles
 	 * @return true if successful
 	 */
-	bool Resize(int32 NewMaxActiveParticles, bool bSetMaxActiveCount = true)
+	virtual bool Resize(int32 NewMaxActiveParticles, bool bSetMaxActiveCount = true)
 	{
 		// 이미 충분한 크기면 리턴
 		if (NewMaxActiveParticles <= MaxActiveParticles)
@@ -539,6 +543,96 @@ struct FParticleEmitterInstance
 		for (int32 i = MaxActiveParticles; i < NewMaxActiveParticles; i++)
 		{
 			ParticleIndices[i] = static_cast<uint16>(i);
+		}
+
+		// ========== GPU 버퍼 재생성 (VertexBuffer, IndexBuffer) ==========
+		// 파티클 개수가 증가했으므로 GPU 버퍼도 함께 리사이징 필요
+		if (Component)
+		{
+			ID3D11Device* Device = GEngine.GetRHIDevice()->GetDevice();
+			if (Device)
+			{
+				// 기존 버퍼 해제
+				if (VertexBuffer)
+				{
+					VertexBuffer->Release();
+					VertexBuffer = nullptr;
+				}
+				if (IndexBuffer)
+				{
+					IndexBuffer->Release();
+					IndexBuffer = nullptr;
+				}
+
+				// 에미터 타입 판별 (Sprite vs Mesh)
+				// TypeDataModule이 없으면 Sprite, 있으면 Mesh
+				bool bIsSpriteEmitter = true;
+				if (CurrentLODLevel && CurrentLODLevel->TypeDataModule)
+				{
+					bIsSpriteEmitter = false;
+				}
+
+				if (bIsSpriteEmitter)
+				{
+					// ========== Sprite Emitter: VertexBuffer + IndexBuffer 재생성 ==========
+					
+					// 1. Vertex Buffer 재생성 (각 파티클당 4개의 정점)
+					const int32 MaxVertexCount = NewMaxActiveParticles * 4;
+					std::vector<FParticleSpriteVertex> InitialVertices;
+					InitialVertices.resize(MaxVertexCount);
+
+					HRESULT hr = D3D11RHI::CreateVertexBuffer<FParticleSpriteVertex>(Device, InitialVertices, &VertexBuffer);
+					if (FAILED(hr))
+					{
+						UE_LOG("Failed to resize particle sprite vertex buffer");
+					}
+
+					// 2. Index Buffer 재생성 (각 파티클당 6개의 인덱스)
+					const int32 MaxIndexCount = NewMaxActiveParticles * 6;
+					TArray<uint32> Indices;
+					Indices.Reserve(MaxIndexCount);
+
+					for (int32 QuadIndex = 0; QuadIndex < NewMaxActiveParticles; ++QuadIndex)
+					{
+						const uint32 BaseVertexIndex = QuadIndex * 4;
+						
+						// 첫 번째 삼각형
+						Indices.Add(BaseVertexIndex + 0);
+						Indices.Add(BaseVertexIndex + 1);
+						Indices.Add(BaseVertexIndex + 2);
+						
+						// 두 번째 삼각형
+						Indices.Add(BaseVertexIndex + 2);
+						Indices.Add(BaseVertexIndex + 1);
+						Indices.Add(BaseVertexIndex + 3);
+					}
+
+					D3D11_BUFFER_DESC IndexBufferDesc = {};
+					IndexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+					IndexBufferDesc.ByteWidth = static_cast<UINT>(sizeof(uint32) * Indices.Num());
+					IndexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+					IndexBufferDesc.CPUAccessFlags = 0;
+
+					D3D11_SUBRESOURCE_DATA IndexInitData = {};
+					IndexInitData.pSysMem = Indices.GetData();
+
+					hr = Device->CreateBuffer(&IndexBufferDesc, &IndexInitData, &IndexBuffer);
+					if (FAILED(hr))
+					{
+						UE_LOG("Failed to resize particle sprite index buffer");
+					}
+				}
+				else
+				{
+					// ========== Mesh Emitter: InstanceBuffer만 재생성 ==========
+					// Mesh 에미터는 VertexBuffer/IndexBuffer가 아닌 InstanceBuffer를 사용
+					// (VertexBuffer/IndexBuffer는 메시 에셋에서 가져옴)
+					
+					// Note: InstanceBuffer는 FParticleMeshEmitterInstance에서 관리
+					// 여기서는 VertexBuffer/IndexBuffer를 null로 유지
+					// (FParticleMeshEmitterInstance::Resize에서 InstanceBuffer 처리)
+				}
+			}
 		}
 
 		// Update max count

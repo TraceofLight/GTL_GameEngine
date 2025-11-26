@@ -201,3 +201,19 @@ void FParticleSpriteEmitterInstance::GetAllocatedSize(int32& OutNum, int32& OutM
 	OutNum = ActiveParticleDataSize + ActiveParticleIndexSize + Size;
 	OutMax = MaxActiveParticleDataSize + MaxActiveParticleIndexSize + Size;
 }
+
+/**
+ * Resize particle memory and GPU buffers (VertexBuffer, IndexBuffer)
+ * 파티클 메모리 및 GPU 버퍼 리사이징
+ *
+ * @param NewMaxActiveParticles - New maximum particle count
+ * @param bSetMaxActiveCount - If true, update peak active particles
+ * @return true if successful
+ */
+bool FParticleSpriteEmitterInstance::Resize(int32 NewMaxActiveParticles, bool bSetMaxActiveCount)
+{
+	// 1. 부모 Resize 호출 (파티클 데이터/인덱스 재할당, 그리고 Sprite 버퍼 처리)
+	// 부모에서 이미 Sprite 버퍼를 처리하지만, 명시적으로 다시 처리하지 않도록 주의
+	// 부모의 Resize는 이미 타입을 판별해서 Sprite 버퍼를 재생성함
+	return FParticleEmitterInstance::Resize(NewMaxActiveParticles, bSetMaxActiveCount);
+}

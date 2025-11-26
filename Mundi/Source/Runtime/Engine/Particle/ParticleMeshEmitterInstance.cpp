@@ -196,3 +196,50 @@ void FParticleMeshEmitterInstance::GetAllocatedSize(int32& OutNum, int32& OutMax
 	OutNum = Size + ActiveParticleDataSize + ActiveParticleIndexSize;
 	OutMax = Size + MaxActiveParticleDataSize + MaxActiveParticleIndexSize;
 }
+
+// ============== Resize ==============
+
+bool FParticleMeshEmitterInstance::Resize(int32 NewMaxActiveParticles, bool bSetMaxActiveCount)
+{
+	// 1. 부모 Resize 호출 (파티클 데이터/인덱스 재할당)
+	// 부모에서는 Sprite 버퍼만 처리하므로 Mesh는 여기서 추가 처리 필요
+	if (!FParticleEmitterInstance::Resize(NewMaxActiveParticles, bSetMaxActiveCount))
+	{
+		return false;
+	}
+
+	// 2. InstanceBuffer 재생성
+	if (Component)
+	{
+		ID3D11Device* Device = GEngine.GetRHIDevice()->GetDevice();
+		if (Device)
+		{
+			// 기존 InstanceBuffer 해제
+			if (InstanceBuffer)
+			{
+				InstanceBuffer->Release();
+				InstanceBuffer = nullptr;
+			}
+
+			// 새로운 InstanceBuffer 생성
+			const int32 MaxInstanceCount = NewMaxActiveParticles;
+
+			D3D11_BUFFER_DESC BufferDesc = {};
+			BufferDesc.ByteWidth = sizeof(FMeshParticleInstanceVertex) * MaxInstanceCount;
+			BufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+			BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+			BufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+			BufferDesc.MiscFlags = 0;
+			BufferDesc.StructureByteStride = 0;
+
+			HRESULT hr = Device->CreateBuffer(&BufferDesc, nullptr, &InstanceBuffer);
+			if (FAILED(hr))
+			{
+				UE_LOG("Failed to resize particle mesh instance buffer");
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
