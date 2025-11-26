@@ -256,36 +256,51 @@ void FViewportClient::MouseButtonDown(FViewport* Viewport, int32 X, int32 Y, int
 	TArray<AActor*> AllActors = World->GetActors();
 	if (Button == 0)
 	{
-		if (!World->GetGizmoActor())
-			return;
-
 		bIsMouseButtonDown = true;
+
+		// 피킹이 비활성화된 경우 (플로팅 윈도우 뷰포트 등) 피킹 로직 건너뜀
+		if (!bPickingEnabled)
+		{
+			return;
+		}
+
+		if (!World->GetGizmoActor())
+		{
+			return;
+		}
+
 		// 뷰포트의 실제 aspect ratio 계산
 		float PickingAspectRatio = ViewportSize.X / ViewportSize.Y;
-		if (ViewportSize.Y == 0) PickingAspectRatio = 1.0f; // 0으로 나누기 방지
+		if (ViewportSize.Y == 0)
+		{
+			PickingAspectRatio = 1.0f;
+		}
 		if (World->GetGizmoActor()->GetbIsHovering())
 		{
 			return;
 		}
 		Camera->SetWorld(World);
 		PickedComponent = URenderManager::GetInstance().GetRenderer()->GetPrimitiveCollided(static_cast<int>(ViewportMousePos.X), static_cast<int>(ViewportMousePos.Y));
-		// PickedActor = CPickingSystem::PerformViewportPicking(AllActors, Camera, ViewportMousePos, ViewportSize, ViewportOffset, PickingAspectRatio,  Viewport);
-
 
 		if (PickedComponent)
 		{
-			if (World) World->GetSelectionManager()->SelectComponent(PickedComponent);
-
+			if (World)
+			{
+				World->GetSelectionManager()->SelectComponent(PickedComponent);
+			}
 		}
 		else
 		{
 			// Clear selection if nothing was picked
-			if (World) World->GetSelectionManager()->ClearSelection();
+			if (World)
+			{
+				World->GetSelectionManager()->ClearSelection();
+			}
 		}
 	}
 	else if (Button == 1)
 	{
-		//우클릭시 
+		//우클릭시
 		bIsMouseRightButtonDown = true;
 		MouseLastX = X;
 		MouseLastY = Y;

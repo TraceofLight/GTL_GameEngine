@@ -48,6 +48,10 @@ public:
 
     EViewMode GetViewMode() { return ViewMode;}
 
+    // 피킹 활성화 / 비활성화 (플로팅 윈도우에서는 비활성화)
+    void SetPickingEnabled(bool bEnabled) { bPickingEnabled = bEnabled; }
+    bool IsPickingEnabled() const { return bPickingEnabled; }
+
 protected:
     EViewportType ViewportType = EViewportType::Perspective;
     UWorld* World = nullptr;
@@ -71,4 +75,7 @@ protected:
     FVector PerspectiveCameraPosition = FVector(-5.0f, 5.0f, 5.0f);
     FVector PerspectiveCameraRotation = FVector(0.0f, 22.5f, -45.0f);
     float PerspectiveCameraFov=60;
+
+    // 피킹 활성화 여부 (플로팅 윈도우에서는 false로 설정)
+    bool bPickingEnabled = true;
 };

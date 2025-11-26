@@ -1,6 +1,10 @@
 #include "pch.h"
 #include "StatsOverlayD2D.h"
 #include "Color.h"
+#include <DirectXTex.h>
+#include <filesystem>
+#include <cmath>
+#include <cstdint>
 
 void D3D11RHI::Initialize(HWND hWindow)
 {
@@ -1272,4 +1276,254 @@ void D3D11RHI::UpdateStructuredBuffer(ID3D11Buffer* InBuffer, const void* InData
         memcpy(mappedResource.pData, InData, InDataSize);
         DeviceContext->Unmap(InBuffer, 0);
     }
+}
+
+bool D3D11RHI::CaptureRenderTargetToDDS(ID3D11Texture2D* SourceTexture, const FString& OutputPath, uint32 ThumbnailWidth, uint32 ThumbnailHeight)
+{
+    if (!SourceTexture || !Device || !DeviceContext)
+    {
+        return false;
+    }
+
+    // 소스 텍스처 정보 획득
+    D3D11_TEXTURE2D_DESC SrcDesc;
+    SourceTexture->GetDesc(&SrcDesc);
+
+    // MSAA 텍스처인 경우 리졸브 필요
+    ID3D11Texture2D* TextureToCapture = SourceTexture;
+    ID3D11Texture2D* ResolvedTexture = nullptr;
+
+    if (SrcDesc.SampleDesc.Count > 1)
+    {
+        // MSAA 리졸브용 텍스처 생성
+        D3D11_TEXTURE2D_DESC ResolveDesc = SrcDesc;
+        ResolveDesc.SampleDesc.Count = 1;
+        ResolveDesc.SampleDesc.Quality = 0;
+
+        HRESULT hr = Device->CreateTexture2D(&ResolveDesc, nullptr, &ResolvedTexture);
+        if (FAILED(hr))
+        {
+            UE_LOG("CaptureRenderTargetToDDS: Failed to create resolve texture");
+            return false;
+        }
+
+        // MSAA 리졸브
+        DeviceContext->ResolveSubresource(ResolvedTexture, 0, SourceTexture, 0, SrcDesc.Format);
+        TextureToCapture = ResolvedTexture;
+        TextureToCapture->GetDesc(&SrcDesc);  // 리졸브된 텍스처 정보로 업데이트
+    }
+
+    // 1. 스테이징 텍스처 생성 (CPU 읽기용)
+    D3D11_TEXTURE2D_DESC StagingDesc = SrcDesc;
+    StagingDesc.Usage = D3D11_USAGE_STAGING;
+    StagingDesc.BindFlags = 0;
+    StagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    StagingDesc.MiscFlags = 0;
+    StagingDesc.SampleDesc.Count = 1;
+    StagingDesc.SampleDesc.Quality = 0;
+
+    ID3D11Texture2D* StagingTexture = nullptr;
+    HRESULT hr = Device->CreateTexture2D(&StagingDesc, nullptr, &StagingTexture);
+    if (FAILED(hr))
+    {
+        if (ResolvedTexture) ResolvedTexture->Release();
+        UE_LOG("CaptureRenderTargetToDDS: Failed to create staging texture");
+        return false;
+    }
+
+    // 2. 렌더 타겟 복사
+    DeviceContext->CopyResource(StagingTexture, TextureToCapture);
+
+    // 리졸브 텍스처 해제
+    if (ResolvedTexture)
+    {
+        ResolvedTexture->Release();
+        ResolvedTexture = nullptr;
+    }
+
+    // 3. 스테이징 텍스처 매핑하여 데이터 읽기
+    D3D11_MAPPED_SUBRESOURCE MappedResource;
+    hr = DeviceContext->Map(StagingTexture, 0, D3D11_MAP_READ, 0, &MappedResource);
+    if (FAILED(hr))
+    {
+        StagingTexture->Release();
+        UE_LOG("CaptureRenderTargetToDDS: Failed to map staging texture");
+        return false;
+    }
+
+    // 4. DirectXTex ScratchImage로 변환
+    using namespace DirectX;
+
+    ScratchImage FullImage;
+    hr = FullImage.Initialize2D(SrcDesc.Format, SrcDesc.Width, SrcDesc.Height, 1, 1);
+    if (FAILED(hr))
+    {
+        DeviceContext->Unmap(StagingTexture, 0);
+        StagingTexture->Release();
+        UE_LOG("CaptureRenderTargetToDDS: Failed to initialize ScratchImage");
+        return false;
+    }
+
+    // 이미지 데이터 복사
+    const Image* Img = FullImage.GetImage(0, 0, 0);
+    uint8* SrcData = static_cast<uint8*>(MappedResource.pData);
+    uint8* DstData = Img->pixels;
+    size_t RowPitch = Img->rowPitch;
+
+    for (uint32 Row = 0; Row < SrcDesc.Height; ++Row)
+    {
+        memcpy(DstData + Row * RowPitch, SrcData + Row * MappedResource.RowPitch, std::min(RowPitch, static_cast<size_t>(MappedResource.RowPitch)));
+    }
+
+    DeviceContext->Unmap(StagingTexture, 0);
+    StagingTexture->Release();
+
+    // 5. R8G8B8A8_UNORM으로 변환
+    ScratchImage* ImageToResize = &FullImage;
+    ScratchImage ConvertedImage;
+
+    UE_LOG("CaptureRenderTargetToDDS: Source format = 0x%08X, size = %ux%u", SrcDesc.Format, SrcDesc.Width, SrcDesc.Height);
+
+    // HDR 포맷(R16G16B16A16_FLOAT 등)은 수동 변환 필요
+    bool bIsHDRFormat = (SrcDesc.Format == DXGI_FORMAT_R16G16B16A16_FLOAT ||
+                         SrcDesc.Format == DXGI_FORMAT_R32G32B32A32_FLOAT ||
+                         SrcDesc.Format == DXGI_FORMAT_R11G11B10_FLOAT);
+
+    if (bIsHDRFormat)
+    {
+        // HDR → LDR 수동 변환
+        hr = ConvertedImage.Initialize2D(DXGI_FORMAT_R8G8B8A8_UNORM, SrcDesc.Width, SrcDesc.Height, 1, 1);
+        if (SUCCEEDED(hr))
+        {
+            const Image* SrcImg = FullImage.GetImage(0, 0, 0);
+            const Image* DstImg = ConvertedImage.GetImage(0, 0, 0);
+
+            if (SrcDesc.Format == DXGI_FORMAT_R16G16B16A16_FLOAT)
+            {
+                // Half-float (16-bit) to UNORM (8-bit)
+                auto HalfToFloat = [](uint16_t h) -> float {
+                    uint32_t sign = (h >> 15) & 0x1;
+                    uint32_t exp = (h >> 10) & 0x1F;
+                    uint32_t mant = h & 0x3FF;
+
+                    if (exp == 0)
+                    {
+                        if (mant == 0) return sign ? -0.0f : 0.0f;
+                        float m = mant / 1024.0f;
+                        return (sign ? -1.0f : 1.0f) * m * (1.0f / 16384.0f);
+                    }
+                    if (exp == 31)
+                    {
+                        return mant ? 0.0f : (sign ? 0.0f : 1.0f);  // NaN/Inf를 0 또는 1로
+                    }
+                    float m = 1.0f + mant / 1024.0f;
+                    float e = static_cast<float>(exp - 15);
+                    return (sign ? -1.0f : 1.0f) * m * std::powf(2.0f, e);
+                };
+
+                for (uint32_t y = 0; y < SrcDesc.Height; ++y)
+                {
+                    const uint16_t* SrcRow = reinterpret_cast<const uint16_t*>(SrcImg->pixels + y * SrcImg->rowPitch);
+                    uint8_t* DstRow = DstImg->pixels + y * DstImg->rowPitch;
+
+                    for (uint32_t x = 0; x < SrcDesc.Width; ++x)
+                    {
+                        float r = HalfToFloat(SrcRow[x * 4 + 0]);
+                        float g = HalfToFloat(SrcRow[x * 4 + 1]);
+                        float b = HalfToFloat(SrcRow[x * 4 + 2]);
+                        float a = HalfToFloat(SrcRow[x * 4 + 3]);
+
+                        // Clamp [0, 1] and convert to 8-bit
+                        DstRow[x * 4 + 0] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, r)) * 255.0f);
+                        DstRow[x * 4 + 1] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, g)) * 255.0f);
+                        DstRow[x * 4 + 2] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, b)) * 255.0f);
+                        DstRow[x * 4 + 3] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, a)) * 255.0f);
+                    }
+                }
+            }
+            else if (SrcDesc.Format == DXGI_FORMAT_R32G32B32A32_FLOAT)
+            {
+                // Float (32-bit) to UNORM (8-bit)
+                for (uint32_t y = 0; y < SrcDesc.Height; ++y)
+                {
+                    const float* SrcRow = reinterpret_cast<const float*>(SrcImg->pixels + y * SrcImg->rowPitch);
+                    uint8_t* DstRow = DstImg->pixels + y * DstImg->rowPitch;
+
+                    for (uint32_t x = 0; x < SrcDesc.Width; ++x)
+                    {
+                        DstRow[x * 4 + 0] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, SrcRow[x * 4 + 0])) * 255.0f);
+                        DstRow[x * 4 + 1] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, SrcRow[x * 4 + 1])) * 255.0f);
+                        DstRow[x * 4 + 2] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, SrcRow[x * 4 + 2])) * 255.0f);
+                        DstRow[x * 4 + 3] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, SrcRow[x * 4 + 3])) * 255.0f);
+                    }
+                }
+            }
+            ImageToResize = &ConvertedImage;
+            UE_LOG("CaptureRenderTargetToDDS: HDR to LDR conversion successful");
+        }
+        else
+        {
+            UE_LOG("CaptureRenderTargetToDDS: Failed to create converted image for HDR");
+            return false;
+        }
+    }
+    else
+    {
+        // 비-HDR 포맷은 DirectXTex Convert 사용
+        hr = Convert(FullImage.GetImages(), FullImage.GetImageCount(), FullImage.GetMetadata(),
+                     DXGI_FORMAT_R8G8B8A8_UNORM, TEX_FILTER_DEFAULT, TEX_THRESHOLD_DEFAULT, ConvertedImage);
+        if (SUCCEEDED(hr))
+        {
+            ImageToResize = &ConvertedImage;
+        }
+        // 변환 실패해도 원본으로 진행 시도
+    }
+
+    // 6. 리사이즈 (썸네일 크기로)
+    ScratchImage ResizedImage;
+    hr = Resize(ImageToResize->GetImages(), ImageToResize->GetImageCount(), ImageToResize->GetMetadata(),
+                ThumbnailWidth, ThumbnailHeight, TEX_FILTER_LINEAR, ResizedImage);
+
+    // LINEAR 실패 시 BOX 필터로 재시도
+    if (FAILED(hr))
+    {
+        UE_LOG("CaptureRenderTargetToDDS: LINEAR resize failed, trying BOX filter");
+        hr = Resize(ImageToResize->GetImages(), ImageToResize->GetImageCount(), ImageToResize->GetMetadata(),
+                    ThumbnailWidth, ThumbnailHeight, TEX_FILTER_BOX, ResizedImage);
+    }
+
+    // BOX도 실패 시 POINT로 재시도
+    if (FAILED(hr))
+    {
+        UE_LOG("CaptureRenderTargetToDDS: BOX resize failed, trying POINT filter");
+        hr = Resize(ImageToResize->GetImages(), ImageToResize->GetImageCount(), ImageToResize->GetMetadata(),
+                    ThumbnailWidth, ThumbnailHeight, TEX_FILTER_POINT, ResizedImage);
+    }
+
+    if (FAILED(hr))
+    {
+        UE_LOG("CaptureRenderTargetToDDS: All resize attempts failed (HRESULT: 0x%08X)", hr);
+        return false;
+    }
+
+    // 6. 출력 디렉토리 생성
+    std::filesystem::path OutputFilePath(OutputPath);
+    std::filesystem::path OutputDir = OutputFilePath.parent_path();
+    if (!OutputDir.empty() && !std::filesystem::exists(OutputDir))
+    {
+        std::filesystem::create_directories(OutputDir);
+    }
+
+    // 7. DDS로 저장
+    std::wstring WOutputPath(OutputPath.begin(), OutputPath.end());
+    hr = SaveToDDSFile(ResizedImage.GetImages(), ResizedImage.GetImageCount(),
+                       ResizedImage.GetMetadata(), DDS_FLAGS_NONE, WOutputPath.c_str());
+    if (FAILED(hr))
+    {
+        UE_LOG("CaptureRenderTargetToDDS: Failed to save DDS file: %s", OutputPath.c_str());
+        return false;
+    }
+
+    UE_LOG("CaptureRenderTargetToDDS: Thumbnail saved to %s", OutputPath.c_str());
+    return true;
 }

@@ -20,6 +20,9 @@ public:
 	// 객체의 모든 프로퍼티를 카테고리별로 렌더링 (부모 클래스 프로퍼티 포함)
 	static void RenderAllPropertiesWithInheritance(UObject* Object);
 
+	// 리소스 캐시 클리어 (새 에셋 저장 후 드롭다운 갱신용)
+	static void ClearResourcesCache();
+
 private:
 	// 내부: UObject 체크 없이 프로퍼티만 렌더링 (struct 재귀 호출용)
 	static bool RenderPropertyInternal(const FProperty& Property, void* Instance, bool bSkipUObjectCheck);
@@ -61,7 +64,6 @@ private:
 	static bool RenderTransformProperty(const FProperty& Prop, void* Instance);
 
 	static void CacheResources();	// 필요할 때 리소스 목록을 멤버 변수에 캐시합니다.
-	static void ClearResourcesCache();	// 렌더링 패스가 끝날 때 캐시를 비웁니다.
 
 private:
 	// 렌더링 중 캐시되는 리소스 목록
@@ -83,4 +85,6 @@ private:
 	static TArray<const char*> CachedAnimSequenceItems;
 	static TArray<FString> CachedAnimStateMachinePaths;
 	static TArray<const char*> CachedAnimStateMachineItems;
+	static TArray<FString> CachedParticleSystemPaths;
+	static TArray<const char*> CachedParticleSystemItems;
 };

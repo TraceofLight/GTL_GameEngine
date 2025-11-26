@@ -27,6 +27,14 @@ public:
     FViewport* GetViewport() const { return Viewport; }
     FViewportClient* GetViewportClient() const { return ViewportClient; }
     void SetVClientWorld(UWorld* InWorld);
+
+    // Scene 로드 모달 요청
+    void RequestSceneLoad(const FString& ScenePath)
+    {
+        bShowSceneLoadModal = true;
+        PendingScenePath = ScenePath;
+    }
+
 private:
     void RenderToolbar();
     void RenderGizmoModeButtons();

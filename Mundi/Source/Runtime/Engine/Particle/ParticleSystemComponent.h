@@ -6,6 +6,7 @@
 // Forward declarations
 class UParticleSystem;
 class UBillboardComponent;
+class UGizmoArrowComponent;
 struct FParticleEmitterInstance;
 struct FDynamicEmitterDataBase;
 struct FParticleDynamicData;
@@ -14,7 +15,7 @@ struct FParticleDynamicData;
  * Component that manages and renders a particle system
  * Handles emitter instances and their rendering data
  */
-UCLASS(DisplayName="파티클 시스템", Description="파티클 효과를 재생하는 컴포넌트입니다")
+UCLASS(DisplayName="파티클 시스템 컴포넌트", Description="파티클 효과를 재생하는 컴포넌트입니다")
 class UParticleSystemComponent : public UPrimitiveComponent
 {
 	GENERATED_REFLECTION_BODY()
@@ -25,6 +26,7 @@ public:
 
 	/** Particle system template that defines the emitters and their properties */
 	// 사용할 파티클의 시스템 에셋 (설계도)
+	UPROPERTY(EditAnywhere, Category="Particle")
 	UParticleSystem* Template;
 
 	/** Array of emitter instances, one for each emitter in the template */
@@ -142,11 +144,6 @@ public:
 	 */
 	FParticleDynamicData* GetCurrentDynamicData() const { return CurrentDynamicData; }
 
-	// ============== State ==============
-	/** Whether the particle system is currently active */
-	// 파티클 시스템이 현재 활성화되어 있는지 여부
-	bool bIsActive;
-
 	/** Accumulated time for warmup */
 	// 웜업을 위한 누적 시간
 	float AccumulatedTime;
@@ -168,4 +165,10 @@ protected:
 
 	/** Editor-only sprite component for visualization (not serialized, PIE excluded) */
 	UBillboardComponent* SpriteComponent = nullptr;
+
+	/** Editor-only direction gizmo for showing particle system direction */
+	UGizmoArrowComponent* DirectionGizmo = nullptr;
+
+	/** Update direction gizmo to match component transform */
+	void UpdateDirectionGizmo();
 };

@@ -10,6 +10,8 @@ class UParticleModuleTypeDataBase;
  * @brief 파티클 모듈의 기본 클래스
  * @details 모든 파티클 모듈의 부모 클래스로, Spawn / Update / FinalUpdate 인터페이스 제공
  *
+ * @param bEnabled 모듈 활성화 여부 (체크박스로 토글)
+ * @param bCurvesInEditor 커브 에디터에 표시 여부
  * @param bSpawnModule Spawn 시점에 호출되는지 여부
  * @param bUpdateModule Update 시점에 호출되는지 여부
  * @param bFinalUpdateModule FinalUpdate 시점에 호출되는지 여부
@@ -40,6 +42,20 @@ public:
 	virtual void Serialize(bool bIsLoading, JSON& InOutHandle);
 	virtual void DuplicateFrom(const UParticleModule* Source);
 
+	// Module Enable/Disable (체크박스)
+	bool IsEnabled() const { return bEnabled; }
+	void SetEnabled(bool bInEnabled) { bEnabled = bInEnabled; }
+
+	// Curve Editor 연동
+	bool HasCurvesInEditor() const { return bCurvesInEditor; }
+	void SetCurvesInEditor(bool bInCurvesInEditor) { bCurvesInEditor = bInCurvesInEditor; }
+
+	/**
+	 * 모듈이 커브를 가지고 있는지 여부 (파생 클래스에서 오버라이드)
+	 * @return true면 커브 에디터 버튼 표시
+	 */
+	virtual bool ModuleHasCurves() const { return false; }
+
 	// Getters
 	bool IsSpawnModule() const { return bSpawnModule; }
 	bool IsUpdateModule() const { return bUpdateModule; }
@@ -49,6 +65,12 @@ public:
 	uint8 GetLODValidity() const { return LODValidity; }
 
 protected:
+	/** 모듈 활성화 여부 (false면 Spawn/Update에서 스킵) */
+	bool bEnabled;
+
+	/** 커브 에디터에 표시 중인지 여부 */
+	bool bCurvesInEditor;
+
 	bool bSpawnModule;
 	bool bUpdateModule;
 	bool bFinalUpdateModule;

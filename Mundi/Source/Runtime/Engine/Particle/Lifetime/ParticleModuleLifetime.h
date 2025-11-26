@@ -29,4 +29,7 @@ public:
 
 	// UParticleModule 인터페이스
 	void Spawn(FParticleEmitterInstance* Owner, int32 Offset, float SpawnTime, FBaseParticle* ParticleBase) override;
+
+	// 커브 지원 (Distribution 기반)
+	bool ModuleHasCurves() const override { return true; }
 };

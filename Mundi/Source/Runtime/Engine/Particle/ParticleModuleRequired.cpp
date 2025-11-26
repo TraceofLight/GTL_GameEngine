@@ -105,6 +105,7 @@ void UParticleModuleRequired::Serialize(bool bIsLoading, JSON& InOutHandle)
 		if (InOutHandle.hasKey("EmitterNormalsMode")) EmitterNormalsMode = static_cast<EEmitterNormalsMode>(InOutHandle["EmitterNormalsMode"].ToInt());
 		if (InOutHandle.hasKey("InterpolationMethod")) InterpolationMethod = static_cast<EParticleSubUVInterpMethod>(InOutHandle["InterpolationMethod"].ToInt());
 		if (InOutHandle.hasKey("AxisLockOption")) AxisLockOption = static_cast<EParticleAxisLock>(InOutHandle["AxisLockOption"].ToInt());
+		if (InOutHandle.hasKey("BlendMode")) BlendMode = static_cast<EParticleBlendMode>(InOutHandle["BlendMode"].ToInt());
 	}
 	else
 	{
@@ -133,6 +134,7 @@ void UParticleModuleRequired::Serialize(bool bIsLoading, JSON& InOutHandle)
 		InOutHandle["EmitterNormalsMode"] = static_cast<int32>(EmitterNormalsMode);
 		InOutHandle["InterpolationMethod"] = static_cast<int32>(InterpolationMethod);
 		InOutHandle["AxisLockOption"] = static_cast<int32>(AxisLockOption);
+		InOutHandle["BlendMode"] = static_cast<int32>(BlendMode);
 	}
 }
 
@@ -162,4 +164,5 @@ void UParticleModuleRequired::DuplicateFrom(const UParticleModule* Source)
 	EmitterNormalsMode = SrcReq->EmitterNormalsMode;
 	InterpolationMethod = SrcReq->InterpolationMethod;
 	AxisLockOption = SrcReq->AxisLockOption;
+	BlendMode = SrcReq->BlendMode;
 }

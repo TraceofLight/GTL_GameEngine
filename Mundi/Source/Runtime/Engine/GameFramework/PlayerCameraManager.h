@@ -10,7 +10,7 @@ class FViewport;
 class URenderSettings;
 class UCamMod_Fade;
 
-UCLASS(DisplayName="APlayerCameraManager", Description="APlayerCameraManager 액터")
+UCLASS(DisplayName="플레이어 카메라 매니저", Description="최종 렌더링될 화면의 시점을 결정하는 클래스입니다")
 class APlayerCameraManager : public AActor
 {
 
@@ -60,7 +60,7 @@ public:
 	void DeleteVignette();
 
 	UFUNCTION(LuaBind, DisplayName = "StartGamma")
-	void StartGamma(float Gamma); 
+	void StartGamma(float Gamma);
 
 public:
 	TArray<UCameraModifierBase*> ActiveModifiers;

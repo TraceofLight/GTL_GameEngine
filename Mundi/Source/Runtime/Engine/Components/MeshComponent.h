@@ -4,6 +4,7 @@
 
 class UShader;
 
+UCLASS(DisplayName="메시 컴포넌트", Description="지오메트리 데이터를 렌더링하는 컴포넌트입니다")
 class UMeshComponent : public UPrimitiveComponent
 {
 public:
@@ -24,7 +25,7 @@ public:
     UPROPERTY(EditAnywhere, Category="Rendering", Tooltip="그림자를 드리울지 여부입니다")
     bool bCastShadows = true;
     void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
-    
+
     void DuplicateSubObjects() override;
 
 protected:
@@ -44,10 +45,10 @@ public:
     void SetMaterialColorByUser(const uint32 InMaterialSlotIndex, const FString& ParameterName, const FLinearColor& Value);
     UFUNCTION(LuaBind, DisplayName="SetScalar", Tooltip="Set material scalar parameter")
     void SetMaterialScalarByUser(const uint32 InMaterialSlotIndex, const FString& ParameterName, float Value);
-    
+
 protected:
     void ClearDynamicMaterials();
-    
+
     TArray<UMaterialInstanceDynamic*> DynamicMaterialInstances;
 
 // Shadow Section

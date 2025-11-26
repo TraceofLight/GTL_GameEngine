@@ -33,6 +33,7 @@ ViewerState* SkeletalViewerBootstrap::CreateViewerState(const char* Name, UWorld
     Client->SetWorld(State->World);
     Client->SetViewportType(EViewportType::Perspective);
     Client->SetViewMode(EViewMode::VMI_Lit_Phong);
+    Client->SetPickingEnabled(false);  // 플로팅 윈도우에서는 피킹 비활성화
     Client->GetCamera()->SetActorLocation(FVector(3, 0, 2));
 
     State->Client = Client;

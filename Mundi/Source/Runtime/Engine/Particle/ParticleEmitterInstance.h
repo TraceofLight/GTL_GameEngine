@@ -306,7 +306,7 @@ struct FParticleEmitterInstance
 			for (int32 ModuleIndex = 0; ModuleIndex < CurrentLODLevel->SpawnModules.Num(); ModuleIndex++)
 			{
 				UParticleModule* Module = CurrentLODLevel->SpawnModules[ModuleIndex];
-				if (Module && Module->IsSpawnModule())
+				if (Module && Module->IsEnabled() && Module->IsSpawnModule())
 				{
 					Module->Spawn(this, PayloadOffset, SpawnTime, &Particle);
 				}
@@ -396,7 +396,7 @@ struct FParticleEmitterInstance
 		for (int32 ModuleIndex = 0; ModuleIndex < CurrentLODLevel->UpdateModules.Num(); ModuleIndex++)
 		{
 		    UParticleModule* Module = CurrentLODLevel->UpdateModules[ModuleIndex];
-		    if (Module && Module->IsUpdateModule())
+		    if (Module && Module->IsEnabled() && Module->IsUpdateModule())
 		    {
 		        Module->Update(this, PayloadOffset, DeltaTime);
 		    }

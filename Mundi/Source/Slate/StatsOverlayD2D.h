@@ -54,7 +54,7 @@ private:
 
 private:
     bool bInitialized = false;
-    bool bShowFPS = true;
+    bool bShowFPS = false;
     bool bShowMemory = false;
     bool bShowPicking = false;
     bool bShowDecal = false;
@@ -62,7 +62,7 @@ private:
     bool bShowShadow = false;
     bool bShowLights = false;
     bool bShowGPU = false;
-    bool bShowSkinning = true;
+    bool bShowSkinning = false;
 
     ID3D11Device* D3DDevice = nullptr;
     ID3D11DeviceContext* D3DContext = nullptr;

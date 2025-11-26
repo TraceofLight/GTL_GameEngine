@@ -20,6 +20,7 @@
 #include "GlobalConsole.h"
 #include "ThumbnailManager.h"
 #include "Windows/AnimStateMachineWindow.h"
+#include "Source/Runtime/Engine/Particle/ParticleSystem.h"
 
 IMPLEMENT_CLASS(USlateManager)
 
@@ -315,49 +316,70 @@ void USlateManager::CloseAnimStateMachineWindow()
 	AnimStateMachineWindow = nullptr;
 }
 
-void USlateManager::OpenParticlePreviewWindow()
+void USlateManager::OpenParticleEditorWindow()
 {
-	if (ParticlePreviewWindow)
+	if (ParticleEditorWindow)
 	{
 		return;
 	}
 
-	ParticlePreviewWindow = new SParticlePreviewWindow();
+	ParticleEditorWindow = new SParticleEditorWindow();
 
 	// 중앙에 적당한 크기로 열기
 	const float toolbarHeight = 50.0f;
 	const float availableHeight = Rect.GetHeight() - toolbarHeight;
-	const float w = 800.0f;
-	const float h = 600.0f;
+	const float w = Rect.GetWidth() * 0.92f;
+	const float h = availableHeight * 0.92f;
 	const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
 	const float y = Rect.Top + toolbarHeight + (availableHeight - h) * 0.5f;
 
-	ParticlePreviewWindow->Initialize(x, y, w, h, World, Device);
+	ParticleEditorWindow->Initialize(x, y, w, h, World, Device);
 }
 
-void USlateManager::OpenParticlePreviewWindowWithFile(const char* FilePath)
+void USlateManager::OpenParticleEditorWindowWithSystem(UParticleSystem* System)
 {
-	if (!ParticlePreviewWindow)
+	if (!ParticleEditorWindow)
 	{
-		OpenParticlePreviewWindow();
+		OpenParticleEditorWindow();
 	}
 
-	if (ParticlePreviewWindow && FilePath && FilePath[0] != '\0')
+	if (ParticleEditorWindow && System)
 	{
-		ParticlePreviewWindow->LoadParticleSystem(FilePath);
-		UE_LOG("Opening ParticlePreviewWindow with file: %s", FilePath);
+		ParticleEditorWindow->SetParticleSystem(System);
 	}
 }
 
-void USlateManager::CloseParticlePreviewWindow()
+void USlateManager::OpenParticleEditorWindowWithFile(const char* FilePath)
 {
-	if (!ParticlePreviewWindow)
+	if (!ParticleEditorWindow)
+	{
+		OpenParticleEditorWindow();
+	}
+
+	if (ParticleEditorWindow && FilePath)
+	{
+		ParticleEditorWindow->LoadParticleSystem(FilePath);
+	}
+}
+
+void USlateManager::CloseParticleEditorWindow()
+{
+	if (!ParticleEditorWindow)
 	{
 		return;
 	}
 
-	delete ParticlePreviewWindow;
-	ParticlePreviewWindow = nullptr;
+	delete ParticleEditorWindow;
+	ParticleEditorWindow = nullptr;
+}
+
+void USlateManager::RequestSceneLoad(const FString& ScenePath)
+{
+	if (MainViewport && !ScenePath.empty())
+	{
+		MainViewport->RequestSceneLoad(ScenePath);
+		UE_LOG("USlateManager: Scene load requested: %s", ScenePath.c_str());
+	}
 }
 
 void USlateManager::SwitchLayout(EViewportLayoutMode NewMode)
@@ -576,15 +598,15 @@ void USlateManager::Render()
         AnimStateMachineWindow->OnRender();
     }
 
-    // Render Particle Preview Window
-    if (ParticlePreviewWindow)
+    // Render Particle Editor Window (Cascade 스타일)
+    if (ParticleEditorWindow)
     {
-        ParticlePreviewWindow->OnRender();
+        ParticleEditorWindow->OnRender();
 
         // 윈도우가 닫혔으면 삭제
-        if (!ParticlePreviewWindow->IsOpen())
+        if (!ParticleEditorWindow->IsOpen())
         {
-            CloseParticlePreviewWindow();
+            CloseParticleEditorWindow();
         }
     }
 
@@ -638,6 +660,11 @@ void USlateManager::RenderAfterUI()
     {
         BlendSpace2DEditorWindow->OnRenderViewport();
     }
+
+    if (ParticleEditorWindow)
+    {
+        ParticleEditorWindow->OnRenderViewport();
+    }
 }
 
 void USlateManager::Update(float DeltaSeconds)
@@ -664,9 +691,9 @@ void USlateManager::Update(float DeltaSeconds)
         BlendSpace2DEditorWindow->OnUpdate(DeltaSeconds);
     }
 
-    if (ParticlePreviewWindow)
+    if (ParticleEditorWindow)
     {
-        ParticlePreviewWindow->OnUpdate(DeltaSeconds);
+        ParticleEditorWindow->OnUpdate(DeltaSeconds);
     }
 
     // 콘솔 애니메이션 업데이트
@@ -729,6 +756,16 @@ void USlateManager::Update(float DeltaSeconds)
 void USlateManager::ProcessInput()
 {
     const FVector2D MousePosition = INPUT.GetMousePosition();
+
+    // Check if any tool window is focused and should block editor input
+    bool bToolWindowBlockingInput = (ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput());
+
+    // Update main editor gizmo interaction state BEFORE processing any input
+    // This ensures the gizmo doesn't respond to global InputManager state
+    if (World && World->GetGizmoActor())
+    {
+        World->GetGizmoActor()->SetInteractionEnabled(!bToolWindowBlockingInput);
+    }
 
     if (SkeletalViewerWindow && SkeletalViewerWindow->Rect.Contains(MousePosition))
     {
@@ -798,9 +835,25 @@ void USlateManager::ProcessInput()
         CloseSkeletalMeshViewer();
     }
 
+    // ParticleEditorWindow가 포커스된 경우 EditorWorld 입력 차단
+    bool bParticleEditorFocused = ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput();
+
+    // Update main editor gizmo interaction state based on tool window focus
+    if (World->GetGizmoActor())
+    {
+        World->GetGizmoActor()->SetInteractionEnabled(!bParticleEditorFocused);
+    }
+
+    if (bParticleEditorFocused)
+    {
+        return;
+    }
+
     // 단축키로 기즈모 모드 변경
     if (World->GetGizmoActor())
+    {
         World->GetGizmoActor()->ProcessGizmoModeSwitch();
+    }
 }
 
 void USlateManager::OnMouseMove(FVector2D MousePos)
@@ -819,6 +872,13 @@ void USlateManager::OnMouseMove(FVector2D MousePos)
         return;
     }
 
+    // Route to Particle Editor if hovered
+    if (ParticleEditorWindow && ParticleEditorWindow->IsHover(MousePos))
+    {
+        ParticleEditorWindow->OnMouseMove(MousePos);
+        return;
+    }
+
     if (ActiveViewport)
     {
         ActiveViewport->OnMouseMove(MousePos);
@@ -831,15 +891,23 @@ void USlateManager::OnMouseMove(FVector2D MousePos)
 
 void USlateManager::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
-    if (SkeletalViewerWindow && SkeletalViewerWindow->Rect.Contains(MousePos))
+    // 플로팅 윈도우가 열려있고 마우스가 그 영역 안에 있으면 해당 윈도우에 이벤트 전달
+    // IsOpen 체크를 추가하여 윈도우가 실제로 열려있는지 확인
+    if (SkeletalViewerWindow && SkeletalViewerWindow->IsOpen() && SkeletalViewerWindow->Rect.Contains(MousePos))
     {
         SkeletalViewerWindow->OnMouseDown(MousePos, Button);
         return;
     }
 
-    if (BlendSpace2DEditorWindow && BlendSpace2DEditorWindow->Rect.Contains(MousePos))
+    if (BlendSpace2DEditorWindow && BlendSpace2DEditorWindow->IsOpen() && BlendSpace2DEditorWindow->Rect.Contains(MousePos))
     {
         BlendSpace2DEditorWindow->OnMouseDown(MousePos, Button);
+        return;
+    }
+
+    if (ParticleEditorWindow && ParticleEditorWindow->IsOpen() && ParticleEditorWindow->Rect.Contains(MousePos))
+    {
+        ParticleEditorWindow->OnMouseDown(MousePos, Button);
         return;
     }
 
@@ -887,6 +955,12 @@ void USlateManager::OnMouseUp(FVector2D MousePos, uint32 Button)
     if (BlendSpace2DEditorWindow && BlendSpace2DEditorWindow->Rect.Contains(MousePos))
     {
         BlendSpace2DEditorWindow->OnMouseUp(MousePos, Button);
+        // do not return; still allow panels to finish mouse up
+    }
+
+    if (ParticleEditorWindow && ParticleEditorWindow->Rect.Contains(MousePos))
+    {
+        ParticleEditorWindow->OnMouseUp(MousePos, Button);
         // do not return; still allow panels to finish mouse up
     }
 
@@ -955,6 +1029,11 @@ void USlateManager::Shutdown()
     {
         delete BlendSpace2DEditorWindow;
         BlendSpace2DEditorWindow = nullptr;
+    }
+    if (ParticleEditorWindow)
+    {
+        delete ParticleEditorWindow;
+        ParticleEditorWindow = nullptr;
     }
 	CloseSkeletalMeshViewer();
 	CloseAnimStateMachineWindow();

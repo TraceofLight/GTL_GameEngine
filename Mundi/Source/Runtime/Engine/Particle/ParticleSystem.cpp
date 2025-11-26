@@ -135,6 +135,7 @@ void UParticleSystem::SetupSoloing()
 {
 	// 솔로 모드 설정
 	// 하나라도 솔로인 경우, 솔로가 아닌 이미터는 비활성화
+	// 솔로가 없으면, bIsEnabled 상태를 LODLevel에 반영
 	bool bHasSolo = false;
 	for (UParticleEmitter* Emitter : Emitters)
 	{
@@ -145,22 +146,27 @@ void UParticleSystem::SetupSoloing()
 		}
 	}
 
-	if (bHasSolo)
+	for (UParticleEmitter* Emitter : Emitters)
 	{
-		// 솔로인 이미터만 활성화
-		for (UParticleEmitter* Emitter : Emitters)
+		if (!Emitter)
 		{
-			if (!Emitter)
-			{
-				continue;
-			}
+			continue;
+		}
 
-			for (int32 LODIndex = 0; LODIndex < Emitter->GetNumLODs(); ++LODIndex)
+		for (int32 LODIndex = 0; LODIndex < Emitter->GetNumLODs(); ++LODIndex)
+		{
+			UParticleLODLevel* LODLevel = Emitter->GetLODLevel(LODIndex);
+			if (LODLevel)
 			{
-				UParticleLODLevel* LODLevel = Emitter->GetLODLevel(LODIndex);
-				if (LODLevel)
+				if (bHasSolo)
 				{
+					// 솔로인 이미터만 활성화
 					LODLevel->bEnabled = Emitter->bIsSoloing;
+				}
+				else
+				{
+					// 솔로가 없으면 bIsEnabled 상태 반영
+					LODLevel->bEnabled = Emitter->bIsEnabled;
 				}
 			}
 		}

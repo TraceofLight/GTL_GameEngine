@@ -27,13 +27,13 @@ class UCameraComponent;
  * - Jump(), Crouch() 등 기본 동작
  * - 이동 입력 처리
  */
-UCLASS( DisplayName = "ACharacter", Description = "이동 가능한 캐릭터 Pawn 클래스")
+UCLASS( DisplayName = "캐릭터", Description = "이동 가능한 캐릭터 폰 클래스입니다")
 class ACharacter : public APawn
 {
 public:
 
 	GENERATED_REFLECTION_BODY()
-	
+
 
 	ACharacter();
 	virtual ~ACharacter() override;

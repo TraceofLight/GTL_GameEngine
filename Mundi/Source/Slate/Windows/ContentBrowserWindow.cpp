@@ -40,7 +40,8 @@ UContentBrowserWindow::UContentBrowserWindow()
 
 	// 루트 경로를 Data 폴더로 설정
 	RootPath = std::filesystem::current_path() / "Data";
-	CurrentPath = RootPath;
+	// 초기 경로를 Data/Scenes로 설정
+	CurrentPath = RootPath / "Scenes";
 }
 
 UContentBrowserWindow::~UContentBrowserWindow()
@@ -233,6 +234,11 @@ void UContentBrowserWindow::RenderFolderTreeNode(const std::filesystem::path& Fo
 		if (FolderPath == CurrentPath)
 		{
 			flags |= ImGuiTreeNodeFlags_Selected;
+		}
+		// Data 폴더와 Scenes 폴더는 기본적으로 열어둠
+		if (FolderPath == RootPath || FolderPath == (RootPath / "Scenes"))
+		{
+			flags |= ImGuiTreeNodeFlags_DefaultOpen;
 		}
 
 		// 트리 노드 렌더링
@@ -466,10 +472,10 @@ void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 	}
 	else if (ext == ".psys")
 	{
-		// ParticlePreviewWindow 열기
+		// ParticleEditorWindow 열기
 		std::string pathStr = Entry.Path.string();
-		USlateManager::GetInstance().OpenParticlePreviewWindowWithFile(pathStr.c_str());
-		UE_LOG("Opening ParticlePreviewWindow for: %s", Entry.FileName.c_str());
+		USlateManager::GetInstance().OpenParticleEditorWindowWithFile(pathStr.c_str());
+		UE_LOG("Opening ParticleEditorWindow for: %s", Entry.FileName.c_str());
 	}
 	else if (ext == ".obj")
 	{
@@ -480,6 +486,13 @@ void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 	{
 		// 텍스처 뷰어 (향후 구현)
 		UE_LOG("Texture file clicked: %s (Texture viewer not implemented yet)", Entry.FileName.c_str());
+	}
+	else if (ext == ".scene")
+	{
+		// Scene 파일은 로드 확인 모달 표시
+		std::string pathStr = Entry.Path.string();
+		USlateManager::GetInstance().RequestSceneLoad(pathStr.c_str());
+		UE_LOG("Opening scene load modal for: %s", Entry.FileName.c_str());
 	}
 	else
 	{
