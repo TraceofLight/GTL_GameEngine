@@ -13,6 +13,7 @@ struct FThumbnailData
 	int Width = 0;
 	int Height = 0;
 	bool bOwnedByManager = true;  // true면 Manager가 Release 책임, false면 외부(ResourceManager)가 관리
+	int64 LastModifiedTime = 0;   // 파일 수정 시간 (dirty check용)
 };
 
 /**

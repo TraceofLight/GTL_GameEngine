@@ -371,7 +371,6 @@ public:
 			FString FileContent((std::istreambuf_iterator<char>(File)), std::istreambuf_iterator<char>());
 			File.close();
 
-			std::cout << "[JsonSerializer] File Content Length: " << FileContent.length() << "\n";
 			OutJson = JSON::Load(FileContent);
 			return true;
 		}

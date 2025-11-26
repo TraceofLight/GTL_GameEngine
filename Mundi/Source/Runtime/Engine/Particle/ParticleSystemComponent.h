@@ -102,6 +102,7 @@ public:
 	 *
 	 * @return UParticleSystem* - Created particle system template
 	 */
+	[[deprecated("Use .psys file loading instead")]]
 	static UParticleSystem* CreateFlareParticleSystem();
 
 	/**
