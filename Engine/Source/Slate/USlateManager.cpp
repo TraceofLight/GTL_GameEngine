@@ -49,6 +49,7 @@ void USlateManager::SaveSplitterConfig()
     EditorINI["LeftBottom"] = std::to_string(LeftBottom->SplitRatio);
     EditorINI["LeftPanel"] = std::to_string(LeftPanel->SplitRatio);
     EditorINI["RightPanel"] = std::to_string(RightPanel->SplitRatio);
+    EditorINI["ConsoleHeight"] = std::to_string(ConsoleHeight);
 }
 
 void USlateManager::LoadSplitterConfig()
@@ -65,6 +66,8 @@ void USlateManager::LoadSplitterConfig()
         LeftPanel->SplitRatio = std::stof(EditorINI["LeftPanel"]);
     if (EditorINI.Contains("RightPanel"))
         RightPanel->SplitRatio = std::stof(EditorINI["RightPanel"]);
+    if (EditorINI.Contains("ConsoleHeight"))
+        ConsoleHeight = std::stof(EditorINI["ConsoleHeight"]);
 }
 
 USlateManager::USlateManager()
@@ -499,14 +502,17 @@ void USlateManager::Render()
         // 부드러운 감속을 위한 ease-out 곡선 적용
         float EasedProgress = 1.0f - (1.0f - ConsoleAnimationProgress) * (1.0f - ConsoleAnimationProgress);
 
+        // 최대 높이 제한 적용
+        float MaxConsoleHeight = CLIENTHEIGHT * ConsoleMaxHeightRatio;
+        float ClampedConsoleHeight = std::max(ConsoleMinHeight, std::min(ConsoleHeight, MaxConsoleHeight));
+
         // 좌우 여백을 포함한 콘솔 크기 계산
-        float ConsoleHeight = CLIENTHEIGHT * ConsoleHeightRatio;
         float ConsoleWidth = CLIENTWIDTH - (ConsoleHorizontalMargin * 2.0f);
         float ConsoleXPos = ConsoleHorizontalMargin;
 
         // Y 위치 계산 (하단에서 슬라이드 업)
         float YPosWhenHidden = CLIENTHEIGHT; // 화면 밖 (하단)
-        float YPosWhenVisible = CLIENTHEIGHT - ConsoleHeight; // 화면 내 (하단)
+        float YPosWhenVisible = CLIENTHEIGHT - ClampedConsoleHeight; // 화면 내 (하단)
         float CurrentYPos = YPosWhenHidden + (YPosWhenVisible - YPosWhenHidden) * EasedProgress;
 
         // 둥근 모서리 스타일 적용
@@ -517,7 +523,7 @@ void USlateManager::Render()
 
         // 윈도우 위치 및 크기 설정
         ImGui::SetNextWindowPos(ImVec2(ConsoleXPos, CurrentYPos));
-        ImGui::SetNextWindowSize(ImVec2(ConsoleWidth, ConsoleHeight));
+        ImGui::SetNextWindowSize(ImVec2(ConsoleWidth, ClampedConsoleHeight));
 
         // 윈도우 플래그
         ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove
@@ -538,22 +544,6 @@ void USlateManager::Render()
         bool isWindowOpen = true;
         if (ImGui::Begin("ConsoleOverlay", &isWindowOpen, flags))
         {
-            UConsoleWidget* ConsoleWidget = ConsoleWindow->GetConsoleWidget();
-            bool bIsPinned = false;
-            if (ConsoleWidget)
-            {
-                bIsPinned = ConsoleWidget->IsWindowPinned();
-            }
-
-            // 2. '핀'이 활성화되지 않았을 때만 포커스를 잃으면 닫기
-            if (!bIsPinned &&
-                !ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
-                bIsConsoleVisible &&
-                !bIsConsoleAnimating)
-            {
-                ToggleConsole(); // 콘솔 닫기
-            }
-
             // 둥근 모서리가 있는 반투명 배경 추가
             ImDrawList* DrawList = ImGui::GetWindowDrawList();
             ImVec2 WindowPos = ImGui::GetWindowPos();
@@ -564,6 +554,88 @@ void USlateManager::Render()
                 IM_COL32(20, 20, 20, 240), // 높은 불투명도의 어두운 배경
                 12.0f // 둥근 정도
             );
+
+            // === 상단 Status Bar (드래그로 높이 조절) ===
+            ImVec2 StatusBarMin = WindowPos;
+            ImVec2 StatusBarMax = ImVec2(WindowPos.x + WindowSize.x - 30.0f, WindowPos.y + ConsoleStatusBarHeight);
+
+            // Status bar 영역에 드래그 핸들 표시 (중앙에 짧은 라인)
+            float HandleWidth = 50.0f;
+            float HandleX = WindowPos.x + (WindowSize.x - 30.0f - HandleWidth) * 0.5f;
+            DrawList->AddRectFilled(
+                ImVec2(HandleX, WindowPos.y + 2.0f),
+                ImVec2(HandleX + HandleWidth, WindowPos.y + ConsoleStatusBarHeight - 2.0f),
+                IM_COL32(100, 100, 100, 180),
+                2.0f
+            );
+
+            // 마우스가 status bar 위에 있는지 확인
+            ImVec2 MousePos = ImGui::GetMousePos();
+            bool bMouseOverStatusBar = (MousePos.x >= StatusBarMin.x && MousePos.x <= StatusBarMax.x &&
+                                        MousePos.y >= StatusBarMin.y && MousePos.y <= StatusBarMax.y);
+
+            // 드래그 시작
+            if (bMouseOverStatusBar && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+                bIsConsoleDragging = true;
+                ConsoleDragStartY = MousePos.y;
+                ConsoleDragStartHeight = ConsoleHeight;
+            }
+
+            // 드래그 중 (status bar 위에서 드래그 시작한 경우에만)
+            if (bIsConsoleDragging)
+            {
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    float DeltaY = ConsoleDragStartY - MousePos.y; // 위로 드래그하면 양수
+                    ConsoleHeight = ConsoleDragStartHeight + DeltaY;
+                    ConsoleHeight = std::max(ConsoleMinHeight, std::min(ConsoleHeight, MaxConsoleHeight));
+                }
+                else
+                {
+                    bIsConsoleDragging = false;
+                }
+
+                // 커서 변경
+                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+            }
+            else if (bMouseOverStatusBar)
+            {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+            }
+
+            // === X 버튼 (우상단) ===
+            float CloseButtonSize = 20.0f;
+            ImVec2 CloseButtonPos = ImVec2(WindowPos.x + WindowSize.x - CloseButtonSize - 8.0f, WindowPos.y + 4.0f);
+            ImVec2 CloseButtonMax = ImVec2(CloseButtonPos.x + CloseButtonSize, CloseButtonPos.y + CloseButtonSize);
+
+            bool bMouseOverClose = (MousePos.x >= CloseButtonPos.x && MousePos.x <= CloseButtonMax.x &&
+                                    MousePos.y >= CloseButtonPos.y && MousePos.y <= CloseButtonMax.y);
+
+            // X 버튼 배경
+            ImU32 CloseButtonColor = bMouseOverClose ? IM_COL32(180, 60, 60, 220) : IM_COL32(80, 80, 80, 180);
+            DrawList->AddRectFilled(CloseButtonPos, CloseButtonMax, CloseButtonColor, 4.0f);
+
+            // X 그리기
+            float XPadding = 5.0f;
+            ImU32 XColor = IM_COL32(220, 220, 220, 255);
+            DrawList->AddLine(
+                ImVec2(CloseButtonPos.x + XPadding, CloseButtonPos.y + XPadding),
+                ImVec2(CloseButtonMax.x - XPadding, CloseButtonMax.y - XPadding),
+                XColor, 2.0f);
+            DrawList->AddLine(
+                ImVec2(CloseButtonMax.x - XPadding, CloseButtonPos.y + XPadding),
+                ImVec2(CloseButtonPos.x + XPadding, CloseButtonMax.y - XPadding),
+                XColor, 2.0f);
+
+            // X 버튼 클릭 처리
+            if (bMouseOverClose && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+                ToggleConsole(); // 콘솔 닫기
+            }
+
+            // Status bar 아래에 콘솔 내용 렌더링
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ConsoleStatusBarHeight);
 
             // 콘솔 위젯 렌더링
             ConsoleWindow->RenderWidget();

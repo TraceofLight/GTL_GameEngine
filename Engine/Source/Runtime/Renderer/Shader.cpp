@@ -373,6 +373,12 @@ ID3D11PixelShader* UShader::GetPixelShader(const TArray<FShaderMacro>& InMacros)
 
 void UShader::CreateInputLayout(ID3D11Device* Device, const FString& InShaderPath, FShaderVariant& InOutVariant)
 {
+	// VSBlob이 없으면 InputLayout 생성 불가
+	if (!InOutVariant.VSBlob)
+	{
+		return;
+	}
+
 	FString FinalKey = InShaderPath;
 
 	for (const FShaderMacro& Macro : InOutVariant.SourceMacros)

@@ -140,9 +140,12 @@ void UAnimSequence::Load(const FString& InFilePath, ID3D11Device* InDevice)
 
 void UAnimSequence::LoadFromAnimFile(const FString& AnimFilePath)
 {
+	// 파일 포맷: "ANIM" (4바이트) + Version (4바이트) + Name + Notifies + SyncMarkers + DataModel
+	constexpr char ANIM_MAGIC[4] = { 'A', 'N', 'I', 'M' };
+
 	try
 	{
-		// 파일 크기 검증 - 너무 작거나 너무 크면 손상된 것으로 간주
+		// 파일 크기 검증
 		std::filesystem::path AnimPath(UTF8ToWide(AnimFilePath));
 		if (!std::filesystem::exists(AnimPath))
 		{
@@ -151,7 +154,7 @@ void UAnimSequence::LoadFromAnimFile(const FString& AnimFilePath)
 		}
 
 		auto FileSize = std::filesystem::file_size(AnimPath);
-		if (FileSize < 16 || FileSize > 100 * 1024 * 1024) // 16바이트 ~ 100MB
+		if (FileSize < 16 || FileSize > 100 * 1024 * 1024)
 		{
 			UE_LOG("AnimSequence: LoadFromAnimFile: Invalid file size (%llu bytes): %s", FileSize, AnimFilePath.c_str());
 			return;
@@ -164,11 +167,22 @@ void UAnimSequence::LoadFromAnimFile(const FString& AnimFilePath)
 			return;
 		}
 
+		// 매직 넘버 검증
+		char MagicBuffer[4] = { 0 };
+		Reader.Serialize(MagicBuffer, 4);
+		if (memcmp(MagicBuffer, ANIM_MAGIC, 4) != 0)
+		{
+			UE_LOG("AnimSequence: LoadFromAnimFile: Invalid magic number in file: %s", AnimFilePath.c_str());
+			return;
+		}
+
+		// 버전 읽기
+		uint32 FileVersion = 0;
+		Reader << FileVersion;
+
 		// Name 로드
 		FString AnimName;
 		Serialization::ReadString(Reader, AnimName);
-
-		// Name 유효성 검사
 		if (AnimName.empty() || AnimName.size() > 1024)
 		{
 			UE_LOG("AnimSequence: LoadFromAnimFile: Invalid name in file: %s", AnimFilePath.c_str());
@@ -179,8 +193,6 @@ void UAnimSequence::LoadFromAnimFile(const FString& AnimFilePath)
 		// Notifies 로드
 		uint32 NotifyCount = 0;
 		Reader << NotifyCount;
-
-		// NotifyCount 유효성 검사 (1000개 이상이면 손상된 것으로 간주)
 		if (NotifyCount > 1000)
 		{
 			UE_LOG("AnimSequence: LoadFromAnimFile: Invalid NotifyCount (%u) in file: %s", NotifyCount, AnimFilePath.c_str());
@@ -197,8 +209,6 @@ void UAnimSequence::LoadFromAnimFile(const FString& AnimFilePath)
 		// SyncMarkers 로드
 		uint32 SyncMarkerCount = 0;
 		Reader << SyncMarkerCount;
-
-		// SyncMarkerCount 유효성 검사
 		if (SyncMarkerCount > 1000)
 		{
 			UE_LOG("AnimSequence: LoadFromAnimFile: Invalid SyncMarkerCount (%u) in file: %s", SyncMarkerCount, AnimFilePath.c_str());
@@ -224,6 +234,9 @@ void UAnimSequence::LoadFromAnimFile(const FString& AnimFilePath)
 		SetDataModel(NewDataModel);
 
 		Reader.Close();
+
+		// FilePath 설정
+		SetFilePath(AnimFilePath);
 
 		// LastModifiedTime 설정
 		std::filesystem::path FilePath(AnimFilePath);
@@ -281,6 +294,10 @@ bool UAnimSequence::Save()
 
 bool UAnimSequence::SaveToFile(const FString& SavePath)
 {
+	// 파일 포맷 버전 상수
+	constexpr char ANIM_MAGIC[4] = { 'A', 'N', 'I', 'M' };
+	constexpr uint32 ANIM_VERSION_1 = 1; // SyncMarkers 포함
+
 	if (SavePath.empty())
 	{
 		UE_LOG("AnimSequence: SaveToFile: Empty save path");
@@ -298,6 +315,13 @@ bool UAnimSequence::SaveToFile(const FString& SavePath)
 	try
 	{
 		FWindowsBinWriter Writer(SavePath);
+
+		// 매직 넘버 저장 (새 포맷 식별용)
+		Writer.Serialize(const_cast<char*>(ANIM_MAGIC), 4);
+
+		// 버전 저장
+		uint32 Version = ANIM_VERSION_1;
+		Writer << Version;
 
 		// Name 저장
 		Serialization::WriteString(Writer, Name);

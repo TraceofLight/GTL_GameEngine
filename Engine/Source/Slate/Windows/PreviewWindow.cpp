@@ -8,7 +8,6 @@
 #include "Source/Runtime/Engine/Components/LineComponent.h"
 #include "SelectionManager.h"
 #include "USlateManager.h"
-#include "BoneAnchorComponent.h"
 #include "Source/Runtime/Engine/Collision/Picking.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
 #include "Source/Editor/FBXLoader.h"
@@ -187,6 +186,14 @@ void SPreviewWindow::OnRender()
         bool bIsAnimationMode = (ActiveState && ActiveState->ViewMode == EViewerMode::Animation);
         float timelineHeight = bIsAnimationMode ? (totalHeight * 0.4f) : 0.0f; // 40% 할당
         float mainAreaHeight = totalHeight - timelineHeight;
+
+        static int HeightLogCount = 0;
+        if (HeightLogCount < 5)
+        {
+            UE_LOG("PreviewWindow: bIsAnimationMode=%d, totalHeight=%.1f, timelineHeight=%.1f",
+                   bIsAnimationMode, totalHeight, timelineHeight);
+            ++HeightLogCount;
+        }
 
         // Remove spacing between panels
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
@@ -707,19 +714,19 @@ void SPreviewWindow::OnRender()
 
                                 ExpandToSelectedBone(ActiveState, Index);
 
-                                if (ActiveState->PreviewActor && ActiveState->World)
+                                if (ActiveState->PreviewActor && ActiveState->World && ActiveState->CurrentMesh)
                                 {
-                                    if (UBoneAnchorComponent* Anchor = ActiveState->PreviewActor->GetBoneGizmoAnchor())
+                                    // Set Gizmo to target this bone directly
+                                    AGizmoActor* GizmoActor = ActiveState->World->GetGizmoActor();
+                                    USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+                                    if (GizmoActor && SkelComp)
                                     {
-                                        // BoneAnchor에 ViewerState 먼저 설정 (RepositionAnchorToBone에서 사용)
-                                        Anchor->SetViewerState(ActiveState);
+                                        GizmoActor->SetBoneTarget(SkelComp, Index);
+                                        GizmoActor->SetbRender(true);
                                     }
-                                    ActiveState->PreviewActor->RepositionAnchorToBone(Index);
-                                    if (UBoneAnchorComponent* Anchor = ActiveState->PreviewActor->GetBoneGizmoAnchor())
-                                    {
-                                        ActiveState->World->GetSelectionManager()->SelectActor(ActiveState->PreviewActor);
-                                        ActiveState->World->GetSelectionManager()->SelectComponent(Anchor);
-                                    }
+
+                                    // Update selection manager to show gizmo
+                                    ActiveState->World->GetSelectionManager()->SelectActor(ActiveState->PreviewActor);
                                 }
                             }
                         }
@@ -882,11 +889,13 @@ void SPreviewWindow::OnRender()
             if (ImGui::Button("Animation", ImVec2(buttonWidth, 0)))
             {
                 ActiveState->ViewMode = EViewerMode::Animation;
+                UE_LOG("PreviewWindow: Switched to Animation mode");
 
                 // Animation 모드 진입 시 첫 번째 애니메이션 자동 선택 및 재생
                 if (ActiveState->CurrentMesh && !ActiveState->CurrentAnimation)
                 {
                     const TArray<UAnimSequence*>& Animations = ActiveState->CurrentMesh->GetAnimations();
+                    UE_LOG("PreviewWindow: CurrentMesh=%p, Animations.Num()=%d", ActiveState->CurrentMesh, Animations.Num());
                     if (Animations.Num() > 0)
                     {
                         ActiveState->SelectedAnimationIndex = 0;
@@ -1444,6 +1453,13 @@ void SPreviewWindow::OnRender()
                 // 복사본을 만들어 순회 (삭제 시 원본 배열이 변경되어도 안전)
                 TArray<UAnimSequence*> Animations = ActiveState->CurrentMesh->GetAnimations();
 
+                static int LogCount = 0;
+                if (LogCount < 5)
+                {
+                    UE_LOG("PreviewWindow: Animation List - Mesh=%p, AnimCount=%d", ActiveState->CurrentMesh, Animations.Num());
+                    ++LogCount;
+                }
+
                 if (Animations.Num() > 0)
                 {
                     ImGui::BeginChild("AnimListScroll", ImVec2(0, 0), false);
@@ -1452,9 +1468,6 @@ void SPreviewWindow::OnRender()
                     {
                         UAnimSequence* Anim = Animations[i];
                         if (!Anim) continue;
-
-                        UAnimDataModel* DataModel = Anim->GetDataModel();
-                        if (!DataModel) continue;
 
                         bool bIsSelected = (ActiveState->SelectedAnimationIndex == i);
                         char LabelBuffer[256];
@@ -1500,7 +1513,16 @@ void SPreviewWindow::OnRender()
                             }
                         }
 
-                        snprintf(LabelBuffer, sizeof(LabelBuffer), "%s (%.1fs)", DisplayName.c_str(), DataModel->GetPlayLength());
+                        // DataModel이 있으면 재생 길이 표시
+                        UAnimDataModel* DataModel = Anim->GetDataModel();
+                        if (DataModel)
+                        {
+                            snprintf(LabelBuffer, sizeof(LabelBuffer), "%s (%.1fs)", DisplayName.c_str(), DataModel->GetPlayLength());
+                        }
+                        else
+                        {
+                            snprintf(LabelBuffer, sizeof(LabelBuffer), "%s", DisplayName.c_str());
+                        }
                         FString Label = LabelBuffer;
 
                         if (ImGui::Selectable(Label.c_str(), bIsSelected))
@@ -1609,9 +1631,25 @@ void SPreviewWindow::OnRender()
                 }
                 else
                 {
+                    static int NoAnimLogCount = 0;
+                    if (NoAnimLogCount < 3)
+                    {
+                        UE_LOG("PreviewWindow: No animations - showing message");
+                        ++NoAnimLogCount;
+                    }
+
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
                     ImGui::TextWrapped("No animations imported.");
                     ImGui::PopStyleColor();
+                }
+            }
+            else
+            {
+                static int NoMeshLogCount = 0;
+                if (NoMeshLogCount < 3)
+                {
+                    UE_LOG("PreviewWindow: No CurrentMesh in ActiveState");
+                    ++NoMeshLogCount;
                 }
             }
 
@@ -1689,18 +1727,21 @@ void SPreviewWindow::OnUpdate(float DeltaSeconds)
 
     // Spacebar 입력 처리 (Animation 모드이고, Gizmo/BoneAnchor가 선택되지 않았을 때만)
     UInputManager& InputMgr = UInputManager::GetInstance();
-    bool bIsGizmoSelected = false;
+    bool bIsGizmoOrBoneSelected = false;
     if (ActiveState->World && ActiveState->World->GetSelectionManager())
     {
+        // Check if gizmo is selected (component mode) or bone is selected
         UActorComponent* SelectedComp = ActiveState->World->GetSelectionManager()->GetSelectedActorComponent();
-        // BoneAnchorComponent 또는 Gizmo 관련 컴포넌트가 선택되어 있으면 Spacebar 무시
-        bIsGizmoSelected = (SelectedComp != nullptr);
+        AGizmoActor* Gizmo = ActiveState->World->GetGizmoActor();
+        bool bBoneSelected = (Gizmo && Gizmo->IsBoneTarget());
+
+        bIsGizmoOrBoneSelected = (SelectedComp != nullptr) || bBoneSelected;
     }
 
     if (ActiveState->ViewMode == EViewerMode::Animation &&
         ActiveState->CurrentAnimation &&
         !InputMgr.GetIsGizmoDragging() &&
-        !bIsGizmoSelected &&
+        !bIsGizmoOrBoneSelected &&
         InputMgr.IsKeyPressed(VK_SPACE))
     {
         // AnimInstance를 통한 재생/일시정지 토글
@@ -1861,14 +1902,15 @@ void SPreviewWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
         // First, always try gizmo picking (pass to viewport)
         ActiveState->Viewport->ProcessMouseButtonDown((int32)LocalPos.X, (int32)LocalPos.Y, (int32)Button);
 
-        // Left click: if no gizmo was picked, try bone picking
+        // Left click: try bone picking or deselection
         if (Button == 0 && ActiveState->PreviewActor && ActiveState->CurrentMesh && ActiveState->Client && ActiveState->World)
         {
-            // Check if gizmo was picked by checking selection
-            UActorComponent* SelectedComp = ActiveState->World->GetSelectionManager()->GetSelectedComponent();
+            // Check if gizmo was actually clicked (hovering at the moment of click)
+            AGizmoActor* Gizmo = ActiveState->World->GetGizmoActor();
+            bool bGizmoClicked = (Gizmo && Gizmo->GetbIsHovering());
 
-            // Only do bone picking if gizmo wasn't selected
-            if (!SelectedComp || !Cast<UBoneAnchorComponent>(SelectedComp))
+            // Only do bone picking/deselection if gizmo wasn't clicked
+            if (!bGizmoClicked)
             {
                 // Get camera from viewport client
                 ACameraActor* Camera = ActiveState->Client->GetCamera();
@@ -1908,18 +1950,18 @@ void SPreviewWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 
                         ExpandToSelectedBone(ActiveState, PickedBoneIndex);
 
-                        // Move gizmo to the selected bone
-                        if (UBoneAnchorComponent* Anchor = ActiveState->PreviewActor->GetBoneGizmoAnchor())
+                        // Set Gizmo to target this bone directly
+                        AGizmoActor* GizmoActor = ActiveState->World->GetGizmoActor();
+                        USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+                        if (GizmoActor && SkelComp)
                         {
-                            // BoneAnchor에 ViewerState 먼저 설정 (RepositionAnchorToBone에서 사용)
-                            Anchor->SetViewerState(ActiveState);
+                            GizmoActor->SetBoneTarget(SkelComp, PickedBoneIndex);
+                            GizmoActor->SetbRender(true);
                         }
-                        ActiveState->PreviewActor->RepositionAnchorToBone(PickedBoneIndex);
-                        if (UBoneAnchorComponent* Anchor = ActiveState->PreviewActor->GetBoneGizmoAnchor())
-                        {
-                            ActiveState->World->GetSelectionManager()->SelectActor(ActiveState->PreviewActor);
-                            ActiveState->World->GetSelectionManager()->SelectComponent(Anchor);
-                        }
+
+                        // Update selection manager to show gizmo
+                        ActiveState->World->GetSelectionManager()->SelectActor(ActiveState->PreviewActor);
+                        // Note: We don't select a component anymore since we're targeting bone directly
                     }
                     else
                     {
@@ -1927,12 +1969,14 @@ void SPreviewWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
                         ActiveState->SelectedBoneIndex = -1;
                         ActiveState->bBoneLinesDirty = true;
 
-                        // Hide gizmo and clear selection
-                        if (UBoneAnchorComponent* Anchor = ActiveState->PreviewActor->GetBoneGizmoAnchor())
+                        // Clear bone target from gizmo
+                        AGizmoActor* GizmoActor = ActiveState->World->GetGizmoActor();
+                        if (GizmoActor)
                         {
-                            Anchor->SetVisibility(false);
-                            Anchor->SetEditability(false);
+                            GizmoActor->ClearBoneTarget();
+                            GizmoActor->SetbRender(false);
                         }
+
                         ActiveState->World->GetSelectionManager()->ClearSelection();
                     }
                 }
@@ -1993,9 +2037,15 @@ void SPreviewWindow::OnRenderViewport()
         }
 
         // 애니메이션 재생 중이고 본이 선택되어 있으면 기즈모 위치도 실시간 업데이트
-        if (bIsAnimationPlaying && ActiveState->SelectedBoneIndex >= 0 && ActiveState->PreviewActor)
+        if (bIsAnimationPlaying && ActiveState->SelectedBoneIndex >= 0 && ActiveState->PreviewActor && ActiveState->World)
         {
-            ActiveState->PreviewActor->RepositionAnchorToBone(ActiveState->SelectedBoneIndex);
+            AGizmoActor* Gizmo = ActiveState->World->GetGizmoActor();
+            USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+            if (Gizmo && SkelComp && Gizmo->IsBoneTarget())
+            {
+                FTransform BoneWorldTransform = SkelComp->GetBoneWorldTransform(ActiveState->SelectedBoneIndex);
+                Gizmo->SetActorLocation(BoneWorldTransform.Translation);
+            }
         }
 
         // 뷰포트 렌더링 (ImGui보다 먼저)
@@ -2035,11 +2085,18 @@ void SPreviewWindow::CloseTab(int Index)
 
 void SPreviewWindow::LoadSkeletalMesh(const FString& Path)
 {
+    UE_LOG("PreviewWindow::LoadSkeletalMesh called with: %s", Path.c_str());
+
     if (!ActiveState || Path.empty())
+    {
+        UE_LOG("PreviewWindow::LoadSkeletalMesh: Early return - ActiveState=%p, Path.empty()=%d", ActiveState, Path.empty());
         return;
+    }
 
     // Load the skeletal mesh using the resource manager
     USkeletalMesh* Mesh = UResourceManager::GetInstance().Load<USkeletalMesh>(Path);
+    UE_LOG("PreviewWindow::LoadSkeletalMesh: Mesh=%p, PreviewActor=%p", Mesh, ActiveState->PreviewActor);
+
     if (Mesh && ActiveState->PreviewActor)
     {
         // Set the mesh on the preview actor
@@ -2065,6 +2122,9 @@ void SPreviewWindow::LoadSkeletalMesh(const FString& Path)
             LineComp->ClearLines();
             LineComp->SetLineVisible(ActiveState->bShowBones);
         }
+
+        // Preload에서 이미 모든 애니메이션이 추가되어 있음
+        UE_LOG("PreviewWindow: Mesh already has %d animations from Preload", Mesh->GetAnimations().Num());
 
         // 애니메이션이 있으면 자동으로 Animation 모드로 전환 및 첫 번째 애니메이션 재생
         const TArray<UAnimSequence*>& Animations = Mesh->GetAnimations();
@@ -2612,9 +2672,15 @@ void SPreviewWindow::RenderToPreviewRenderTarget()
     }
 
     // 애니메이션 재생 중이고 본이 선택되어 있으면 기즈모 위치도 실시간 업데이트
-    if (bIsAnimationPlaying && ActiveState->SelectedBoneIndex >= 0 && ActiveState->PreviewActor)
+    if (bIsAnimationPlaying && ActiveState->SelectedBoneIndex >= 0 && ActiveState->PreviewActor && ActiveState->World)
     {
-        ActiveState->PreviewActor->RepositionAnchorToBone(ActiveState->SelectedBoneIndex);
+        AGizmoActor* Gizmo = ActiveState->World->GetGizmoActor();
+        USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+        if (Gizmo && SkelComp && Gizmo->IsBoneTarget())
+        {
+            FTransform BoneWorldTransform = SkelComp->GetBoneWorldTransform(ActiveState->SelectedBoneIndex);
+            Gizmo->SetActorLocation(BoneWorldTransform.Translation);
+        }
     }
 
     // 스켈레탈 메쉬 씬 렌더링

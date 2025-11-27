@@ -141,8 +141,14 @@ private:
     bool bConsoleShouldFocus = false; // 콘솔 열렸을 때 포커싱
     float ConsoleAnimationProgress = 0.0f; // 0.0 = 숨김, 1.0 = 완전히 표시
     const float ConsoleAnimationDuration = 0.25f; // 초 단위
-    const float ConsoleHeightRatio = 0.3f; // 화면 높이의 30%
+    float ConsoleHeight = 300.0f; // 콘솔 높이 (픽셀, 메모라이즈됨)
+    const float ConsoleMinHeight = 150.0f; // 최소 높이
+    const float ConsoleMaxHeightRatio = 0.8f; // 최대 높이 (화면의 80%)
     const float ConsoleHorizontalMargin = 10.0f; // 좌/우 여백 (픽셀 단위)
+    const float ConsoleStatusBarHeight = 6.0f; // 상단 드래그 바 높이
+    bool bIsConsoleDragging = false; // 콘솔 높이 드래그 중
+    float ConsoleDragStartY = 0.0f; // 드래그 시작 Y 위치
+    float ConsoleDragStartHeight = 0.0f; // 드래그 시작 시 콘솔 높이
 
     // Detached skeletal mesh viewer window
     SPreviewWindow* SkeletalViewerWindow = nullptr;

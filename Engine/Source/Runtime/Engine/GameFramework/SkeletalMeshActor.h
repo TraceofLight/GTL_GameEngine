@@ -2,7 +2,6 @@
 #include "Actor.h"
 #include "LineComponent.h"
 #include "SkeletalMeshComponent.h"
-#include "BoneAnchorComponent.h"
 #include "ASkeletalMeshActor.generated.h"
 
 UCLASS(DisplayName="스켈레탈 메시", Description="스켈레탈 메시를 배치하는 액터입니다")
@@ -27,7 +26,6 @@ public:
     
     // - 본 오버레이(뼈대 선) 시각화를 위한 라인 컴포넌트
     ULineComponent* GetBoneLineComponent() const { return BoneLineComponent; }
-    UBoneAnchorComponent* GetBoneGizmoAnchor() const { return BoneAnchor; }
 
     // Convenience: forward to component
     void SetSkeletalMesh(const FString& PathFileName);
@@ -36,9 +34,6 @@ public:
     // SelectedBoneIndex: highlight this bone and its parent connection
     // bUpdateAllBones: true = update all bones (for animation), false = update selected bone subtree only
     void RebuildBoneLines(int32 SelectedBoneIndex, bool bUpdateAllBones = false);
-
-    // Position the anchor
-    void RepositionAnchorToBone(int32 BoneIndex);
 
     // Bone picking with ray
     // Returns bone index if hit, -1 otherwise
@@ -58,18 +53,16 @@ protected:
     // 본(부모-자식) 연결을 라인으로 그리기 위한 디버그용 컴포넌트
     // - 액터의 로컬 공간에서 선분을 추가하고, 액터 트랜스폼에 따라 함께 이동/회전/스케일됨
     ULineComponent* BoneLineComponent = nullptr;
-    // Anchor component used for gizmo selection/transform at a bone
-    UBoneAnchorComponent* BoneAnchor = nullptr;
 
     // AnimNotify Delegate Handle (구독 해제용)
     FDelegateHandle AnimNotifyDelegateHandle;
 
-    // Incremental bone line overlay cache (avoid ClearLines every frame)   
+    // Incremental bone line overlay cache (avoid ClearLines every frame)
     struct FBoneDebugLines
     {
-        TArray<ULine*> ConeEdges;         // NumSegments lines from base circle to tip (child joint)
-        TArray<ULine*> ConeBase;          // NumSegments lines forming the base circle at parent
-        TArray<ULine*> Rings;             // 3 * NumSegments lines per bone (joint spheres)
+        TArray<ULine*> ConeEdges;         // 4 lines from pyramid base corners to child joint (tip)
+        TArray<ULine*> ConeBase;          // 4 lines forming the square base at parent joint
+        TArray<ULine*> Rings;             // 3 * NumSegments lines per joint (sphere with 3 orthogonal rings)
     };
 
     bool bBoneLinesInitialized = false;
@@ -85,6 +78,6 @@ protected:
     void UpdateBoneSubtreeTransforms(int32 BoneIndex);
     void UpdateBoneSelectionHighlight(int32 SelectedBoneIndex);
 
-    // Lazily create viewer-only components (BoneLineComponent, BoneAnchor) if in preview world
+    // Lazily create viewer-only components (BoneLineComponent) if in preview world
     void EnsureViewerComponents();
 };

@@ -589,10 +589,16 @@ void SPreviewWindow::RefreshAnimationFrame(ViewerState* State)
     {
         State->PreviewActor->RebuildBoneLines(State->SelectedBoneIndex, true);
 
-        // BoneAnchor 위치 동기화 (본이 선택되어 있으면)
-        if (State->SelectedBoneIndex >= 0)
+        // 기즈모 위치 동기화 (본이 선택되어 있으면)
+        if (State->SelectedBoneIndex >= 0 && State->World)
         {
-            State->PreviewActor->RepositionAnchorToBone(State->SelectedBoneIndex);
+            AGizmoActor* Gizmo = State->World->GetGizmoActor();
+            USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
+            if (Gizmo && SkelComp && Gizmo->IsBoneTarget())
+            {
+                FTransform BoneWorldTransform = SkelComp->GetBoneWorldTransform(State->SelectedBoneIndex);
+                Gizmo->SetActorLocation(BoneWorldTransform.Translation);
+            }
         }
     }
 }

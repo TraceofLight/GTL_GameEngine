@@ -12,6 +12,8 @@
 #include "FViewport.h"
 #include "Picking.h"
 #include "EditorEngine.h"
+#include "SkeletalMeshComponent.h"
+#include "SkeletalMeshActor.h"
 
 IMPLEMENT_CLASS(AGizmoActor)
 
@@ -153,8 +155,15 @@ void AGizmoActor::Tick(float DeltaSeconds)
 	if (!InputManager) InputManager = &UInputManager::GetInstance();
 	if (!UIManager) UIManager = &UUIManager::GetInstance();
 
-	// 컴포넌트 활성화 상태 업데이트    
-	if (SelectionManager && SelectionManager->HasSelection() && CameraActor)
+	// Bone 타겟일 때는 본 위치를 추적
+	if (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0)
+	{
+		FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+		SetActorLocation(BoneWorldTransform.Translation);
+		SetSpaceWorldMatrix(CurrentSpace, nullptr);
+	}
+	// Actor/Component 타겟일 때는 선택된 컴포넌트 위치 추적
+	else if (SelectionManager && SelectionManager->HasSelection() && CameraActor)
 	{
 		USceneComponent* SelectedComponent = SelectionManager->GetSelectedComponent();
 
@@ -192,6 +201,23 @@ void AGizmoActor::SetSpaceWorldMatrix(EGizmoSpace NewSpace, USceneComponent* Sel
 {
 	SetSpace(NewSpace);
 
+	// Bone 타겟인 경우
+	if (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0)
+	{
+		FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+
+		if (NewSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
+		{
+			SetActorRotation(BoneWorldTransform.Rotation);
+		}
+		else if (NewSpace == EGizmoSpace::World)
+		{
+			SetActorRotation(FQuat::Identity());
+		}
+		return;
+	}
+
+	// Actor/Component 타겟인 경우
 	if (!SelectedComponent)
 		return;
 
@@ -264,7 +290,14 @@ static FVector2D GetStableAxisDirection(const FVector& WorldAxis, const ACameraA
 void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseDeltaX, float MouseDeltaY, const ACameraActor* Camera, FViewport* Viewport)
 {
 	// DraggingAxis == 0 이면 드래그 중이 아니므로 반환
-	if (!Target || !Camera || DraggingAxis == 0)
+	if (!Camera || DraggingAxis == 0)
+		return;
+
+	// Bone 타겟인 경우: TargetSkeletalMeshComponent를 사용
+	bool bIsBoneMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
+
+	// Actor/Component 타겟인 경우: Target 검증
+	if (!bIsBoneMode && !Target)
 		return;
 
 	// MouseDeltaX/Y는 이제 드래그 시작점으로부터의 '총 변위(Total Offset)'입니다.
@@ -327,7 +360,18 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 
 		if (CurrentMode == EGizmoMode::Translate)
 		{
-			Target->SetWorldLocation(DragStartLocation + Axis * TotalMovement);
+			FVector NewLocation = DragStartLocation + Axis * TotalMovement;
+
+			if (bIsBoneMode)
+			{
+				FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+				BoneWorldTransform.Translation = NewLocation;
+				TargetSkeletalMeshComponent->SetBoneWorldTransform(TargetBoneIndex, BoneWorldTransform);
+			}
+			else
+			{
+				Target->SetWorldLocation(NewLocation);
+			}
 		}
 		else // Scale
 		{
@@ -338,7 +382,17 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 			case 2: NewScale.Y += TotalMovement; break;
 			case 3: NewScale.Z += TotalMovement; break;
 			}
-			Target->SetWorldScale(NewScale);
+
+			if (bIsBoneMode)
+			{
+				FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+				BoneWorldTransform.Scale3D = NewScale;
+				TargetSkeletalMeshComponent->SetBoneWorldTransform(TargetBoneIndex, BoneWorldTransform);
+			}
+			else
+			{
+				Target->SetWorldScale(NewScale);
+			}
 		}
 		break;
 	}
@@ -385,7 +439,16 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 			NewRot = DeltaQuat * DragStartRotation;
 		}
 
-		Target->SetWorldRotation(NewRot);
+		if (bIsBoneMode)
+		{
+			FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+			BoneWorldTransform.Rotation = NewRot;
+			TargetSkeletalMeshComponent->SetBoneWorldTransform(TargetBoneIndex, BoneWorldTransform);
+		}
+		else
+		{
+			Target->SetWorldRotation(NewRot);
+		}
 		break;
 	}
 	}
@@ -497,9 +560,19 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 		}
 
 		// 드래그 시작 상태 저장
-		DragStartLocation = SelectedComponent->GetWorldLocation();
-		DragStartRotation = SelectedComponent->GetWorldRotation();
-		DragStartScale = SelectedComponent->GetWorldScale();
+		if (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0)
+		{
+			FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+			DragStartLocation = BoneWorldTransform.Translation;
+			DragStartRotation = BoneWorldTransform.Rotation;
+			DragStartScale = BoneWorldTransform.Scale3D;
+		}
+		else
+		{
+			DragStartLocation = SelectedComponent->GetWorldLocation();
+			DragStartRotation = SelectedComponent->GetWorldRotation();
+			DragStartScale = SelectedComponent->GetWorldScale();
+		}
 		DragStartPosition = CurrentMousePosition;
 
 		// 호버링 시점의 3D 충돌 지점을 드래그 시작 지점으로 래치
@@ -553,19 +626,31 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 
 		// OnDrag 함수에 고정된 축(DraggingAxis)과 총 변위(MouseOffset)를 전달
 		OnDrag(SelectedComponent, DraggingAxis, MouseOffset.X, MouseOffset.Y, Camera, Viewport);
+
+		// Bone 타겟일 때 본 라인 실시간 업데이트
+		if (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent)
+		{
+			AActor* Owner = TargetSkeletalMeshComponent->GetOwner();
+			if (Owner)
+			{
+				if (auto* SkeletalActor = dynamic_cast<class ASkeletalMeshActor*>(Owner))
+				{
+					// 선택된 본의 서브트리만 업데이트 (성능 최적화)
+					SkeletalActor->RebuildBoneLines(TargetBoneIndex, false);
+				}
+			}
+		}
 	}
 
 	// --- 3. End Drag (드래그 종료) ---
-	if (InputManager->IsMouseButtonReleased(LeftButton))
+	// 드래그 중인데 마우스가 떼졌으면 무조건 종료 (관성 방지)
+	if (bIsDragging && !InputManager->IsMouseButtonDown(LeftButton))
 	{
-		if (bIsDragging)
-		{
-			bIsDragging = false;
-			DraggingAxis = 0; // 고정된 축 해제
-			DragCamera = nullptr;
-			GizmoAxis = 0; // 하이라이트 해제
-			SetSpaceWorldMatrix(CurrentSpace, SelectedComponent);
-		}
+		bIsDragging = false;
+		DraggingAxis = 0; // 고정된 축 해제
+		DragCamera = nullptr;
+		GizmoAxis = 0; // 하이라이트 해제
+		SetSpaceWorldMatrix(CurrentSpace, SelectedComponent);
 	}
 }
 
@@ -627,8 +712,9 @@ void AGizmoActor::ProcessGizmoModeSwitch()
 
 void AGizmoActor::UpdateComponentVisibility()
 {
-	// 선택된 액터가 없으면 모든 기즈모 컴포넌트를 비활성화
-	bool bHasSelection = SelectionManager && SelectionManager->GetSelectedComponent();
+	// 선택된 액터가 있거나 본 타겟이 있으면 기즈모 표시
+	bool bHasSelection = (SelectionManager && SelectionManager->GetSelectedComponent()) ||
+	                     (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
 
 	// 드래그 중일 때는 고정된 축(DraggingAxis)을, 아닐 때는 호버 축(GizmoAxis)을 사용
 	uint32 HighlightAxis = bIsDragging ? DraggingAxis : GizmoAxis;
@@ -655,4 +741,36 @@ void AGizmoActor::UpdateComponentVisibility()
 void AGizmoActor::OnDrag(USceneComponent* SelectedComponent, uint32 GizmoAxis, float MouseDeltaX, float MouseDeltaY, const ACameraActor* Camera)
 {
 	OnDrag(SelectedComponent, GizmoAxis, MouseDeltaX, MouseDeltaY, Camera, nullptr);
+}
+
+// ────────────────────────────────────────────────────────
+// Bone Target Functions
+// ────────────────────────────────────────────────────────
+
+void AGizmoActor::SetBoneTarget(USkeletalMeshComponent* InComponent, int32 InBoneIndex)
+{
+	if (!InComponent || InBoneIndex < 0)
+	{
+		ClearBoneTarget();
+		return;
+	}
+
+	TargetType = EGizmoTargetType::Bone;
+	TargetSkeletalMeshComponent = InComponent;
+	TargetBoneIndex = InBoneIndex;
+
+	// 기즈모 위치를 본의 월드 트랜스폼으로 설정
+	FTransform BoneWorldTransform = InComponent->GetBoneWorldTransform(InBoneIndex);
+	RootComponent->SetWorldLocation(BoneWorldTransform.Translation);
+	RootComponent->SetWorldRotation(BoneWorldTransform.Rotation);
+
+	// Local 모드에서는 본의 로컬 회전 사용
+	SetSpaceWorldMatrix(CurrentSpace, nullptr);
+}
+
+void AGizmoActor::ClearBoneTarget()
+{
+	TargetType = EGizmoTargetType::Actor;
+	TargetSkeletalMeshComponent = nullptr;
+	TargetBoneIndex = -1;
 }

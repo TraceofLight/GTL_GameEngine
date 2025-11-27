@@ -971,6 +971,10 @@ void UResourceManager::PreloadAllAssets()
 			AsyncLoad<USound>(PathStr, nullptr, EAssetLoadPriority::Low);
 			++SoundCount;
 		}
+		else if (Extension == L".anim")
+		{
+			AsyncLoad<UAnimSequence>(PathStr, nullptr, EAssetLoadPriority::Low);
+		}
 	}
 
 	// 모든 로드 완료 시 후처리 콜백 등록

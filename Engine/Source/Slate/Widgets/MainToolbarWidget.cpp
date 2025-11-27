@@ -68,17 +68,6 @@ void UMainToolbarWidget::RenderToolbar()
 
     if (ImGui::Begin("##MainToolbar", nullptr, flags))
     {
-        // 상단 테두리 박스 렌더링
-        ImVec2 windowPos = ImGui::GetWindowPos();
-        ImVec2 windowSize = ImGui::GetWindowSize();
-        const float BoxHeight = 8.0f;
-
-        ImGui::GetWindowDrawList()->AddRectFilled(
-            windowPos,
-            ImVec2(windowPos.x + windowSize.x, windowPos.y + BoxHeight),
-            ImGui::GetColorU32(ImVec4(0.15f, 0.45f, 0.25f, 1.0f))  // 진한 초록색 악센트
-        );
-
         // 수직 중앙 정렬
         float cursorY = (ToolbarHeight - IconSize) / 2.0f;
         ImGui::SetCursorPosY(cursorY);

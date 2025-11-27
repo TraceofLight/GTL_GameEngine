@@ -27,8 +27,6 @@ public:
 	UConsoleWidget();
 	~UConsoleWidget() override;
 
-	bool IsWindowPinned() const { return bIsWindowPinned; }
-
 private:
 	// Console data
 	char InputBuf[256];
@@ -43,8 +41,6 @@ private:
 	bool AutoScroll;
 	bool ScrollToBottom;
 	ImGuiTextFilter Filter;
-
-	bool bIsWindowPinned;    // 콘솔 창 고정(핀) 상태
 
 	// Text selection state
 	struct FTextSelection

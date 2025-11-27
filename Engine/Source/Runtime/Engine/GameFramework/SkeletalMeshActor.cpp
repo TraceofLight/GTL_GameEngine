@@ -95,7 +95,7 @@ void ASkeletalMeshActor::SetSkeletalMesh(const FString& PathFileName)
 void ASkeletalMeshActor::EnsureViewerComponents()
 {
     // Only create viewer components if they don't exist and we're in a preview world
-    if (BoneLineComponent && BoneAnchor)
+    if (BoneLineComponent)
     {
         return;
     }
@@ -117,20 +117,6 @@ void ASkeletalMeshActor::EnsureViewerComponents()
             BoneLineComponent->SetAlwaysOnTop(true);
             AddOwnedComponent(BoneLineComponent);
             BoneLineComponent->RegisterComponent(World);
-        }
-    }
-
-    // Create bone anchor for gizmo placement
-    if (!BoneAnchor)
-    {
-        BoneAnchor = NewObject<UBoneAnchorComponent>();
-        if (BoneAnchor && RootComponent)
-        {
-            BoneAnchor->ObjectName = "BoneAnchor";
-            BoneAnchor->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
-            BoneAnchor->SetVisibility(false);
-            AddOwnedComponent(BoneAnchor);
-            BoneAnchor->RegisterComponent(World);
         }
     }
 }
@@ -196,41 +182,6 @@ void ASkeletalMeshActor::RebuildBoneLines(int32 SelectedBoneIndex, bool bUpdateA
     }
 }
 
-void ASkeletalMeshActor::RepositionAnchorToBone(int32 BoneIndex)
-{
-    // Ensure viewer components exist before using them
-    EnsureViewerComponents();
-
-    if (!SkeletalMeshComponent || !BoneAnchor)
-    {
-        return;
-    }
-
-    USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMesh();
-    if (!SkeletalMesh)
-    {
-        return;
-    }
-
-    const FSkeletalMeshData* Data = SkeletalMesh->GetSkeletalMeshData();
-    if (!Data)
-    {
-        return;
-    }
-
-    const auto& Bones = Data->Skeleton.Bones;
-    if (BoneIndex < 0 || BoneIndex >= (int32)Bones.size())
-    {
-        return;
-    }
-
-    // Wire target/index first, then place anchor without writeback
-    BoneAnchor->SetTarget(SkeletalMeshComponent, BoneIndex);
-
-    BoneAnchor->SetEditability(true);
-    BoneAnchor->SetVisibility(true);
-}
-
 void ASkeletalMeshActor::DuplicateSubObjects()
 {
     Super::DuplicateSubObjects();
@@ -251,10 +202,7 @@ void ASkeletalMeshActor::DuplicateSubObjects()
         if (auto* Comp = Cast<ULineComponent>(Component))
         {
             BoneLineComponent = Comp;
-        }
-        else if (auto* Comp = Cast<UBoneAnchorComponent>(Component))
-        {
-            BoneAnchor = Comp;
+            break;
         }
     }
 }
@@ -326,67 +274,78 @@ void ASkeletalMeshActor::BuildBoneLinesCache()
         const FVector Center = JointPos[i];
         const int32 parent = Bones[i].ParentIndex;
 
+        // 사각 피라미드로 본 연결 표시 (FutureEngine 스타일)
         if (parent >= 0)
         {
             const FVector ParentPos = JointPos[parent];
             const FVector ChildPos = Center;
             const FVector BoneDir = (ChildPos - ParentPos).GetNormalized();
 
-            // Calculate perpendicular vectors for the cone base
-            // Find a vector not parallel to BoneDir
+            // 수직 벡터 계산 (피라미드 베이스용)
             FVector Up = FVector(0, 0, 1);
             if (std::abs(FVector::Dot(Up, BoneDir)) > 0.99f)
             {
-                Up = FVector(0, 1, 0); // Use Y if bone is too aligned with Z
+                Up = FVector(0, 1, 0); // 본이 Z축과 평행하면 Y축 사용
             }
 
             FVector Right = FVector::Cross(BoneDir, Up).GetNormalized();
             FVector Forward = FVector::Cross(Right, BoneDir).GetNormalized();
 
-            // Scale cone radius based on bone length
+            // 본 길이 기반 피라미드 크기 조정
             const float BoneLength = (ChildPos - ParentPos).Size();
-            const float Radius = std::min(BoneBaseRadius, BoneLength * 0.15f);
+            const float PyramidSize = std::min(BoneBaseRadius, BoneLength * 0.15f);
 
-            // Create cone geometry
-            BL.ConeEdges.reserve(NumSegments);
-            BL.ConeBase.reserve(NumSegments);
+            // 사각형 베이스 4개 코너 계산 (부모 조인트 위치에 배치)
+            const FVector Corner0 = ParentPos + Right * PyramidSize + Forward * PyramidSize;
+            const FVector Corner1 = ParentPos - Right * PyramidSize + Forward * PyramidSize;
+            const FVector Corner2 = ParentPos - Right * PyramidSize - Forward * PyramidSize;
+            const FVector Corner3 = ParentPos + Right * PyramidSize - Forward * PyramidSize;
 
-            for (int k = 0; k < NumSegments; ++k)
-            {
-                const float angle0 = (static_cast<float>(k) / NumSegments) * TWO_PI;
-                const float angle1 = (static_cast<float>((k + 1) % NumSegments) / NumSegments) * TWO_PI;
+            // FutureEngine 기본 색상: 흰색 (선택 시 UpdateBoneSelectionHighlight에서 변경)
+            const FVector4 BaseColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-                // Base circle vertices at parent
-                const FVector BaseVertex0 = ParentPos + Right * (Radius * std::cos(angle0)) + Forward * (Radius * std::sin(angle0));
-                const FVector BaseVertex1 = ParentPos + Right * (Radius * std::cos(angle1)) + Forward * (Radius * std::sin(angle1));
+            // 피라미드 생성: 4개 베이스 라인 + 4개 엣지 라인 = 총 8개 라인
+            BL.ConeEdges.reserve(4); // 엣지 라인 (코너 → 자식 조인트)
+            BL.ConeBase.reserve(4);  // 베이스 라인 (사각형)
 
-                // Cone edge from base vertex to tip (child)
-                BL.ConeEdges.Add(BoneLineComponent->AddLine(BaseVertex0, ChildPos, FVector4(0, 1, 0, 1)));
+            // 베이스 사각형 4개 라인
+            BL.ConeBase.Add(BoneLineComponent->AddLine(Corner0, Corner1, BaseColor));
+            BL.ConeBase.Add(BoneLineComponent->AddLine(Corner1, Corner2, BaseColor));
+            BL.ConeBase.Add(BoneLineComponent->AddLine(Corner2, Corner3, BaseColor));
+            BL.ConeBase.Add(BoneLineComponent->AddLine(Corner3, Corner0, BaseColor));
 
-                // Base circle edge
-                BL.ConeBase.Add(BoneLineComponent->AddLine(BaseVertex0, BaseVertex1, FVector4(0, 1, 0, 1)));
-            }
+            // 엣지 라인 4개 (각 코너에서 자식 조인트로)
+            BL.ConeEdges.Add(BoneLineComponent->AddLine(Corner0, ChildPos, BaseColor));
+            BL.ConeEdges.Add(BoneLineComponent->AddLine(Corner1, ChildPos, BaseColor));
+            BL.ConeEdges.Add(BoneLineComponent->AddLine(Corner2, ChildPos, BaseColor));
+            BL.ConeEdges.Add(BoneLineComponent->AddLine(Corner3, ChildPos, BaseColor));
         }
 
-        // Joint sphere visualization (3 orthogonal rings)
-        BL.Rings.reserve(NumSegments*3);
+        // Joint 구체 시각화 (3개 직교 링: XY평면, XZ평면, YZ평면) - 흰색
+        BL.Rings.reserve(NumSegments * 3);
 
         for (int k = 0; k < NumSegments; ++k)
         {
             const float a0 = (static_cast<float>(k) / NumSegments) * TWO_PI;
             const float a1 = (static_cast<float>((k + 1) % NumSegments) / NumSegments) * TWO_PI;
+
+            // XY 평면 링 (Z=0)
             BL.Rings.Add(BoneLineComponent->AddLine(
                 Center + FVector(BoneJointRadius * std::cos(a0), BoneJointRadius * std::sin(a0), 0.0f),
                 Center + FVector(BoneJointRadius * std::cos(a1), BoneJointRadius * std::sin(a1), 0.0f),
-                FVector4(0.8f,0.8f,0.8f,1.0f)));
+                FVector4(1.0f, 1.0f, 1.0f, 1.0f)));
+
+            // XZ 평면 링 (Y=0)
             BL.Rings.Add(BoneLineComponent->AddLine(
                 Center + FVector(BoneJointRadius * std::cos(a0), 0.0f, BoneJointRadius * std::sin(a0)),
                 Center + FVector(BoneJointRadius * std::cos(a1), 0.0f, BoneJointRadius * std::sin(a1)),
-                FVector4(0.8f,0.8f,0.8f,1.0f)));
+                FVector4(1.0f, 1.0f, 1.0f, 1.0f)));
+
+            // YZ 평면 링 (X=0)
             BL.Rings.Add(BoneLineComponent->AddLine(
                 Center + FVector(0.0f, BoneJointRadius * std::cos(a0), BoneJointRadius * std::sin(a0)),
                 Center + FVector(0.0f, BoneJointRadius * std::cos(a1), BoneJointRadius * std::sin(a1)),
-                FVector4(0.8f,0.8f,0.8f,1.0f)));
+                FVector4(1.0f, 1.0f, 1.0f, 1.0f)));
         }
     }
 }
@@ -413,36 +372,49 @@ void ASkeletalMeshActor::UpdateBoneSelectionHighlight(int32 SelectedBoneIndex)
     const auto& Bones = Data->Skeleton.Bones;
     const int32 BoneCount = static_cast<int32>(Bones.size());
 
-    const FVector4 SelRing(1.0f, 0.85f, 0.2f, 1.0f);
-    const FVector4 NormalRing(0.8f, 0.8f, 0.8f, 1.0f);
-    const FVector4 SelCone(1.0f, 0.0f, 0.0f, 1.0f);      // Red for selected bone cone
-    const FVector4 NormalCone(0.0f, 1.0f, 0.0f, 1.0f);   // Green for normal bone cone
+    // FutureEngine 색상 스킴
+    const FVector4 BaseColor(1.0f, 1.0f, 1.0f, 1.0f);     // 기본: 흰색
+    const FVector4 OrangeColor(1.0f, 0.5f, 0.0f, 1.0f);   // 선택된 본 → 부모: 주황색
+    const FVector4 GreenColor(0.0f, 1.0f, 0.0f, 1.0f);    // 선택된 본 → 자식들: 초록색
 
     for (int32 i = 0; i < BoneCount; ++i)
     {
-        const bool bSelected = (i == SelectedBoneIndex);
-        const FVector4 RingColor = bSelected ? SelRing : NormalRing;
         FBoneDebugLines& BL = BoneLinesCache[i];
+        const int32 parent = Bones[i].ParentIndex;
 
-        // Update joint ring colors
-        for (ULine* L : BL.Rings)
+        // 이 본의 피라미드 색상 결정
+        FVector4 PyramidColor = BaseColor;
+
+        if (SelectedBoneIndex >= 0)
         {
-            if (L) L->SetColor(RingColor);
+            // 선택된 본의 부모와의 연결 → 주황색
+            if (i == SelectedBoneIndex && parent >= 0)
+            {
+                PyramidColor = OrangeColor;
+            }
+            // 선택된 본의 자식과의 연결 → 초록색
+            else if (parent == SelectedBoneIndex)
+            {
+                PyramidColor = GreenColor;
+            }
         }
 
-        // Update cone colors
-        const int32 parent = Bones[i].ParentIndex;
-        const bool bConeSelected = (i == SelectedBoneIndex || parent == SelectedBoneIndex);
-        const FVector4 ConeColor = bConeSelected ? SelCone : NormalCone;
-
+        // 피라미드 엣지 라인 색상 업데이트
         for (ULine* L : BL.ConeEdges)
         {
-            if (L) L->SetColor(ConeColor);
+            if (L) L->SetColor(PyramidColor);
         }
 
+        // 피라미드 베이스 라인 색상 업데이트
         for (ULine* L : BL.ConeBase)
         {
-            if (L) L->SetColor(ConeColor);
+            if (L) L->SetColor(PyramidColor);
+        }
+
+        // Joint 구체 링 색상 업데이트 (항상 흰색)
+        for (ULine* L : BL.Rings)
+        {
+            if (L) L->SetColor(BaseColor);
         }
     }
 }
@@ -521,32 +493,34 @@ void ASkeletalMeshActor::UpdateBoneSubtreeTransforms(int32 BoneIndex)
 
             // Scale cone radius based on bone length
             const float BoneLength = (ChildPos - ParentPos).Size();
-            const float Radius = std::min(BoneBaseRadius, BoneLength * 0.15f);
+            const float PyramidSize = std::min(BoneBaseRadius, BoneLength * 0.15f);
 
-            // Update cone lines
-            for (int k = 0; k < NumSegments && k < BL.ConeEdges.Num(); ++k)
+            // 사각 피라미드 4개 코너 재계산
+            const FVector Corner0 = ParentPos + Right * PyramidSize + Forward * PyramidSize;
+            const FVector Corner1 = ParentPos - Right * PyramidSize + Forward * PyramidSize;
+            const FVector Corner2 = ParentPos - Right * PyramidSize - Forward * PyramidSize;
+            const FVector Corner3 = ParentPos + Right * PyramidSize - Forward * PyramidSize;
+
+            // 베이스 사각형 업데이트 (4개 라인)
+            if (BL.ConeBase.Num() >= 4)
             {
-                const float angle0 = (static_cast<float>(k) / NumSegments) * TWO_PI;
-                const float angle1 = (static_cast<float>((k + 1) % NumSegments) / NumSegments) * TWO_PI;
+                if (BL.ConeBase[0]) BL.ConeBase[0]->SetLine(Corner0, Corner1);
+                if (BL.ConeBase[1]) BL.ConeBase[1]->SetLine(Corner1, Corner2);
+                if (BL.ConeBase[2]) BL.ConeBase[2]->SetLine(Corner2, Corner3);
+                if (BL.ConeBase[3]) BL.ConeBase[3]->SetLine(Corner3, Corner0);
+            }
 
-                const FVector BaseVertex0 = ParentPos + Right * (Radius * std::cos(angle0)) + Forward * (Radius * std::sin(angle0));
-                const FVector BaseVertex1 = ParentPos + Right * (Radius * std::cos(angle1)) + Forward * (Radius * std::sin(angle1));
-
-                // Update cone edge
-                if (BL.ConeEdges[k])
-                {
-                    BL.ConeEdges[k]->SetLine(BaseVertex0, ChildPos);
-                }
-
-                // Update base circle edge
-                if (k < BL.ConeBase.Num() && BL.ConeBase[k])
-                {
-                    BL.ConeBase[k]->SetLine(BaseVertex0, BaseVertex1);
-                }
+            // 엣지 라인 업데이트 (4개 라인)
+            if (BL.ConeEdges.Num() >= 4)
+            {
+                if (BL.ConeEdges[0]) BL.ConeEdges[0]->SetLine(Corner0, ChildPos);
+                if (BL.ConeEdges[1]) BL.ConeEdges[1]->SetLine(Corner1, ChildPos);
+                if (BL.ConeEdges[2]) BL.ConeEdges[2]->SetLine(Corner2, ChildPos);
+                if (BL.ConeEdges[3]) BL.ConeEdges[3]->SetLine(Corner3, ChildPos);
             }
         }
 
-        // Update joint rings
+        // Joint 구체 링 업데이트
         const FVector Center = Centers[b];
 
         for (int k = 0; k < NumSegments; ++k)
@@ -555,13 +529,19 @@ void ASkeletalMeshActor::UpdateBoneSubtreeTransforms(int32 BoneIndex)
             const float a1 = (static_cast<float>((k + 1) % NumSegments) / NumSegments) * TWO_PI;
             const int base = k * 3;
             if (BL.Rings.IsEmpty() || base + 2 >= BL.Rings.Num()) break;
-            BL.Rings[base+0]->SetLine(
+
+            // XY 평면 링
+            BL.Rings[base + 0]->SetLine(
                 Center + FVector(BoneJointRadius * std::cos(a0), BoneJointRadius * std::sin(a0), 0.0f),
                 Center + FVector(BoneJointRadius * std::cos(a1), BoneJointRadius * std::sin(a1), 0.0f));
-            BL.Rings[base+1]->SetLine(
+
+            // XZ 평면 링
+            BL.Rings[base + 1]->SetLine(
                 Center + FVector(BoneJointRadius * std::cos(a0), 0.0f, BoneJointRadius * std::sin(a0)),
                 Center + FVector(BoneJointRadius * std::cos(a1), 0.0f, BoneJointRadius * std::sin(a1)));
-            BL.Rings[base+2]->SetLine(
+
+            // YZ 평면 링
+            BL.Rings[base + 2]->SetLine(
                 Center + FVector(0.0f, BoneJointRadius * std::cos(a0), BoneJointRadius * std::sin(a0)),
                 Center + FVector(0.0f, BoneJointRadius * std::cos(a1), BoneJointRadius * std::sin(a1)));
         }

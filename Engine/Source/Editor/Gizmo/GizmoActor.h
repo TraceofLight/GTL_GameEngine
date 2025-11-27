@@ -12,6 +12,15 @@ class UUIManager;
 class URenderer;
 class CPickingSystem;
 class FViewport;
+class USkeletalMeshComponent;
+
+// Gizmo 타겟 타입
+enum class EGizmoTargetType : uint8
+{
+    Actor,        // 일반 Actor/Component 타겟
+    Bone          // SkeletalMeshComponent의 특정 본 타겟
+};
+
 class AGizmoActor : public AActor
 {
 public:
@@ -67,7 +76,12 @@ public:
    // void SetTargetActor(AActor* InTargetActor) { TargetActor = InTargetActor; Tick(0.f);  }
     void SetEditorCameraActor(ACameraActor* InCameraActor) { CameraActor = InCameraActor; }
     ACameraActor* GetEditorCameraActor() const { return CameraActor; }
-    
+
+    // Bone target functions
+    void SetBoneTarget(USkeletalMeshComponent* InComponent, int32 InBoneIndex);
+    void ClearBoneTarget();
+    bool IsBoneTarget() const { return TargetType == EGizmoTargetType::Bone; }
+    EGizmoTargetType GetTargetType() const { return TargetType; }
 
     void ProcessGizmoInteraction(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
     void ProcessGizmoModeSwitch();
@@ -97,14 +111,19 @@ protected:
     bool bIsHovering = false;
     bool bIsDragging = false;
     bool bInteractionEnabled = true;  // Set to false when tool windows (e.g., Particle Editor) are focused
-    EGizmoMode CurrentMode;
+    EGizmoMode CurrentMode = EGizmoMode::Translate;
     EGizmoSpace CurrentSpace = EGizmoSpace::World;
     
     // Interaction state
     /*AActor* TargetActor = nullptr;
     USceneComponent* SelectedComponent = nullptr;*/
     ACameraActor* CameraActor = nullptr;
-    
+
+    // Bone target state
+    EGizmoTargetType TargetType = EGizmoTargetType::Actor;
+    USkeletalMeshComponent* TargetSkeletalMeshComponent = nullptr;
+    int32 TargetBoneIndex = -1;
+
     // Manager references
     USelectionManager* SelectionManager = nullptr;
     UInputManager* InputManager = nullptr;

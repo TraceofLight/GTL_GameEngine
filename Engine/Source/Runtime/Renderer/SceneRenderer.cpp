@@ -156,18 +156,18 @@ void FSceneRenderer::Render()
 	if (World->GetWorldType() == EWorldType::PreviewMinimal)
 	{
 		// Preview World: SceneColorTarget을 커스텀 RT로 복사
-		// 1. 백업된 커스텀 RT로 전환
+		// 백업된 커스텀 RT로 전환
 		RHIDevice->GetDeviceContext()->OMSetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, BackupRTV, nullptr);
 		RHIDevice->GetDeviceContext()->RSSetViewports(1, &BackupViewport);
 
-		// 2. SceneColorTarget을 텍스처로 바인딩
+		// SceneColorTarget을 텍스처로 바인딩
 		FSwapGuard SwapGuard(RHIDevice, 0, 1);
 		ID3D11ShaderResourceView* SourceSRV = RHIDevice->GetCurrentSourceSRV();
 		ID3D11SamplerState* SamplerState = RHIDevice->GetSamplerState(RHI_Sampler_Index::LinearClamp);
 		RHIDevice->GetDeviceContext()->PSSetShaderResources(0, 1, &SourceSRV);
 		RHIDevice->GetDeviceContext()->PSSetSamplers(0, 1, &SamplerState);
 
-		// 3. Blit 셰이더로 커스텀 RT에 복사
+		// Blit 셰이더로 커스텀 RT에 복사
 		UShader* FullScreenTriangleVS = UResourceManager::GetInstance().Load<UShader>("Shaders/Utility/FullScreenTriangle_VS.hlsl");
 		UShader* BlitPS = UResourceManager::GetInstance().Load<UShader>("Shaders/Utility/Blit_PS.hlsl");
 		if (FullScreenTriangleVS && BlitPS)
@@ -176,6 +176,28 @@ void FSceneRenderer::Render()
 			RHIDevice->DrawFullScreenQuad();
 		}
 		SwapGuard.Commit();
+
+		// Blit 후 커스텀 RT 위에 AlwaysOnTop 라인 렌더링 (스켈레톤 본 등)
+		// 커스텀 RT는 이미 바인딩된 상태, 뷰포트도 BackupViewport로 설정됨
+		D3D11_VIEWPORT previewVp = {};
+		previewVp.TopLeftX = 0.0f;
+		previewVp.TopLeftY = 0.0f;
+		previewVp.Width = BackupViewport.Width;
+		previewVp.Height = BackupViewport.Height;
+		previewVp.MinDepth = 0.0f;
+		previewVp.MaxDepth = 1.0f;
+		RHIDevice->GetDeviceContext()->RSSetViewports(1, &previewVp);
+
+		OwnerRenderer->BeginLineBatch();
+		for (ULineComponent* LineComponent : Proxies.EditorLines)
+		{
+			if (!LineComponent || !LineComponent->IsAlwaysOnTop())
+			{
+				continue;
+			}
+			LineComponent->CollectLineBatches(OwnerRenderer);
+		}
+		OwnerRenderer->EndLineBatchAlwaysOnTop(FMatrix::Identity());
 	}
 	else
 	{
@@ -1081,7 +1103,7 @@ void FSceneRenderer::RenderParticlesPass()
 	// 파티클 통계 초기화
 	FParticleStats ParticleStats;
 	ParticleStats.TotalParticleSystems = static_cast<uint32>(Proxies.Particles.Num());
-	
+
 	// CPU 렌더링 시간 측정 시작
 	auto CpuTimeStart = std::chrono::high_resolution_clock::now();
 
@@ -1098,7 +1120,7 @@ void FSceneRenderer::RenderParticlesPass()
 		// 파티클 동적 데이터 업데이트
 		ParticleComponent->UpdateDynamicData();
 		FParticleDynamicData* DynamicData = ParticleComponent->GetCurrentDynamicData();
-		
+
 		if (!DynamicData)
 			continue;
 
@@ -1174,7 +1196,7 @@ void FSceneRenderer::RenderParticlesPass()
 				FParticleSubUVBufferType SubUVBuffer;
 				SubUVBuffer.SubImages_Horizontal = SpriteReplayData.SubImages_Horizontal;
 				SubUVBuffer.SubImages_Vertical = SpriteReplayData.SubImages_Vertical;
-				
+
 				// bInterpolateUV: RandomBlend 모드인지 확인
 				// InterpolationMethod는 RequiredModule에 저장되어 있음
 				bool bInterpolateUV = false;
@@ -1188,7 +1210,7 @@ void FSceneRenderer::RenderParticlesPass()
 				}
 				SubUVBuffer.bInterpolateUV = bInterpolateUV ? 1 : 0;
 				SubUVBuffer.Padding = 0;
-				
+
 				// 상수 버퍼 업데이트 (b6 슬롯)
 				RHIDevice->SetAndUpdateConstantBuffer(SubUVBuffer);
 			}
@@ -1196,7 +1218,7 @@ void FSceneRenderer::RenderParticlesPass()
 			// 파티클용 셰이더 로드
 			UShader* ParticleShader = UResourceManager::GetInstance().Load<UShader>(ShaderPath, ParticleShaderMacros);
 			FShaderVariant* ShaderVariant = ParticleShader->GetOrCompileShaderVariant(ParticleShaderMacros);
-			
+
 			if (!ParticleShader || !ShaderVariant)
 			{
 				UE_LOG("RenderParticlesPass: Failed to load Particle shader with macros!");
@@ -1248,7 +1270,7 @@ void FSceneRenderer::RenderParticlesPass()
 			{
 				ParticleStats.TotalInsertedVertices += ReplayData.ActiveParticleCount * 4;
 			}
-			
+
 
 			// 수집된 파티클이 없으면 다음 에미터로
 			if (ParticleBatchElements.IsEmpty())
@@ -1264,15 +1286,15 @@ void FSceneRenderer::RenderParticlesPass()
 			for (int32 i = BatchCountBefore; i < BatchCountAfter; ++i)
 			{
 				FMeshBatchElement& BatchElement = ParticleBatchElements[i];
-				
+
 				// 파티클 배치에 셰이더 설정
 				BatchElement.VertexShader = ShaderVariant->VertexShader;
 				BatchElement.PixelShader = ShaderVariant->PixelShader;
 				BatchElement.InputLayout = ShaderVariant->InputLayout;
-				
+
 				// 통계 수집
 				ParticleStats.TotalDrawCalls++;
-				
+
 				if (bIsMeshParticle)
 				{
 					uint32 TrianglesPerInstance = BatchElement.IndexCount / 3;
@@ -1284,7 +1306,7 @@ void FSceneRenderer::RenderParticlesPass()
 					ParticleStats.TotalDrawedTriangles += BatchElement.IndexCount / 3;
 					ParticleStats.TotalDrawedVertices += BatchElement.IndexCount;
 				}
-			}		
+			}
 
 			DrawMeshBatches(ParticleBatchElements, true);
 		}
