@@ -19,6 +19,7 @@
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
 #include "Source/Runtime/InputCore/InputManager.h"
 #include "Source/Runtime/Core/Misc/Archive.h"
+#include "Source/Editor/Gizmo/GizmoActor.h"
 #include <cmath> // for fmod
 #include <filesystem>
 
@@ -274,6 +275,16 @@ void SPreviewWindow::OnRender()
                             LineComp->ClearLines();
                             LineComp->SetLineVisible(ActiveState->bShowBones);
                         }
+
+                        // 이미 로드된 모든 AnimSequence를 이 메쉬에 추가
+                        TArray<UAnimSequence*> AllAnimSequences = UResourceManager::GetInstance().GetAll<UAnimSequence>();
+                        for (UAnimSequence* AnimSeq : AllAnimSequences)
+                        {
+                            if (AnimSeq && !AnimSeq->GetName().empty())
+                            {
+                                Mesh->AddAnimation(AnimSeq);
+                            }
+                        }
                     }
                 }
             }
@@ -412,6 +423,7 @@ void SPreviewWindow::OnRender()
                         {
                             ActiveState->SelectedSkeletonIndex = i;
                             ActiveState->SelectedSkeletonMesh = Mesh;
+                            ActiveState->CurrentMesh = Mesh;  // CurrentMesh도 설정
 
                             // 선택된 SkeletalMesh 로드
                             if (ActiveState->PreviewActor)
@@ -421,6 +433,16 @@ void SPreviewWindow::OnRender()
                                 {
                                     Component->SetSkeletalMesh(Mesh->GetFilePath());
                                     UE_LOG("Loaded SkeletalMesh: %s", Mesh->GetFilePath().c_str());
+
+                                    // 이미 로드된 모든 AnimSequence를 이 메쉬에 추가
+                                    TArray<UAnimSequence*> AllAnimSequences = UResourceManager::GetInstance().GetAll<UAnimSequence>();
+                                    for (UAnimSequence* AnimSeq : AllAnimSequences)
+                                    {
+                                        if (AnimSeq && !AnimSeq->GetName().empty())
+                                        {
+                                            Mesh->AddAnimation(AnimSeq);
+                                        }
+                                    }
 
                                     // 애니메이션 리스트도 업데이트 (첫 번째 애니메이션 자동 선택 및 재생)
                                     const TArray<UAnimSequence*>& Animations = Mesh->GetAnimations();
@@ -811,6 +833,98 @@ void SPreviewWindow::OnRender()
                     {
                         ImGui::SetItemAllowOverlap();
                     }
+                }
+
+                // 드래그 앤 드랍 타겟 (Content Browser에서 .anim 파일 드롭)
+                if (ImGui::BeginDragDropTarget())
+                {
+                    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE"))
+                    {
+                        const char* filePath = static_cast<const char*>(payload->Data);
+                        FString path(filePath);
+
+                        // .anim 파일인 경우 애니메이션 임포트
+                        if (path.ends_with(".anim"))
+                        {
+                            // ResourceManager를 통해 AnimSequence 로드
+                            UAnimSequence* Anim = UResourceManager::GetInstance().Load<UAnimSequence>(path);
+                            if (Anim && ActiveState && ActiveState->CurrentMesh)
+                            {
+                                // 현재 메쉬에 애니메이션 추가
+                                ActiveState->CurrentMesh->AddAnimation(Anim);
+
+                                // 애니메이션 모드로 전환하고 해당 애니메이션 선택
+                                ActiveState->ViewMode = EViewerMode::Animation;
+
+                                // 추가된 애니메이션의 인덱스 찾기
+                                TArray<UAnimSequence*> Animations = ActiveState->CurrentMesh->GetAnimations();
+                                for (int32 i = 0; i < Animations.Num(); ++i)
+                                {
+                                    if (Animations[i] == Anim)
+                                    {
+                                        ActiveState->SelectedAnimationIndex = i;
+                                        ActiveState->CurrentAnimation = Anim;
+                                        ActiveState->CurrentAnimationTime = 0.0f;
+                                        break;
+                                    }
+                                }
+
+                                UE_LOG("PreviewWindow: Imported animation from drop: %s", Anim->GetName().c_str());
+                            }
+                            else if (!ActiveState || !ActiveState->CurrentMesh)
+                            {
+                                UE_LOG("PreviewWindow: Cannot import animation - no mesh loaded");
+                            }
+                        }
+                        // .fbx 파일인 경우도 처리 (FBX에서 애니메이션 추출)
+                        else if (path.ends_with(".fbx") || path.ends_with(".FBX"))
+                        {
+                            if (ActiveState && ActiveState->CurrentMesh && ActiveState->CurrentMesh->GetSkeleton())
+                            {
+                                TArray<UAnimSequence*> AnimSequences = UFbxLoader::GetInstance().LoadAllFbxAnimations(
+                                    path, *ActiveState->CurrentMesh->GetSkeleton());
+
+                                if (AnimSequences.Num() > 0)
+                                {
+                                    TArray<USkeletalMesh*> AllSkeletalMeshes = UResourceManager::GetInstance().GetAll<USkeletalMesh>();
+
+                                    for (UAnimSequence* AnimSeq : AnimSequences)
+                                    {
+                                        if (!AnimSeq)
+                                        {
+                                            continue;
+                                        }
+
+                                        for (USkeletalMesh* Mesh : AllSkeletalMeshes)
+                                        {
+                                            Mesh->AddAnimation(AnimSeq);
+                                        }
+                                    }
+
+                                    // 첫 번째 애니메이션으로 전환
+                                    ActiveState->ViewMode = EViewerMode::Animation;
+                                    TArray<UAnimSequence*> Animations = ActiveState->CurrentMesh->GetAnimations();
+                                    if (Animations.Num() > 0)
+                                    {
+                                        ActiveState->SelectedAnimationIndex = Animations.Num() - AnimSequences.Num();
+                                        ActiveState->CurrentAnimation = Animations[ActiveState->SelectedAnimationIndex];
+                                        ActiveState->CurrentAnimationTime = 0.0f;
+                                    }
+
+                                    UE_LOG("PreviewWindow: Imported %d animation(s) from FBX: %s", AnimSequences.Num(), path.c_str());
+                                }
+                                else
+                                {
+                                    UE_LOG("PreviewWindow: No animations found in FBX: %s", path.c_str());
+                                }
+                            }
+                            else
+                            {
+                                UE_LOG("PreviewWindow: Cannot import FBX animation - no skeleton available");
+                            }
+                        }
+                    }
+                    ImGui::EndDragDropTarget();
                 }
             }
         }
@@ -1260,7 +1374,7 @@ void SPreviewWindow::OnRender()
         ImGui::PopStyleVar();
 
         // Timeline Area (하단, Animation 모드일 때만 표시)
-        if (bIsAnimationMode && ActiveState->CurrentAnimation)
+        if (bIsAnimationMode)
         {
             ImGui::Spacing();
             ImGui::Separator();
@@ -1727,6 +1841,51 @@ void SPreviewWindow::OnUpdate(float DeltaSeconds)
 
     // Spacebar 입력 처리 (Animation 모드이고, Gizmo/BoneAnchor가 선택되지 않았을 때만)
     UInputManager& InputMgr = UInputManager::GetInstance();
+
+    // 기즈모 드래그 종료 감지 - Bone 편집 시 EditedBoneTransforms에 델타 저장
+    bool bIsGizmoDragging = InputMgr.GetIsGizmoDragging();
+    if (ActiveState->bWasGizmoDragging && !bIsGizmoDragging)
+    {
+        // 드래그가 방금 종료됨 - Animation 모드에서 Bone 타겟일 때만 처리
+        AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
+        if (Gizmo && Gizmo->IsBoneTarget() && ActiveState->SelectedBoneIndex >= 0 &&
+            ActiveState->ViewMode == EViewerMode::Animation && ActiveState->PreviewActor)
+        {
+            USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+            if (SkelComp)
+            {
+                // 현재 본의 로컬 트랜스폼 가져오기
+                FTransform CurrentLocalTransform = SkelComp->GetBoneLocalTransform(ActiveState->SelectedBoneIndex);
+
+                // 애니메이션 원본 트랜스폼 가져오기 (없으면 현재 값 사용)
+                FTransform AnimTransform = CurrentLocalTransform;
+                auto It = ActiveState->AnimationBoneTransforms.find(ActiveState->SelectedBoneIndex);
+                if (It != ActiveState->AnimationBoneTransforms.end())
+                {
+                    AnimTransform = It->second;
+                }
+
+                // 델타 계산: 현재 값 - 애니메이션 원본 값
+                FTransform Delta;
+                Delta.Translation = CurrentLocalTransform.Translation - AnimTransform.Translation;
+                Delta.Rotation = AnimTransform.Rotation.IsIdentity() ? CurrentLocalTransform.Rotation : (AnimTransform.Rotation.Inverse() * CurrentLocalTransform.Rotation).GetNormalized();
+                Delta.Scale3D = FVector(
+                    AnimTransform.Scale3D.X != 0.0f ? CurrentLocalTransform.Scale3D.X / AnimTransform.Scale3D.X : 1.0f,
+                    AnimTransform.Scale3D.Y != 0.0f ? CurrentLocalTransform.Scale3D.Y / AnimTransform.Scale3D.Y : 1.0f,
+                    AnimTransform.Scale3D.Z != 0.0f ? CurrentLocalTransform.Scale3D.Z / AnimTransform.Scale3D.Z : 1.0f
+                );
+
+                // EditedBoneTransforms에 저장
+                ActiveState->EditedBoneTransforms[ActiveState->SelectedBoneIndex] = Delta;
+
+                // UI 업데이트
+                ActiveState->EditBoneLocation = CurrentLocalTransform.Translation;
+                ActiveState->EditBoneRotation = CurrentLocalTransform.Rotation.ToEulerZYXDeg();
+                ActiveState->EditBoneScale = CurrentLocalTransform.Scale3D;
+            }
+        }
+    }
+    ActiveState->bWasGizmoDragging = bIsGizmoDragging;
     bool bIsGizmoOrBoneSelected = false;
     if (ActiveState->World && ActiveState->World->GetSelectionManager())
     {
@@ -1878,7 +2037,12 @@ void SPreviewWindow::OnMouseMove(FVector2D MousePos)
         return;
     }
 
-    if (CenterRect.Contains(MousePos))
+    // 기즈모 드래그 중인지 확인
+    AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
+    bool bGizmoDragging = (Gizmo && Gizmo->GetbIsDragging());
+
+    // 기즈모 드래그 중이거나 CenterRect 안에 있을 때 마우스 이벤트 전달
+    if (bGizmoDragging || CenterRect.Contains(MousePos))
     {
         FVector2D LocalPos = MousePos - FVector2D(CenterRect.Left, CenterRect.Top);
         ActiveState->Viewport->ProcessMouseMove((int32)LocalPos.X, (int32)LocalPos.Y);
@@ -1908,6 +2072,17 @@ void SPreviewWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
             // Check if gizmo was actually clicked (hovering at the moment of click)
             AGizmoActor* Gizmo = ActiveState->World->GetGizmoActor();
             bool bGizmoClicked = (Gizmo && Gizmo->GetbIsHovering());
+
+            // 기즈모 위에서 클릭했고 본 타겟 모드이면 명시적으로 드래그 시작 (FutureEngine 방식)
+            if (bGizmoClicked && Gizmo && Gizmo->IsBoneTarget())
+            {
+                ACameraActor* Camera = ActiveState->Client->GetCamera();
+                if (Camera)
+                {
+                    Gizmo->StartDrag(Camera, ActiveState->Viewport, (float)LocalPos.X, (float)LocalPos.Y);
+                }
+                return; // 기즈모 드래그 시작했으므로 본 피킹 하지 않음
+            }
 
             // Only do bone picking/deselection if gizmo wasn't clicked
             if (!bGizmoClicked)
@@ -2014,6 +2189,7 @@ void SPreviewWindow::OnRenderViewport()
 
         // 본 오버레이 재구축 및 기즈모 위치 업데이트
         bool bNeedsRebuild = false;
+        bool bForceHighlightRefresh = false;
         bool bIsAnimationPlaying = ActiveState->bIsPlaying;
 
         if (ActiveState->bShowBones)
@@ -2022,6 +2198,11 @@ void SPreviewWindow::OnRenderViewport()
             if (bIsAnimationPlaying || ActiveState->bBoneLinesDirty)
             {
                 bNeedsRebuild = true;
+                // Dirty 플래그가 설정되어 있으면 색상 강제 갱신
+                if (ActiveState->bBoneLinesDirty)
+                {
+                    bForceHighlightRefresh = true;
+                }
                 ActiveState->bBoneLinesDirty = false;
             }
         }
@@ -2032,8 +2213,8 @@ void SPreviewWindow::OnRenderViewport()
             {
                 LineComp->SetLineVisible(true);
             }
-            // 애니메이션 재생 중이면 모든 본 업데이트
-            ActiveState->PreviewActor->RebuildBoneLines(ActiveState->SelectedBoneIndex, bIsAnimationPlaying);
+            // 애니메이션 재생 중이면 모든 본 업데이트, Dirty 플래그가 있었으면 색상 강제 갱신
+            ActiveState->PreviewActor->RebuildBoneLines(ActiveState->SelectedBoneIndex, bIsAnimationPlaying, bForceHighlightRefresh);
         }
 
         // 애니메이션 재생 중이고 본이 선택되어 있으면 기즈모 위치도 실시간 업데이트
@@ -2081,6 +2262,15 @@ void SPreviewWindow::CloseTab(int Index)
         ActiveTabIndex = std::min(Index, Tabs.Num() - 1);
         ActiveState = Tabs[ActiveTabIndex];
     }
+}
+
+AGizmoActor* SPreviewWindow::GetGizmoActor() const
+{
+    if (ActiveState && ActiveState->World)
+    {
+        return ActiveState->World->GetGizmoActor();
+    }
+    return nullptr;
 }
 
 void SPreviewWindow::LoadSkeletalMesh(const FString& Path)
@@ -2167,8 +2357,31 @@ void SPreviewWindow::ApplyBoneTransform(ViewerState* State)
 
     FTransform NewTransform(State->EditBoneLocation, FQuat::MakeFromEulerZYX(State->EditBoneRotation), State->EditBoneScale);
 
-    // 캐시에 저장 (애니메이션 재생 중에도 유지되도록)
-    State->EditedBoneTransforms[State->SelectedBoneIndex] = NewTransform;
+    // 애니메이션 원본 트랜스폼 가져오기
+    FTransform AnimTransform;
+    auto It = State->AnimationBoneTransforms.find(State->SelectedBoneIndex);
+    if (It != State->AnimationBoneTransforms.end())
+    {
+        AnimTransform = It->second;
+    }
+    else
+    {
+        // 애니메이션 원본이 없으면 현재 본 트랜스폼 사용
+        AnimTransform = State->PreviewActor->GetSkeletalMeshComponent()->GetBoneLocalTransform(State->SelectedBoneIndex);
+    }
+
+    // 델타 계산: 현재 값 - 애니메이션 원본 값
+    FTransform Delta;
+    Delta.Translation = NewTransform.Translation - AnimTransform.Translation;
+    Delta.Rotation = AnimTransform.Rotation.IsIdentity() ? NewTransform.Rotation : (AnimTransform.Rotation.Inverse() * NewTransform.Rotation).GetNormalized();
+    Delta.Scale3D = FVector(
+        AnimTransform.Scale3D.X != 0.0f ? NewTransform.Scale3D.X / AnimTransform.Scale3D.X : 1.0f,
+        AnimTransform.Scale3D.Y != 0.0f ? NewTransform.Scale3D.Y / AnimTransform.Scale3D.Y : 1.0f,
+        AnimTransform.Scale3D.Z != 0.0f ? NewTransform.Scale3D.Z / AnimTransform.Scale3D.Z : 1.0f
+    );
+
+    // 델타를 EditedBoneTransforms에 저장
+    State->EditedBoneTransforms[State->SelectedBoneIndex] = Delta;
 
     // SkeletalMeshComponent에 적용
     State->PreviewActor->GetSkeletalMeshComponent()->SetBoneLocalTransform(State->SelectedBoneIndex, NewTransform);
@@ -2649,6 +2862,7 @@ void SPreviewWindow::RenderToPreviewRenderTarget()
 
     // 본 오버레이 재구축 및 기즈모 위치 업데이트
     bool bNeedsRebuild = false;
+    bool bForceHighlightRefresh = false;
     bool bIsAnimationPlaying = ActiveState->bIsPlaying;
 
     if (ActiveState->bShowBones)
@@ -2657,6 +2871,11 @@ void SPreviewWindow::RenderToPreviewRenderTarget()
         if (bIsAnimationPlaying || ActiveState->bBoneLinesDirty)
         {
             bNeedsRebuild = true;
+            // Dirty 플래그가 설정되어 있으면 색상 강제 갱신
+            if (ActiveState->bBoneLinesDirty)
+            {
+                bForceHighlightRefresh = true;
+            }
             ActiveState->bBoneLinesDirty = false;
         }
     }
@@ -2667,8 +2886,8 @@ void SPreviewWindow::RenderToPreviewRenderTarget()
         {
             LineComp->SetLineVisible(true);
         }
-        // 애니메이션 재생 중이면 모든 본 업데이트
-        ActiveState->PreviewActor->RebuildBoneLines(ActiveState->SelectedBoneIndex, bIsAnimationPlaying);
+        // 애니메이션 재생 중이면 모든 본 업데이트, Dirty 플래그가 있었으면 색상 강제 갱신
+        ActiveState->PreviewActor->RebuildBoneLines(ActiveState->SelectedBoneIndex, bIsAnimationPlaying, bForceHighlightRefresh);
     }
 
     // 애니메이션 재생 중이고 본이 선택되어 있으면 기즈모 위치도 실시간 업데이트

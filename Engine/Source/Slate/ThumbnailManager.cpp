@@ -103,6 +103,10 @@ ID3D11ShaderResourceView* FThumbnailManager::GetThumbnail(const std::string& Fil
 	{
 		ThumbnailData = CreatePsysThumbnail(FilePath);
 	}
+	else if (Extension == ".scene")
+	{
+		ThumbnailData = CreateSceneThumbnail(FilePath);
+	}
 	else
 	{
 		// 기본 아이콘 사용
@@ -167,8 +171,13 @@ void FThumbnailManager::InvalidateThumbnail(const std::string& Key)
 FThumbnailData* FThumbnailManager::CreateFBXThumbnail(const std::string& FilePath)
 {
 	// TODO: 실제 FBX 메시를 렌더타겟에 렌더링하여 썸네일 생성
-	// 현재는 기본 아이콘 반환
-	UE_LOG("ThumbnailManager: FBX thumbnail generation not yet implemented for %s", FilePath.c_str());
+	// 현재는 기본 아이콘 반환 (로그는 첫 번째 호출에서만 출력)
+	static bool bLoggedOnce = false;
+	if (!bLoggedOnce)
+	{
+		UE_LOG("ThumbnailManager: FBX thumbnail generation not yet implemented (using default icon)");
+		bLoggedOnce = true;
+	}
 	return CreateDefaultThumbnail(".fbx");
 }
 
@@ -401,5 +410,17 @@ FThumbnailData* FThumbnailManager::CreatePsysThumbnail(const std::string& FilePa
 
 	// 썸네일이 없으면 파티클 시스템 아이콘 사용 (S_Emitter.PNG)
 	std::string IconPath = GDataDir + "/Default/Icon/S_Emitter.PNG";
+	return CreateImageThumbnail(IconPath);
+}
+
+FThumbnailData* FThumbnailManager::CreateSceneThumbnail(const std::string& FilePath)
+{
+	if (!Device)
+	{
+		return nullptr;
+	}
+
+	// .scene 파일은 Level.dds 아이콘 사용
+	std::string IconPath = GDataDir + "/Default/Icon/Level.dds";
 	return CreateImageThumbnail(IconPath);
 }

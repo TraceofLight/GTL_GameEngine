@@ -52,6 +52,9 @@ public:
     void SetPickingEnabled(bool bEnabled) { bPickingEnabled = bEnabled; }
     bool IsPickingEnabled() const { return bPickingEnabled; }
 
+    // 마우스 버튼 상태 (ImGui 기반 뷰포트에서 사용)
+    bool IsMouseButtonDown() const { return bIsMouseButtonDown; }
+
 protected:
     EViewportType ViewportType = EViewportType::Perspective;
     UWorld* World = nullptr;

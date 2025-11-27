@@ -172,6 +172,9 @@ private:
     // Shutdown 관련
     bool bIsShutdown = false;
 
+    // 비동기 로딩 세션 추적 (로딩 완료 시 카운터 리셋용)
+    bool bWasLoadingLastFrame = false;
+
 	// Helper to create AnimStateMachineWindow without opening a tab
 	void CreateAnimStateMachineWindowIfNeeded();
 };

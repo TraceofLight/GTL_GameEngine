@@ -42,6 +42,7 @@ public:
 
     bool bBoneTransformChanged = false;
     bool bBoneRotationEditing = false;
+    bool bWasGizmoDragging = false;  // 이전 프레임의 기즈모 드래그 상태 (드래그 종료 감지용)
 
     // 편집된 bone transform 델타
     // 저장 형식: Position=델타, Rotation=상대회전, Scale=비율

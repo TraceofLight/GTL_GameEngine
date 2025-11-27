@@ -18,7 +18,7 @@ void UMaterial::Load(const FString& InFilePath, ID3D11Device* InDevice)
 	MaterialInfo.MaterialName = InFilePath;
 
 	// 기본 쉐이더 로드 (LayoutType에 따라)
-	// dds 의 경우 
+	// dds 의 경우
 	if (InFilePath.find(".dds") != std::string::npos)
 	{
 		FString shaderName = UResourceManager::GetInstance().GetProperShader(InFilePath);
@@ -27,14 +27,21 @@ void UMaterial::Load(const FString& InFilePath, ID3D11Device* InDevice)
 		UResourceManager::GetInstance().Load<UTexture>(InFilePath);
 		MaterialInfo.DiffuseTextureFileName = InFilePath;
 		ResolveTextures();
-	} // hlsl 의 경우 
+	} // hlsl 의 경우
 	else if (InFilePath.find(".hlsl") != std::string::npos)
 	{
 		Shader = UResourceManager::GetInstance().Load<UShader>(InFilePath);
 	}
 	else
 	{
-		throw std::runtime_error(".dds나 .hlsl만 입력해주세요. 현재 입력 파일명 : " + InFilePath);
+		// FBX 캐시에서 등록된 머티리얼 이름일 수 있음 (예: "james_body")
+		// 파일 확장자가 없는 경우 기본 머티리얼 셰이더 사용
+		UE_LOG("[warning] UMaterial::Load: '%s' is not a .dds or .hlsl file, using default shader", InFilePath.c_str());
+		UMaterial* Default = UResourceManager::GetInstance().GetDefaultMaterial();
+		if (Default)
+		{
+			Shader = Default->GetShader();
+		}
 	}
 }
 

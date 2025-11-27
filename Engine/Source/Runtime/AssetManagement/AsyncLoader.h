@@ -134,7 +134,11 @@ public:
 	float GetLoadProgress() const;
 	int32 GetPendingCount() const { return PendingCount.load(); }
 	int32 GetCompletedCount() const { return CompletedCount.load(); }
+	int32 GetTotalRequestedCount() const { return TotalRequestedCount.load(); }
 	TArray<FString> GetCurrentlyLoadingAssets() const;
+
+	// 로딩 세션 카운터 리셋 (모든 로드 완료 후 호출하여 다음 로딩 세션을 위해 카운터 초기화)
+	void ResetSessionCounters();
 
 private:
 	FAsyncLoader() = default;

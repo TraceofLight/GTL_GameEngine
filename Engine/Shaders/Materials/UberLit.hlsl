@@ -145,9 +145,9 @@ struct VS_INPUT
 
 	// Per-instance data (slot 1) - 순서와 타입이 C++ Input Layout과 정확히 일치해야 함
 	float4 InstanceColor : INSTANCE_COLOR;                // offset 0:  DXGI_FORMAT_R32G32B32A32_FLOAT
-	float4 InstanceTransform0 : INSTANCE_TRANSFORM0;      // offset 16: DXGI_FORMAT_R32G32B32A32_FLOAT
-	float4 InstanceTransform1 : INSTANCE_TRANSFORM1;      // offset 32: DXGI_FORMAT_R32G32B32A32_FLOAT
-	float4 InstanceTransform2 : INSTANCE_TRANSFORM2;      // offset 48: DXGI_FORMAT_R32G32B32A32_FLOAT
+	float4 InstanceTransform0 : INSTANCE_TRANSFORM;       // offset 16: DXGI_FORMAT_R32G32B32A32_FLOAT (semantic index 0)
+	float4 InstanceTransform1 : INSTANCE_TRANSFORM1;      // offset 32: DXGI_FORMAT_R32G32B32A32_FLOAT (semantic index 1)
+	float4 InstanceTransform2 : INSTANCE_TRANSFORM2;      // offset 48: DXGI_FORMAT_R32G32B32A32_FLOAT (semantic index 2)
 	float4 InstanceVelocity : INSTANCE_VELOCITY;          // offset 64: DXGI_FORMAT_R32G32B32A32_FLOAT
 	int4 InstanceSubUVParams : INSTANCE_SUBUVPARAMS;      // offset 80: DXGI_FORMAT_R16G16B16A16_SINT
 	float InstanceSubUVLerp : INSTANCE_SUBUVLERP;         // offset 88: DXGI_FORMAT_R32_FLOAT

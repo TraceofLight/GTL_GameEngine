@@ -33,7 +33,8 @@ public:
     // Rebuild bone line overlay from the current skeletal mesh bind pose
     // SelectedBoneIndex: highlight this bone and its parent connection
     // bUpdateAllBones: true = update all bones (for animation), false = update selected bone subtree only
-    void RebuildBoneLines(int32 SelectedBoneIndex, bool bUpdateAllBones = false);
+    // bForceHighlightRefresh: true = force color update even if selection hasn't changed
+    void RebuildBoneLines(int32 SelectedBoneIndex, bool bUpdateAllBones = false, bool bForceHighlightRefresh = false);
 
     // Bone picking with ray
     // Returns bone index if hit, -1 otherwise

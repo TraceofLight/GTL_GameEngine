@@ -21,6 +21,7 @@
 #include "ThumbnailManager.h"
 #include "Windows/AnimStateMachineWindow.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystem.h"
+#include "Gizmo/GizmoActor.h"
 
 IMPLEMENT_CLASS(USlateManager)
 
@@ -685,14 +686,21 @@ void USlateManager::Render()
     // 로딩 UI (우상단)
     auto& RM = UResourceManager::GetInstance();
     int32 PendingCount = RM.GetPendingLoadCount();
-    if (PendingCount > 0)
-    {
-        extern float CLIENTWIDTH;
-        extern float CLIENTHEIGHT;
+    bool bIsLoading = PendingCount > 0;
 
+    // 로딩 완료 감지: 이전 프레임에 로딩 중이었고, 이번 프레임에 완료됨
+    if (bWasLoadingLastFrame && !bIsLoading)
+    {
+        // 로딩 세션 완료, 다음 로딩 세션을 위해 카운터 리셋
+        FAsyncLoader::Get().ResetSessionCounters();
+    }
+    bWasLoadingLastFrame = bIsLoading;
+
+    if (bIsLoading)
+    {
         // 화면 중앙 하단에 로딩 UI 표시
-        ImGui::SetNextWindowPos(ImVec2((CLIENTWIDTH - 310) * 0.5f, CLIENTHEIGHT - 155), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(310, 115), ImGuiCond_Always);
+        ImGui::SetNextWindowPos(ImVec2((CLIENTWIDTH - 310) * 0.5f, CLIENTHEIGHT - 120 - 50), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(310, 120), ImGuiCond_Always);
 
         ImGui::Begin("Loading Assets", nullptr,
             ImGuiWindowFlags_NoCollapse |
@@ -707,7 +715,7 @@ void USlateManager::Render()
         ImGui::ProgressBar(Progress, ImVec2(-1, 0));
 
         int32 CompletedCount = RM.GetCompletedCount();
-        int32 TotalCount = PendingCount + CompletedCount;
+        int32 TotalCount = FAsyncLoader::Get().GetTotalRequestedCount();
         ImGui::Text("%d / %d assets loaded", CompletedCount, TotalCount);
 
         TArray<FString> CurrentAssets = RM.GetCurrentlyLoadingAssets();
@@ -959,11 +967,16 @@ void USlateManager::ProcessInput()
 
 void USlateManager::OnMouseMove(FVector2D MousePos)
 {
-    // Route to detached viewer if hovered
-    if (SkeletalViewerWindow && SkeletalViewerWindow->IsHover(MousePos))
+    // Route to detached viewer if hovered or if gizmo is being dragged (for smooth bone editing)
+    if (SkeletalViewerWindow)
     {
-        SkeletalViewerWindow->OnMouseMove(MousePos);
-        return;
+        AGizmoActor* Gizmo = SkeletalViewerWindow->GetGizmoActor();
+        bool bGizmoDragging = (Gizmo && Gizmo->GetbIsDragging());
+        if (bGizmoDragging || SkeletalViewerWindow->IsHover(MousePos))
+        {
+            SkeletalViewerWindow->OnMouseMove(MousePos);
+            return;
+        }
     }
 
     // Route to BlendSpace2D editor if hovered

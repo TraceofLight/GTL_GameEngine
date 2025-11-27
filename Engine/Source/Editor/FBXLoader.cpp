@@ -249,6 +249,9 @@ FSkeletalMeshData* UFbxLoader::LoadFbxMeshAsset(const FString& FilePath)
                 NewMaterial->SetShader(Default->GetShader());
                 NewMaterial->SetShaderMacros(Default->GetShaderMacros());
 
+                // 캐시에서 로드 시 누락되던 부분 해결
+                NewMaterial->ResolveTextures();
+
                 UResourceManager::GetInstance().Add<UMaterial>(MaterialInfo.MaterialName, NewMaterial);
             }
 

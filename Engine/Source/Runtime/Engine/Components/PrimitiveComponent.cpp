@@ -37,7 +37,17 @@ void UPrimitiveComponent::OnUnregister()
 
 void UPrimitiveComponent::SetMaterialByName(uint32 InElementIndex, const FString& InMaterialName)
 {
-    SetMaterial(InElementIndex, UResourceManager::GetInstance().Load<UMaterial>(InMaterialName));
+    if (InMaterialName.empty())
+    {
+        return;
+    }
+
+    UMaterial* Material = UResourceManager::GetInstance().Load<UMaterial>(InMaterialName);
+    if (!Material)
+    {
+        UE_LOG("[warning] SetMaterialByName: Failed to load material '%s' for slot %u", InMaterialName.c_str(), InElementIndex);
+    }
+    SetMaterial(InElementIndex, Material);
 } 
  
 void UPrimitiveComponent::DuplicateSubObjects()

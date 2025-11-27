@@ -10,6 +10,7 @@
 #include "InputManager.h"
 #include "UIManager.h"
 #include "FViewport.h"
+#include "FViewportClient.h"
 #include "Picking.h"
 #include "EditorEngine.h"
 #include "SkeletalMeshComponent.h"
@@ -31,7 +32,7 @@ AGizmoActor::AGizmoActor()
 	ArrowY = CreateDefaultSubobject<UGizmoArrowComponent>("GizmoArrowComponent");
 	ArrowZ = CreateDefaultSubobject<UGizmoArrowComponent>("GizmoArrowComponent");
 
-	ArrowX->SetDirection(FVector(1.0f, 0.0f, 0.0f));//빨 
+	ArrowX->SetDirection(FVector(1.0f, 0.0f, 0.0f));//빨
 	ArrowY->SetDirection(FVector(0.0f, 1.0f, 0.0f));//초
 	ArrowZ->SetDirection(FVector(0.0f, 0.0f, 1.0f));//파
 
@@ -291,14 +292,18 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 {
 	// DraggingAxis == 0 이면 드래그 중이 아니므로 반환
 	if (!Camera || DraggingAxis == 0)
+	{
 		return;
+	}
 
 	// Bone 타겟인 경우: TargetSkeletalMeshComponent를 사용
 	bool bIsBoneMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
 
 	// Actor/Component 타겟인 경우: Target 검증
 	if (!bIsBoneMode && !Target)
+	{
 		return;
+	}
 
 	// MouseDeltaX/Y는 이제 드래그 시작점으로부터의 '총 변위(Total Offset)'입니다.
 	FVector2D MouseOffset(MouseDeltaX, MouseDeltaY);
@@ -466,8 +471,20 @@ void AGizmoActor::ProcessGizmoInteraction(ACameraActor* Camera, FViewport* Viewp
 	{
 		return;
 	}
+
+	// 본 타겟 모드일 때는 SelectedComponent가 없어도 기즈모 인터랙션 처리
+	bool bIsBoneTargetMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
+
 	USceneComponent* SelectedComponent = SelectionManager->GetSelectedComponent();
-	if (!SelectedComponent || !Camera) return;
+
+	if (!bIsBoneTargetMode && (!SelectedComponent || !Camera))
+	{
+		return;
+	}
+	if (!Camera)
+	{
+		return;
+	}
 
 	// 기즈모 드래그
 	ProcessGizmoDragging(Camera, Viewport, MousePositionX, MousePositionY);
@@ -501,7 +518,7 @@ void AGizmoActor::ProcessGizmoHovering(ACameraActor* Camera, FViewport* Viewport
 		);
 	}
 
-	if (GizmoAxis > 0)	//기즈모 축이 0이상이라면 선택 된것 
+	if (GizmoAxis > 0)	//기즈모 축이 0이상이라면 선택 된것
 	{
 		bIsHovering = true;
 	}
@@ -513,13 +530,29 @@ void AGizmoActor::ProcessGizmoHovering(ACameraActor* Camera, FViewport* Viewport
 
 void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY)
 {
-	USceneComponent* SelectedComponent = SelectionManager->GetSelectedComponent();
-	if (!SelectedComponent || !Camera) return;
+	// 본 타겟 모드일 때는 SelectedComponent가 없어도 처리
+	bool bIsBoneTargetMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
+
+	USceneComponent* SelectedComponent = SelectionManager ? SelectionManager->GetSelectedComponent() : nullptr;
+
+	if (!bIsBoneTargetMode && !SelectedComponent)
+	{
+		return;
+	}
+	if (!Camera)
+	{
+		return;
+	}
 
 	FVector2D CurrentMousePosition(MousePositionX, MousePositionY);
 
+	// GetAsyncKeyState로 OS 레벨에서 마우스 버튼 상태 직접 확인
+	bool bMouseDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+
 	// --- 1. Begin Drag (드래그 시작) ---
-	if (InputManager->IsMouseButtonDown(LeftButton) && !bIsDragging && GizmoAxis > 0)
+	// 본 모드가 아닐 때만 자동 시작 (기존 에디터 뷰포트 호환성 유지)
+	// 본 모드일 때는 StartDrag()가 명시적으로 호출되어야 함
+	if (!bIsBoneTargetMode && bMouseDown && !bIsDragging && GizmoAxis > 0)
 	{
 		bIsDragging = true;
 		DraggingAxis = GizmoAxis;
@@ -532,58 +565,37 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 			AActor* SelectedActor = SelectionManager->GetSelectedActor();
 			if (SelectedActor && World)
 			{
-				// Actor 복제
 				AActor* DuplicatedActor = SelectedActor->Duplicate();
 				if (DuplicatedActor)
 				{
-					// 원본과 같은 위치에 복제본 생성
 					DuplicatedActor->SetActorLocation(SelectedActor->GetActorLocation());
 					DuplicatedActor->SetActorRotation(SelectedActor->GetActorRotation());
 					DuplicatedActor->SetActorScale(SelectedActor->GetActorScale());
 
-					// 고유한 이름 생성
 					FString ActorTypeName = SelectedActor->GetClass()->Name;
 					FString UniqueName = World->GenerateUniqueActorName(ActorTypeName);
 					DuplicatedActor->ObjectName = FName(UniqueName);
 
-					// World에 등록
 					World->AddActorToLevel(DuplicatedActor);
 
-					// 복제본을 선택 (이제 복제본을 드래그함)
 					SelectionManager->ClearSelection();
 					SelectionManager->SelectActor(DuplicatedActor);
 
-					// SelectedComponent를 복제본의 RootComponent로 업데이트
 					SelectedComponent = DuplicatedActor->GetRootComponent();
 				}
 			}
 		}
 
 		// 드래그 시작 상태 저장
-		if (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0)
-		{
-			FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
-			DragStartLocation = BoneWorldTransform.Translation;
-			DragStartRotation = BoneWorldTransform.Rotation;
-			DragStartScale = BoneWorldTransform.Scale3D;
-		}
-		else
-		{
-			DragStartLocation = SelectedComponent->GetWorldLocation();
-			DragStartRotation = SelectedComponent->GetWorldRotation();
-			DragStartScale = SelectedComponent->GetWorldScale();
-		}
+		DragStartLocation = SelectedComponent->GetWorldLocation();
+		DragStartRotation = SelectedComponent->GetWorldRotation();
+		DragStartScale = SelectedComponent->GetWorldScale();
 		DragStartPosition = CurrentMousePosition;
-
-		// 호버링 시점의 3D 충돌 지점을 드래그 시작 지점으로 래치
 		DragImpactPoint = HoverImpactPoint;
 
 		// (회전용) 드래그 시작 시점의 2D 드래그 벡터 계산
 		if (CurrentMode == EGizmoMode::Rotate)
 		{
-			// ==============================================================
-			// UGizmoManager의 정밀한 접선 계산 로직
-			// ==============================================================
 			FVector WorldAxis(0.f);
 			FVector LocalAxisVector(0.f);
 			switch (DraggingAxis)
@@ -597,29 +609,24 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 			{
 				WorldAxis = LocalAxisVector;
 			}
-			else // Local
+			else
 			{
 				WorldAxis = DragStartRotation.RotateVector(LocalAxisVector);
 			}
 
-			// 1. 3D 충돌 지점(DragImpactPoint)과 기즈모 중심(DragStartLocation) 사이의 3D 벡터
 			FVector ClickVector = DragImpactPoint - DragStartLocation;
-
-			// 2. 3D 회전 축과 3D 클릭 벡터를 외적하여 3D 접선(Tangent)을 구함
 			FVector Tangent3D = FVector::Cross(WorldAxis, ClickVector);
 
-			// 3. 3D 접선을 2D 스크린에 투영 (GetStableAxisDirection의 로직 재활용)
 			float RightDot = FVector::Dot(Tangent3D, DragCamera->GetRight());
 			float UpDot = FVector::Dot(Tangent3D, DragCamera->GetUp());
 
-			// DirectX 스크린 좌표계 (Y축 반전)를 고려하고 정규화
 			DragScreenVector = FVector2D(RightDot, -UpDot);
-			DragScreenVector = DragScreenVector.GetNormalized(); // 방향 벡터이므로 정규화
+			DragScreenVector = DragScreenVector.GetNormalized();
 		}
 	}
 
 	// --- 2. Continue Drag (드래그 지속) ---
-	if (InputManager->IsMouseButtonDown(LeftButton) && bIsDragging)
+	if (bMouseDown && bIsDragging)
 	{
 		// 드래그 시작점으로부터의 '총 변위(Total Offset)' 계산
 		FVector2D MouseOffset = CurrentMousePosition - DragStartPosition;
@@ -628,14 +635,13 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 		OnDrag(SelectedComponent, DraggingAxis, MouseOffset.X, MouseOffset.Y, Camera, Viewport);
 
 		// Bone 타겟일 때 본 라인 실시간 업데이트
-		if (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent)
+		if (bIsBoneTargetMode && TargetSkeletalMeshComponent)
 		{
 			AActor* Owner = TargetSkeletalMeshComponent->GetOwner();
 			if (Owner)
 			{
 				if (auto* SkeletalActor = dynamic_cast<class ASkeletalMeshActor*>(Owner))
 				{
-					// 선택된 본의 서브트리만 업데이트 (성능 최적화)
 					SkeletalActor->RebuildBoneLines(TargetBoneIndex, false);
 				}
 			}
@@ -643,14 +649,10 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 	}
 
 	// --- 3. End Drag (드래그 종료) ---
-	// 드래그 중인데 마우스가 떼졌으면 무조건 종료 (관성 방지)
-	if (bIsDragging && !InputManager->IsMouseButtonDown(LeftButton))
+	// 드래그 중인데 마우스가 떼졌으면 무조건 종료
+	if (bIsDragging && !bMouseDown)
 	{
-		bIsDragging = false;
-		DraggingAxis = 0; // 고정된 축 해제
-		DragCamera = nullptr;
-		GizmoAxis = 0; // 하이라이트 해제
-		SetSpaceWorldMatrix(CurrentSpace, SelectedComponent);
+		EndDrag();
 	}
 }
 
@@ -708,6 +710,110 @@ void AGizmoActor::ProcessGizmoModeSwitch()
 			SetSpace(EGizmoSpace::World);
 		}
 	}
+}
+
+bool AGizmoActor::StartDrag(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY)
+{
+	// 이미 드래그 중이면 무시
+	if (bIsDragging)
+	{
+		return false;
+	}
+
+	// 호버링 상태가 아니면 드래그 시작 불가
+	if (GizmoAxis <= 0)
+	{
+		return false;
+	}
+
+	// 본 타겟 모드 체크
+	bool bIsBoneTargetMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
+	USceneComponent* SelectedComponent = SelectionManager ? SelectionManager->GetSelectedComponent() : nullptr;
+
+	if (!bIsBoneTargetMode && !SelectedComponent)
+	{
+		return false;
+	}
+
+	// 드래그 시작
+	bIsDragging = true;
+	DraggingAxis = GizmoAxis;
+	DragCamera = Camera;
+
+	FVector2D CurrentMousePosition(MousePositionX, MousePositionY);
+
+	// 드래그 시작 상태 저장
+	if (bIsBoneTargetMode)
+	{
+		FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+		DragStartLocation = BoneWorldTransform.Translation;
+		DragStartRotation = BoneWorldTransform.Rotation;
+		DragStartScale = BoneWorldTransform.Scale3D;
+	}
+	else if (SelectedComponent)
+	{
+		DragStartLocation = SelectedComponent->GetWorldLocation();
+		DragStartRotation = SelectedComponent->GetWorldRotation();
+		DragStartScale = SelectedComponent->GetWorldScale();
+	}
+	DragStartPosition = CurrentMousePosition;
+
+	// 호버링 시점의 3D 충돌 지점을 드래그 시작 지점으로 래치
+	DragImpactPoint = HoverImpactPoint;
+
+	// (회전용) 드래그 시작 시점의 2D 드래그 벡터 계산
+	if (CurrentMode == EGizmoMode::Rotate && DragCamera)
+	{
+		FVector WorldAxis(0.f);
+		FVector LocalAxisVector(0.f);
+		switch (DraggingAxis)
+		{
+		case 1: LocalAxisVector = FVector(1, 0, 0); break;
+		case 2: LocalAxisVector = FVector(0, 1, 0); break;
+		case 3: LocalAxisVector = FVector(0, 0, 1); break;
+		}
+
+		if (CurrentSpace == EGizmoSpace::World)
+		{
+			WorldAxis = LocalAxisVector;
+		}
+		else // Local
+		{
+			WorldAxis = DragStartRotation.RotateVector(LocalAxisVector);
+		}
+
+		// 3D 충돌 지점과 기즈모 중심 사이의 벡터
+		FVector ClickVector = DragImpactPoint - DragStartLocation;
+
+		// 3D 회전 축과 3D 클릭 벡터를 외적하여 3D 접선을 구함
+		FVector Tangent3D = FVector::Cross(WorldAxis, ClickVector);
+
+		// 3D 접선을 2D 스크린에 투영
+		float RightDot = FVector::Dot(Tangent3D, DragCamera->GetRight());
+		float UpDot = FVector::Dot(Tangent3D, DragCamera->GetUp());
+
+		// DirectX 스크린 좌표계 (Y축 반전)를 고려하고 정규화
+		DragScreenVector = FVector2D(RightDot, -UpDot);
+		DragScreenVector = DragScreenVector.GetNormalized();
+	}
+
+	return true;
+}
+
+void AGizmoActor::EndDrag()
+{
+	if (!bIsDragging)
+	{
+		return;
+	}
+
+	USceneComponent* SelectedComponent = SelectionManager ? SelectionManager->GetSelectedComponent() : nullptr;
+
+	bIsDragging = false;
+	DraggingAxis = 0;
+	DragCamera = nullptr;
+	GizmoAxis = 0; // 하이라이트 해제
+	SetSpaceWorldMatrix(CurrentSpace, SelectedComponent);
 }
 
 void AGizmoActor::UpdateComponentVisibility()

@@ -12,8 +12,24 @@
 // Timeline 컨트롤 UI 렌더링
 void SPreviewWindow::RenderTimelineControls(ViewerState* State)
 {
-    if (!State || !State->CurrentAnimation)
+    if (!State)
     {
+        return;
+    }
+
+    // 애니메이션이 없을 때 안내 메시지 표시
+    if (!State->CurrentAnimation)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+        float availHeight = ImGui::GetContentRegionAvail().y;
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + availHeight * 0.4f);
+
+        const char* message = "Select an animation from the list to view timeline";
+        float textWidth = ImGui::CalcTextSize(message).x;
+        float windowWidth = ImGui::GetContentRegionAvail().x;
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (windowWidth - textWidth) * 0.5f);
+        ImGui::Text("%s", message);
+        ImGui::PopStyleColor();
         return;
     }
 
