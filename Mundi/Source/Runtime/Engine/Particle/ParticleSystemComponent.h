@@ -128,6 +128,35 @@ public:
 	 */
 	void UpdateEmitters(float DeltaTime);
 
+	// ============== LOD ==============
+	/**
+	 * 카메라 거리에 따른 LOD 레벨 결정
+	 * @param DistanceSquared 카메라와의 거리 제곱
+	 * @return 사용할 LOD 레벨 인덱스
+	 */
+	int32 DetermineLODLevelFromDistance(float DistanceSquared) const;
+
+	/**
+	 * 모든 에미터의 LOD 레벨 업데이트
+	 * 카메라 위치에 따라 적절한 LOD 선택
+	 */
+	void UpdateLODLevel();
+
+	/**
+	 * LOD 레벨 강제 설정 (에디터 프리뷰용)
+	 * @param LODLevel 강제할 LOD 레벨 (-1이면 자동 모드로 복귀)
+	 */
+	void SetForcedLODLevel(int32 LODLevel);
+
+	/** 강제 LOD 레벨 (-1이면 자동 모드) */
+	int32 ForcedLODLevel = -1;
+
+	/** 현재 사용 중인 LOD 레벨 */
+	int32 CurrentLODLevel = 0;
+
+	/** LOD 전환 히스테리시스 비율 (0.0~1.0, 기본 0.1 = 10%) */
+	float LODHysteresisRatio = 0.1f;
+
 	// ============== Rendering Data ==============
 	/**
 	 * Update dynamic render data for all emitters
@@ -172,4 +201,23 @@ protected:
 
 	/** Update direction gizmo to match component transform */
 	void UpdateDirectionGizmo();
+
+public:
+	// ============== Bounds ==============
+	/**
+	 * Get current bounding box of particle system
+	 * 파티클 시스템의 현재 바운딩 박스 계산
+	 *
+	 * @param OutMin - Minimum corner of bounding box
+	 * @param OutMax - Maximum corner of bounding box
+	 */
+	void GetBoundingBox(FVector& OutMin, FVector& OutMax) const;
+
+	/**
+	 * Get bounding sphere radius
+	 * 바운딩 스피어 반지름 계산
+	 *
+	 * @return Sphere radius
+	 */
+	float GetBoundingSphereRadius() const;
 };

@@ -20,6 +20,7 @@
 #include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystem.h"
 #include "ResourceManager.h"
+#include "Source/Runtime/Core/Misc/PathUtils.h"
 #include <filesystem>
 
 extern float CLIENTWIDTH;
@@ -177,7 +178,8 @@ void SViewportWindow::OnRender()
 			// 씬 로드
 			if (ViewportClient && ViewportClient->GetWorld())
 			{
-				FWideString widePath(PendingScenePath.begin(), PendingScenePath.end());
+				// UTF-8 → UTF-16 변환 (한글 경로 지원)
+				FWideString widePath = UTF8ToWide(PendingScenePath);
 				if (ViewportClient->GetWorld()->LoadLevelFromFile(widePath))
 				{
 					UE_LOG("Scene loaded successfully: %s", PendingScenePath.c_str());

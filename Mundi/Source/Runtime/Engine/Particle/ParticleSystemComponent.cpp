@@ -22,6 +22,10 @@
 #include "Source/Runtime/Renderer/Material.h"
 #include "Source/Runtime/Engine/Components/BillboardComponent.h"
 #include "Source/Editor/Gizmo/GizmoArrowComponent.h"
+#include "Source/Runtime/Engine/GameFramework/World.h"
+#include "Source/Runtime/Engine/Components/CameraComponent.h"
+#include "Source/Runtime/Engine/GameFramework/CameraActor.h"
+#include "Source/Runtime/Engine/GameFramework/PlayerCameraManager.h"
 
 /**
  * 생성자: 파티클 시스템 컴포넌트 초기화
@@ -139,6 +143,9 @@ void UParticleSystemComponent::TickComponent(float DeltaTime)
 	{
 		return;
 	}
+
+	// LOD 업데이트 (카메라 거리 기반)
+	UpdateLODLevel();
 
 	// 누적 시간 업데이트 (Burst 타이밍 계산용)
 	AccumulatedTime += DeltaTime;
@@ -382,7 +389,8 @@ void UParticleSystemComponent::UpdateEmitters(float DeltaTime)
 
 		// 현재 LOD 레벨의 스폰 모듈 가져오기
 		UParticleModuleSpawn* SpawnModule = Instance->CurrentLODLevel->SpawnModule;
-		if (SpawnModule && !Instance->bEmitterIsDone)
+		// LODValidity 체크: 현재 LOD에서 SpawnModule이 활성화되어 있어야 파티클 생성
+		if (SpawnModule && !Instance->bEmitterIsDone && SpawnModule->IsValidForLODLevel(Instance->CurrentLODLevelIndex))
 		{
 			// 이번 프레임에 생성할 파티클 개수 계산
 			int32 SpawnNumber = 0;      // 실제 생성할 개수
@@ -993,4 +1001,264 @@ void UParticleSystemComponent::UpdateDirectionGizmo()
 	FQuat Rotation = GetWorldRotation();
 	FVector ForwardDir = Rotation.RotateVector(FVector(1.0f, 0.0f, 0.0f));
 	DirectionGizmo->SetDirection(ForwardDir);
+}
+
+// ============== LOD ==============
+
+/**
+ * 카메라 거리에 따른 LOD 레벨 결정
+ * @param DistanceSquared 카메라와의 거리 제곱
+ * @return 사용할 LOD 레벨 인덱스
+ */
+int32 UParticleSystemComponent::DetermineLODLevelFromDistance(float DistanceSquared) const
+{
+	if (!Template)
+	{
+		return 0;
+	}
+
+	// LODDistances 배열이 비어있으면 LOD 0 사용
+	if (Template->LODDistances.empty())
+	{
+		return 0;
+	}
+
+	float Distance = std::sqrt(DistanceSquared);
+	int32 NumLODs = Template->GetNumLODs();
+
+	// 히스테리시스 적용
+	// 현재 LOD에서 더 높은 LOD로 전환 시: 거리 + 히스테리시스
+	// 현재 LOD에서 더 낮은 LOD로 전환 시: 거리 - 히스테리시스
+	for (int32 LODIdx = 0; LODIdx < NumLODs - 1; ++LODIdx)
+	{
+		float LODDistance = Template->GetLODDistance(LODIdx);
+		if (LODDistance <= 0.0f)
+		{
+			continue;
+		}
+
+		// 히스테리시스 계산
+		float HysteresisOffset = LODDistance * LODHysteresisRatio;
+
+		// 현재 LOD보다 낮은 LOD로 전환하려면 더 가까워야 함
+		if (LODIdx < CurrentLODLevel)
+		{
+			LODDistance -= HysteresisOffset;
+		}
+		// 현재 LOD보다 높은 LOD로 전환하려면 더 멀어야 함
+		else if (LODIdx >= CurrentLODLevel)
+		{
+			LODDistance += HysteresisOffset;
+		}
+
+		if (Distance < LODDistance)
+		{
+			return LODIdx;
+		}
+	}
+
+	// 모든 거리를 초과하면 마지막 LOD
+	return NumLODs - 1;
+}
+
+/**
+ * 모든 에미터의 LOD 레벨 업데이트
+ * 카메라 위치에 따라 적절한 LOD 선택
+ */
+void UParticleSystemComponent::UpdateLODLevel()
+{
+	if (!Template)
+	{
+		return;
+	}
+
+	// 강제 LOD가 설정되어 있으면 그것을 사용
+	if (ForcedLODLevel >= 0)
+	{
+		if (CurrentLODLevel != ForcedLODLevel)
+		{
+			CurrentLODLevel = ForcedLODLevel;
+
+			// 모든 에미터 인스턴스에 LOD 적용
+			for (FParticleEmitterInstance* Instance : EmitterInstances)
+			{
+				if (Instance)
+				{
+					Instance->SetLODLevel(ForcedLODLevel);
+				}
+			}
+		}
+		return;
+	}
+
+	// LODMethod가 DirectSet이면 자동 업데이트 안 함
+	if (Template->LODMethod == EParticleSystemLODMethod::DirectSet)
+	{
+		return;
+	}
+
+	// 카메라 위치 가져오기
+	FVector CameraLocation = FVector::Zero();
+
+	// Owner Actor가 속한 World에서 카메라 찾기
+	AActor* OwnerActor = GetOwner();
+	if (OwnerActor)
+	{
+		UWorld* World = OwnerActor->GetWorld();
+		if (World)
+		{
+			if (World->bPie)
+			{
+				// PIE 모드: PlayerCameraManager에서 카메라 위치 가져오기
+				APlayerCameraManager* PCM = World->GetPlayerCameraManager();
+				if (PCM)
+				{
+					FMinimalViewInfo* ViewInfo = PCM->GetCurrentViewInfo();
+					if (ViewInfo)
+					{
+						CameraLocation = ViewInfo->ViewLocation;
+					}
+				}
+			}
+			else
+			{
+				// 에디터 모드: 에디터 카메라 액터에서 위치 가져옴
+				ACameraActor* CameraActor = World->GetEditorCameraActor();
+				if (CameraActor)
+				{
+					CameraLocation = CameraActor->GetActorLocation();
+				}
+			}
+		}
+	}
+
+	// 파티클 시스템 위치
+	FVector ParticleLocation = GetWorldLocation();
+
+	// 거리 제곱 계산
+	FVector Delta = CameraLocation - ParticleLocation;
+	float DistanceSquared = Delta.X * Delta.X + Delta.Y * Delta.Y + Delta.Z * Delta.Z;
+
+	// LOD 레벨 결정
+	int32 NewLODLevel = DetermineLODLevelFromDistance(DistanceSquared);
+
+	// LOD가 변경되었으면 모든 에미터에 적용
+	if (NewLODLevel != CurrentLODLevel)
+	{
+		CurrentLODLevel = NewLODLevel;
+
+		for (FParticleEmitterInstance* Instance : EmitterInstances)
+		{
+			if (Instance)
+			{
+				Instance->SetLODLevel(NewLODLevel);
+			}
+		}
+	}
+}
+
+/**
+ * LOD 레벨 강제 설정 (에디터 프리뷰용)
+ * @param LODLevel 강제할 LOD 레벨 (-1이면 자동 모드로 복귀)
+ */
+void UParticleSystemComponent::SetForcedLODLevel(int32 LODLevel)
+{
+	ForcedLODLevel = LODLevel;
+
+	// 즉시 LOD 업데이트
+	if (ForcedLODLevel >= 0)
+	{
+		CurrentLODLevel = ForcedLODLevel;
+
+		for (FParticleEmitterInstance* Instance : EmitterInstances)
+		{
+			if (Instance)
+			{
+				Instance->SetLODLevel(ForcedLODLevel);
+			}
+		}
+	}
+}
+
+// ============================================================================
+// Bounds Calculation
+// ============================================================================
+
+/**
+ * 파티클 시스템의 바운딩 박스 계산
+ */
+void UParticleSystemComponent::GetBoundingBox(FVector& OutMin, FVector& OutMax) const
+{
+	// Fixed Bounding Box 사용
+	if (Template && Template->bUseFixedRelativeBoundingBox)
+	{
+		FVector Extent = Template->FixedRelativeBoundingBox;
+		FVector Center = GetWorldLocation();
+
+		OutMin = Center - Extent;
+		OutMax = Center + Extent;
+		return;
+	}
+
+	// 동적 계산: 모든 파티클 위치 기반
+	bool bHasAnyParticles = false;
+	OutMin = FVector(FLT_MAX, FLT_MAX, FLT_MAX);
+	OutMax = FVector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+	for (const FParticleEmitterInstance* Instance : EmitterInstances)
+	{
+		// 활성 파티클이 없으면 스킵
+		if (!Instance || Instance->ActiveParticles <= 0)
+		{
+			continue;
+		}
+
+		// 직접 멤버 접근
+		const uint8* ParticleDataPtr = Instance->ParticleData;
+		int32 Stride = Instance->ParticleStride;
+		int32 NumActiveParticles = Instance->ActiveParticles;
+
+		if (!ParticleDataPtr)
+		{
+			continue;
+		}
+
+		for (int32 i = 0; i < NumActiveParticles; ++i)
+		{
+			const FBaseParticle* Particle = reinterpret_cast<const FBaseParticle*>(ParticleDataPtr + i * Stride);
+			if (Particle)
+			{
+				OutMin.X = std::min(OutMin.X, Particle->Location.X);
+				OutMin.Y = std::min(OutMin.Y, Particle->Location.Y);
+				OutMin.Z = std::min(OutMin.Z, Particle->Location.Z);
+
+				OutMax.X = std::max(OutMax.X, Particle->Location.X);
+				OutMax.Y = std::max(OutMax.Y, Particle->Location.Y);
+				OutMax.Z = std::max(OutMax.Z, Particle->Location.Z);
+
+				bHasAnyParticles = true;
+			}
+		}
+	}
+
+	// 파티클이 없으면 컴포넌트 위치 기준 작은 박스
+	if (!bHasAnyParticles)
+	{
+		FVector Center = GetWorldLocation();
+		OutMin = Center - FVector(10.0f, 10.0f, 10.0f);
+		OutMax = Center + FVector(10.0f, 10.0f, 10.0f);
+	}
+}
+
+/**
+ * 바운딩 스피어 반지름 계산
+ */
+float UParticleSystemComponent::GetBoundingSphereRadius() const
+{
+	FVector Min, Max;
+	GetBoundingBox(Min, Max);
+
+	// AABB의 대각선 길이의 절반
+	FVector Extent = (Max - Min) * 0.5f;
+	return Extent.Size();
 }

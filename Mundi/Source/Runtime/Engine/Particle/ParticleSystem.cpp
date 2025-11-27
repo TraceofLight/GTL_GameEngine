@@ -121,12 +121,12 @@ void UParticleSystem::BuildEmitters()
 	// LOD 거리 배열 초기화 (필요한 경우)
 	if (LODDistances.empty())
 	{
-		// 기본 LOD 거리 설정
+		// 기본 LOD 거리 설정 (테스트용: 30 단위)
 		int32 NumLODs = GetNumLODs();
 		LODDistances.resize(NumLODs);
 		for (int32 i = 0; i < NumLODs; ++i)
 		{
-			LODDistances[i] = 1000.0f * static_cast<float>(i + 1);
+			LODDistances[i] = 30.0f * static_cast<float>(i + 1);
 		}
 	}
 }

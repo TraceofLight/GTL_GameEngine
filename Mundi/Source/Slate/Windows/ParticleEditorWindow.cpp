@@ -853,6 +853,12 @@ void SParticleEditorWindow::RenderToolbar()
 	if (RenderIconButton("Bounds", IconBounds, "Bounds", "바운딩 박스 표시 토글\n뷰포트에 파티클 시스템 경계 표시", ActiveState->bShowBounds))
 	{
 		ActiveState->bShowBounds = !ActiveState->bShowBounds;
+
+		// 바운딩 박스/스피어 업데이트 (버튼 토글 시에만, UE Cascade처럼 정적)
+		if (ActiveState->PreviewActor)
+		{
+			ActiveState->PreviewActor->UpdateBoundsVisualization(ActiveState->bShowBounds);
+		}
 	}
 
 	DrawVerticalSeparator();
@@ -880,34 +886,67 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// LOD 관련: Regen LOD 버튼들
 	// ================================================================
-	if (RenderIconButton("RegenLODDup", IconRegenLOD, "Regen LOD", "최상위 LOD를 복제하여 최하위 LOD 재생성\n(TBD)"))
+	int32 MaxLOD = GetMaxLODCount();
+
+	if (RenderIconButton("RegenLODDup", IconRegenLOD, "Regen LOD", "Regenerate Lowest LOD (Duplicate Highest)"))
 	{
-		// TODO: LOD 재생성 (최하위, 최상위 복제)
+		// LOD 0을 100% 복제하여 최하위 LOD 재생성
+		if (ActiveState && ActiveState->CurrentSystem)
+		{
+			for (UParticleEmitter* Emitter : ActiveState->CurrentSystem->Emitters)
+			{
+				if (Emitter)
+				{
+					// 기존 LOD 1+ 제거 후 재생성
+					while (Emitter->LODLevels.size() > 1)
+					{
+						delete Emitter->LODLevels.back();
+						Emitter->LODLevels.pop_back();
+					}
+					Emitter->AutogenerateLowestLODLevel(true);  // bDuplicateHighest = true
+				}
+			}
+			ActiveState->CurrentSystem->UpdateAllModuleLists();
+		}
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("RegenLOD", IconRegenLOD, "Regen LOD", "최하위 LOD 자동 재생성\n(TBD)"))
+	if (RenderIconButton("RegenLOD", IconRegenLOD, "Regen LOD", "Regenerate Lowest LOD"))
 	{
-		// TODO: LOD 재생성 (최하위)
+		// LOD 0을 기반으로 최하위 LOD 재생성 (간소화)
+		if (ActiveState && ActiveState->CurrentSystem)
+		{
+			for (UParticleEmitter* Emitter : ActiveState->CurrentSystem->Emitters)
+			{
+				if (Emitter)
+				{
+					// 기존 LOD 1+ 제거 후 재생성
+					while (Emitter->LODLevels.size() > 1)
+					{
+						delete Emitter->LODLevels.back();
+						Emitter->LODLevels.pop_back();
+					}
+					Emitter->AutogenerateLowestLODLevel(false);  // bDuplicateHighest = false (간소화)
+				}
+			}
+			ActiveState->CurrentSystem->UpdateAllModuleLists();
+		}
 	}
 
 	DrawVerticalSeparator();
 
 	// ================================================================
-	// LOD 네비게이션: Lowest, Lower
+	// LOD 네비게이션: Lowest, Lower (낮은 인덱스 = 높은 디테일)
 	// ================================================================
-	if (RenderIconButton("LowestLOD", IconLowestLOD, "Lowest LOD", "최하위 디테일 LOD로 이동 (LOD 0)"))
+	if (RenderIconButton("LowestLOD", IconLowestLOD, "Lowest LOD", "최고 디테일 LOD로 이동 (LOD 0)"))
 	{
-		CurrentLODIndex = 0;
+		SetCurrentLODIndex(0);
 	}
 
 	ImGui::SameLine();
-	if (RenderIconButton("LowerLOD", IconLowerLOD, "Lower LOD", "낮은 디테일 LOD로 이동"))
+	if (RenderIconButton("LowerLOD", IconLowerLOD, "Lower LOD", "더 높은 디테일 LOD로 이동 (인덱스 감소)"))
 	{
-		if (CurrentLODIndex > 0)
-		{
-			--CurrentLODIndex;
-		}
+		SetCurrentLODIndex(CurrentLODIndex - 1);
 	}
 
 	DrawVerticalSeparator();
@@ -915,9 +954,39 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// LOD 추가 및 선택
 	// ================================================================
-	if (RenderIconButton("AddLODBefore", IconAddLOD, "Add LOD", "현재 LOD 앞에 새 LOD 추가\n(TBD)"))
+	if (RenderIconButton("AddLODBefore", IconAddLOD, "Add LOD", "현재 LOD 앞에 새 LOD 추가"))
 	{
-		// TODO: LOD 추가 (현재 앞에)
+		// 현재 LOD 앞에 새 LOD 삽입
+		if (ActiveState && ActiveState->CurrentSystem)
+		{
+			for (UParticleEmitter* Emitter : ActiveState->CurrentSystem->Emitters)
+			{
+				if (Emitter && CurrentLODIndex < Emitter->GetNumLODs())
+				{
+					// 현재 LOD를 복제하여 삽입
+					UParticleLODLevel* SourceLOD = Emitter->GetLODLevel(CurrentLODIndex);
+					if (SourceLOD)
+					{
+						UParticleLODLevel* NewLOD = NewObject<UParticleLODLevel>();
+						NewLOD->DuplicateFrom(SourceLOD);
+						NewLOD->Level = CurrentLODIndex;
+
+						// 현재 위치에 삽입
+						Emitter->LODLevels.insert(Emitter->LODLevels.begin() + CurrentLODIndex, NewLOD);
+
+						// 뒤의 LOD들 인덱스 업데이트
+						for (int32 i = CurrentLODIndex + 1; i < Emitter->GetNumLODs(); ++i)
+						{
+							if (Emitter->LODLevels[i])
+							{
+								Emitter->LODLevels[i]->Level = i;
+							}
+						}
+					}
+				}
+			}
+			ActiveState->CurrentSystem->UpdateAllModuleLists();
+		}
 	}
 
 	ImGui::SameLine();
@@ -925,36 +994,75 @@ void SParticleEditorWindow::RenderToolbar()
 	// LOD 입력창
 	ImGui::BeginGroup();
 	{
-		ImGui::Text("LOD");
+		ImGui::Text("LOD %d/%d", CurrentLODIndex, std::max(0, MaxLOD - 1));
 		if (ImGui::IsItemHovered())
 		{
-			ImGui::SetTooltip("현재 LOD 인덱스 (0 = 최고 디테일)\n수동 편집으로 특정 LOD로 이동");
+			ImGui::SetTooltip("현재 LOD 인덱스 / 최대 LOD\n(0 = 최고 디테일, 숫자가 클수록 낮은 디테일)");
 		}
 
 		ImGui::SetNextItemWidth(40);
-		ImGui::InputInt("##LODIndex", &CurrentLODIndex, 0, 0);
-		if (CurrentLODIndex < 0)
+		int32 TempLODIndex = CurrentLODIndex;
+		if (ImGui::InputInt("##LODIndex", &TempLODIndex, 0, 0))
 		{
-			CurrentLODIndex = 0;
+			SetCurrentLODIndex(TempLODIndex);
 		}
 	}
 	ImGui::EndGroup();
 
 	ImGui::SameLine();
-	if (RenderIconButton("AddLODAfter", IconAddLOD, "Add LOD", "현재 LOD 뒤에 새 LOD 추가\n(TBD)"))
+	if (RenderIconButton("AddLODAfter", IconAddLOD, "Add LOD", "현재 LOD 뒤에 새 LOD 추가"))
 	{
-		// TODO: LOD 추가 (현재 뒤에)
+		// 현재 LOD 뒤에 새 LOD 삽입
+		if (ActiveState && ActiveState->CurrentSystem)
+		{
+			for (UParticleEmitter* Emitter : ActiveState->CurrentSystem->Emitters)
+			{
+				if (Emitter && CurrentLODIndex < Emitter->GetNumLODs())
+				{
+					// 현재 LOD를 복제하여 삽입
+					UParticleLODLevel* SourceLOD = Emitter->GetLODLevel(CurrentLODIndex);
+					if (SourceLOD)
+					{
+						UParticleLODLevel* NewLOD = NewObject<UParticleLODLevel>();
+						NewLOD->DuplicateFrom(SourceLOD);
+						NewLOD->Level = CurrentLODIndex + 1;
+
+						// 현재 위치 뒤에 삽입
+						int32 InsertIdx = CurrentLODIndex + 1;
+						if (InsertIdx >= Emitter->GetNumLODs())
+						{
+							Emitter->LODLevels.push_back(NewLOD);
+						}
+						else
+						{
+							Emitter->LODLevels.insert(Emitter->LODLevels.begin() + InsertIdx, NewLOD);
+						}
+
+						// 뒤의 LOD들 인덱스 업데이트
+						for (int32 i = InsertIdx + 1; i < Emitter->GetNumLODs(); ++i)
+						{
+							if (Emitter->LODLevels[i])
+							{
+								Emitter->LODLevels[i]->Level = i;
+							}
+						}
+					}
+				}
+			}
+			ActiveState->CurrentSystem->UpdateAllModuleLists();
+			// 새로 추가된 LOD로 이동
+			SetCurrentLODIndex(CurrentLODIndex + 1);
+		}
 	}
 
 	DrawVerticalSeparator();
 
 	// ================================================================
-	// LOD 네비게이션: Higher
+	// LOD 네비게이션: Higher (높은 인덱스 = 낮은 디테일)
 	// ================================================================
-	if (RenderIconButton("HigherLOD", IconHigherLOD, "Higher LOD", "높은 디테일 LOD로 이동"))
+	if (RenderIconButton("HigherLOD", IconHigherLOD, "Higher LOD", "더 낮은 디테일 LOD로 이동 (인덱스 증가)"))
 	{
-		++CurrentLODIndex;
-		// TODO: 최대 LOD 수에 맞게 클램프
+		SetCurrentLODIndex(CurrentLODIndex + 1);
 	}
 
 	ImGui::PopStyleVar();
@@ -962,6 +1070,51 @@ void SParticleEditorWindow::RenderToolbar()
 	// 툴바와 콘텐츠 사이 간격
 	ImGui::Spacing();
 	ImGui::Separator();
+}
+
+void SParticleEditorWindow::SetCurrentLODIndex(int32 Index)
+{
+	int32 MaxLOD = GetMaxLODCount();
+	if (MaxLOD <= 0)
+	{
+		CurrentLODIndex = 0;
+		return;
+	}
+
+	// 범위 클램핑: [0, MaxLOD - 1]
+	CurrentLODIndex = std::max(0, std::min(Index, MaxLOD - 1));
+
+	// 연결된 ParticleSystemComponent가 있다면 강제 LOD 설정
+	if (ActiveState && ActiveState->PreviewActor)
+	{
+		UParticleSystemComponent* PSC = ActiveState->PreviewActor->GetParticleSystemComponent();
+		if (PSC)
+		{
+			PSC->SetForcedLODLevel(CurrentLODIndex);
+		}
+	}
+}
+
+int32 SParticleEditorWindow::GetMaxLODCount() const
+{
+	if (!ActiveState || !ActiveState->CurrentSystem)
+	{
+		return 0;
+	}
+
+	// 모든 에미터에서 최대 LOD 개수 확인
+	int32 MaxCount = 0;
+	const TArray<UParticleEmitter*>& Emitters = ActiveState->CurrentSystem->Emitters;
+	for (UParticleEmitter* Emitter : Emitters)
+	{
+		if (Emitter)
+		{
+			int32 NumLODs = Emitter->GetNumLODs();
+			MaxCount = std::max(MaxCount, NumLODs);
+		}
+	}
+
+	return MaxCount;
 }
 
 void SParticleEditorWindow::RenderRenameEmitterDialog()
@@ -1263,6 +1416,15 @@ void SParticleDetailPanel::OnRender()
 		{
 			// 선택된 모듈의 디테일 렌더링
 			UParticleModuleDetailRenderer::RenderModuleDetails(State->SelectedModule);
+
+			// 프로퍼티가 변경되었으면 커브 에디터 동기화 (디테일 패널 → 커브 에디터)
+			if (UParticleModuleDetailRenderer::bPropertyChanged)
+			{
+				if (Owner->GetCurveEditorPanel())
+				{
+					Owner->GetCurveEditorPanel()->RefreshCurvesFromModule();
+				}
+			}
 		}
 	}
 	ImGui::End();
@@ -1737,10 +1899,17 @@ void SParticleEmittersPanel::RenderEmitterHeader(UParticleEmitter* Emitter, int3
 
 void SParticleEmittersPanel::RenderModuleStack(UParticleEmitter* Emitter, int32 EmitterIndex)
 {
-	UParticleLODLevel* LODLevel = Emitter->GetLODLevel(0);
+	// 현재 선택된 LOD 레벨 사용
+	int32 LODIndex = Owner->GetCurrentLODIndex();
+	UParticleLODLevel* LODLevel = Emitter->GetLODLevel(LODIndex);
 	if (!LODLevel)
 	{
-		return;
+		// 해당 LOD가 없으면 LOD 0으로 폴백
+		LODLevel = Emitter->GetLODLevel(0);
+		if (!LODLevel)
+		{
+			return;
+		}
 	}
 
 	// Required 모듈
@@ -1882,8 +2051,11 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 	// ImageButton(FramePadding=0) = IconSize, 버튼2개 + 패딩 + 여백
 	float IconAreaWidth = IconSize * 2 + IconPadding + IconRightMargin;
 
-	// 비활성화된 모듈은 이름을 흐리게
-	if (!Module->IsEnabled())
+	// 현재 LOD에서 비활성화된 모듈은 이름을 흐리게 (LODValidity 기반)
+	// Required(-1)는 항상 활성화 상태로 표시 (체크박스도 없음)
+	int32 CurrentLOD = Owner->GetCurrentLODIndex();
+	bool bEnabledInCurrentLOD = (ModuleIndex == -1) ? true : Module->IsValidForLODLevel(CurrentLOD);
+	if (!bEnabledInCurrentLOD)
 	{
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 0.7f));
 	}
@@ -1998,13 +2170,13 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 		}
 	}
 
-	// 비활성화 텍스트 색상 복원
-	if (!Module->IsEnabled())
+	// 비활성화 텍스트 색상 복원 (LODValidity 기반)
+	if (!bEnabledInCurrentLOD)
 	{
 		ImGui::PopStyleColor();
 	}
 
-	// ============ 우측 정렬 아이콘 (커브 + 체크박스) ============
+	// ============ 우측 정렬 아이콘 (체크박스 + 커브) ============
 	// ImageButton frame padding 제거로 일관된 크기 유지
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
@@ -2013,9 +2185,45 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 	float IconVerticalOffset = (SelectableHeight - IconSize) * 0.5f;
 
 	ImGui::SameLine(AvailWidth - IconAreaWidth + 16);  // 아이콘 시작 위치
-	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + IconVerticalOffset); // 세로 중앙 정렬
+	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + IconVerticalOffset + 4.0f); // 세로 중앙 정렬 + 체크박스 패딩
 
-	// 1) 커브 버튼 (커브가 있는 모듈만 표시)
+	// 1) 체크박스 (현재 LOD에서의 모듈 활성화 - LODValidity 기반)
+	// Required 모듈(-1)은 체크박스 없음 (UE Cascade 동일)
+	// CurrentLOD, bEnabledInCurrentLOD는 위에서 이미 계산됨
+	bool bShowCheckbox = (ModuleIndex != -1);  // Required 제외
+	if (bShowCheckbox)
+	{
+		UTexture* CheckboxIcon = bEnabledInCurrentLOD ? Owner->GetIconCheckboxChecked() : Owner->GetIconCheckbox();
+		if (CheckboxIcon && CheckboxIcon->GetShaderResourceView())
+		{
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.3f, 0.3f, 0.5f));
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.4f, 0.4f, 0.5f));
+
+			ImGui::PushID("enable");
+			if (ImGui::ImageButton("##e", (void*)CheckboxIcon->GetShaderResourceView(), ImVec2(IconSize, IconSize)))
+			{
+				// 현재 LOD에서만 활성/비활성 토글
+				Module->SetLODValidity(CurrentLOD, !bEnabledInCurrentLOD);
+			}
+			ImGui::PopID();
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip(bEnabledInCurrentLOD ? "Disable in LOD %d" : "Enable in LOD %d", CurrentLOD);
+			}
+			ImGui::PopStyleColor(3);
+		}
+	}
+	else
+	{
+		// Required 모듈: 체크박스 대신 빈 공간
+		ImGui::Dummy(ImVec2(IconSize, IconSize));
+	}
+
+	ImGui::SameLine(0, IconPadding);
+	ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 7.0f);
+
+	// 2) 커브 버튼 (커브가 있는 모듈만 표시)
 	if (bHasCurves)
 	{
 		UTexture* CurveIcon = Owner->GetIconCurveEditor();
@@ -2122,29 +2330,6 @@ void SParticleEmittersPanel::RenderModuleItem(UParticleModule* Module, int32 Mod
 		ImGui::Dummy(ImVec2(IconSize, IconSize));
 	}
 
-	ImGui::SameLine(0, IconPadding);
-
-	// 2) 체크박스 (모듈 활성화)
-	UTexture* CheckboxIcon = Module->IsEnabled() ? Owner->GetIconCheckboxChecked() : Owner->GetIconCheckbox();
-	if (CheckboxIcon && CheckboxIcon->GetShaderResourceView())
-	{
-		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.3f, 0.3f, 0.5f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.4f, 0.4f, 0.5f));
-
-		ImGui::PushID("enable");
-		if (ImGui::ImageButton("##e", (void*)CheckboxIcon->GetShaderResourceView(), ImVec2(IconSize, IconSize)))
-		{
-			Module->SetEnabled(!Module->IsEnabled());
-		}
-		ImGui::PopID();
-		if (ImGui::IsItemHovered())
-		{
-			ImGui::SetTooltip(Module->IsEnabled() ? "Disable Module" : "Enable Module");
-		}
-		ImGui::PopStyleColor(3);
-	}
-
 	ImGui::PopStyleVar();  // FramePadding 복원
 
 	ImGui::PopID();
@@ -2226,10 +2411,16 @@ void SParticleEmittersPanel::RenderModuleContextMenu(UParticleEmitter* Emitter, 
 		return;
 	}
 
-	UParticleLODLevel* LODLevel = Emitter->GetLODLevel(0);
+	int32 LODIndex = Owner->GetCurrentLODIndex();
+	UParticleLODLevel* LODLevel = Emitter->GetLODLevel(LODIndex);
 	if (!LODLevel)
 	{
-		return;
+		// 현재 LOD가 없으면 LOD 0으로 폴백
+		LODLevel = Emitter->GetLODLevel(0);
+		if (!LODLevel)
+		{
+			return;
+		}
 	}
 
 	ParticleViewerState* State = Owner->GetActiveState();
@@ -2648,10 +2839,16 @@ void SParticleEmittersPanel::DeleteSelectedModule()
 		return;
 	}
 
-	UParticleLODLevel* LODLevel = State->SelectedEmitter->GetLODLevel(0);
+	// 현재 LOD에서 유효성 검사 (삭제는 모든 LOD에서 수행)
+	int32 CurrentLOD = Owner->GetCurrentLODIndex();
+	UParticleLODLevel* LODLevel = State->SelectedEmitter->GetLODLevel(CurrentLOD);
 	if (!LODLevel)
 	{
-		return;
+		LODLevel = State->SelectedEmitter->GetLODLevel(0);
+		if (!LODLevel)
+		{
+			return;
+		}
 	}
 
 	// 모든 LOD 레벨에서 모듈 삭제 (UE 규칙)
@@ -2961,6 +3158,149 @@ bool SParticleCurveEditorPanel::HasCurve(const FString& PropertyName) const
 		}
 	}
 	return false;
+}
+
+// 디테일 패널에서 프로퍼티가 변경되었을 때 커브 에디터 업데이트 (모듈 → 커브 동기화)
+void SParticleCurveEditorPanel::RefreshCurvesFromModule()
+{
+	ParticleViewerState* State = Owner->GetActiveState();
+	if (!State || !State->SelectedModule)
+	{
+		return;
+	}
+
+	UParticleModule* Module = State->SelectedModule;
+	const char* ClassName = Module->GetClass()->Name;
+
+	// 등록된 커브들을 순회하며 모듈의 Distribution 값으로 업데이트
+	for (FCurveData& Curve : Curves)
+	{
+		// 현재 선택된 모듈의 커브만 업데이트
+		if (Curve.OwnerModule != Module)
+		{
+			continue;
+		}
+
+		// 커브 이름 파싱
+		FString PropertyName = Curve.PropertyName;
+
+		// EmitterPrefix 건너뛰기
+		if (PropertyName.find("Emitter") == 0)
+		{
+			size_t FirstDot = PropertyName.find('.');
+			if (FirstDot != FString::npos)
+			{
+				PropertyName = PropertyName.substr(FirstDot + 1);
+			}
+		}
+
+		// 첫 번째 점 찾기 (모듈 이름과 속성 구분)
+		size_t FirstDot = PropertyName.find('.');
+		if (FirstDot == FString::npos)
+		{
+			continue;
+		}
+
+		// 두 번째 점 찾기 (속성과 컴포넌트 구분)
+		size_t SecondDot = PropertyName.find('.', FirstDot + 1);
+
+		FString PropName;
+		FString Component;
+
+		if (SecondDot == FString::npos)
+		{
+			PropName = PropertyName.substr(FirstDot + 1);
+			Component = "";
+		}
+		else
+		{
+			PropName = PropertyName.substr(FirstDot + 1, SecondDot - FirstDot - 1);
+			Component = PropertyName.substr(SecondDot + 1);
+		}
+
+		// 모듈 타입에 따라 Distribution 값 읽기
+		float MinValue = 0.0f;
+		float MaxValue = 0.0f;
+		bool bFound = false;
+
+		if (strstr(ClassName, "Velocity"))
+		{
+			UParticleModuleVelocity* VelModule = static_cast<UParticleModuleVelocity*>(Module);
+
+			if (PropName == "StartVelocity")
+			{
+				if (Component == "X")
+				{
+					MinValue = VelModule->StartVelocity.Min.X;
+					MaxValue = VelModule->StartVelocity.Max.X;
+					bFound = true;
+				}
+				else if (Component == "Y")
+				{
+					MinValue = VelModule->StartVelocity.Min.Y;
+					MaxValue = VelModule->StartVelocity.Max.Y;
+					bFound = true;
+				}
+				else if (Component == "Z")
+				{
+					MinValue = VelModule->StartVelocity.Min.Z;
+					MaxValue = VelModule->StartVelocity.Max.Z;
+					bFound = true;
+				}
+			}
+			else if (PropName == "StartVelocityRadial")
+			{
+				MinValue = VelModule->StartVelocityRadial.Min;
+				MaxValue = VelModule->StartVelocityRadial.Max;
+				bFound = true;
+			}
+		}
+		else if (strstr(ClassName, "Size"))
+		{
+			UParticleModuleSize* SizeModule = static_cast<UParticleModuleSize*>(Module);
+
+			if (PropName == "StartSize")
+			{
+				if (Component == "X")
+				{
+					MinValue = SizeModule->StartSize.Min.X;
+					MaxValue = SizeModule->StartSize.Max.X;
+					bFound = true;
+				}
+				else if (Component == "Y")
+				{
+					MinValue = SizeModule->StartSize.Min.Y;
+					MaxValue = SizeModule->StartSize.Max.Y;
+					bFound = true;
+				}
+				else if (Component == "Z")
+				{
+					MinValue = SizeModule->StartSize.Min.Z;
+					MaxValue = SizeModule->StartSize.Max.Z;
+					bFound = true;
+				}
+			}
+		}
+		else if (strstr(ClassName, "Lifetime"))
+		{
+			UParticleModuleLifetime* LifetimeModule = static_cast<UParticleModuleLifetime*>(Module);
+
+			if (PropName == "Lifetime")
+			{
+				MinValue = LifetimeModule->Lifetime.Min;
+				MaxValue = LifetimeModule->Lifetime.Max;
+				bFound = true;
+			}
+		}
+		// 다른 모듈 타입도 필요 시 추가...
+
+		// Distribution 값으로 커브 키 업데이트 (첫 번째와 마지막 키만)
+		if (bFound && Curve.Keys.size() >= 2)
+		{
+			Curve.Keys[0].Value = MinValue;
+			Curve.Keys[Curve.Keys.size() - 1].Value = MaxValue;
+		}
+	}
 }
 
 // ============================================================================
@@ -3606,13 +3946,18 @@ void SParticleCurveEditorPanel::RenderCurveList()
 				State->SelectedModule = Curves[ClickedCurveIdx].OwnerModule;
 
 				// 해당 모듈이 속한 이미터 찾기
+				int32 CurrentLODIdx = Owner->GetCurrentLODIndex();
 				for (int32 EmitterIdx = 0; EmitterIdx < State->CurrentSystem->GetNumEmitters(); ++EmitterIdx)
 				{
 					UParticleEmitter* Emitter = State->CurrentSystem->GetEmitter(EmitterIdx);
 					if (!Emitter) continue;
 
-					UParticleLODLevel* LOD = Emitter->GetLODLevel(0);
-					if (!LOD) continue;
+					UParticleLODLevel* LOD = Emitter->GetLODLevel(CurrentLODIdx);
+					if (!LOD)
+					{
+						LOD = Emitter->GetLODLevel(0);
+						if (!LOD) continue;
+					}
 
 					bool bFound = false;
 
@@ -4145,13 +4490,18 @@ void SParticleCurveEditorPanel::RenderKeys(const FCurveData& Curve, int32 CurveI
 				State->SelectedModule = Curve.OwnerModule;
 
 				// 해당 모듈이 속한 이미터 찾기
+				int32 CurrentLODIdx = Owner->GetCurrentLODIndex();
 				for (int32 EmitterIdx = 0; EmitterIdx < State->CurrentSystem->GetNumEmitters(); ++EmitterIdx)
 				{
 					UParticleEmitter* Emitter = State->CurrentSystem->GetEmitter(EmitterIdx);
 					if (!Emitter) continue;
 
-					UParticleLODLevel* LOD = Emitter->GetLODLevel(0);
-					if (!LOD) continue;
+					UParticleLODLevel* LOD = Emitter->GetLODLevel(CurrentLODIdx);
+					if (!LOD)
+					{
+						LOD = Emitter->GetLODLevel(0);
+						if (!LOD) continue;
+					}
 
 					bool bFound = false;
 
@@ -4890,4 +5240,20 @@ void SParticleEditorWindow::RenderToPreviewRenderTarget()
 	// 백업한 렌더 타겟 Release
 	if (OldRTV) OldRTV->Release();
 	if (OldDSV) OldDSV->Release();
+}
+
+// ============================================================================
+// Bounds Rendering
+// ============================================================================
+
+void SParticleEditorWindow::RenderParticleBounds()
+{
+	if (!ActiveState || !ActiveState->PreviewActor)
+	{
+		return;
+	}
+
+	// ParticleSystemActor의 UpdateBoundsVisualization 호출
+	ActiveState->PreviewActor->UpdateBoundsVisualization(ActiveState->bShowBounds);
+
 }

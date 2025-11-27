@@ -217,6 +217,11 @@ public:
 	UTexture* GetIconRenderModeNormal() const { return IconRenderModeNormal; }
 	UTexture* GetIconRenderModeCross() const { return IconRenderModeCross; }
 
+	// LOD 접근자
+	int32 GetCurrentLODIndex() const { return CurrentLODIndex; }
+	void SetCurrentLODIndex(int32 Index);
+	int32 GetMaxLODCount() const;
+
 private:
 	// 툴바 렌더링
 	void RenderToolbar();
@@ -225,6 +230,9 @@ private:
 
 	// 모달 다이얼로그 렌더링
 	void RenderRenameEmitterDialog();
+
+	// 바운딩 박스/스피어 렌더링
+	void RenderParticleBounds();
 
 	// 툴바 아이콘
 	UTexture* IconSave = nullptr;
@@ -381,6 +389,9 @@ public:
 	void RemoveAllCurves();
 	void RemoveAllCurvesForModule(const FString& ModuleName);
 	bool HasCurve(const FString& PropertyName) const;
+
+	// 디테일 패널 → 커브 에디터 동기화
+	void RefreshCurvesFromModule();
 
 private:
 	SParticleEditorWindow* Owner = nullptr;

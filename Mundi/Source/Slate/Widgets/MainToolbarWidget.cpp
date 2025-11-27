@@ -41,8 +41,8 @@ void UMainToolbarWidget::LoadToolbarIcons()
 {
     // 아이콘 로딩 (사용자가 파일을 제공할 예정)
     IconNew = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_New.png");
-    IconSave = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Save.png");
-    IconLoad = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Load.png");
+    IconSave = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Save.dds");
+    IconLoad = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Load.dds");
     IconPlay = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Play.png");
     IconStop = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Stop.png");
     IconAddActor = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_AddActor.png");

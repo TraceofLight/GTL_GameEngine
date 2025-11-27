@@ -112,7 +112,7 @@ void UParticleEmitter::SetEmitterName(const FString& InName)
 	EmitterName = InName;
 }
 
-bool UParticleEmitter::AutogenerateLowestLODLevel()
+bool UParticleEmitter::AutogenerateLowestLODLevel(bool bDuplicateHighest)
 {
 	// 최소 1개의 LOD 레벨이 필요
 	if (LODLevels.empty())
@@ -133,17 +133,21 @@ bool UParticleEmitter::AutogenerateLowestLODLevel()
 		return false;
 	}
 
-	// 새 LOD 레벨 생성 (간소화된 버전)
+	// bDuplicateHighest가 true면 100% 복제, false면 간소화 (UE: 10%)
+	// 현재 간소화 로직이 없으므로 두 경우 모두 복제로 동작
+	// TODO: 간소화 로직 구현 시 Percentage 사용
+
+	// 새 LOD 레벨 생성
 	UParticleLODLevel* NewLOD = new UParticleLODLevel();
-	NewLOD->Level = 1;
-	NewLOD->bEnabled = true;
+	NewLOD->Level = static_cast<int32>(LODLevels.size());
+	NewLOD->bEnabled = SourceLOD->bEnabled;
 
 	// 필수 모듈 복사 (같은 인스턴스 공유)
 	NewLOD->RequiredModule = SourceLOD->RequiredModule;
 	NewLOD->SpawnModule = SourceLOD->SpawnModule;
 	NewLOD->TypeDataModule = SourceLOD->TypeDataModule;
 
-	// 모듈 복사 (LOD 1에서 일부 모듈 비활성화 가능)
+	// 모듈 복사
 	for (UParticleModule* Module : SourceLOD->Modules)
 	{
 		if (Module)
@@ -152,7 +156,7 @@ bool UParticleEmitter::AutogenerateLowestLODLevel()
 		}
 	}
 
-	NewLOD->SetLevelIndex(1);
+	NewLOD->SetLevelIndex(static_cast<int32>(LODLevels.size()));
 	LODLevels.Add(NewLOD);
 
 	return true;

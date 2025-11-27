@@ -34,6 +34,9 @@ public:
 	// Emitter 전체 프로퍼티 렌더링 (모듈이 선택되지 않았을 때)
 	static void RenderEmitterDetails(UParticleEmitter* Emitter);
 
+	// 디테일 패널에서 프로퍼티가 변경되었는지 여부 (커브 에디터 동기화용)
+	static bool bPropertyChanged;
+
 private:
 	// 각 모듈 타입별 렌더링
 	static void RenderRequiredModule(UParticleModuleRequired* Module);

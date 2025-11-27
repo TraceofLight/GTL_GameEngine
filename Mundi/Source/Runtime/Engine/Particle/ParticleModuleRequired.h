@@ -62,6 +62,7 @@ public:
 
 	// Module Type
 	EModuleType GetModuleType() const override { return EModuleType::Required; }
+	bool ModuleHasCurves() const override { return true; }
 
 	// Functions
 	float GetEmitterDuration() const;

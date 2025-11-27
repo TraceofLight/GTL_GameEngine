@@ -60,7 +60,7 @@ public:
 	void CacheEmitterModuleInfo();
 	UParticleLODLevel* GetLODLevel(int32 LODIndex);
 	void SetEmitterName(const FString& InName);
-	bool AutogenerateLowestLODLevel();
+	bool AutogenerateLowestLODLevel(bool bDuplicateHighest = false);
 
 	// Setters
 	void SetPeakActiveParticles(int32 InPeakActiveParticles) { PeakActiveParticles = InPeakActiveParticles; }

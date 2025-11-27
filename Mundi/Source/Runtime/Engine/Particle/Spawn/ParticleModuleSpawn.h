@@ -63,6 +63,7 @@ public:
 	// ==================== 모듈 타입 ====================
 
 	EModuleType GetModuleType() const override { return EModuleType::Spawn; }
+	bool ModuleHasCurves() const override { return true; }
 
 	// ==================== 스폰 계산 함수 ====================
 

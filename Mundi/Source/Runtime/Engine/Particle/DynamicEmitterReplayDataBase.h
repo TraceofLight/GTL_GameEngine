@@ -2,6 +2,7 @@
 #include "ParticleTypes.h"
 #include "ParticleDataContainer.h"
 #include "Particle.h"  // FBeamPoint
+#include "ParticleModuleRequired.h"  // FParticleRequiredModule
 
 /**
  * Dynamic particle emitter types
@@ -49,7 +50,7 @@ struct FDynamicEmitterReplayDataBase
 struct FDynamicSpriteEmitterReplayDataBase : public FDynamicEmitterReplayDataBase
 {
 	UMaterialInterface* MaterialInterface;
-	struct FParticleRequiredModule* RequiredModule; // 깊은 복사 필요
+	FParticleRequiredModule* RequiredModule; // 깊은 복사 필요
 	EParticleBlendMode BlendMode; // 블렌드 모드 (렌더러에서 블렌드 스테이트 분기용)
 
 	FVector						NormalsSphereCenter;

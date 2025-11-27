@@ -207,11 +207,11 @@ void UParticleModuleSubUV::Serialize(bool bIsLoading, JSON& InOutHandle)
 		}
 		if (InOutHandle.hasKey("StartingFrame"))
 		{
-			StartingFrame = InOutHandle["StartingFrame"].ToFloat();
+			StartingFrame = static_cast<float>(InOutHandle["StartingFrame"].ToFloat());
 		}
 		if (InOutHandle.hasKey("FrameRate"))
 		{
-			FrameRate = InOutHandle["FrameRate"].ToFloat();
+			FrameRate = static_cast<float>(InOutHandle["FrameRate"].ToFloat());
 		}
 		if (InOutHandle.hasKey("RandomImageChanges"))
 		{

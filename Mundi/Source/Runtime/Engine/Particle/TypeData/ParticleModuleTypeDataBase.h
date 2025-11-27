@@ -142,4 +142,5 @@ public:
 
 	EDynamicEmitterType GetEmitterType() const override;
 	const char* GetVertexFactoryName() const override;
+	bool ModuleHasCurves() const override { return true; }
 };

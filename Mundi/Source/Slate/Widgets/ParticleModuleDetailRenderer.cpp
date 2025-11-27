@@ -28,6 +28,12 @@
 #include "Source/Editor/PlatformProcess.h"
 
 // ============================================================================
+// Static Variables
+// ============================================================================
+
+bool UParticleModuleDetailRenderer::bPropertyChanged = false;
+
+// ============================================================================
 // 섹션 헬퍼
 // ============================================================================
 
@@ -98,6 +104,13 @@ bool UParticleModuleDetailRenderer::RenderFloatDistribution(const char* Label, F
 	}
 
 	ImGui::PopID();
+
+	// 프로퍼티 변경 시 플래그 설정 (커브 에디터 동기화용)
+	if (bChanged)
+	{
+		bPropertyChanged = true;
+	}
+
 	return bChanged;
 }
 
@@ -161,6 +174,13 @@ bool UParticleModuleDetailRenderer::RenderVectorDistribution(const char* Label, 
 	}
 
 	ImGui::PopID();
+
+	// 프로퍼티 변경 시 플래그 설정 (커브 에디터 동기화용)
+	if (bChanged)
+	{
+		bPropertyChanged = true;
+	}
+
 	return bChanged;
 }
 
@@ -227,6 +247,13 @@ bool UParticleModuleDetailRenderer::RenderColorDistribution(const char* Label, F
 	}
 
 	ImGui::PopID();
+
+	// 프로퍼티 변경 시 플래그 설정 (커브 에디터 동기화용)
+	if (bChanged)
+	{
+		bPropertyChanged = true;
+	}
+
 	return bChanged;
 }
 
@@ -332,6 +359,9 @@ bool UParticleModuleDetailRenderer::RenderSubUVInterpMethodCombo(const char* Lab
 
 void UParticleModuleDetailRenderer::RenderModuleDetails(UParticleModule* Module)
 {
+	// 프로퍼티 변경 플래그 초기화 (커브 에디터 동기화용)
+	bPropertyChanged = false;
+
 	if (!Module)
 	{
 		ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Select a module to edit");

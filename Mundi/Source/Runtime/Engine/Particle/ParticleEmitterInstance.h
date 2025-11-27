@@ -396,7 +396,8 @@ struct FParticleEmitterInstance
 			for (int32 ModuleIndex = 0; ModuleIndex < CurrentLODLevel->SpawnModules.Num(); ModuleIndex++)
 			{
 				UParticleModule* Module = CurrentLODLevel->SpawnModules[ModuleIndex];
-				if (Module && Module->IsEnabled() && Module->IsSpawnModule())
+				// LODValidity 체크: 현재 LOD에서 활성화된 모듈만 실행
+				if (Module && Module->IsEnabled() && Module->IsSpawnModule() && Module->IsValidForLODLevel(CurrentLODLevelIndex))
 				{
 					Module->Spawn(this, PayloadOffset, SpawnTime, &Particle);
 				}
@@ -497,7 +498,8 @@ struct FParticleEmitterInstance
 		for (int32 ModuleIndex = 0; ModuleIndex < CurrentLODLevel->UpdateModules.Num(); ModuleIndex++)
 		{
 		    UParticleModule* Module = CurrentLODLevel->UpdateModules[ModuleIndex];
-		    if (Module && Module->IsEnabled() && Module->IsUpdateModule())
+		    // LODValidity 체크: 현재 LOD에서 활성화된 모듈만 실행
+		    if (Module && Module->IsEnabled() && Module->IsUpdateModule() && Module->IsValidForLODLevel(CurrentLODLevelIndex))
 		    {
 		        Module->Update(this, PayloadOffset, DeltaTime);
 		    }
@@ -849,5 +851,56 @@ struct FParticleEmitterInstance
 		OutMax = MaxActiveParticleDataSize + MaxActiveParticleIndexSize + Size;
 	}
 
+	// ============== LOD ==============
+	/**
+	 * LOD 레벨 설정
+	 * @param NewLODIndex 새로운 LOD 레벨 인덱스
+	 * @return LOD 전환 성공 여부
+	 */
+	virtual bool SetLODLevel(int32 NewLODIndex)
+	{
+		// 템플릿이 없으면 실패
+		if (!SpriteTemplate)
+		{
+			return false;
+		}
+
+		// 유효한 LOD 인덱스인지 확인
+		if (NewLODIndex < 0 || NewLODIndex >= SpriteTemplate->GetNumLODs())
+		{
+			return false;
+		}
+
+		// 이미 같은 LOD면 스킵
+		if (CurrentLODLevelIndex == NewLODIndex && CurrentLODLevel != nullptr)
+		{
+			return true;
+		}
+
+		// LOD 레벨 전환
+		UParticleLODLevel* NewLODLevel = SpriteTemplate->GetLODLevel(NewLODIndex);
+		if (!NewLODLevel)
+		{
+			return false;
+		}
+
+		// LOD 인덱스 및 포인터 업데이트
+		CurrentLODLevelIndex = NewLODIndex;
+		CurrentLODLevel = NewLODLevel;
+
+		// 모듈 리스트 캐시 갱신
+		CurrentLODLevel->UpdateModuleLists();
+
+		return true;
+	}
+
+	/**
+	 * 현재 LOD 레벨 인덱스 반환
+	 */
+	int32 GetCurrentLODLevelIndex() const
+	{
+		return CurrentLODLevelIndex;
+	}
 
 };
+
