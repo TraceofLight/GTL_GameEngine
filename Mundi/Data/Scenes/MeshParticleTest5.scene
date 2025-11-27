@@ -1,6 +1,6 @@
 {
   "Actors" : {
-    "1071" : {
+    "1084" : {
       "ObjectName" : "ADirectionalLightActor_1",
       "OwnedComponents" : [{
           "CascadedAreaColorDebugValue" : 0.000000,
@@ -8,7 +8,7 @@
           "CascadedCount" : 4,
           "CascadedLinearBlendingValue" : 0.500000,
           "CascadedOverlapValue" : 0.200000,
-          "Id" : 1073,
+          "Id" : 1086,
           "Intensity" : 1.000000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UDirectionalLightComponent_1",
@@ -29,17 +29,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1073,
+      "RootComponentId" : 1086,
       "Tag" : "",
       "Type" : "ADirectionalLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1074" : {
+    "1087" : {
       "ObjectName" : "AAmbientLightActor_1",
       "OwnedComponents" : [{
-          "Id" : 1076,
+          "Id" : 1089,
           "Intensity" : 0.100000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UAmbientLightComponent_1",
@@ -59,17 +59,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1076,
+      "RootComponentId" : 1089,
       "Tag" : "",
       "Type" : "AAmbientLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1077" : {
+    "1090" : {
       "ObjectName" : "APlayerCameraManager_1",
       "OwnedComponents" : [{
-          "Id" : 1078,
+          "Id" : 1091,
           "ObjectName" : "USceneComponent_1",
           "ParentId" : 0,
           "RelativeLocation" : [0.000000, 0.000000, 0.000000],
@@ -81,17 +81,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1078,
+      "RootComponentId" : 1091,
       "Tag" : "",
       "Type" : "APlayerCameraManager",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1079" : {
+    "1092" : {
       "ObjectName" : "스태틱 메시_0",
       "OwnedComponents" : [{
-          "Id" : 1081,
+          "Id" : 1094,
           "MaterialSlots" : [{
               "AssetPath" : "texture",
               "Type" : "UMaterial"
@@ -111,19 +111,19 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1081,
+      "RootComponentId" : 1094,
       "Tag" : "",
       "Type" : "AStaticMeshActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1082" : {
+    "1095" : {
       "ObjectName" : "스포트 라이트_0",
       "OwnedComponents" : [{
           "AttenuationRadius" : 61.200001,
           "FalloffExponent" : 2.000000,
-          "Id" : 1084,
+          "Id" : 1097,
           "InnerConeAngle" : 30.000000,
           "Intensity" : 32.599998,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
@@ -148,17 +148,17 @@
           "bTickEnabled" : true,
           "bUseInverseSquareFalloff" : true
         }],
-      "RootComponentId" : 1084,
+      "RootComponentId" : 1097,
       "Tag" : "",
       "Type" : "ASpotLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1085" : {
+    "1098" : {
       "ObjectName" : "파티클 시스템_0",
       "OwnedComponents" : [{
-          "Id" : 1087,
+          "Id" : 1100,
           "ObjectName" : "UParticleSystemComponent_3",
           "ParentId" : 0,
           "RelativeLocation" : [-12.751989, -1.856623, 2.134779],
@@ -173,17 +173,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1087,
+      "RootComponentId" : 1100,
       "Tag" : "",
       "Type" : "AParticleSystemActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : true
     },
-    "1088" : {
+    "1101" : {
       "ObjectName" : "AParticleSystemActor_0",
       "OwnedComponents" : [{
-          "Id" : 1090,
+          "Id" : 1103,
           "ObjectName" : "UParticleSystemComponent_3",
           "ParentId" : 0,
           "RelativeLocation" : [-10.170929, -23.399933, 3.134779],
@@ -198,17 +198,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1090,
+      "RootComponentId" : 1103,
       "Tag" : "",
       "Type" : "AParticleSystemActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : true
     },
-    "1091" : {
+    "1104" : {
       "ObjectName" : "AParticleSystemActor_1",
       "OwnedComponents" : [{
-          "Id" : 1093,
+          "Id" : 1106,
           "ObjectName" : "UParticleSystemComponent_4",
           "ParentId" : 0,
           "RelativeLocation" : [-9.815619, -48.907436, 4.134779],
@@ -223,17 +223,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1093,
+      "RootComponentId" : 1106,
       "Tag" : "",
       "Type" : "AParticleSystemActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : true
     },
-    "1094" : {
+    "1107" : {
       "ObjectName" : "AParticleSystemActor_0",
       "OwnedComponents" : [{
-          "Id" : 1096,
+          "Id" : 1109,
           "ObjectName" : "UParticleSystemComponent_8",
           "ParentId" : 0,
           "RelativeLocation" : [-15.807116, 32.062218, -13.401981],
@@ -248,20 +248,20 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1096,
+      "RootComponentId" : 1109,
       "Tag" : "",
       "Type" : "AParticleSystemActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : true
     },
-    "1097" : {
+    "1110" : {
       "ObjectName" : "파티클 시스템_0",
       "OwnedComponents" : [{
-          "Id" : 1099,
+          "Id" : 1112,
           "ObjectName" : "UParticleSystemComponent_11",
           "ParentId" : 0,
-          "RelativeLocation" : [-14.342834, -150.032028, 4.501908],
+          "RelativeLocation" : [-14.342834, -150.032028, 25.980568],
           "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "TemplatePath" : "C:/Users/Jungle/source/repos/Week12/Mundi/Data/Particle/Explosion_subuv.psys",
@@ -273,7 +273,7 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1099,
+      "RootComponentId" : 1112,
       "Tag" : "",
       "Type" : "AParticleSystemActor",
       "bActorHiddenInGame" : false,
@@ -281,13 +281,13 @@
       "bTickInEditor" : true
     }
   },
-  "NextUUID" : 4551,
+  "NextUUID" : 1138,
   "PerspectiveCamera" : {
     "FOV" : [60.000000],
     "FarClip" : [2000.000000],
-    "Location" : [41.016224, -76.503685, 11.019062],
+    "Location" : [54.530296, -129.730316, 11.619821],
     "NearClip" : [0.100000],
-    "Rotation" : [0.000000, 12.900088, 144.199524]
+    "Rotation" : [0.000000, -3.199915, 168.098373]
   },
   "Version" : 1
 }

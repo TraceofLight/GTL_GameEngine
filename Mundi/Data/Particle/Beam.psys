@@ -29,11 +29,11 @@
               "bSupported3DDrawMode" : false,
               "bUpdateModule" : false
             }, {
-              "Frequency" : 0.600000,
+              "Frequency" : 2.800000,
               "LODValidity" : 255,
               "ModuleType" : "UParticleModuleBeamNoise",
-              "Speed" : 0.300000,
-              "Strength" : 3.500000,
+              "Speed" : 0.100000,
+              "Strength" : 1.500000,
               "b3DDrawMode" : false,
               "bEnabled" : true,
               "bFinalUpdateModule" : false,
