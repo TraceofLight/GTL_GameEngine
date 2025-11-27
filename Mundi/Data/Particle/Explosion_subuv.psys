@@ -2,47 +2,56 @@
   "Delay" : 0.000000,
   "Emitters" : [{
       "DetailMode" : 0,
-      "EmitterEditorColor" : [0.830000, 0.540000, 0.920000, 1.000000],
+      "EmitterEditorColor" : [0.530000, 0.620000, 0.480000, 1.000000],
       "EmitterName" : "New Sprite Emitter",
       "EmitterRenderMode" : 0,
       "InitialAllocationCount" : 0,
       "LODLevels" : [{
           "Level" : 0,
           "Modules" : [{
+              "FrameRate" : 30.000000,
+              "InterpolationMethod" : 2,
               "LODValidity" : 255,
-              "ModuleType" : "UParticleModuleBeamSource",
-              "SourceOffset" : [0.000000, 0.000000, 103.000000],
+              "ModuleType" : "UParticleModuleSubUV",
+              "RandomImageChanges" : 1,
+              "StartingFrame" : 0.000000,
               "b3DDrawMode" : false,
               "bEnabled" : true,
               "bFinalUpdateModule" : false,
-              "bSpawnModule" : false,
+              "bSpawnModule" : true,
+              "bSupported3DDrawMode" : false,
+              "bUpdateModule" : true,
+              "bUseRealTime" : false
+            }, {
+              "LODValidity" : 255,
+              "ModuleType" : "UParticleModuleSize",
+              "StartSize" : {
+                "Max" : [100.000000, 100.000000, 100.000000],
+                "Min" : [100.000000, 100.000000, 100.000000],
+                "bIsUniform" : true
+              },
+              "b3DDrawMode" : false,
+              "bEnabled" : true,
+              "bFinalUpdateModule" : false,
+              "bSpawnModule" : true,
               "bSupported3DDrawMode" : false,
               "bUpdateModule" : false
             }, {
               "LODValidity" : 255,
-              "ModuleType" : "UParticleModuleBeamTarget",
-              "TargetOffset" : [0.000000, 0.000000, -69.000000],
+              "ModuleType" : "UParticleModuleLocation",
+              "StartLocation" : {
+                "Max" : [0.000000, 0.000000, 2.900000],
+                "Min" : [0.000000, 0.000000, 2.900000],
+                "bIsUniform" : true
+              },
               "b3DDrawMode" : false,
               "bEnabled" : true,
               "bFinalUpdateModule" : false,
-              "bSpawnModule" : false,
-              "bSupported3DDrawMode" : false,
-              "bUpdateModule" : false
-            }, {
-              "Frequency" : 0.600000,
-              "LODValidity" : 255,
-              "ModuleType" : "UParticleModuleBeamNoise",
-              "Speed" : 0.300000,
-              "Strength" : 3.500000,
-              "b3DDrawMode" : false,
-              "bEnabled" : true,
-              "bFinalUpdateModule" : false,
-              "bLockEndpoints" : true,
-              "bSpawnModule" : false,
+              "bSpawnModule" : true,
               "bSupported3DDrawMode" : false,
               "bUpdateModule" : false
             }],
-          "PeakActiveParticles" : 12,
+          "PeakActiveParticles" : 10,
           "RequiredModule" : {
             "AxisLockOption" : 0,
             "BlendMode" : 1,
@@ -52,13 +61,13 @@
             "EmitterNormalsMode" : 0,
             "InterpolationMethod" : 0,
             "LODValidity" : 255,
-            "MaterialPath" : "DerivedDataCache/Particle_Models/T_Spark_B.PNG.dds",
+            "MaterialPath" : "DerivedDataCache/Particle_Models/T_Epxlosion_F.PNG.dds",
             "MaxDrawCount" : 500,
             "ModuleType" : "UParticleModuleRequired",
             "ScreenAlignment" : 0,
             "SortMode" : 0,
-            "SubImages_Horizontal" : 1,
-            "SubImages_Vertical" : 1,
+            "SubImages_Horizontal" : 8,
+            "SubImages_Vertical" : 8,
             "b3DDrawMode" : false,
             "bDurationRecalcEachLoop" : false,
             "bEnabled" : true,
@@ -81,8 +90,8 @@
             "LODValidity" : 255,
             "ModuleType" : "UParticleModuleSpawn",
             "Rate" : {
-              "Max" : 10.000000,
-              "Min" : 10.000000,
+              "Max" : 2.000000,
+              "Min" : 2.000000,
               "bIsUniform" : true
             },
             "RateScale" : {
@@ -97,26 +106,6 @@
             "bProcessSpawnRate" : true,
             "bSpawnModule" : false,
             "bSupported3DDrawMode" : false,
-            "bUpdateModule" : false
-          },
-          "TypeDataModule" : {
-            "BeamWidth" : {
-              "Max" : 4.830000,
-              "Min" : 4.830000,
-              "bIsUniform" : true
-            },
-            "LODValidity" : 255,
-            "ModuleType" : "UParticleModuleTypeDataBeam",
-            "Segments" : 10,
-            "Sheets" : 1,
-            "TaperFactor" : 1.000000,
-            "UVTiling" : 1.000000,
-            "b3DDrawMode" : false,
-            "bEnabled" : true,
-            "bFinalUpdateModule" : false,
-            "bSpawnModule" : false,
-            "bSupported3DDrawMode" : false,
-            "bTaperBeam" : false,
             "bUpdateModule" : false
           },
           "bEnabled" : true

@@ -57,7 +57,7 @@
               "bSupported3DDrawMode" : false,
               "bUpdateModule" : false
             }],
-          "PeakActiveParticles" : 360,
+          "PeakActiveParticles" : 72,
           "RequiredModule" : {
             "AxisLockOption" : 0,
             "BlendMode" : 0,
@@ -118,7 +118,7 @@
             "DoCollisions" : false,
             "LODValidity" : 255,
             "MeshAlignment" : 0,
-            "MeshPath" : "Data/Model/SHC.obj",
+            "MeshPath" : "Data/Model/bitten_apple_mid.obj",
             "ModuleType" : "UParticleModuleTypeDataMesh",
             "Pitch" : 0.000000,
             "Roll" : 0.000000,
