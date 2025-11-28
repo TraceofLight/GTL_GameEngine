@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "pch.h"
 
 class URenderer;
@@ -52,6 +52,7 @@ private:
 
     void Tick(float DeltaSeconds);
     void Render();
+	void Simulate(float DeltaSeconds);
 
     void HandleUVInput(float DeltaSeconds);
 

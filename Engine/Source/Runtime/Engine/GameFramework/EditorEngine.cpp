@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "EditorEngine.h"
 #include "USlateManager.h"
 #include "SelectionManager.h"
@@ -262,6 +262,15 @@ void UEditorEngine::HandleUVInput(float DeltaSeconds)
 
 }
 
+void UEditorEngine::Simulate(float DeltaSeconds)
+{
+    if (!gScene)
+        return;
+
+    gScene->simulate(DeltaSeconds);
+    gScene->fetchResults(true); 
+}
+
 void UEditorEngine::MainLoop()
 {
     LARGE_INTEGER Frequency;
@@ -312,6 +321,7 @@ void UEditorEngine::MainLoop()
         }
 
         Tick(DeltaSeconds);
+		Simulate(DeltaSeconds);
         Render();
 
         // Shader Hot Reloading - Call AFTER render to avoid mid-frame resource conflicts

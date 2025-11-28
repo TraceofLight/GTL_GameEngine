@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "PrimitiveComponent.h"
 #include "SceneComponent.h"
 #include "Actor.h"
@@ -8,6 +8,32 @@ UPrimitiveComponent::UPrimitiveComponent() : bGenerateOverlapEvents(true)
 {
 }
 
+void UPrimitiveComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (gPhysics && gScene)
+	{
+		// 예시: Movable이면 Dynamic, 아니면 Static
+		//bool bIsDynamic = (Mobility == EComponentMobility::Movable);
+		BodyInstance.InitBody(gPhysics, gScene, GetWorldTransform().ToMatrix(), true);
+	}
+}
+void UPrimitiveComponent::TickComponent(float DeltaSeconds)
+{
+	Super::TickComponent(DeltaSeconds);
+	BodyInstance.SyncPhysicsToComponent();
+}
+void UPrimitiveComponent::EndPlay()
+{
+	BodyInstance.TermBody();
+	Super::EndPlay(); 
+}
+void UPrimitiveComponent::UpdateWorldMatrixFromPhysics(const FMatrix& NewWorldMatrix)
+{
+	SetWorldTransform(FTransform(NewWorldMatrix));
+	
+}
 void UPrimitiveComponent::OnRegister(UWorld* InWorld)
 {
     Super::OnRegister(InWorld);

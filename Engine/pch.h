@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 // Feature Flags
 // Uncomment to enable DDS texture caching (faster loading, uses Data/TextureCache/)
@@ -30,6 +30,18 @@
 #include <filesystem>
 #include <sstream>
 #include <iterator>
+
+//PhysX
+#include "PhysX/PxPhysicsAPI.h" 
+using namespace physx; 
+extern PxDefaultAllocator gAllocator;
+extern PxDefaultErrorCallback gErrorCallback;
+extern PxFoundation* gFoundation;
+extern PxPhysics* gPhysics;
+extern PxScene* gScene;
+extern PxMaterial* gMaterial;
+extern PxDefaultCpuDispatcher* gDispatcher;
+
 
 // Windows & DirectX
 #include <windows.h>
@@ -133,3 +145,18 @@ extern UWorld* GWorld;
 #pragma comment(lib, DIRECTX_TEX)
 #pragma comment(lib, LUA_LIB)
 #pragma comment(lib, FBX_SDK)
+ 
+
+#ifdef _DEBUG
+#pragma comment(lib, "PhysXExtensions_static_64.lib")
+#pragma comment(lib, "PhysX_static_64.lib")
+#pragma comment(lib, "PhysXCommon_static_64.lib")
+#pragma comment(lib, "PhysXFoundation_static_64.lib")
+#pragma comment(lib, "PhysXPvdSDK_static_64.lib") 
+#else
+#pragma comment(lib, "PhysXExtensions_static_64.lib")
+#pragma comment(lib, "PhysX_static_64.lib")
+#pragma comment(lib, "PhysXCommon_static_64.lib")
+#pragma comment(lib, "PhysXFoundation_static_64.lib")
+#pragma comment(lib, "PhysXPvdSDK_static_64.lib") 
+#endif

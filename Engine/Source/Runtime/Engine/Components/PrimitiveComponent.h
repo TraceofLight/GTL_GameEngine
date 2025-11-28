@@ -1,8 +1,9 @@
-﻿#pragma once
+#pragma once
 
 #include "SceneComponent.h"
 #include "Material.h"
 #include "UPrimitiveComponent.generated.h"
+#include "FBodyInstance.h"
 
 // 전방 선언
 struct FSceneCompData;
@@ -25,6 +26,12 @@ public:
     GENERATED_REFLECTION_BODY();
 
 public:
+
+	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaSeconds) override;
+	virtual void EndPlay() override;
+
+	void UpdateWorldMatrixFromPhysics(const FMatrix& NewWorldMatrix);
 
     // ===== Lua-Bindable Properties (Auto-moved from protected/private) =====
 
@@ -84,6 +91,7 @@ public:
     // ───── 직렬화 ────────────────────────────
     void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
 
+	FBodyInstance BodyInstance{this};
 protected:
     bool bIsCulled = false;
      

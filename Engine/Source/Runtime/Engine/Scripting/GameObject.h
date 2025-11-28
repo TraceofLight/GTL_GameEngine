@@ -1,5 +1,20 @@
-﻿#pragma once
+#pragma once
 #include "Actor.h"
+
+//struct GameObject
+//{
+//	PxRigidDynamic* RigidBody = nullptr;
+//	FMatrix WorldMatrix = FMatrix::Identity();
+//
+//	void UpdateFromPhysics()
+//	{
+//		PxTransform T = RigidBody->getGlobalPose();
+//		PxMat44 Mat(T);
+//
+//		std::memcpy(&WorldMatrix, &Mat, sizeof(float) * 16);
+//	}
+//};
+
 
 class FGameObject
 {
