@@ -16,6 +16,8 @@ struct FPostProcessPayload
     // 쉐이더 CB로 바로 복사될 범용 슬롯
     FVector4 Params0 = FVector4(0,0,0,0);
     FVector4 Params1 = FVector4(0,0,0,0);
+    FVector4 Params2 = FVector4(0,0,0,0);  // 추가 파라미터 (Physical DoF용)
+    FVector4 Params3 = FVector4(0,0,0,0);  // 추가 파라미터 (PointFocus DoF용: x,y,z = FocusPoint, w = FocusRadius)
     FLinearColor Color = FLinearColor(0, 0, 0, 1);
 };
 

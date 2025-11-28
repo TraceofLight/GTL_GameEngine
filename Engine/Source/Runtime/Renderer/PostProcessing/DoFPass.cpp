@@ -52,15 +52,46 @@ void FDepthOfFieldPass::Execute(const FPostProcessModifier& M, FSceneView* View,
     RHIDevice->SetAndUpdateConstantBuffer(PostProcessBufferType(View->NearClip, View->FarClip, ProjectionMode == ECameraProjectionMode::Orthographic));
 
     // DoF 파라미터 설정 (Payload에서 읽음)
+    // Params0: FocusDistance, FocusRange, NearBlurScale, FarBlurScale (Cinematic용)
+    // Params1: MaxBlurRadius, BokehSize, DoFMode, PointFocusFalloff
+    // Params2: FocalLength, FNumber, SensorWidth, (unused) (Physical용)
+    // Params3: FocusPoint.x, FocusPoint.y, FocusPoint.z, FocusRadius (PointFocus용)
+    // Color: TiltShiftCenterY, TiltShiftBandWidth, TiltShiftBlurScale, PointFocusBlurScale
     FDepthOfFieldBufferType DoFBuffer;
-    DoFBuffer.FocusDistance = M.Payload.Params0.X;  // 초점 거리
-    DoFBuffer.FocusRange = M.Payload.Params0.Y;     // 초점 범위
-    DoFBuffer.NearBlurScale = M.Payload.Params0.Z;  // 근거리 블러 스케일
-    DoFBuffer.FarBlurScale = M.Payload.Params0.W;   // 원거리 블러 스케일
-    DoFBuffer.MaxBlurRadius = M.Payload.Params1.X;  // 최대 블러 반경
-    DoFBuffer.BokehSize = M.Payload.Params1.Y;      // 보케 크기
-    DoFBuffer.Weight = M.Weight;                     // 효과 가중치
+
+    // 공통 파라미터
+    DoFBuffer.FocusDistance = M.Payload.Params0.X;
+    DoFBuffer.MaxBlurRadius = M.Payload.Params1.X;
+    DoFBuffer.BokehSize = M.Payload.Params1.Y;
+    DoFBuffer.DoFMode = static_cast<int32>(M.Payload.Params1.Z);  // 0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus
+    DoFBuffer.Weight = M.Weight;
+
+    // Cinematic 모드 파라미터
+    DoFBuffer.FocusRange = M.Payload.Params0.Y;
+    DoFBuffer.NearBlurScale = M.Payload.Params0.Z;
+    DoFBuffer.FarBlurScale = M.Payload.Params0.W;
     DoFBuffer._Pad0 = 0.0f;
+
+    // Physical 모드 파라미터
+    DoFBuffer.FocalLength = M.Payload.Params2.X;
+    DoFBuffer.FNumber = M.Payload.Params2.Y;
+    DoFBuffer.SensorWidth = M.Payload.Params2.Z;
+    DoFBuffer._Pad1 = 0.0f;
+
+    // Tilt-Shift 모드 파라미터
+    DoFBuffer.TiltShiftCenterY = M.Payload.Color.R;
+    DoFBuffer.TiltShiftBandWidth = M.Payload.Color.G;
+    DoFBuffer.TiltShiftBlurScale = M.Payload.Color.B;
+
+    // PointFocus 모드 파라미터
+    DoFBuffer.FocusPoint = FVector(M.Payload.Params3.X, M.Payload.Params3.Y, M.Payload.Params3.Z);
+    DoFBuffer.FocusRadius = M.Payload.Params3.W;
+    DoFBuffer.PointFocusBlurScale = M.Payload.Color.A;
+    DoFBuffer.PointFocusFalloff = M.Payload.Params1.W;
+
+    // 블러 방식
+    DoFBuffer.BlurMethod = static_cast<int32>(M.Payload.Params2.W);
+    DoFBuffer._Pad3 = 0.0f;
 
     RHIDevice->SetAndUpdateConstantBuffer(DoFBuffer);
 

@@ -1800,6 +1800,176 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "그래픽스 기능");
 		ImGui::Separator();
 
+		// Depth of Field
+		bool bDoF = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_DepthOfField);
+		if (ImGui::Checkbox("##DoF", &bDoF))
+		{
+			RenderSettings.ToggleShowFlag(EEngineShowFlags::SF_DepthOfField);
+		}
+		ImGui::SameLine();
+		ImGui::Text(" 피사계 심도 (DoF)");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("피사계 심도 효과를 적용합니다.");
+		}
+
+		// DoF가 활성화되면 파라미터 UI 표시
+		if (bDoF && ViewportClient)
+		{
+			auto& DoFSettings = ViewportClient->GetEditorDoFSettings();
+			DoFSettings.bEnabled = true;  // ShowFlag와 동기화
+
+			ImGui::Indent(20.0f);
+			ImGui::PushItemWidth(150.0f);
+
+			// 모드 선택 (0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus)
+			const char* modeItems[] = { "Cinematic (시네마틱)", "Physical (물리 기반)", "Tilt-Shift (미니어처)", "Point Focus (점 초점)" };
+			ImGui::Combo("모드##DoF", &DoFSettings.DoFMode, modeItems, IM_ARRAYSIZE(modeItems));
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("Cinematic: 아티스트 친화적 선형 모델\nPhysical: 렌즈 물리학 기반 (과초점 거리 적용)\nTilt-Shift: 화면 위치 기반 (미니어처 효과)\nPoint Focus: 특정 3D 좌표 중심 구형 초점");
+
+			ImGui::Separator();
+
+			if (DoFSettings.DoFMode == 0)  // Cinematic 모드
+			{
+				ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Cinematic 모드 설정");
+
+				ImGui::SliderFloat("초점 거리##DoF", &DoFSettings.FocusDistance, 10.0f, 2000.0f, "%.1f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("카메라로부터의 초점 거리입니다.");
+
+				ImGui::SliderFloat("초점 범위##DoF", &DoFSettings.FocusRange, 1.0f, 500.0f, "%.1f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("선명하게 보이는 범위입니다.");
+
+				ImGui::SliderFloat("근거리 블러##DoF", &DoFSettings.NearBlurScale, 0.0f, 0.1f, "%.3f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점보다 가까운 물체의 블러 강도입니다.");
+
+				ImGui::SliderFloat("원거리 블러##DoF", &DoFSettings.FarBlurScale, 0.0f, 0.1f, "%.3f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점보다 먼 물체의 블러 강도입니다.");
+			}
+			else if (DoFSettings.DoFMode == 1)  // Physical 모드
+			{
+				ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Physical 모드 설정");
+				ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "실제 카메라 렌즈 물리학 기반");
+
+				ImGui::SliderFloat("초점 거리##DoFPhys", &DoFSettings.FocusDistance, 0.1f, 100.0f, "%.2f m");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점이 맞는 피사체까지의 거리 (미터)");
+
+				ImGui::Separator();
+				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "렌즈 파라미터");
+
+				// 초점 거리 (Focal Length) - 프리셋 사용
+				const char* focalItems[] = { "24mm (광각)", "35mm (광각)", "50mm (표준)", "85mm (인물)", "135mm (망원)" };
+				int focalIndex = 2;  // 기본값 50mm
+				if (DoFSettings.FocalLength <= 24.0f) focalIndex = 0;
+				else if (DoFSettings.FocalLength <= 35.0f) focalIndex = 1;
+				else if (DoFSettings.FocalLength <= 50.0f) focalIndex = 2;
+				else if (DoFSettings.FocalLength <= 85.0f) focalIndex = 3;
+				else focalIndex = 4;
+
+				if (ImGui::Combo("렌즈 초점거리##DoF", &focalIndex, focalItems, IM_ARRAYSIZE(focalItems)))
+				{
+					const float focalValues[] = { 24.0f, 35.0f, 50.0f, 85.0f, 135.0f };
+					DoFSettings.FocalLength = focalValues[focalIndex];
+				}
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("렌즈의 초점거리 (mm)\n큰 값 = 배경 블러 증가");
+
+				// F-Number (조리개)
+				const char* fnumberItems[] = { "f/1.4 (밝음)", "f/2.0", "f/2.8", "f/4.0", "f/5.6", "f/8.0 (선명)" };
+				int fnumberIndex = 2;  // 기본값 f/2.8
+				if (DoFSettings.FNumber <= 1.4f) fnumberIndex = 0;
+				else if (DoFSettings.FNumber <= 2.0f) fnumberIndex = 1;
+				else if (DoFSettings.FNumber <= 2.8f) fnumberIndex = 2;
+				else if (DoFSettings.FNumber <= 4.0f) fnumberIndex = 3;
+				else if (DoFSettings.FNumber <= 5.6f) fnumberIndex = 4;
+				else fnumberIndex = 5;
+
+				if (ImGui::Combo("조리개 (F-Number)##DoF", &fnumberIndex, fnumberItems, IM_ARRAYSIZE(fnumberItems)))
+				{
+					const float fnumberValues[] = { 1.4f, 2.0f, 2.8f, 4.0f, 5.6f, 8.0f };
+					DoFSettings.FNumber = fnumberValues[fnumberIndex];
+				}
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("조리개 값\n낮은 값 = 배경 블러 증가\n높은 값 = 전체적으로 선명 (과초점 거리 효과)");
+
+				// 센서 크기
+				const char* sensorItems[] = { "Full Frame (36mm)", "APS-C (23.6mm)", "Micro 4/3 (17.3mm)" };
+				int sensorIndex = 0;  // 기본값 Full Frame
+				if (DoFSettings.SensorWidth >= 36.0f) sensorIndex = 0;
+				else if (DoFSettings.SensorWidth >= 23.6f) sensorIndex = 1;
+				else sensorIndex = 2;
+
+				if (ImGui::Combo("센서 크기##DoF", &sensorIndex, sensorItems, IM_ARRAYSIZE(sensorItems)))
+				{
+					const float sensorValues[] = { 36.0f, 23.6f, 17.3f };
+					DoFSettings.SensorWidth = sensorValues[sensorIndex];
+				}
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("카메라 센서 크기\n큰 센서 = 배경 블러 증가");
+			}
+			else if (DoFSettings.DoFMode == 2)  // Tilt-Shift 모드
+			{
+				ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Tilt-Shift 모드 설정");
+
+				ImGui::SliderFloat("중심 위치##DoF", &DoFSettings.TiltShiftCenterY, 0.0f, 1.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("선명한 띠의 중심 위치입니다.\n0 = 상단, 0.5 = 중앙, 1 = 하단");
+
+				ImGui::SliderFloat("띠 너비##DoF", &DoFSettings.TiltShiftBandWidth, 0.05f, 0.8f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("선명하게 보이는 띠의 너비입니다.");
+
+				ImGui::SliderFloat("블러 강도##DoF", &DoFSettings.TiltShiftBlurScale, 1.0f, 20.0f, "%.1f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("띠 바깥쪽의 블러 강도입니다.");
+			}
+			else  // PointFocus 모드
+			{
+				ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Point Focus 모드 설정");
+				ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "특정 3D 좌표 중심으로 구형 초점 영역");
+
+				ImGui::Separator();
+				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "초점 지점 (World Space)");
+
+				ImGui::SliderFloat("X##FocusPoint", &DoFSettings.FocusPoint.X, -100.0f, 100.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점 지점의 X 좌표 (World Space)");
+
+				ImGui::SliderFloat("Y##FocusPoint", &DoFSettings.FocusPoint.Y, -100.0f, 100.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점 지점의 Y 좌표 (World Space)");
+
+				ImGui::SliderFloat("Z##FocusPoint", &DoFSettings.FocusPoint.Z, -100.0f, 100.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점 지점의 Z 좌표 (World Space)");
+
+				ImGui::Separator();
+				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "초점 영역 설정");
+
+				ImGui::SliderFloat("초점 반경##DoF", &DoFSettings.FocusRadius, 0.1f, 20.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점 지점 주변에서 선명하게 보이는 구형 반경입니다.");
+
+				ImGui::SliderFloat("블러 강도##DoFPF", &DoFSettings.PointFocusBlurScale, 0.1f, 5.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점 반경 바깥쪽의 블러 강도입니다.");
+
+				ImGui::SliderFloat("감쇠 곡선##DoF", &DoFSettings.PointFocusFalloff, 0.5f, 3.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("블러 증가 곡선입니다.\n1.0 = 선형\n2.0 = 제곱 (더 급격한 변화)\n0.5 = 루트 (더 완만한 변화)");
+			}
+
+			ImGui::Separator();
+			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "공통 설정");
+
+			ImGui::SliderFloat("최대 블러##DoF", &DoFSettings.MaxBlurRadius, 1.0f, 20.0f, "%.1f");
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("최대 블러 반경 (픽셀)입니다.");
+
+			ImGui::SliderFloat("보케 크기##DoF", &DoFSettings.BokehSize, 0.5f, 3.0f, "%.2f");
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("보케 효과의 크기입니다.");
+
+			// 블러 방식 선택
+			const char* blurMethodItems[] = { "Disc 12 (빠름)", "Disc 24 (고품질)", "Gaussian (자연스러움)", "Hexagonal (6각형 보케)", "Circular Gather (최고품질)" };
+			ImGui::Combo("블러 방식##DoF", &DoFSettings.BlurMethod, blurMethodItems, IM_ARRAYSIZE(blurMethodItems));
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("Disc 12: 12샘플, 빠른 성능\nDisc 24: 24샘플, 고품질\nGaussian: 가중치 기반, 자연스러운 블러\nHexagonal: 6각형 보케, 아나모픽 렌즈 스타일\nCircular Gather: 48샘플, 최고 품질 (느림)");
+
+			ImGui::PopItemWidth();
+			ImGui::Unindent(20.0f);
+		}
+		else if (ViewportClient)
+		{
+			ViewportClient->GetEditorDoFSettings().bEnabled = false;
+		}
+
+		ImGui::Separator();
+
 		// FXAA (Anti-Aliasing)
 		bool bFXAA = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_FXAA);
 		if (ImGui::Checkbox("##FXAA", &bFXAA))

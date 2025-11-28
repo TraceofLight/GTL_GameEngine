@@ -15,6 +15,7 @@
 #include "InputManager.h"
 #include "PlayerCameraManager.h"
 #include "SceneView.h"
+#include "PostProcessing/PostProcessing.h"
 
 FVector FViewportClient::CameraAddPosition{};
 
@@ -136,6 +137,53 @@ void FViewportClient::Draw(FViewport* Viewport)
 	}
 
 	FSceneView RenderView(Camera->GetCameraComponent(), Viewport, &World->GetRenderSettings());
+
+	// 에디터 DoF 적용 (ShowFlag 체크)
+	if (EditorDoFSettings.bEnabled && HasShowFlag(World->GetRenderSettings().GetShowFlags(), EEngineShowFlags::SF_DepthOfField))
+	{
+		FPostProcessModifier DoFModifier;
+		DoFModifier.Type = EPostProcessEffectType::DepthOfField;
+		DoFModifier.Priority = 100;  // 다른 효과보다 나중에 적용
+		DoFModifier.bEnabled = true;
+		DoFModifier.Weight = 1.0f;
+		DoFModifier.SourceObject = nullptr;
+		// Params0: FocusDistance, FocusRange, NearBlurScale, FarBlurScale (Cinematic용)
+		DoFModifier.Payload.Params0 = FVector4(
+			EditorDoFSettings.FocusDistance,
+			EditorDoFSettings.FocusRange,
+			EditorDoFSettings.NearBlurScale,
+			EditorDoFSettings.FarBlurScale
+		);
+		// Params1: MaxBlurRadius, BokehSize, DoFMode, PointFocusFalloff
+		DoFModifier.Payload.Params1 = FVector4(
+			EditorDoFSettings.MaxBlurRadius,
+			EditorDoFSettings.BokehSize,
+			static_cast<float>(EditorDoFSettings.DoFMode),
+			EditorDoFSettings.PointFocusFalloff
+		);
+		// Params2: FocalLength, FNumber, SensorWidth, BlurMethod (Physical용 + 블러방식)
+		DoFModifier.Payload.Params2 = FVector4(
+			EditorDoFSettings.FocalLength,
+			EditorDoFSettings.FNumber,
+			EditorDoFSettings.SensorWidth,
+			static_cast<float>(EditorDoFSettings.BlurMethod)
+		);
+		// Params3: FocusPoint.x, FocusPoint.y, FocusPoint.z, FocusRadius (PointFocus용)
+		DoFModifier.Payload.Params3 = FVector4(
+			EditorDoFSettings.FocusPoint.X,
+			EditorDoFSettings.FocusPoint.Y,
+			EditorDoFSettings.FocusPoint.Z,
+			EditorDoFSettings.FocusRadius
+		);
+		// Color: TiltShiftCenterY, TiltShiftBandWidth, TiltShiftBlurScale, PointFocusBlurScale
+		DoFModifier.Payload.Color = FLinearColor(
+			EditorDoFSettings.TiltShiftCenterY,
+			EditorDoFSettings.TiltShiftBandWidth,
+			EditorDoFSettings.TiltShiftBlurScale,
+			EditorDoFSettings.PointFocusBlurScale
+		);
+		RenderView.Modifiers.Add(DoFModifier);
+	}
 
 	// 2. 렌더링 호출은 뷰 타입 설정이 모두 끝난 후 마지막에 한 번만 수행
 	World->GetRenderSettings().SetViewMode(ViewMode);
