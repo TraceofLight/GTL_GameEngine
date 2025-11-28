@@ -377,6 +377,35 @@ void USlateManager::CloseParticleEditorWindow()
 	ParticleEditorWindow = nullptr;
 }
 
+void USlateManager::OpenPhysicsAssetEditorWindow()
+{
+	if (PhysicsAssetEditorWindow)
+	{
+		return; // 이미 열려있음
+	}
+
+	PhysicsAssetEditorWindow = new SPhysicsAssetEditorWindow();
+
+	// 화면 중앙에 800x600 크기로 배치
+	float w = 900.0f;
+	float h = 650.0f;
+	float x = (Rect.GetWidth() - w) * 0.5f;
+	float y = (Rect.GetHeight() - h) * 0.5f;
+
+	PhysicsAssetEditorWindow->Initialize(x, y, w, h, World, Device);
+}
+
+void USlateManager::ClosePhysicsAssetEditorWindow()
+{
+	if (!PhysicsAssetEditorWindow)
+	{
+		return;
+	}
+
+	delete PhysicsAssetEditorWindow;
+	PhysicsAssetEditorWindow = nullptr;
+}
+
 void USlateManager::RequestSceneLoad(const FString& ScenePath)
 {
 	if (MainViewport && !ScenePath.empty())
@@ -683,6 +712,18 @@ void USlateManager::Render()
         }
     }
 
+    // Render Physics Asset Editor Window
+    if (PhysicsAssetEditorWindow)
+    {
+        PhysicsAssetEditorWindow->OnRender();
+
+        // 윈도우가 닫혔으면 삭제
+        if (!PhysicsAssetEditorWindow->IsOpen())
+        {
+            ClosePhysicsAssetEditorWindow();
+        }
+    }
+
     // 로딩 UI (우상단)
     auto& RM = UResourceManager::GetInstance();
     int32 PendingCount = RM.GetPendingLoadCount();
@@ -803,6 +844,11 @@ void USlateManager::Update(float DeltaSeconds)
     if (ParticleEditorWindow)
     {
         ParticleEditorWindow->OnUpdate(DeltaSeconds);
+    }
+
+    if (PhysicsAssetEditorWindow)
+    {
+        PhysicsAssetEditorWindow->OnUpdate(DeltaSeconds);
     }
 
     // 콘솔 애니메이션 업데이트
@@ -936,6 +982,15 @@ void USlateManager::ProcessInput()
     if (ImGui::IsKeyPressed(ImGuiKey_Space) && ImGui::GetIO().KeyCtrl)
     {
         ToggleContentBrowser();
+    }
+
+    // Ctrl + Shift + P로 Physics Asset Editor 토글
+    if (ImGui::IsKeyPressed(ImGuiKey_P) && ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift)
+    {
+        if (IsPhysicsAssetEditorWindowOpen())
+            ClosePhysicsAssetEditorWindow();
+        else
+            OpenPhysicsAssetEditorWindow();
     }
 
     // ESC closes the Skeletal Mesh Viewer if open

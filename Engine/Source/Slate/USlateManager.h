@@ -7,6 +7,7 @@
 #include "Windows/PreviewWindow.h"
 #include "Windows/BlendSpace2DEditorWindow.h"
 #include "Windows/ParticleEditorWindow.h"
+#include "Windows/SPhysicsAssetEditorWindow.h"
 
 class SSceneIOWindow; // 새로 추가할 UI
 class SDetailsWindow;
@@ -99,6 +100,11 @@ public:
 	void CloseParticleEditorWindow();
 	bool IsParticleEditorWindowOpen() const { return ParticleEditorWindow != nullptr; }
 
+	// Physics Asset Editor Window 관리
+	void OpenPhysicsAssetEditorWindow();
+	void ClosePhysicsAssetEditorWindow();
+	bool IsPhysicsAssetEditorWindowOpen() const { return PhysicsAssetEditorWindow != nullptr; }
+
 	// Scene 로드 요청
 	void RequestSceneLoad(const FString& ScenePath);
 
@@ -159,6 +165,9 @@ private:
 
     // Particle Editor window (Cascade 스타일)
     SParticleEditorWindow* ParticleEditorWindow = nullptr;
+
+    // Physics Asset Editor window
+    SPhysicsAssetEditorWindow* PhysicsAssetEditorWindow = nullptr;
 
     // Content Browser (Bottom panel overlay with animation)
     UContentBrowserWindow* ContentBrowserWindow = nullptr;
