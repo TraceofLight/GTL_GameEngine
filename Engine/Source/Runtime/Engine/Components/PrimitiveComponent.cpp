@@ -16,7 +16,7 @@ void UPrimitiveComponent::BeginPlay()
 	{
 		// 예시: Movable이면 Dynamic, 아니면 Static
 		//bool bIsDynamic = (Mobility == EComponentMobility::Movable);
-		BodyInstance.InitBody(gPhysics, gScene, GetWorldTransform().ToMatrix(), true);
+		BodyInstance.InitBody(gPhysics, gScene, GetWorldTransform().ToMatrix(), bSimulatePhysics);
 	}
 }
 void UPrimitiveComponent::TickComponent(float DeltaSeconds)

@@ -6,7 +6,7 @@ namespace EAggCollisionShape
 	{
 		Sphere,
 		Box,
-		Sphyl,
+		Capsule,
 		Convex,
 		TaperedCapsule,
 		LevelSet,

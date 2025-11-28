@@ -41,6 +41,10 @@ public:
     UPROPERTY(EditAnywhere, Category="Shape")
     bool bBlockComponent;
 
+    // Physics simulation toggle: when false, creates a static (non-simulating) body
+    UPROPERTY(EditAnywhere, Category="Physics")
+    bool bSimulatePhysics;
+
     UPrimitiveComponent();
     virtual ~UPrimitiveComponent() = default;
 

@@ -126,8 +126,17 @@ void FBodyInstance::AddSimpleShape(const FShape& S)
         break;
     }
     case EShapeKind::Capsule:
+    {
+        const float Radius = S.Capsule.CapsuleRadius;
+        const float Half = S.Capsule.CapsuleHalfHeight;
+        PxCapsuleGeometry Geom(Radius, Half);
+        PxShape* Shape = gPhysics->createShape(Geom, *Mat, true);
+        if (!Shape) break;
+        PhysicsActor->attachShape(*Shape);
+        Shapes.Add(Shape);
+        break;
+    }
     default:
-        // TODO: Implement capsule when needed
         break;
     }
 }
