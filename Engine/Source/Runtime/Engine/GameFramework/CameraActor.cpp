@@ -286,16 +286,17 @@ void ACameraActor::ProcessCameraMovement(float DeltaSeconds)
     const FQuat Quat = GetActorRotation(); // (x,y,z,w)
     // DirectX LH 기준: Right=+X, Up=+Y, Forward=+Z
     const FVector Right = Quat.RotateVector(FVector(0, 1, 0)).GetNormalized();
-    const FVector Up = Quat.RotateVector(FVector(0, 0, 1)).GetNormalized();
     const FVector Forward = Quat.RotateVector(FVector(1, 0, 0)).GetNormalized();
+    // Q/E 키는 월드 Z축 기준 상하 이동
+    const FVector WorldUp = FVector(0, 0, 1);
 
     // 2) 입력 누적 (WASD + QE)
     if (InputManager.IsKeyDown('W')) Move += Forward;
     if (InputManager.IsKeyDown('S')) Move -= Forward;
     if (InputManager.IsKeyDown('D')) Move += Right;
     if (InputManager.IsKeyDown('A')) Move -= Right;
-    if (InputManager.IsKeyDown('E')) Move += Up;
-    if (InputManager.IsKeyDown('Q')) Move -= Up; 
+    if (InputManager.IsKeyDown('E')) Move += WorldUp;
+    if (InputManager.IsKeyDown('Q')) Move -= WorldUp; 
 
     // 3) 이동 적용
     if (Move.SizeSquared() > 0.0f)

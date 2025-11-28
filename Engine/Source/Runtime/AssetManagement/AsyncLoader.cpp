@@ -474,3 +474,15 @@ TArray<FString> FAsyncLoader::GetCurrentlyLoadingAssets() const
 
 	return Result;
 }
+
+void FAsyncLoader::ResetSessionCounters()
+{
+	// 로딩이 진행 중이면 리셋하지 않음
+	if (PendingCount.load() > 0)
+	{
+		return;
+	}
+
+	TotalRequestedCount = 0;
+	CompletedCount = 0;
+}

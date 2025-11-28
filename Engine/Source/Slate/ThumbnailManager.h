@@ -96,6 +96,11 @@ private:
 	 */
 	FThumbnailData* CreatePsysThumbnail(const std::string& FilePath);
 
+	/**
+	 * @brief .scene 파일용 썸네일 생성 (Level.dds 아이콘 사용)
+	 */
+	FThumbnailData* CreateSceneThumbnail(const std::string& FilePath);
+
 private:
 	ID3D11Device* Device = nullptr;
 	ID3D11DeviceContext* DeviceContext = nullptr;

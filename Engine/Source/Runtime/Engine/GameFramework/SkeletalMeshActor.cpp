@@ -121,7 +121,7 @@ void ASkeletalMeshActor::EnsureViewerComponents()
     }
 }
 
-void ASkeletalMeshActor::RebuildBoneLines(int32 SelectedBoneIndex, bool bUpdateAllBones)
+void ASkeletalMeshActor::RebuildBoneLines(int32 SelectedBoneIndex, bool bUpdateAllBones, bool bForceHighlightRefresh)
 {
     // Ensure viewer components exist before using them
     EnsureViewerComponents();
@@ -159,8 +159,8 @@ void ASkeletalMeshActor::RebuildBoneLines(int32 SelectedBoneIndex, bool bUpdateA
         CachedSelected = -1;
     }
 
-    // Update selection highlight only when changed
-    if (CachedSelected != SelectedBoneIndex)
+    // Update selection highlight when changed or forced
+    if (CachedSelected != SelectedBoneIndex || bForceHighlightRefresh)
     {
         UpdateBoneSelectionHighlight(SelectedBoneIndex);
         CachedSelected = SelectedBoneIndex;
@@ -301,8 +301,8 @@ void ASkeletalMeshActor::BuildBoneLinesCache()
             const FVector Corner2 = ParentPos - Right * PyramidSize - Forward * PyramidSize;
             const FVector Corner3 = ParentPos + Right * PyramidSize - Forward * PyramidSize;
 
-            // FutureEngine 기본 색상: 흰색 (선택 시 UpdateBoneSelectionHighlight에서 변경)
-            const FVector4 BaseColor(1.0f, 1.0f, 1.0f, 1.0f);
+            // 기본 색상: 검은색
+            const FVector4 BaseColor(0.0f, 0.0f, 0.0f, 1.0f);
 
             // 피라미드 생성: 4개 베이스 라인 + 4개 엣지 라인 = 총 8개 라인
             BL.ConeEdges.reserve(4); // 엣지 라인 (코너 → 자식 조인트)
@@ -321,8 +321,10 @@ void ASkeletalMeshActor::BuildBoneLinesCache()
             BL.ConeEdges.Add(BoneLineComponent->AddLine(Corner3, ChildPos, BaseColor));
         }
 
-        // Joint 구체 시각화 (3개 직교 링: XY평면, XZ평면, YZ평면) - 흰색
+        // Joint 시각화
         BL.Rings.reserve(NumSegments * 3);
+
+        const FVector4 JointRingColor(0.0f, 0.0f, 0.0f, 1.0f); // 검은색
 
         for (int k = 0; k < NumSegments; ++k)
         {
@@ -333,19 +335,19 @@ void ASkeletalMeshActor::BuildBoneLinesCache()
             BL.Rings.Add(BoneLineComponent->AddLine(
                 Center + FVector(BoneJointRadius * std::cos(a0), BoneJointRadius * std::sin(a0), 0.0f),
                 Center + FVector(BoneJointRadius * std::cos(a1), BoneJointRadius * std::sin(a1), 0.0f),
-                FVector4(1.0f, 1.0f, 1.0f, 1.0f)));
+                JointRingColor));
 
             // XZ 평면 링 (Y=0)
             BL.Rings.Add(BoneLineComponent->AddLine(
                 Center + FVector(BoneJointRadius * std::cos(a0), 0.0f, BoneJointRadius * std::sin(a0)),
                 Center + FVector(BoneJointRadius * std::cos(a1), 0.0f, BoneJointRadius * std::sin(a1)),
-                FVector4(1.0f, 1.0f, 1.0f, 1.0f)));
+                JointRingColor));
 
             // YZ 평면 링 (X=0)
             BL.Rings.Add(BoneLineComponent->AddLine(
                 Center + FVector(0.0f, BoneJointRadius * std::cos(a0), BoneJointRadius * std::sin(a0)),
                 Center + FVector(0.0f, BoneJointRadius * std::cos(a1), BoneJointRadius * std::sin(a1)),
-                FVector4(1.0f, 1.0f, 1.0f, 1.0f)));
+                JointRingColor));
         }
     }
 }
@@ -372,10 +374,58 @@ void ASkeletalMeshActor::UpdateBoneSelectionHighlight(int32 SelectedBoneIndex)
     const auto& Bones = Data->Skeleton.Bones;
     const int32 BoneCount = static_cast<int32>(Bones.size());
 
-    // FutureEngine 색상 스킴
-    const FVector4 BaseColor(1.0f, 1.0f, 1.0f, 1.0f);     // 기본: 흰색
-    const FVector4 OrangeColor(1.0f, 0.5f, 0.0f, 1.0f);   // 선택된 본 → 부모: 주황색
-    const FVector4 GreenColor(0.0f, 1.0f, 0.0f, 1.0f);    // 선택된 본 → 자식들: 초록색
+    // 색상 스킴
+    const FVector4 BaseColor(0.0f, 0.0f, 0.0f, 1.0f);       // 기본: 검은색
+    const FVector4 OrangeColor(1.0f, 0.5f, 0.0f, 1.0f);     // 선택된 본 → 부모: 주황색
+    const FVector4 GreenColor(0.0f, 1.0f, 0.0f, 1.0f);      // 선택된 본의 직접 자식: 초록색
+    const FVector4 WhiteColor(1.0f, 1.0f, 1.0f, 1.0f);      // 선택된 본의 자손들: 흰색
+
+    // 선택된 본의 모든 자손 인덱스를 수집 (직접 자식 제외)
+    std::set<int32> DescendantIndices;
+    std::set<int32> DirectChildIndices;
+
+    if (SelectedBoneIndex >= 0)
+    {
+        // 직접 자식 찾기
+        for (int32 i = 0; i < BoneCount; ++i)
+        {
+            if (Bones[i].ParentIndex == SelectedBoneIndex)
+            {
+                DirectChildIndices.insert(i);
+            }
+        }
+
+        // BFS로 모든 자손 수집 (직접 자식의 자손들)
+        TArray<int32> Queue;
+        for (int32 DirectChild : DirectChildIndices)
+        {
+            // 직접 자식의 자식들부터 큐에 추가
+            for (int32 i = 0; i < BoneCount; ++i)
+            {
+                if (Bones[i].ParentIndex == DirectChild)
+                {
+                    Queue.Add(i);
+                }
+            }
+        }
+
+        while (!Queue.IsEmpty())
+        {
+            int32 Current = Queue.Last();
+            Queue.Pop();
+
+            DescendantIndices.insert(Current);
+
+            // 이 본의 자식들도 큐에 추가
+            for (int32 i = 0; i < BoneCount; ++i)
+            {
+                if (Bones[i].ParentIndex == Current)
+                {
+                    Queue.Add(i);
+                }
+            }
+        }
+    }
 
     for (int32 i = 0; i < BoneCount; ++i)
     {
@@ -392,10 +442,15 @@ void ASkeletalMeshActor::UpdateBoneSelectionHighlight(int32 SelectedBoneIndex)
             {
                 PyramidColor = OrangeColor;
             }
-            // 선택된 본의 자식과의 연결 → 초록색
-            else if (parent == SelectedBoneIndex)
+            // 선택된 본의 직접 자식 → 초록색
+            else if (DirectChildIndices.count(i) > 0)
             {
                 PyramidColor = GreenColor;
+            }
+            // 선택된 본의 자손들 (직접 자식 제외) → 흰색
+            else if (DescendantIndices.count(i) > 0)
+            {
+                PyramidColor = WhiteColor;
             }
         }
 
@@ -411,10 +466,18 @@ void ASkeletalMeshActor::UpdateBoneSelectionHighlight(int32 SelectedBoneIndex)
             if (L) L->SetColor(PyramidColor);
         }
 
-        // Joint 구체 링 색상 업데이트 (항상 흰색)
+        // Joint 구체 링 색상 업데이트 (선택된 본, 직접 자식, 또는 자손이면 흰색, 그 외 검은색)
+        FVector4 JointColor = BaseColor;
+        if (SelectedBoneIndex >= 0 && (i == SelectedBoneIndex || DirectChildIndices.count(i) > 0 || DescendantIndices.count(i) > 0))
+        {
+            JointColor = WhiteColor;
+        }
         for (ULine* L : BL.Rings)
         {
-            if (L) L->SetColor(BaseColor);
+            if (L)
+            {
+                L->SetColor(JointColor);
+            }
         }
     }
 }

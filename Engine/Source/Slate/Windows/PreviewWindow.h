@@ -27,6 +27,7 @@ public:
     // Accessors (active tab)
     FViewport* GetViewport() const { return ActiveState ? ActiveState->Viewport : nullptr; }
     FViewportClient* GetViewportClient() const { return ActiveState ? ActiveState->Client : nullptr; }
+    class AGizmoActor* GetGizmoActor() const;
 
     // Load a skeletal mesh into the active tab
     void LoadSkeletalMesh(const FString& Path);

@@ -363,22 +363,28 @@ inline FString ResolveAssetPath(const FString& InRelativePath)
 
 inline FString ConvertDataPathToCachePath(const FString& InAssetPath)
 {
+	FString NormalizedPath = NormalizePath(InAssetPath);
 	FString DataDirPrefix = GDataDir + "/";
 
-	// GDataDir("Data")로 시작하는지 (대소문자 무관) 확인
-	// _strnicmp는 C-스타일 문자열을 받으며, n 글자수만큼 대소문자 무관 비교
-	if (InAssetPath.length() >= DataDirPrefix.length() &&
-		_strnicmp(InAssetPath.c_str(), DataDirPrefix.c_str(), DataDirPrefix.length()) == 0)
+	// 이미 "Data/"로 시작하는 상대 경로인 경우 (빠른 경로)
+	if (NormalizedPath.length() >= DataDirPrefix.length() &&
+		_strnicmp(NormalizedPath.c_str(), DataDirPrefix.c_str(), DataDirPrefix.length()) == 0)
 	{
-		// "GCacheDir/" 접두사를 제거하고 GCacheDir/"... " 접두사를 붙임
-		return GCacheDir + "/" + InAssetPath.substr(DataDirPrefix.length());
+		return GCacheDir + "/" + NormalizedPath.substr(DataDirPrefix.length());
 	}
 
-	// Data/로 시작하지 않는 경로 (예: 절대 경로, Data 외부의 상대 경로)
-	// GetDDSCachePath의 기존 정책을 따라 파일명만 사용
-	FWideString WPath = UTF8ToWide(InAssetPath);
-	fs::path FileName = fs::path(WPath).filename();
+	// 절대 경로인 경우에만 MakeAssetRelativePath 호출 (비싼 연산)
+	FString RelativePath = MakeAssetRelativePath(NormalizedPath);
 
+	if (RelativePath.length() >= DataDirPrefix.length() &&
+		_strnicmp(RelativePath.c_str(), DataDirPrefix.c_str(), DataDirPrefix.length()) == 0)
+	{
+		return GCacheDir + "/" + RelativePath.substr(DataDirPrefix.length());
+	}
+
+	// Data/로 시작하지 않는 경우 파일명만 사용
+	FWideString WPath = UTF8ToWide(RelativePath);
+	fs::path FileName = fs::path(WPath).filename();
 	return GCacheDir + "/" + WideToUTF8(FileName.wstring());
 }
 

@@ -446,8 +446,8 @@ GEMINI.md
 .env
 Document/*
 
-# Data folder (large assets - only Default tracked)
-/Engine/DerivedDataCache/**
+# Cached Data folder
+/Engine/DerivedDataCache/
 
 # Python Embedded
 /Engine/ThirdParty/Python/

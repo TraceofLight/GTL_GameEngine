@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -353,7 +353,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand $(EncodedScript)" Condition="'$(EncodedScript)' != ''" />
   </Target>
   <ItemGroup>
-    <ClCompile Include="Generated\UParticleModuleSubUV.generated.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -664,6 +663,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\AGameModeBase.generated.cpp" />
     <ClCompile Include="Generated\AGameStateBase.generated.cpp" />
     <ClCompile Include="Generated\AHeightFogActor.generated.cpp" />
+    <ClCompile Include="Generated\AParticleSystemActor.generated.cpp" />
     <ClCompile Include="Generated\APawn.generated.cpp" />
     <ClCompile Include="Generated\APlayerCameraManager.generated.cpp" />
     <ClCompile Include="Generated\APlayerController.generated.cpp" />
@@ -678,17 +678,16 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\UParticleSystemComponent.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleColor.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleLifetime.generated.cpp" />
-    <ClCompile Include="Generated\UParticleModuleSize.generated.cpp" />
-    <ClCompile Include="Generated\UParticleModuleSpawn.generated.cpp" />
-    <ClCompile Include="Generated\UParticleModuleVelocity.generated.cpp" />
-    <ClCompile Include="Generated\AParticleSystemActor.generated.cpp" />
-    <ClCompile Include="Generated\UParticleModuleRotation.generated.cpp" />
-    <ClCompile Include="Generated\UParticleModuleRotationRate.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleMeshRotation.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleMeshRotationRate.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleRotation.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleRotationRate.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleSize.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleSpawn.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleSubUV.generated.cpp" />
+    <ClCompile Include="Generated\UParticleModuleVelocity.generated.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Generated\UParticleModuleSubUV.generated.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Source\Editor\Clipboard\ClipboardManager.h" />
     <ClInclude Include="Source\Editor\FbxLoader.h" />
@@ -1013,6 +1012,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\AGameModeBase.generated.h" />
     <ClInclude Include="Generated\AGameStateBase.generated.h" />
     <ClInclude Include="Generated\AHeightFogActor.generated.h" />
+    <ClInclude Include="Generated\AParticleSystemActor.generated.h" />
     <ClInclude Include="Generated\APawn.generated.h" />
     <ClInclude Include="Generated\APlayerCameraManager.generated.h" />
     <ClInclude Include="Generated\APlayerController.generated.h" />
@@ -1027,14 +1027,14 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\UParticleSystemComponent.generated.h" />
     <ClInclude Include="Generated\UParticleModuleColor.generated.h" />
     <ClInclude Include="Generated\UParticleModuleLifetime.generated.h" />
-    <ClInclude Include="Generated\UParticleModuleSize.generated.h" />
-    <ClInclude Include="Generated\UParticleModuleSpawn.generated.h" />
-    <ClInclude Include="Generated\UParticleModuleVelocity.generated.h" />
-    <ClInclude Include="Generated\AParticleSystemActor.generated.h" />
-    <ClInclude Include="Generated\UParticleModuleRotation.generated.h" />
-    <ClInclude Include="Generated\UParticleModuleRotationRate.generated.h" />
     <ClInclude Include="Generated\UParticleModuleMeshRotation.generated.h" />
     <ClInclude Include="Generated\UParticleModuleMeshRotationRate.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleRotation.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleRotationRate.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleSize.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleSpawn.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleSubUV.generated.h" />
+    <ClInclude Include="Generated\UParticleModuleVelocity.generated.h" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Shaders\Common\LightingBuffers.hlsl" />

@@ -86,6 +86,10 @@ public:
     void ProcessGizmoInteraction(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
     void ProcessGizmoModeSwitch();
 
+    // 명시적 드래그 시작 (FutureEngine 방식 - Window에서 직접 호출)
+    bool StartDrag(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
+    void EndDrag();
+
     // 어차피 gizmo가 게임모드에서 안나오니까 할 필요 없을지도?
     // ───── 복사 관련 ────────────────────────────
     /*void DuplicateSubObjects() override;

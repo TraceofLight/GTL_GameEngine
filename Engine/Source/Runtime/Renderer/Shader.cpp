@@ -414,6 +414,18 @@ void UShader::CreateInputLayout(ID3D11Device* Device, const FString& InShaderPat
 			InOutVariant.VSBlob->GetBufferPointer(),
 			InOutVariant.VSBlob->GetBufferSize(),
 			&InOutVariant.InputLayout);
+
+		if (FAILED(hr))
+		{
+			UE_LOG("Shader: CreateInputLayout failed for shader '%s' (HRESULT: 0x%08X)", InShaderPath.c_str(), hr);
+			UE_LOG("Shader: Layout element count: %u", layoutCount);
+			for (uint32 i = 0; i < layoutCount; ++i)
+			{
+				UE_LOG("  [%u] SemanticName='%s', SemanticIndex=%u, Format=%u, Slot=%u, Offset=%u",
+					i, layout[i].SemanticName, layout[i].SemanticIndex, layout[i].Format,
+					layout[i].InputSlot, layout[i].AlignedByteOffset);
+			}
+		}
 		assert(SUCCEEDED(hr));
 	}
 }
