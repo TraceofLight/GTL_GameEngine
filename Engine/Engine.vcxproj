@@ -455,6 +455,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\GameFramework\Camera\CamMod_LetterBox.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\Camera\CamMod_Shake.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\Camera\CamMod_Vignette.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\GameFramework\Camera\CamMod_DepthOfField.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\CameraActor.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\Character.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\Controller.cpp" />
@@ -531,6 +532,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Renderer\PostProcessing\HeightFogPass.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\PostProcessing\PostProcessing.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\PostProcessing\VignettePass.cpp" />
+    <ClCompile Include="Source\Runtime\Renderer\PostProcessing\DoFPass.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\QuadManager.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\Renderer.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\RenderManager.cpp" />
@@ -802,6 +804,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\GameFramework\Camera\CamMod_LetterBox.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\Camera\CamMod_Shake.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\Camera\CamMod_Vignette.h" />
+    <ClInclude Include="Source\Runtime\Engine\GameFramework\Camera\CamMod_DepthOfField.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\CameraActor.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\Character.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\Controller.h" />
@@ -887,6 +890,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Renderer\PostProcessing\HeightFogPass.h" />
     <ClInclude Include="Source\Runtime\Renderer\PostProcessing\PostProcessing.h" />
     <ClInclude Include="Source\Runtime\Renderer\PostProcessing\VignettePass.h" />
+    <ClInclude Include="Source\Runtime\Renderer\PostProcessing\DoFPass.h" />
     <ClInclude Include="Source\Runtime\Renderer\QuadManager.h" />
     <ClInclude Include="Source\Runtime\Renderer\Renderer.h" />
     <ClInclude Include="Source\Runtime\Renderer\RenderManager.h" />

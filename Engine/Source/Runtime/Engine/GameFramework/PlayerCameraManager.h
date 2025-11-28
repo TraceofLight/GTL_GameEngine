@@ -62,6 +62,18 @@ public:
 	UFUNCTION(LuaBind, DisplayName = "StartGamma")
 	void StartGamma(float Gamma);
 
+	UFUNCTION(LuaBind, DisplayName = "StartDepthOfField")
+	int StartDepthOfField(float FocusDistance, float FocusRange = 100.0f, float NearBlurScale = 0.02f, float FarBlurScale = 0.01f, float MaxBlurRadius = 8.0f, float BokehSize = 1.0f, int32 InPriority = 0);
+
+	UFUNCTION(LuaBind, DisplayName = "UpdateDepthOfField")
+	int UpdateDepthOfField(int Idx, float FocusDistance, float FocusRange = 100.0f, float NearBlurScale = 0.02f, float FarBlurScale = 0.01f, float MaxBlurRadius = 8.0f, float BokehSize = 1.0f, int32 InPriority = 0);
+
+	UFUNCTION(LuaBind, DisplayName = "AdjustDepthOfField")
+	void AdjustDepthOfField(float FocusDistance, float FocusRange = 100.0f, float NearBlurScale = 0.02f, float FarBlurScale = 0.01f, float MaxBlurRadius = 8.0f, float BokehSize = 1.0f, int32 InPriority = 0);
+
+	UFUNCTION(LuaBind, DisplayName = "DeleteDepthOfField")
+	void DeleteDepthOfField();
+
 public:
 	TArray<UCameraModifierBase*> ActiveModifiers;
 
@@ -108,4 +120,6 @@ private:
 	// TODO : 감싸기 or 배열로 관리, 현재 vignette 1개만 Update 가능
 	// Vignette 연속 효과를 위한 IDX
 	int LastVignetteIdx = 0;
+	// DoF 연속 효과를 위한 IDX
+	int LastDepthOfFieldIdx = -1;
 };

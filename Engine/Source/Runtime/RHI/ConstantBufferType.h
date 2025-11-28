@@ -95,6 +95,20 @@ struct alignas(16) FGammaCorrectionBufferType
 };
 static_assert(sizeof(FGammaCorrectionBufferType) % 16 == 0, "CB must be 16-byte aligned");
 
+struct alignas(16) FDepthOfFieldBufferType // b2
+{
+    float FocusDistance;    // 초점 거리 (View Space 단위)
+    float FocusRange;       // 초점 영역 범위 (이 범위 내에서는 선명)
+    float NearBlurScale;    // 근거리 블러 강도
+    float FarBlurScale;     // 원거리 블러 강도
+
+    float MaxBlurRadius;    // 최대 블러 반경 (픽셀 단위)
+    float BokehSize;        // 보케 크기
+    float Weight;           // 효과 가중치
+    float _Pad0;
+};
+static_assert(sizeof(FDepthOfFieldBufferType) % 16 == 0, "CB must be 16-byte aligned");
+
 struct FXAABufferType // b2
 {
     FVector2D InvResolution;    // 1.0f / 해상도 (e.g., 1/1920, 1/1080)
@@ -238,6 +252,7 @@ MACRO(FFadeInOutBufferType)         \
 MACRO(FGammaCorrectionBufferType)   \
 MACRO(FVinetteBufferType)           \
 MACRO(FXAABufferType)               \
+MACRO(FDepthOfFieldBufferType)      \
 MACRO(FPixelConstBufferType)        \
 MACRO(ViewProjBufferType)           \
 MACRO(ColorBufferType)              \
@@ -272,6 +287,7 @@ CONSTANT_BUFFER_INFO(FFadeInOutBufferType, 2, false, true)
 CONSTANT_BUFFER_INFO(FGammaCorrectionBufferType, 2, false, true)
 CONSTANT_BUFFER_INFO(FVinetteBufferType, 2, false, true)
 CONSTANT_BUFFER_INFO(FXAABufferType, 2, false, true)
+CONSTANT_BUFFER_INFO(FDepthOfFieldBufferType, 2, false, true)
 CONSTANT_BUFFER_INFO(ColorBufferType, 3, true, true)   // b3 color
 CONSTANT_BUFFER_INFO(FPixelConstBufferType, 4, true, true) // GOURAUD에도 사용되므로 VS도 true
 CONSTANT_BUFFER_INFO(FSkinningBuffer, 5, true, false) // b5, VS Only (GPU Skinning)
