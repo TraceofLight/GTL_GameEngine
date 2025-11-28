@@ -565,7 +565,7 @@ void UResourceManager::InitShaderILMap()
 	layout.Add({ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0 });
 
 	// Slot 1: 인스턴스 데이터 (FMeshParticleInstanceVertex)
-	layout.Add({ "INSTANCE_COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D11_INPUT_PER_INSTANCE_DATA, 1 });     // Color
+	layout.Add({ "INSTANCE_COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D11_INPUT_PER_INSTANCE_DATA, 1 });      // Color
 	layout.Add({ "INSTANCE_TRANSFORM", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D11_INPUT_PER_INSTANCE_DATA, 1 }); // Transform[0]
 	layout.Add({ "INSTANCE_TRANSFORM", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D11_INPUT_PER_INSTANCE_DATA, 1 }); // Transform[1]
 	layout.Add({ "INSTANCE_TRANSFORM", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D11_INPUT_PER_INSTANCE_DATA, 1 }); // Transform[2]
@@ -596,7 +596,23 @@ TArray<D3D11_INPUT_ELEMENT_DESC>& UResourceManager::GetProperInputLayout(const F
 
     if (it == ShaderToInputLayoutMap.end())
     {
-        throw std::runtime_error("Proper input layout not found for " + InShaderName);
+        UE_LOG("ResourceManager: GetProperInputLayout: Layout not found for '%s', using default (UberLit)", InShaderName.c_str());
+
+        // 기본 Input Layout 반환 (UberLit - 가장 일반적인 정점 포맷)
+        static bool bDefaultLayoutInitialized = false;
+        static TArray<D3D11_INPUT_ELEMENT_DESC> DefaultLayout;
+
+        if (!bDefaultLayoutInitialized)
+        {
+            DefaultLayout.Add({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+            DefaultLayout.Add({ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+            DefaultLayout.Add({ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+            DefaultLayout.Add({ "TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+            DefaultLayout.Add({ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+            bDefaultLayoutInitialized = true;
+        }
+
+        return DefaultLayout;
     }
 
     return ShaderToInputLayoutMap[InShaderName];

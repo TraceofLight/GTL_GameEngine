@@ -43,14 +43,7 @@ public:
     bool bBoneTransformChanged = false;
     bool bBoneRotationEditing = false;
     bool bWasGizmoDragging = false;  // 이전 프레임의 기즈모 드래그 상태 (드래그 종료 감지용)
-
-    // 편집된 bone transform 델타
-    // 저장 형식: Position=델타, Rotation=상대회전, Scale=비율
-    TMap<int32, FTransform> EditedBoneTransforms;  // BoneIndex -> 델타 Transform
-
-    // 애니메이션 원본 트랜스폼
-    // 매 프레임 애니메이션 업데이트 직후 저장됨
-    TMap<int32, FTransform> AnimationBoneTransforms;  // BoneIndex -> 원본 애니메이션 Transform
+    int32 DragStartBoneIndex = -1;  // 드래그 시작 시 선택된 본 인덱스
 
     // 애니메이션 재생 관련
     int32 SelectedAnimationIndex = -1;  // 선택된 Animation 인덱스

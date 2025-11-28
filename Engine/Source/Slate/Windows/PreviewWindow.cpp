@@ -452,8 +452,10 @@ void SPreviewWindow::OnRender()
                                         ActiveState->CurrentAnimation = Animations[0];
                                         ActiveState->CurrentAnimationTime = 0.0f;
                                         // 편집된 bone transform 캐시 클리어 (새로운 메시/애니메이션 로드)
-                                        ActiveState->EditedBoneTransforms.clear();
-                                        ActiveState->AnimationBoneTransforms.clear();
+                                        if (USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+                                        {
+                                            SkelComp->ClearAllBoneDeltas();
+                                        }
 
                                         // Notify Track 복원
                                         RebuildNotifyTracks(ActiveState);
@@ -500,8 +502,10 @@ void SPreviewWindow::OnRender()
                                         ActiveState->CurrentAnimation = nullptr;
                                         ActiveState->bIsPlaying = false;
                                         // 편집된 bone transform 캐시 클리어
-                                        ActiveState->EditedBoneTransforms.clear();
-                                        ActiveState->AnimationBoneTransforms.clear();
+                                        if (USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+                                        {
+                                            SkelComp->ClearAllBoneDeltas();
+                                        }
                                     }
                                 }
                             }
@@ -1015,8 +1019,10 @@ void SPreviewWindow::OnRender()
                         ActiveState->SelectedAnimationIndex = 0;
                         ActiveState->CurrentAnimation = Animations[0];
                         ActiveState->CurrentAnimationTime = 0.0f;
-                        ActiveState->EditedBoneTransforms.clear();
-                        ActiveState->AnimationBoneTransforms.clear();
+                        if (USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+                        {
+                            SkelComp->ClearAllBoneDeltas();
+                        }
                         RebuildNotifyTracks(ActiveState);
                         ActiveState->bIsPlaying = true;
                     }
@@ -1520,8 +1526,10 @@ void SPreviewWindow::OnRender()
                                         ActiveState->SelectedAnimationIndex = i;
                                         ActiveState->CurrentAnimation = NewAnim;
                                         ActiveState->CurrentAnimationTime = 0.0f;
-                                        ActiveState->EditedBoneTransforms.clear();
-                                        ActiveState->AnimationBoneTransforms.clear();
+                                        if (USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+                                        {
+                                            SkelComp->ClearAllBoneDeltas();
+                                        }
                                         ActiveState->bIsPlaying = true;
 
                                         if (NewAnim->GetDataModel())
@@ -1685,8 +1693,10 @@ void SPreviewWindow::OnRender()
                         ActiveState->SelectedAnimationIndex = i;
                         ActiveState->CurrentAnimation = Anim;
                         ActiveState->CurrentAnimationTime = 0.0f;
-                        ActiveState->EditedBoneTransforms.clear();
-                        ActiveState->AnimationBoneTransforms.clear();
+                        if (USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+                        {
+                            SkelComp->ClearAllBoneDeltas();
+                        }
                         RebuildNotifyTracks(ActiveState);
                         ActiveState->bIsPlaying = true;
 
@@ -1803,9 +1813,9 @@ void SPreviewWindow::OnRender()
                 ImGui::TextWrapped("No animations loaded. Import .fbx or .anim files to see animations here.");
                 ImGui::PopStyleColor();
             }
-        }
 
-        ImGui::EndChild();
+            ImGui::EndChild();
+        }
     }
 
     // Record 파일명 입력 모달 (Timeline 바깥에서 렌더링)
@@ -1876,49 +1886,115 @@ void SPreviewWindow::OnUpdate(float DeltaSeconds)
     if (!ActiveState || !ActiveState->Viewport)
         return;
 
-    // Spacebar 입력 처리 (Animation 모드이고, Gizmo/BoneAnchor가 선택되지 않았을 때만)
+    // Spacebar 입력 처리 (Animation 모드이고, Bone이 선택되지 않았을 때만)
     UInputManager& InputMgr = UInputManager::GetInstance();
 
-    // 기즈모 드래그 종료 감지 - Bone 편집 시 EditedBoneTransforms에 델타 저장
+    // 기즈모 드래그 상태 감지
     bool bIsGizmoDragging = InputMgr.GetIsGizmoDragging();
-    if (ActiveState->bWasGizmoDragging && !bIsGizmoDragging)
+
+    // 기즈모 드래그 시작 감지 - DragStartBoneIndex 설정만 수행
+    if (!ActiveState->bWasGizmoDragging && bIsGizmoDragging)
     {
-        // 드래그가 방금 종료됨 - Animation 모드에서 Bone 타겟일 때만 처리
         AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
         if (Gizmo && Gizmo->IsBoneTarget() && ActiveState->SelectedBoneIndex >= 0 &&
             ActiveState->ViewMode == EViewerMode::Animation && ActiveState->PreviewActor)
         {
-            USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
-            if (SkelComp)
-            {
-                // 현재 본의 로컬 트랜스폼 가져오기
-                FTransform CurrentLocalTransform = SkelComp->GetBoneLocalTransform(ActiveState->SelectedBoneIndex);
+            ActiveState->DragStartBoneIndex = ActiveState->SelectedBoneIndex;
+        }
+    }
 
-                // 애니메이션 원본 트랜스폼 가져오기 (없으면 현재 값 사용)
-                FTransform AnimTransform = CurrentLocalTransform;
-                auto It = ActiveState->AnimationBoneTransforms.find(ActiveState->SelectedBoneIndex);
-                if (It != ActiveState->AnimationBoneTransforms.end())
+    // 기즈모 드래그 종료 감지 - 새로운 총 델타 계산 (누적 아님, 교체)
+    if (ActiveState->bWasGizmoDragging && !bIsGizmoDragging)
+    {
+        // 드래그가 방금 종료됨 - Animation 모드에서 Bone 타겟일 때만 처리
+        AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
+        if (Gizmo && Gizmo->IsBoneTarget() && ActiveState->DragStartBoneIndex >= 0 &&
+            ActiveState->ViewMode == EViewerMode::Animation && ActiveState->PreviewActor)
+        {
+            USkeletalMeshComponent* SkeletalComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+            if (SkeletalComp)
+            {
+                int32 BoneIndex = ActiveState->DragStartBoneIndex;
+
+                // 현재 본의 로컬 트랜스폼 (드래그 후 최종 위치)
+                FTransform CurrentLocalTransform = SkeletalComp->GetBoneLocalTransform(BoneIndex);
+
+                // 현재 애니메이션 시간의 순수 애니메이션 값 가져오기
+                // AnimDataModel에서 인덱스로 직접 트랙 접근
+                FTransform PureAnimTransform = CurrentLocalTransform;
+
+                UAnimInstance* AnimInst = SkeletalComp->GetAnimInstance();
+                if (AnimInst && AnimInst->GetCurrentAnimation())
                 {
-                    AnimTransform = It->second;
+                    UAnimSequence* AnimSeq = Cast<UAnimSequence>(AnimInst->GetCurrentAnimation());
+                    if (AnimSeq && AnimSeq->GetDataModel())
+                    {
+                        UAnimDataModel* DataModel = AnimSeq->GetDataModel();
+                        const FBoneAnimationTrack* Track = DataModel->GetBoneTrackByIndex(BoneIndex);
+                        if (Track)
+                        {
+                            // 시간을 프레임으로 변환하여 보간
+                            float FrameRate = DataModel->GetFrameRate().AsDecimal();
+                            float CurrentTime = AnimInst->GetCurrentTime();
+                            float FrameFloat = CurrentTime * FrameRate;
+                            int32 Frame0 = static_cast<int32>(FrameFloat);
+                            int32 Frame1 = Frame0 + 1;
+                            float Alpha = FrameFloat - static_cast<float>(Frame0);
+
+                            int32 MaxFrame = DataModel->GetNumberOfFrames() - 1;
+                            Frame0 = FMath::Clamp(Frame0, 0, MaxFrame);
+                            Frame1 = FMath::Clamp(Frame1, 0, MaxFrame);
+
+                            // 키프레임 보간
+                            const auto& PosKeys = Track->InternalTrack.PosKeys;
+                            const auto& RotKeys = Track->InternalTrack.RotKeys;
+                            const auto& ScaleKeys = Track->InternalTrack.ScaleKeys;
+
+                            if (PosKeys.Num() > 0 && RotKeys.Num() > 0 && ScaleKeys.Num() > 0)
+                            {
+                                int32 PosIdx0 = FMath::Clamp(Frame0, 0, PosKeys.Num() - 1);
+                                int32 PosIdx1 = FMath::Clamp(Frame1, 0, PosKeys.Num() - 1);
+                                int32 RotIdx0 = FMath::Clamp(Frame0, 0, RotKeys.Num() - 1);
+                                int32 RotIdx1 = FMath::Clamp(Frame1, 0, RotKeys.Num() - 1);
+                                int32 ScaleIdx0 = FMath::Clamp(Frame0, 0, ScaleKeys.Num() - 1);
+                                int32 ScaleIdx1 = FMath::Clamp(Frame1, 0, ScaleKeys.Num() - 1);
+
+                                FVector Pos = FVector::Lerp(PosKeys[PosIdx0], PosKeys[PosIdx1], Alpha);
+                                FQuat Rot = FQuat::Slerp(RotKeys[RotIdx0], RotKeys[RotIdx1], Alpha);
+                                FVector Scl = FVector::Lerp(ScaleKeys[ScaleIdx0], ScaleKeys[ScaleIdx1], Alpha);
+
+                                PureAnimTransform = FTransform(Pos, Rot, Scl);
+                            }
+                        }
+                    }
                 }
 
-                // 델타 계산: 현재 값 - 애니메이션 원본 값
-                FTransform Delta;
-                Delta.Translation = CurrentLocalTransform.Translation - AnimTransform.Translation;
-                Delta.Rotation = AnimTransform.Rotation.IsIdentity() ? CurrentLocalTransform.Rotation : (AnimTransform.Rotation.Inverse() * CurrentLocalTransform.Rotation).GetNormalized();
-                Delta.Scale3D = FVector(
-                    AnimTransform.Scale3D.X != 0.0f ? CurrentLocalTransform.Scale3D.X / AnimTransform.Scale3D.X : 1.0f,
-                    AnimTransform.Scale3D.Y != 0.0f ? CurrentLocalTransform.Scale3D.Y / AnimTransform.Scale3D.Y : 1.0f,
-                    AnimTransform.Scale3D.Z != 0.0f ? CurrentLocalTransform.Scale3D.Z / AnimTransform.Scale3D.Z : 1.0f
+                // 새로운 총 델타 계산: 현재 위치 - 순수 애니메이션 값
+                FTransform NewTotalDelta;
+                NewTotalDelta.Translation = CurrentLocalTransform.Translation - PureAnimTransform.Translation;
+                NewTotalDelta.Rotation = (PureAnimTransform.Rotation.Inverse() * CurrentLocalTransform.Rotation).GetNormalized();
+                NewTotalDelta.Scale3D = FVector(
+                    PureAnimTransform.Scale3D.X != 0.0f ? CurrentLocalTransform.Scale3D.X / PureAnimTransform.Scale3D.X : 1.0f,
+                    PureAnimTransform.Scale3D.Y != 0.0f ? CurrentLocalTransform.Scale3D.Y / PureAnimTransform.Scale3D.Y : 1.0f,
+                    PureAnimTransform.Scale3D.Z != 0.0f ? CurrentLocalTransform.Scale3D.Z / PureAnimTransform.Scale3D.Z : 1.0f
                 );
 
-                // EditedBoneTransforms에 저장
-                ActiveState->EditedBoneTransforms[ActiveState->SelectedBoneIndex] = Delta;
+                // 총 델타 저장 (교체, 누적 아님) - SkeletalMeshComponent에 저장
+                SkeletalComp->SetBoneDelta(BoneIndex, NewTotalDelta);
+
+                UE_LOG("[PreviewWindow] DragEnd: BoneIndex=%d, Current=(%.3f, %.3f, %.3f), PureAnim=(%.3f, %.3f, %.3f), TotalDelta=(%.3f, %.3f, %.3f)",
+                    BoneIndex,
+                    CurrentLocalTransform.Translation.X, CurrentLocalTransform.Translation.Y, CurrentLocalTransform.Translation.Z,
+                    PureAnimTransform.Translation.X, PureAnimTransform.Translation.Y, PureAnimTransform.Translation.Z,
+                    NewTotalDelta.Translation.X, NewTotalDelta.Translation.Y, NewTotalDelta.Translation.Z);
 
                 // UI 업데이트
                 ActiveState->EditBoneLocation = CurrentLocalTransform.Translation;
                 ActiveState->EditBoneRotation = CurrentLocalTransform.Rotation.ToEulerZYXDeg();
                 ActiveState->EditBoneScale = CurrentLocalTransform.Scale3D;
+
+                // 드래그 상태 초기화
+                ActiveState->DragStartBoneIndex = -1;
             }
         }
     }
@@ -2022,29 +2098,7 @@ void SPreviewWindow::OnUpdate(float DeltaSeconds)
 
         SkelComp->SetTickEnabled(bShouldTick);
 
-        // 애니메이션 업데이트 후, 에디터에서 편집된 본 트랜스폼 델타 적용
-        if (ActiveState->ViewMode == EViewerMode::Animation && !ActiveState->EditedBoneTransforms.empty())
-        {
-            for (const auto& Pair : ActiveState->EditedBoneTransforms)
-            {
-                int32 BoneIndex = Pair.first;
-                const FTransform& Delta = Pair.second;
-
-                // 현재 애니메이션 트랜스폼 가져오기
-                FTransform AnimTransform = SkelComp->GetBoneLocalTransform(BoneIndex);
-
-                // 델타 계산용으로 현재 애니메이션 트랜스폼 저장
-                ActiveState->AnimationBoneTransforms[BoneIndex] = AnimTransform;
-
-                // 델타 적용: Position=덧셈, Rotation=곱셈, Scale=곱셈
-                FTransform FinalTransform;
-                FinalTransform.Translation = AnimTransform.Translation + Delta.Translation;
-                FinalTransform.Rotation = (AnimTransform.Rotation * Delta.Rotation).GetNormalized();
-                FinalTransform.Scale3D = AnimTransform.Scale3D * Delta.Scale3D;
-
-                SkelComp->SetBoneLocalTransform(BoneIndex, FinalTransform);
-            }
-        }
+        // Note: 델타 적용은 AnimInstance::EvaluateAnimation에서 자동으로 처리됨
 
         // Recording: 본 트랜스폼 데이터 수집
         if (ActiveState->bIsRecording && ActiveState->ViewMode == EViewerMode::Animation)
@@ -2361,8 +2415,10 @@ void SPreviewWindow::LoadSkeletalMesh(const FString& Path)
             ActiveState->SelectedAnimationIndex = 0;
             ActiveState->CurrentAnimation = Animations[0];
             ActiveState->CurrentAnimationTime = 0.0f;
-            ActiveState->EditedBoneTransforms.clear();
-            ActiveState->AnimationBoneTransforms.clear();
+            if (USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+            {
+                SkelComp->ClearAllBoneDeltas();
+            }
             RebuildNotifyTracks(ActiveState);
             ActiveState->bIsPlaying = true;
         }
@@ -2389,25 +2445,34 @@ void SPreviewWindow::UpdateBoneTransformFromSkeleton(ViewerState* State)
 
 void SPreviewWindow::ApplyBoneTransform(ViewerState* State)
 {
-    if (!State || !State->CurrentMesh || State->SelectedBoneIndex < 0)
+    if (!State || !State->CurrentMesh || State->SelectedBoneIndex < 0 || !State->PreviewActor)
+        return;
+
+    USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
+    if (!SkelComp)
         return;
 
     FTransform NewTransform(State->EditBoneLocation, FQuat::MakeFromEulerZYX(State->EditBoneRotation), State->EditBoneScale);
 
-    // 애니메이션 원본 트랜스폼 가져오기
-    FTransform AnimTransform;
-    auto It = State->AnimationBoneTransforms.find(State->SelectedBoneIndex);
-    if (It != State->AnimationBoneTransforms.end())
+    // 현재 애니메이션 원본 트랜스폼 계산 (델타 제외)
+    // AnimInstance에서 GetBoneTransformAtTime으로 순수 애니메이션 값을 가져옴
+    FTransform AnimTransform = SkelComp->GetBoneLocalTransform(State->SelectedBoneIndex);
+
+    // 기존 델타가 있으면 원본 트랜스폼 역산
+    const FTransform* ExistingDelta = SkelComp->GetBoneDelta(State->SelectedBoneIndex);
+    if (ExistingDelta)
     {
-        AnimTransform = It->second;
-    }
-    else
-    {
-        // 애니메이션 원본이 없으면 현재 본 트랜스폼 사용
-        AnimTransform = State->PreviewActor->GetSkeletalMeshComponent()->GetBoneLocalTransform(State->SelectedBoneIndex);
+        // 델타 역적용하여 순수 애니메이션 값 계산
+        AnimTransform.Translation = AnimTransform.Translation - ExistingDelta->Translation;
+        AnimTransform.Rotation = (AnimTransform.Rotation * ExistingDelta->Rotation.Inverse()).GetNormalized();
+        AnimTransform.Scale3D = FVector(
+            ExistingDelta->Scale3D.X != 0.0f ? AnimTransform.Scale3D.X / ExistingDelta->Scale3D.X : AnimTransform.Scale3D.X,
+            ExistingDelta->Scale3D.Y != 0.0f ? AnimTransform.Scale3D.Y / ExistingDelta->Scale3D.Y : AnimTransform.Scale3D.Y,
+            ExistingDelta->Scale3D.Z != 0.0f ? AnimTransform.Scale3D.Z / ExistingDelta->Scale3D.Z : AnimTransform.Scale3D.Z
+        );
     }
 
-    // 델타 계산: 현재 값 - 애니메이션 원본 값
+    // 델타 계산: 새 값 - 애니메이션 원본 값
     FTransform Delta;
     Delta.Translation = NewTransform.Translation - AnimTransform.Translation;
     Delta.Rotation = AnimTransform.Rotation.IsIdentity() ? NewTransform.Rotation : (AnimTransform.Rotation.Inverse() * NewTransform.Rotation).GetNormalized();
@@ -2417,11 +2482,11 @@ void SPreviewWindow::ApplyBoneTransform(ViewerState* State)
         AnimTransform.Scale3D.Z != 0.0f ? NewTransform.Scale3D.Z / AnimTransform.Scale3D.Z : 1.0f
     );
 
-    // 델타를 EditedBoneTransforms에 저장
-    State->EditedBoneTransforms[State->SelectedBoneIndex] = Delta;
+    // 델타를 SkeletalMeshComponent에 저장
+    SkelComp->SetBoneDelta(State->SelectedBoneIndex, Delta);
 
-    // SkeletalMeshComponent에 적용
-    State->PreviewActor->GetSkeletalMeshComponent()->SetBoneLocalTransform(State->SelectedBoneIndex, NewTransform);
+    // 즉시 적용 (다음 Tick에서 AnimInstance가 적용)
+    SkelComp->SetBoneLocalTransform(State->SelectedBoneIndex, NewTransform);
 }
 
 void SPreviewWindow::ExpandToSelectedBone(ViewerState* State, int32 BoneIndex)

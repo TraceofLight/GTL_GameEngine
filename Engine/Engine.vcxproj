@@ -420,7 +420,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\Components\AmbientLightComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\AudioComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\BillboardComponent.cpp" />
-    <ClCompile Include="Source\Runtime\Engine\Components\BoneAnchorComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\BoxComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\CameraComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\CapsuleComponent.cpp" />
@@ -766,7 +765,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\Components\AmbientLightComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\AudioComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\BillboardComponent.h" />
-    <ClInclude Include="Source\Runtime\Engine\Components\BoneAnchorComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\BoxComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\CameraComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\CapsuleComponent.h" />
