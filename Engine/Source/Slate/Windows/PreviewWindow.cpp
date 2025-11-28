@@ -1562,213 +1562,250 @@ void SPreviewWindow::OnRender()
             ImGui::Separator();
             ImGui::Spacing();
 
-            if (ActiveState->CurrentMesh)
+            // 로드된 모든 AnimSequence를 표시 (.anim 파일만 - .fbx는 제외)
+            TArray<UAnimSequence*> AllAnimations = UResourceManager::GetInstance().GetAll<UAnimSequence>();
+
+            // .anim 파일만 필터링 (.fbx에서 로드된 것은 제외)
+            TArray<UAnimSequence*> Animations;
+            for (UAnimSequence* Anim : AllAnimations)
             {
-                // 복사본을 만들어 순회 (삭제 시 원본 배열이 변경되어도 안전)
-                TArray<UAnimSequence*> Animations = ActiveState->CurrentMesh->GetAnimations();
-
-                static int LogCount = 0;
-                if (LogCount < 5)
+                if (Anim && Anim->GetFilePath().ends_with(".anim"))
                 {
-                    UE_LOG("PreviewWindow: Animation List - Mesh=%p, AnimCount=%d", ActiveState->CurrentMesh, Animations.Num());
-                    ++LogCount;
+                    Animations.push_back(Anim);
                 }
+            }
 
-                if (Animations.Num() > 0)
+            static int LogCount = 0;
+            if (LogCount < 5)
+            {
+                UE_LOG("PreviewWindow: Animation List - Total Animations=%d, CurrentMesh=%p",
+                       Animations.Num(), ActiveState->CurrentMesh);
+                ++LogCount;
+            }
+
+            if (Animations.Num() > 0)
+            {
+                ImGui::BeginChild("AnimListScroll", ImVec2(0, 0), false);
+
+                for (int32 i = 0; i < Animations.Num(); ++i)
                 {
-                    ImGui::BeginChild("AnimListScroll", ImVec2(0, 0), false);
+                    UAnimSequence* Anim = Animations[i];
+                    if (!Anim) continue;
 
-                    for (int32 i = 0; i < Animations.Num(); ++i)
+                    bool bIsSelected = (ActiveState->SelectedAnimationIndex == i);
+                    char LabelBuffer[256];
+
+                    // FilePath에서 "파일명#애니메이션이름" 형식으로 표시
+                    FString FilePath = Anim->GetFilePath();
+                    FString DisplayName;
+
+                    size_t HashPos = FilePath.find('#');
+                    if (HashPos != FString::npos)
                     {
-                        UAnimSequence* Anim = Animations[i];
-                        if (!Anim) continue;
+                        FString FullPath = FilePath.substr(0, HashPos); // "path/to/file.fbx"
+                        FString AnimStackName = FilePath.substr(HashPos + 1); // "AnimStackName"
 
-                        bool bIsSelected = (ActiveState->SelectedAnimationIndex == i);
-                        char LabelBuffer[256];
-
-                        // FilePath에서 "파일명#애니메이션이름" 형식으로 표시
-                        FString FilePath = Anim->GetFilePath();
-                        FString DisplayName;
-
-                        size_t HashPos = FilePath.find('#');
-                        if (HashPos != FString::npos)
+                        // 파일명만 추출 (경로 제거)
+                        size_t LastSlash = FullPath.find_last_of("/\\");
+                        FString FileName;
+                        if (LastSlash != FString::npos)
                         {
-                            FString FullPath = FilePath.substr(0, HashPos); // "path/to/file.fbx"
-                            FString AnimStackName = FilePath.substr(HashPos + 1); // "AnimStackName"
-
-                            // 파일명만 추출 (경로 제거)
-                            size_t LastSlash = FullPath.find_last_of("/\\");
-                            FString FileName;
-                            if (LastSlash != FString::npos)
-                            {
-                                FileName = FullPath.substr(LastSlash + 1);
-                            }
-                            else
-                            {
-                                FileName = FullPath;
-                            }
-
-                            // 확장자 제거
-                            size_t DotPos = FileName.find_last_of('.');
-                            if (DotPos != FString::npos)
-                            {
-                                FileName = FileName.substr(0, DotPos);
-                            }
-
-                            DisplayName = FileName + "#" + AnimStackName;
+                            FileName = FullPath.substr(LastSlash + 1);
                         }
                         else
                         {
-                            // FilePath에 #이 없으면 GetName() 사용
-                            DisplayName = Anim->GetName();
-                            if (DisplayName.empty())
-                            {
-                                DisplayName = "Anim " + std::to_string(i);
-                            }
+                            FileName = FullPath;
                         }
 
-                        // DataModel이 있으면 재생 길이 표시
-                        UAnimDataModel* DataModel = Anim->GetDataModel();
-                        if (DataModel)
+                        // 확장자 제거
+                        size_t DotPos = FileName.find_last_of('.');
+                        if (DotPos != FString::npos)
                         {
-                            snprintf(LabelBuffer, sizeof(LabelBuffer), "%s (%.1fs)", DisplayName.c_str(), DataModel->GetPlayLength());
+                            FileName = FileName.substr(0, DotPos);
                         }
-                        else
+
+                        DisplayName = FileName + "#" + AnimStackName;
+                    }
+                    else
+                    {
+                        // FilePath에 #이 없으면 GetName() 사용
+                        DisplayName = Anim->GetName();
+                        if (DisplayName.empty())
                         {
-                            snprintf(LabelBuffer, sizeof(LabelBuffer), "%s", DisplayName.c_str());
+                            DisplayName = "Anim " + std::to_string(i);
                         }
-                        FString Label = LabelBuffer;
+                    }
 
-                        if (ImGui::Selectable(Label.c_str(), bIsSelected))
+                    // DataModel이 있으면 재생 길이 표시
+                    UAnimDataModel* DataModel = Anim->GetDataModel();
+                    if (DataModel)
+                    {
+                        (void)snprintf(LabelBuffer, sizeof(LabelBuffer), "%s (%.1fs)", DisplayName.c_str(), DataModel->GetPlayLength());
+                    }
+                    else
+                    {
+                        (void)snprintf(LabelBuffer, sizeof(LabelBuffer), "%s", DisplayName.c_str());
+                    }
+                    FString Label = LabelBuffer;
+
+                    // 호환성 체크: 메쉬 스켈레톤과 애니메이션 스켈레톤 비교
+                    bool bIsCompatible = true;
+                    if (ActiveState->CurrentMesh && ActiveState->CurrentMesh->GetSkeleton() && Anim->GetSkeleton())
+                    {
+                        // 스켈레톤 본 개수 비교 (간단한 호환성 체크)
+                        int32 MeshBoneCount = ActiveState->CurrentMesh->GetSkeleton()->Bones.Num();
+                        int32 AnimBoneCount = Anim->GetSkeleton()->Bones.Num();
+                        bIsCompatible = (MeshBoneCount == AnimBoneCount);
+                    }
+                    else if (!ActiveState->CurrentMesh)
+                    {
+                        // 메쉬가 없으면 호환성 알 수 없음 (중립)
+                        bIsCompatible = true;
+                    }
+
+                    // 호환되지 않는 애니메이션은 회색으로 표시
+                    if (!bIsCompatible)
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+                        Label += " (Incompatible)";
+                    }
+
+                    // ImGui ID 충돌 방지: ## 뒤에 고유 인덱스 추가
+                    char SelectableID[512];
+                    (void)snprintf(SelectableID, sizeof(SelectableID), "%s##anim_%d", Label.c_str(), i);
+
+                    if (ImGui::Selectable(SelectableID, bIsSelected))
+                    {
+                        // 호환되지 않는 애니메이션을 선택하면 경고 로그
+                        if (!bIsCompatible)
                         {
-                            ActiveState->SelectedAnimationIndex = i;
-                            ActiveState->CurrentAnimation = Anim;
-                            ActiveState->CurrentAnimationTime = 0.0f;
-                            ActiveState->EditedBoneTransforms.clear();
-                            ActiveState->AnimationBoneTransforms.clear();
-                            RebuildNotifyTracks(ActiveState);
-                            ActiveState->bIsPlaying = true;
+                            UE_LOG("PreviewWindow: Warning - Selected animation may not be compatible with current mesh skeleton");
+                        }
 
-                            // Working Range 초기화 (0 ~ TotalFrames)
-                            if (ActiveState->CurrentAnimation && ActiveState->CurrentAnimation->GetDataModel())
+                        ActiveState->SelectedAnimationIndex = i;
+                        ActiveState->CurrentAnimation = Anim;
+                        ActiveState->CurrentAnimationTime = 0.0f;
+                        ActiveState->EditedBoneTransforms.clear();
+                        ActiveState->AnimationBoneTransforms.clear();
+                        RebuildNotifyTracks(ActiveState);
+                        ActiveState->bIsPlaying = true;
+
+                        // Working Range 초기화 (0 ~ TotalFrames)
+                        if (ActiveState->CurrentAnimation && ActiveState->CurrentAnimation->GetDataModel())
+                        {
+                            int32 TotalFrames = ActiveState->CurrentAnimation->GetDataModel()->GetNumberOfFrames();
+                            ActiveState->WorkingRangeStartFrame = 0;
+                            ActiveState->WorkingRangeEndFrame = TotalFrames;
+                            ActiveState->ViewRangeStartFrame = 0;
+                            ActiveState->ViewRangeEndFrame = FMath::Min(60, TotalFrames);  // View Range 초기값 60
+                        }
+
+                        // AnimInstance 생성 또는 재사용
+                        if (ActiveState->PreviewActor && ActiveState->PreviewActor->GetSkeletalMeshComponent())
+                        {
+                            USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+
+                            // T-Pose로 리셋
+                            SkelComp->ResetToReferencePose();
+                            UE_LOG("[Animation] Reset to Reference Pose (T-Pose)");
+
+                            UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
+
+                            // AnimInstance가 없으면 새로 생성
+                            if (!AnimInst)
                             {
-                                int32 TotalFrames = ActiveState->CurrentAnimation->GetDataModel()->GetNumberOfFrames();
-                                ActiveState->WorkingRangeStartFrame = 0;
-                                ActiveState->WorkingRangeEndFrame = TotalFrames;
-                                ActiveState->ViewRangeStartFrame = 0;
-                                ActiveState->ViewRangeEndFrame = FMath::Min(60, TotalFrames);  // View Range 초기값 60
-                            }
-
-                            // AnimInstance 생성 또는 재사용
-                            if (ActiveState->PreviewActor && ActiveState->PreviewActor->GetSkeletalMeshComponent())
-                            {
-                                USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
-
-                                // T-Pose로 리셋
-                                SkelComp->ResetToReferencePose();
-                                UE_LOG("[Animation] Reset to Reference Pose (T-Pose)");
-
-                                UAnimInstance* AnimInst = SkelComp->GetAnimInstance();
-
-                                // AnimInstance가 없으면 새로 생성
-                                if (!AnimInst)
-                                {
-                                    UE_LOG("[Animation] Creating new AnimInstance for first animation");
-                                    UAnimSingleNodeInstance* SingleNodeInst = NewObject<UAnimSingleNodeInstance>();
-                                    AnimInst = SingleNodeInst;
-                                    if (AnimInst)
-                                    {
-                                        SkelComp->SetAnimInstance(AnimInst);
-                                    }
-                                    else
-                                    {
-                                        UE_LOG("[Animation] ERROR: Failed to create AnimInstance!");
-                                    }
-                                }
-
-                                // AnimInstance에 애니메이션 재생
+                                UE_LOG("[Animation] Creating new AnimInstance for first animation");
+                                UAnimSingleNodeInstance* SingleNodeInst = NewObject<UAnimSingleNodeInstance>();
+                                AnimInst = SingleNodeInst;
                                 if (AnimInst)
                                 {
-                                    UE_LOG("[Animation] Playing animation, PlaybackSpeed: %.2f", ActiveState->PlaybackSpeed);
-                                    AnimInst->PlayAnimation(Anim, ActiveState->PlaybackSpeed);
-                                    ActiveState->bIsPlaying = true;
+                                    SkelComp->SetAnimInstance(AnimInst);
                                 }
-                            }
-                        }
-
-                        // 우클릭 컨텍스트 메뉴
-                        if (ImGui::BeginPopupContextItem())
-                        {
-                            if (ImGui::MenuItem("Delete"))
-                            {
-                                if (ActiveState->CurrentMesh && Anim)
+                                else
                                 {
-                                    FString FilePath = Anim->GetFilePath();
-
-                                    // 현재 재생 중이면 상태 초기화
-                                    if (ActiveState->CurrentAnimation == Anim)
-                                    {
-                                        ActiveState->CurrentAnimation = nullptr;
-                                        ActiveState->SelectedAnimationIndex = -1;
-                                        ActiveState->bIsPlaying = false;
-                                        ActiveState->CurrentAnimationTime = 0.0f;
-                                    }
-
-                                    // 리스트에서 제거
-                                    ActiveState->CurrentMesh->RemoveAnimation(Anim);
-
-                                    // .anim 파일인 경우에만 실제 파일 삭제
-                                    if (FilePath.ends_with(".anim"))
-                                    {
-                                        if (std::filesystem::exists(FilePath))
-                                        {
-                                            std::filesystem::remove(FilePath);
-                                        }
-                                        UResourceManager::GetInstance().Unload<UAnimSequence>(FilePath);
-                                    }
-
-                                    // 선택 인덱스 조정
-                                    if (ActiveState->SelectedAnimationIndex >= ActiveState->CurrentMesh->GetAnimations().Num())
-                                    {
-                                        ActiveState->SelectedAnimationIndex = -1;
-                                    }
+                                    UE_LOG("[Animation] ERROR: Failed to create AnimInstance!");
                                 }
                             }
-                            ImGui::EndPopup();
+
+                            // AnimInstance에 애니메이션 재생
+                            if (AnimInst)
+                            {
+                                UE_LOG("[Animation] Playing animation, PlaybackSpeed: %.2f", ActiveState->PlaybackSpeed);
+                                AnimInst->PlayAnimation(Anim, ActiveState->PlaybackSpeed);
+                                ActiveState->bIsPlaying = true;
+                            }
                         }
                     }
 
-
-
-                    ImGui::EndChild();
-
-                }
-                else
-                {
-                    static int NoAnimLogCount = 0;
-                    if (NoAnimLogCount < 3)
+                    // 호환성 체크에서 PushStyleColor를 했으면 Pop
+                    if (!bIsCompatible)
                     {
-                        UE_LOG("PreviewWindow: No animations - showing message");
-                        ++NoAnimLogCount;
+                        ImGui::PopStyleColor();
                     }
 
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-                    ImGui::TextWrapped("No animations imported.");
-                    ImGui::PopStyleColor();
+                    // 우클릭 컨텍스트 메뉴
+                    if (ImGui::BeginPopupContextItem())
+                    {
+                        if (ImGui::MenuItem("Delete"))
+                        {
+                            if (Anim)
+                            {
+                                FString FilePath = Anim->GetFilePath();
+
+                                // 현재 재생 중이면 상태 초기화
+                                if (ActiveState->CurrentAnimation == Anim)
+                                {
+                                    ActiveState->CurrentAnimation = nullptr;
+                                    ActiveState->SelectedAnimationIndex = -1;
+                                    ActiveState->bIsPlaying = false;
+                                    ActiveState->CurrentAnimationTime = 0.0f;
+                                }
+
+                                // 메쉬가 있으면 메쉬에서도 제거
+                                if (ActiveState->CurrentMesh)
+                                {
+                                    ActiveState->CurrentMesh->RemoveAnimation(Anim);
+                                }
+
+                                // .anim 파일인 경우에만 실제 파일 삭제
+                                if (FilePath.ends_with(".anim"))
+                                {
+                                    if (std::filesystem::exists(FilePath))
+                                    {
+                                        std::filesystem::remove(FilePath);
+                                    }
+                                    UResourceManager::GetInstance().Unload<UAnimSequence>(FilePath);
+                                }
+
+                                // 선택 인덱스 조정
+                                if (ActiveState->SelectedAnimationIndex >= Animations.Num())
+                                {
+                                    ActiveState->SelectedAnimationIndex = -1;
+                                }
+                            }
+                        }
+                        ImGui::EndPopup();
+                    }
                 }
+
+                ImGui::EndChild();
             }
             else
             {
-                static int NoMeshLogCount = 0;
-                if (NoMeshLogCount < 3)
+                static int NoAnimLogCount = 0;
+                if (NoAnimLogCount < 3)
                 {
-                    UE_LOG("PreviewWindow: No CurrentMesh in ActiveState");
-                    ++NoMeshLogCount;
+                    UE_LOG("PreviewWindow: No animations - showing message");
+                    ++NoAnimLogCount;
                 }
-            }
 
-            ImGui::EndChild();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                ImGui::TextWrapped("No animations loaded. Import .fbx or .anim files to see animations here.");
+                ImGui::PopStyleColor();
+            }
         }
+
+        ImGui::EndChild();
     }
 
     // Record 파일명 입력 모달 (Timeline 바깥에서 렌더링)
