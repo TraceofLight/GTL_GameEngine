@@ -3,7 +3,7 @@
 #include "SceneComponent.h"
 #include "Material.h"
 #include "UPrimitiveComponent.generated.h"
-#include "FBodyInstance.h"
+#include "BodyInstance.h"
 
 // 전방 선언
 struct FSceneCompData;

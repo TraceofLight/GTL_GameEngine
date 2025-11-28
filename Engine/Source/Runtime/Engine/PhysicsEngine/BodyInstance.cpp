@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "PrimitiveComponent.h"
-#include "FBodyInstance.h"
+#include "BodyInstance.h"
 
 FBodyInstance::~FBodyInstance()
 {
@@ -26,7 +26,7 @@ void FBodyInstance::InitBody(PxPhysics* Physics, PxScene* Scene, const FMatrix W
 	}
 
 	PhysicsActor->userData = OwnerComponent;
-	Scene->addActor(*PhysicsActor); 
+	Scene->addActor(*PhysicsActor);
 }
 
 void FBodyInstance::SyncPhysicsToComponent()

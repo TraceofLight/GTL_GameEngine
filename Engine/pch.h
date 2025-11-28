@@ -41,6 +41,7 @@ extern PxPhysics* gPhysics;
 extern PxScene* gScene;
 extern PxMaterial* gMaterial;
 extern PxDefaultCpuDispatcher* gDispatcher;
+extern PxCooking* gCooking;
 
 
 // Windows & DirectX
@@ -152,11 +153,13 @@ extern UWorld* GWorld;
 #pragma comment(lib, "PhysX_static_64.lib")
 #pragma comment(lib, "PhysXCommon_static_64.lib")
 #pragma comment(lib, "PhysXFoundation_static_64.lib")
+#pragma comment(lib, "PhysXCooking_static_64.lib")
 #pragma comment(lib, "PhysXPvdSDK_static_64.lib") 
 #else
 #pragma comment(lib, "PhysXExtensions_static_64.lib")
 #pragma comment(lib, "PhysX_static_64.lib")
 #pragma comment(lib, "PhysXCommon_static_64.lib")
 #pragma comment(lib, "PhysXFoundation_static_64.lib")
+#pragma comment(lib, "PhysXCooking_static_64.lib")
 #pragma comment(lib, "PhysXPvdSDK_static_64.lib") 
 #endif
