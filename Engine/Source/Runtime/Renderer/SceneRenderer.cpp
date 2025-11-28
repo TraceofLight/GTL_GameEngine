@@ -1497,6 +1497,12 @@ void FSceneRenderer::RenderPostProcessingPasses()
 				GammaPass.Execute(Modifier, View, RHIDevice);
 			}
 			break;
+		case EPostProcessEffectType::DepthOfField:
+			{
+				GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "DepthOfField", OwnerRenderer->GetGPUTimer());
+				DepthOfFieldPass.Execute(Modifier, View, RHIDevice);
+			}
+			break;
 		}
 	}
 }

@@ -6,6 +6,7 @@
 #include "Camera/CamMod_LetterBox.h"
 #include "Camera/CamMod_Vignette.h"
 #include "Camera/CamMod_Gamma.h"
+#include "Camera/CamMod_DepthOfField.h"
 #include "SceneView.h"
 #include "CameraActor.h"
 #include "World.h"
@@ -297,6 +298,61 @@ void APlayerCameraManager::StartGamma(float Gamma)
 	GammaModifier->Gamma = Gamma;
 
 	ActiveModifiers.Add(GammaModifier);
+}
+
+int APlayerCameraManager::StartDepthOfField(float FocusDistance, float FocusRange, float NearBlurScale, float FarBlurScale, float MaxBlurRadius, float BokehSize, int32 InPriority)
+{
+	UCamMod_DepthOfField* DoFModifier = new UCamMod_DepthOfField();
+	DoFModifier->FocusDistance = FocusDistance;
+	DoFModifier->FocusRange = FocusRange;
+	DoFModifier->NearBlurScale = NearBlurScale;
+	DoFModifier->FarBlurScale = FarBlurScale;
+	DoFModifier->MaxBlurRadius = MaxBlurRadius;
+	DoFModifier->BokehSize = BokehSize;
+	DoFModifier->Priority = InPriority;
+
+	ActiveModifiers.Add(DoFModifier);
+	return (ActiveModifiers.Num() - 1);
+}
+
+int APlayerCameraManager::UpdateDepthOfField(int Idx, float FocusDistance, float FocusRange, float NearBlurScale, float FarBlurScale, float MaxBlurRadius, float BokehSize, int32 InPriority)
+{
+	if (ActiveModifiers.Num() <= Idx || !ActiveModifiers[Idx] || !Cast<UCamMod_DepthOfField>(ActiveModifiers[Idx]))
+	{
+		return -1;
+	}
+
+	UCamMod_DepthOfField* DoFModifier = Cast<UCamMod_DepthOfField>(ActiveModifiers[Idx]);
+	DoFModifier->FocusDistance = FocusDistance;
+	DoFModifier->FocusRange = FocusRange;
+	DoFModifier->NearBlurScale = NearBlurScale;
+	DoFModifier->FarBlurScale = FarBlurScale;
+	DoFModifier->MaxBlurRadius = MaxBlurRadius;
+	DoFModifier->BokehSize = BokehSize;
+	DoFModifier->Priority = InPriority;
+
+	ActiveModifiers[Idx] = DoFModifier;
+
+	return Idx;
+}
+
+void APlayerCameraManager::AdjustDepthOfField(float FocusDistance, float FocusRange, float NearBlurScale, float FarBlurScale, float MaxBlurRadius, float BokehSize, int32 InPriority)
+{
+	if (LastDepthOfFieldIdx == -1)
+	{
+		LastDepthOfFieldIdx = StartDepthOfField(FocusDistance, FocusRange, NearBlurScale, FarBlurScale, MaxBlurRadius, BokehSize, InPriority);
+	}
+	else
+	{
+		LastDepthOfFieldIdx = UpdateDepthOfField(LastDepthOfFieldIdx, FocusDistance, FocusRange, NearBlurScale, FarBlurScale, MaxBlurRadius, BokehSize, InPriority);
+	}
+}
+
+void APlayerCameraManager::DeleteDepthOfField()
+{
+	if (ActiveModifiers.Num() <= LastDepthOfFieldIdx || !ActiveModifiers[LastDepthOfFieldIdx] || !Cast<UCamMod_DepthOfField>(ActiveModifiers[LastDepthOfFieldIdx]))
+		return;
+	ActiveModifiers[LastDepthOfFieldIdx]->bEnabled = false;
 }
 
 // CurrentViewInfo를 현재 카메라를 기준으로 설정 (트렌지션 중에는 사이 값으로 설정)

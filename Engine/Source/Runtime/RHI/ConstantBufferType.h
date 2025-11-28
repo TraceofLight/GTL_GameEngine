@@ -95,6 +95,63 @@ struct alignas(16) FGammaCorrectionBufferType
 };
 static_assert(sizeof(FGammaCorrectionBufferType) % 16 == 0, "CB must be 16-byte aligned");
 
+// DoF 모드 열거형
+enum class EDoFMode : int32
+{
+    Cinematic = 0,   // 시네마틱 DoF (선형 모델, 아티스트 친화적)
+    Physical = 1,    // 물리 기반 DoF (실제 카메라 렌즈 시뮬레이션)
+    TiltShift = 2,   // 틸트-시프트 (화면 Y 좌표 기반, 미니어처 효과)
+    PointFocus = 3,  // 점 초점 DoF (특정 3D 좌표 중심 구형 초점)
+};
+
+// DoF 블러 방식 열거형
+enum class EDoFBlurMethod : int32
+{
+    Disc12 = 0,      // 12 샘플 디스크 블러 (기본, 빠름)
+    Disc24 = 1,      // 24 샘플 디스크 블러 (고품질)
+    Gaussian = 2,    // 가우시안 블러 (자연스러움)
+    Hexagonal = 3,   // 6각형 보케 (아나모픽 렌즈 스타일)
+    CircularGather = 4, // 다중 링 원형 블러 (최고 품질, 느림)
+};
+
+struct alignas(16) FDepthOfFieldBufferType // b2
+{
+    // 공통 파라미터 (16 bytes)
+    float FocusDistance;    // 초점 거리 (View Space 단위)
+    float MaxBlurRadius;    // 최대 블러 반경 (픽셀 단위)
+    float BokehSize;        // 보케 크기
+    int32 DoFMode;          // 0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus
+
+    // Cinematic 모드 파라미터 (16 bytes)
+    float FocusRange;       // 초점 영역 범위
+    float NearBlurScale;    // 근거리 블러 강도
+    float FarBlurScale;     // 원거리 블러 강도
+    float _Pad0;
+
+    // Physical 모드 파라미터 (16 bytes)
+    float FocalLength;      // 렌즈 초점거리 (mm), 예: 35, 50, 85
+    float FNumber;          // 조리개 값 (F-Number), 예: 1.4, 2.8, 5.6
+    float SensorWidth;      // 센서 너비 (mm), 풀프레임: 36, APS-C: 23.6
+    float _Pad1;
+
+    // Tilt-Shift 모드 파라미터 (16 bytes)
+    float TiltShiftCenterY;     // 선명한 띠의 중심 Y (0~1)
+    float TiltShiftBandWidth;   // 선명한 띠의 너비 (0~1)
+    float TiltShiftBlurScale;   // 블러 강도 스케일
+    float Weight;               // 효과 가중치
+
+    // PointFocus 모드 파라미터 (16 bytes)
+    FVector FocusPoint;         // 초점 지점 (World Space 좌표)
+    float FocusRadius;          // 초점 반경 (이 반경 내에서는 선명)
+
+    // PointFocus 추가 파라미터 (16 bytes)
+    float PointFocusBlurScale;  // 블러 강도 스케일
+    float PointFocusFalloff;    // 블러 감쇠 (1=선형, 2=제곱 등)
+    int32 BlurMethod;           // 블러 방식 (EDoFBlurMethod)
+    float _Pad3;
+};
+static_assert(sizeof(FDepthOfFieldBufferType) % 16 == 0, "CB must be 16-byte aligned");
+
 struct FXAABufferType // b2
 {
     FVector2D InvResolution;    // 1.0f / 해상도 (e.g., 1/1920, 1/1080)
@@ -238,6 +295,7 @@ MACRO(FFadeInOutBufferType)         \
 MACRO(FGammaCorrectionBufferType)   \
 MACRO(FVinetteBufferType)           \
 MACRO(FXAABufferType)               \
+MACRO(FDepthOfFieldBufferType)      \
 MACRO(FPixelConstBufferType)        \
 MACRO(ViewProjBufferType)           \
 MACRO(ColorBufferType)              \
@@ -272,6 +330,7 @@ CONSTANT_BUFFER_INFO(FFadeInOutBufferType, 2, false, true)
 CONSTANT_BUFFER_INFO(FGammaCorrectionBufferType, 2, false, true)
 CONSTANT_BUFFER_INFO(FVinetteBufferType, 2, false, true)
 CONSTANT_BUFFER_INFO(FXAABufferType, 2, false, true)
+CONSTANT_BUFFER_INFO(FDepthOfFieldBufferType, 2, false, true)
 CONSTANT_BUFFER_INFO(ColorBufferType, 3, true, true)   // b3 color
 CONSTANT_BUFFER_INFO(FPixelConstBufferType, 4, true, true) // GOURAUD에도 사용되므로 VS도 true
 CONSTANT_BUFFER_INFO(FSkinningBuffer, 5, true, false) // b5, VS Only (GPU Skinning)
