@@ -509,7 +509,12 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\AggregateGeom.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\BodyInstance.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\BodySetup.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\BoxElem.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\ConstraintInstance.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsAsset.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsConstraintSetup.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsCooking.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysXGlobals.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\ShapeElem.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\SphereElem.cpp" />
@@ -866,7 +871,12 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\AggregateGeom.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\BodyInstance.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\BodySetup.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\BoxElem.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\ConstraintInstance.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsAsset.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsConstraintSetup.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsCooking.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysXGlobals.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\ShapeElem.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\SphereElem.h" />

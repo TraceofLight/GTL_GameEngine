@@ -1,3 +1,143 @@
 #include "pch.h"
 #include "AggregateGeom.h"
 
+static inline FVector AbsVec(const FVector& V)
+{
+    return FVector(std::fabs(V.X), std::fabs(V.Y), std::fabs(V.Z));
+}
+
+int32 FKAggregateGeom::GetElementCount() const
+{
+    return static_cast<int32>(SphereElems.Num() + BoxElems.Num());
+}
+
+int32 FKAggregateGeom::GetElementCount(EAggCollisionShape::Type InType) const
+{
+    switch (InType)
+    {
+    case EAggCollisionShape::Sphere:
+    	return static_cast<int32>(SphereElems.Num());
+    case EAggCollisionShape::Box:
+    	return static_cast<int32>(BoxElems.Num());
+    default:
+    	return 0;
+    }
+}
+
+FKShapeElem* FKAggregateGeom::GetElement(EAggCollisionShape::Type InType, int32 Index)
+{
+    switch (InType)
+    {
+    case EAggCollisionShape::Sphere:
+        if (0 <= Index && Index < SphereElems.Num())
+        	return &SphereElems[Index];
+        break;
+    case EAggCollisionShape::Box:
+        if (0 <= Index && Index < BoxElems.Num())
+        	return &BoxElems[Index];
+        break;
+    default:
+        break;
+    }
+    return nullptr;
+}
+
+const FKShapeElem* FKAggregateGeom::GetElement(EAggCollisionShape::Type InType, int32 Index) const
+{
+    switch (InType)
+    {
+    case EAggCollisionShape::Sphere:
+        if (0 <= Index && Index < SphereElems.Num())
+        	return &SphereElems[Index];
+        break;
+    case EAggCollisionShape::Box:
+        if (0 <= Index && Index < BoxElems.Num())
+        	return &BoxElems[Index];
+        break;
+    default:
+        break;
+    }
+    return nullptr;
+}
+
+FKShapeElem* FKAggregateGeom::GetElementByName(const FName& InName)
+{
+    for (auto& E : SphereElems)
+    {
+	    if (E.GetName() == InName) return &E;
+    }
+    for (auto& E : BoxElems)
+    {
+	    if (E.GetName() == InName) return &E;
+    }
+    return nullptr;
+}
+
+const FKShapeElem* FKAggregateGeom::GetElementByName(const FName& InName) const
+{
+    for (auto& E : SphereElems)
+    {
+	    if (E.GetName() == InName) return &E;
+    }
+    for (auto& E : BoxElems)
+    {
+	    if (E.GetName() == InName) return &E;
+    }
+    return nullptr;
+}
+
+FAABB FKAggregateGeom::CalcAABB(const FTransform& BoneTM, float Scale) const
+{
+    bool bHasAny = false;
+    const float FMAX = std::numeric_limits<float>::max();
+    FVector GlobalMin(FMAX, FMAX, FMAX);
+    FVector GlobalMax(-FMAX, -FMAX, -FMAX);
+
+    auto ExpandBy = [&](const FVector& CenterWS, const FVector& HalfExtentWS)
+    {
+        const FVector LocalMin = CenterWS - HalfExtentWS;
+        const FVector LocalMax = CenterWS + HalfExtentWS;
+        GlobalMin = GlobalMin.ComponentMin(LocalMin);
+        GlobalMax = GlobalMax.ComponentMax(LocalMax);
+        bHasAny = true;
+    };
+
+    const FQuat WorldRot = BoneTM.Rotation;
+    const FVector WorldScale = BoneTM.Scale3D;
+    const FVector WorldTrans = BoneTM.Translation;
+
+    for (const FKSphereElem& S : SphereElems)
+    {
+        const FVector ScaledCenter(S.Center.X * WorldScale.X, S.Center.Y * WorldScale.Y, S.Center.Z * WorldScale.Z);
+        const FVector CenterWS = WorldTrans + WorldRot.RotateVector(ScaledCenter);
+
+        const float r = S.Radius * Scale;
+        const FVector Half(r, r, r);
+        ExpandBy(CenterWS, Half);
+    }
+
+    for (const FKBoxElem& B : BoxElems)
+    {
+        const FVector ScaledCenter(B.Center.X * WorldScale.X, B.Center.Y * WorldScale.Y, B.Center.Z * WorldScale.Z);
+        const FVector CenterWS = WorldTrans + WorldRot.RotateVector(ScaledCenter);
+
+        const FVector HalfLocal(B.X * Scale, B.Y * Scale, B.Z * Scale);
+
+        const FQuat LocalRot = FQuat::MakeFromEulerZYX(B.Rotation);
+        FQuat OBBRot = WorldRot * LocalRot;
+        OBBRot.Normalize();
+
+        const FVector ex = OBBRot.RotateVector(FVector(HalfLocal.X, 0, 0));
+        const FVector ey = OBBRot.RotateVector(FVector(0, HalfLocal.Y, 0));
+        const FVector ez = OBBRot.RotateVector(FVector(0, 0, HalfLocal.Z));
+        const FVector HalfWS = AbsVec(ex) + AbsVec(ey) + AbsVec(ez);
+
+        ExpandBy(CenterWS, HalfWS);
+    }
+
+    if (!bHasAny)
+    {
+        return FAABB(FVector(0, 0, 0), FVector(0, 0, 0));
+    }
+    return FAABB(GlobalMin, GlobalMax);
+}
