@@ -8,6 +8,7 @@
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
+#include "Source/Editor/Gizmo/GizmoActor.h"
 
 ViewerState* SkeletalViewerBootstrap::CreateViewerState(const char* Name, UWorld* InWorld, ID3D11Device* InDevice)
 {
@@ -22,7 +23,10 @@ ViewerState* SkeletalViewerBootstrap::CreateViewerState(const char* Name, UWorld
     State->World->Initialize();
     State->World->GetRenderSettings().DisableShowFlag(EEngineShowFlags::SF_EditorIcon);
 
-    State->World->GetGizmoActor()->SetSpace(EGizmoSpace::Local);
+    AGizmoActor* Gizmo = State->World->GetGizmoActor();
+    Gizmo->SetSpace(EGizmoSpace::Local);
+    Gizmo->SetMode(EGizmoMode::Translate);
+    Gizmo->SetbRender(false);
 
     // Viewport + client per tab
     State->Viewport = new FViewport();
@@ -40,6 +44,8 @@ ViewerState* SkeletalViewerBootstrap::CreateViewerState(const char* Name, UWorld
     State->Viewport->SetViewportClient(Client);
 
     State->World->SetEditorCameraActor(Client->GetCamera());
+
+    Gizmo->SetEditorCameraActor(Client->GetCamera());
 
     // Spawn a persistent preview actor (mesh can be set later from UI)
     if (State->World)

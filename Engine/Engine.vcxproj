@@ -575,6 +575,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Slate\Windows\SDetailsWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\PreviewWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\PreviewWindow_Timeline.cpp" />
+    <ClCompile Include="Source\Slate\Windows\SkeletalEditorWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\SSplitter.cpp" />
     <ClCompile Include="Source\Slate\Windows\SSplitterH.cpp" />
     <ClCompile Include="Source\Slate\Windows\SSplitterV.cpp" />
@@ -935,6 +936,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Slate\Windows\SControlPanel.h" />
     <ClInclude Include="Source\Slate\Windows\SDetailsWindow.h" />
     <ClInclude Include="Source\Slate\Windows\PreviewWindow.h" />
+    <ClInclude Include="Source\Slate\Windows\SkeletalEditorWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SSplitter.h" />
     <ClInclude Include="Source\Slate\Windows\SSplitterH.h" />
     <ClInclude Include="Source\Slate\Windows\SSplitterV.h" />

@@ -12,6 +12,7 @@ class ViewerState
 {
 public:
     FName Name;
+    int32 TabId = 0;  // 고유 탭 ID (ImGui 탭 식별용)
     UWorld* World = nullptr;
     FViewport* Viewport = nullptr;
     FViewportClient* Client = nullptr;
@@ -28,12 +29,7 @@ public:
     int32 LastSelectedBoneIndex = -1; // 색상 갱신을 위한 이전 선택 인덱스
     // UI path buffer per-tab
     char MeshPathBuffer[260] = {0};
-    char AnimPathBuffer[260] = {0};
     std::set<int32> ExpandedBoneIndices;
-
-    // 애니메이션 임포트 관련
-    int32 SelectedSkeletonIndex = -1;  // ComboBox에서 선택된 Skeleton 인덱스
-    USkeletalMesh* SelectedSkeletonMesh = nullptr;  // 선택된 Skeleton을 가진 Mesh
 
     // 본 트랜스폼 편집 관련
     FVector EditBoneLocation;
@@ -88,4 +84,20 @@ public:
 
     // View Mode
     EViewerMode ViewMode = EViewerMode::Skeletal;
+
+    // Detail Panel 탭 관련
+    int32 DetailPanelTabIndex = 0;  // 0: Asset Details, 1: Details (Bone Transform)
+    // Transform 표시 모드 (비트마스크, Shift+클릭으로 다중 선택)
+    // Bit 0: Bone, Bit 1: Reference, Bit 2: Mesh Relative
+    uint32 BoneTransformModeFlags = 0x7;  // 기본값: 전체 선택 (Bone + Reference + Mesh Relative)
+
+    // Reference Pose 트랜스폼 (편집 UI용 캐시)
+    FVector ReferenceBoneLocation;
+    FVector ReferenceBoneRotation;
+    FVector ReferenceBoneScale;
+
+    // Mesh Relative 트랜스폼 (편집 UI용)
+    FVector MeshRelativeBoneLocation;
+    FVector MeshRelativeBoneRotation;
+    FVector MeshRelativeBoneScale;
 };
