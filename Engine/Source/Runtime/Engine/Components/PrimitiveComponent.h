@@ -106,7 +106,10 @@ protected:
     // Create/replace PhysX actor and attach shapes to match current settings
     void RecreatePhysicsBody();
     bool bIsCulled = false;
-     
+
+    // bSimulatePhysics 값 변경 감지용 캐시 (ImGui에서 직접 수정 시 감지)
+    bool bSimulatePhysics_Cached = false;
+
     // ───── 충돌 관련 ────────────────────────────
 	virtual void OnCreatePhysicsState();
 };

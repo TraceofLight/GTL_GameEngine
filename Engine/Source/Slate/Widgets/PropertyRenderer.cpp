@@ -369,7 +369,7 @@ void UPropertyRenderer::RenderProperties(const TArray<FProperty>& Properties, UO
 
 		for (const FProperty* Prop : Props)
 		{
-			ImGui::PushID(Prop); // 프로퍼티 포인터로 고유 ID 푸시
+			ImGui::PushID(Prop);
 			RenderProperty(*Prop, Object);
 			ImGui::PopID();
 		}
@@ -591,34 +591,22 @@ void UPropertyRenderer::ClearResourcesCache()
 
 // ===== 타입별 렌더링 구현 =====
 
-//bool UPropertyRenderer::RenderBoolProperty(const FProperty& Prop, void* Instance)
-//{
-//	bool* Value = Prop.GetValuePtr<bool>(Instance);
-//	return ImGui::Checkbox(Prop.Name, Value);
-//}
-
 bool UPropertyRenderer::RenderBoolProperty(const FProperty& Prop, void* Instance)
 {
 	bool* Value = Prop.GetValuePtr<bool>(Instance);
 	if (!Value) return false;
 
+	bool oldValue = *Value;
 	bool bChanged = ImGui::Checkbox(Prop.Name, Value);
 
-	if (bChanged)
+	// bSimulatePhysics 디버깅
+	if (strcmp(Prop.Name, "bSimulatePhysics") == 0 && bChanged)
 	{
-		if (strcmp(Prop.Name, "bSimulatePhysics") == 0)
-		{
-			UObject* Obj = static_cast<UObject*>(Instance);
-			if (Obj && Obj->IsA(UPrimitiveComponent::StaticClass()))
-			{
-				UPrimitiveComponent* Prim = static_cast<UPrimitiveComponent*>(Obj);
-				Prim->SetSimulatePhysics(*Value);
-			}
-		}
+		UE_LOG("[Physics] ImGui changed bSimulatePhysics: %d -> %d, Instance=%p, Offset=%zu, ValuePtr=%p",
+			oldValue, *Value, Instance, Prop.Offset, Value);
 	}
+
 	return bChanged;
-
-
 }
 
 bool UPropertyRenderer::RenderInt32Property(const FProperty& Prop, void* Instance)

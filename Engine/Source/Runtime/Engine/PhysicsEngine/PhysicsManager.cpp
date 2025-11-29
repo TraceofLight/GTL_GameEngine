@@ -28,7 +28,7 @@ void FPhysicsManager::Initialize()
 
 	// 3. Scene Setting
 	PxSceneDesc sceneDesc(Physics->getTolerancesScale());
-	sceneDesc.gravity = PxVec3(0.0f, 0.0f, 9.81f); // Z-Up 기준 중력
+	sceneDesc.gravity = PxVec3(0.0f, 0.0f, -9.81f); // Z-Up 기준 중력 (아래 방향)
 
 	// CPU Dispatcher (스레드)
 	SYSTEM_INFO SysInfo;
@@ -77,7 +77,7 @@ void FPhysicsManager::Simulate(float DeltaTime)
 	while (Accumulator >= StepSize)
 	{
 		Scene->simulate(StepSize);
-		Scene->fetchResults(true); // true = 블로킹 
+		Scene->fetchResults(true); // true = 블로킹
 		Accumulator -= StepSize;
 	}
 }
