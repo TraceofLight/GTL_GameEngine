@@ -334,314 +334,6 @@ void SPreviewWindow::OnRender()
             ImGui::PopStyleColor();
             ImGui::Spacing();
 
-            // Animation Import Section
-            ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.25f, 0.35f, 0.50f, 0.8f));
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4);
-            ImGui::Indent(8.0f);
-            ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-            ImGui::Text("Animation Import");
-            ImGui::PopFont();
-            ImGui::Unindent(8.0f);
-            ImGui::PopStyleColor();
-
-            ImGui::Spacing();
-
-            ImGui::BeginGroup();
-            ImGui::Text("Animation Path:");
-            ImGui::PushItemWidth(-1.0f);
-            ImGui::InputTextWithHint("##AnimPath", "Browse for animation FBX...", ActiveState->AnimPathBuffer, sizeof(ActiveState->AnimPathBuffer));
-            ImGui::PopItemWidth();
-
-            ImGui::Spacing();
-
-            // Skeleton Selection ComboBox (선택사항 - Without Skin 전용)
-            ImGui::Text("Target Skeleton (Optional):");
-            ImGui::SameLine();
-            ImGui::TextDisabled("(?)");
-            if (ImGui::IsItemHovered())
-            {
-                ImGui::BeginTooltip();
-                ImGui::Text("Required for Without Skin FBX.");
-                ImGui::Text("Optional for With Skin FBX (auto-detected).");
-                ImGui::EndTooltip();
-            }
-
-            TArray<USkeletalMesh*> AllSkeletalMeshes = UResourceManager::GetInstance().GetAll<USkeletalMesh>();
-
-            FString PreviewValueStr = "Auto-detect or Select...";
-            if (ActiveState->SelectedSkeletonMesh)
-            {
-                const FSkeleton* Skeleton = ActiveState->SelectedSkeletonMesh->GetSkeleton();
-                if (Skeleton)
-                {
-                    // Skeleton Name이 비어있으면 파일명 사용
-                    if (!Skeleton->Name.empty())
-                    {
-                        PreviewValueStr = Skeleton->Name;
-                    }
-                    else
-                    {
-                        PreviewValueStr = ActiveState->SelectedSkeletonMesh->GetFilePath();
-                    }
-                }
-            }
-
-            ImGui::PushItemWidth(-1.0f);
-            if (ImGui::BeginCombo("##SkeletonCombo", PreviewValueStr.c_str()))
-            {
-                // "None" 옵션 추가 (With Skin의 경우)
-                bool bNoneSelected = (ActiveState->SelectedSkeletonMesh == nullptr);
-                if (ImGui::Selectable("Auto-detect (With Skin)", bNoneSelected))
-                {
-                    ActiveState->SelectedSkeletonIndex = -1;
-                    ActiveState->SelectedSkeletonMesh = nullptr;
-                }
-
-                for (int32 i = 0; i < AllSkeletalMeshes.Num(); ++i)
-                {
-                    USkeletalMesh* Mesh = AllSkeletalMeshes[i];
-                    const FSkeleton* Skeleton = Mesh->GetSkeleton();
-                    const FSkeletalMeshData* MeshData = Mesh->GetSkeletalMeshData();
-
-                    // Without Skin FBX로 생성된 빈 메시는 제외 (정점/인덱스 배열이 비어있음)
-                    if (Skeleton && MeshData && MeshData->Vertices.Num() > 0)
-                    {
-                        bool bIsSelected = (ActiveState->SelectedSkeletonMesh == Mesh);
-
-                        // 레이블 생성: Skeleton 이름이 있으면 사용, 없으면 파일명 사용
-                        FString Label;
-                        if (!Skeleton->Name.empty())
-                        {
-                            Label = Skeleton->Name;
-                        }
-                        else
-                        {
-                            Label = Mesh->GetFilePath();
-                        }
-
-                        if (ImGui::Selectable(Label.c_str(), bIsSelected))
-                        {
-                            ActiveState->SelectedSkeletonIndex = i;
-                            ActiveState->SelectedSkeletonMesh = Mesh;
-                            ActiveState->CurrentMesh = Mesh;  // CurrentMesh도 설정
-
-                            // 선택된 SkeletalMesh 로드
-                            if (ActiveState->PreviewActor)
-                            {
-                                USkeletalMeshComponent* Component = ActiveState->PreviewActor->GetSkeletalMeshComponent();
-                                if (Component)
-                                {
-                                    Component->SetSkeletalMesh(Mesh->GetFilePath());
-                                    UE_LOG("Loaded SkeletalMesh: %s", Mesh->GetFilePath().c_str());
-
-                                    // 이미 로드된 모든 AnimSequence를 이 메쉬에 추가
-                                    TArray<UAnimSequence*> AllAnimSequences = UResourceManager::GetInstance().GetAll<UAnimSequence>();
-                                    for (UAnimSequence* AnimSeq : AllAnimSequences)
-                                    {
-                                        if (AnimSeq && !AnimSeq->GetName().empty())
-                                        {
-                                            Mesh->AddAnimation(AnimSeq);
-                                        }
-                                    }
-
-                                    // 애니메이션 리스트도 업데이트 (첫 번째 애니메이션 자동 선택 및 재생)
-                                    const TArray<UAnimSequence*>& Animations = Mesh->GetAnimations();
-                                    if (Animations.Num() > 0)
-                                    {
-                                        ActiveState->SelectedAnimationIndex = 0;
-                                        ActiveState->CurrentAnimation = Animations[0];
-                                        ActiveState->CurrentAnimationTime = 0.0f;
-                                        // 편집된 bone transform 캐시 클리어 (새로운 메시/애니메이션 로드)
-                                        ActiveState->EditedBoneTransforms.clear();
-                                        ActiveState->AnimationBoneTransforms.clear();
-
-                                        // Notify Track 복원
-                                        RebuildNotifyTracks(ActiveState);
-
-                                        // Working Range 초기화 (0 ~ TotalFrames)
-                                        if (ActiveState->CurrentAnimation && ActiveState->CurrentAnimation->GetDataModel())
-                                        {
-                                            int32 TotalFrames = ActiveState->CurrentAnimation->GetDataModel()->GetNumberOfFrames();
-                                            ActiveState->WorkingRangeStartFrame = 0;
-                                            ActiveState->WorkingRangeEndFrame = TotalFrames;
-                                            ActiveState->ViewRangeStartFrame = 0;
-                                            ActiveState->ViewRangeEndFrame = FMath::Min(30, TotalFrames);  // View Range 초기값 30
-                                        }
-
-                                        // AnimInstance 생성 또는 재사용 후 첫 번째 애니메이션 재생
-                                        UAnimInstance* AnimInst = Component->GetAnimInstance();
-                                        if (!AnimInst)
-                                        {
-                                            UE_LOG("[Animation] Creating new AnimInstance for auto-play");
-                                            UAnimSingleNodeInstance* SingleNodeInst = NewObject<UAnimSingleNodeInstance>();
-                                            AnimInst = SingleNodeInst;
-                                            if (AnimInst)
-                                            {
-                                                Component->SetAnimInstance(AnimInst);
-                                            }
-                                            else
-                                            {
-                                                UE_LOG("[Animation] ERROR: Failed to create AnimInstance!");
-                                            }
-                                        }
-
-                                        if (AnimInst)
-                                        {
-                                            UE_LOG("[Animation] Auto-playing first animation (PlaybackSpeed: %.2f)", ActiveState->PlaybackSpeed);
-                                            AnimInst->PlayAnimation(Animations[0], ActiveState->PlaybackSpeed);
-                                            ActiveState->bIsPlaying = true;
-                                        }
-
-                                        UE_LOG("Auto-selected first animation (%d total animations)", Animations.Num());
-                                    }
-                                    else
-                                    {
-                                        ActiveState->SelectedAnimationIndex = -1;
-                                        ActiveState->CurrentAnimation = nullptr;
-                                        ActiveState->bIsPlaying = false;
-                                        // 편집된 bone transform 캐시 클리어
-                                        ActiveState->EditedBoneTransforms.clear();
-                                        ActiveState->AnimationBoneTransforms.clear();
-                                    }
-                                }
-                            }
-                        }
-
-                        if (bIsSelected)
-                        {
-                            ImGui::SetItemDefaultFocus();
-                        }
-                    }
-                }
-                ImGui::EndCombo();
-            }
-            ImGui::PopItemWidth();
-
-            ImGui::Spacing();
-
-            // Import Buttons
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.28f, 0.40f, 0.55f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.35f, 0.50f, 0.70f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.25f, 0.35f, 0.50f, 1.0f));
-
-            float animButtonWidth = (leftWidth - 24.0f) * 0.5f - 4.0f;
-            if (ImGui::Button("Browse Anim...", ImVec2(animButtonWidth, 32)))
-            {
-                auto widePath = FPlatformProcess::OpenLoadFileDialog(UTF8ToWide(GDataDir), L"fbx", L"FBX Files");
-                if (!widePath.empty())
-                {
-                    std::string s = widePath.string();
-                    strncpy_s(ActiveState->AnimPathBuffer, s.c_str(), sizeof(ActiveState->AnimPathBuffer) - 1);
-                }
-            }
-
-            ImGui::SameLine();
-
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.60f, 0.40f, 0.20f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.70f, 0.50f, 0.30f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.50f, 0.30f, 0.15f, 1.0f));
-
-            // 경로만 있으면 Import 가능 (With Skin은 auto-detect, Without Skin은 Skeleton 필요)
-            bool bCanImport = strlen(ActiveState->AnimPathBuffer) > 0;
-            if (!bCanImport)
-            {
-                ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-            }
-
-            if (ImGui::Button("Import Anim", ImVec2(animButtonWidth, 32)) && bCanImport)
-            {
-                FString AnimPath = ActiveState->AnimPathBuffer;
-
-                // Skeleton 결정: FBX에서 추출 시도, 실패하면 선택된 메시의 Skeleton 사용
-                FSkeleton* FbxSkeleton = UFbxLoader::GetInstance().ExtractSkeletonFromFbx(AnimPath);
-                const FSkeleton* TargetSkeleton = nullptr;
-                bool bShouldDeleteSkeleton = false;
-
-                if (FbxSkeleton)
-                {
-                    UE_LOG("Using Skeleton from FBX file");
-                    TargetSkeleton = FbxSkeleton;
-                    bShouldDeleteSkeleton = true;
-                }
-                else if (ActiveState->SelectedSkeletonMesh && ActiveState->SelectedSkeletonMesh->GetSkeleton())
-                {
-                    UE_LOG("FBX has no mesh, using selected Skeleton");
-                    TargetSkeleton = ActiveState->SelectedSkeletonMesh->GetSkeleton();
-                }
-                else
-                {
-                    UE_LOG("ERROR: Cannot load animation - no Skeleton available!");
-                    UE_LOG("  Please select a Skeleton from the dropdown above.");
-                }
-
-                // Skeleton이 결정되면 애니메이션 로드
-                if (TargetSkeleton)
-                {
-                    TArray<USkeletalMesh*> AllSkeletalMeshes = UResourceManager::GetInstance().GetAll<USkeletalMesh>();
-
-                    // LoadAllFbxAnimations가 내부에서 ResourceManager에 자동 등록
-                    TArray<UAnimSequence*> AnimSequences = UFbxLoader::GetInstance().LoadAllFbxAnimations(AnimPath, *TargetSkeleton);
-
-                    if (AnimSequences.Num() > 0)
-                    {
-                        UE_LOG("========================================");
-                        UE_LOG("Animations Imported Successfully");
-                        UE_LOG("  File: %s", AnimPath.c_str());
-                        UE_LOG("  Total AnimStacks: %d", AnimSequences.Num());
-                        UE_LOG("  Target Skeleton: %s", TargetSkeleton->Name.c_str());
-                        UE_LOG("========================================");
-
-                        // 모든 SkeletalMesh에 Animation 추가
-                        for (UAnimSequence* AnimSeq : AnimSequences)
-                        {
-                            if (!AnimSeq)
-                                continue;
-
-                            for (USkeletalMesh* Mesh : AllSkeletalMeshes)
-                            {
-                                Mesh->AddAnimation(AnimSeq);
-                            }
-
-                            if (UAnimDataModel* DataModel = AnimSeq->GetDataModel())
-                            {
-                                UE_LOG("  [AnimStack: %s]", AnimSeq->GetName().c_str());
-                                UE_LOG("    Duration: %.2f seconds", DataModel->GetPlayLength());
-                                UE_LOG("    Frame Rate: %d FPS", DataModel->GetFrameRate().Numerator);
-                                UE_LOG("    Total Frames: %d", DataModel->GetNumberOfFrames());
-                                UE_LOG("    Bone Tracks: %d", DataModel->GetBoneAnimationTracks().Num());
-                                UE_LOG("    Applied to %d SkeletalMesh(es)", AllSkeletalMeshes.Num());
-                            }
-                        }
-
-                        UE_LOG("========================================");
-                    }
-                    else
-                    {
-                        UE_LOG("ERROR: Failed to import animations: %s", AnimPath.c_str());
-                    }
-
-                    // FBX에서 추출한 Skeleton은 정리
-                    if (bShouldDeleteSkeleton && FbxSkeleton)
-                    {
-                        delete FbxSkeleton;
-                    }
-                }
-            }
-
-            if (!bCanImport)
-            {
-                ImGui::PopStyleVar();
-            }
-
-            ImGui::PopStyleColor(6);
-            ImGui::EndGroup();
-
-            ImGui::Spacing();
-            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.35f, 0.45f, 0.60f, 0.7f));
-            ImGui::Separator();
-            ImGui::PopStyleColor();
-            ImGui::Spacing();
-
             // Bone Hierarchy Section
             ImGui::Text("Bone Hierarchy:");
             ImGui::Spacing();
@@ -1015,8 +707,10 @@ void SPreviewWindow::OnRender()
                         ActiveState->SelectedAnimationIndex = 0;
                         ActiveState->CurrentAnimation = Animations[0];
                         ActiveState->CurrentAnimationTime = 0.0f;
-                        ActiveState->EditedBoneTransforms.clear();
-                        ActiveState->AnimationBoneTransforms.clear();
+                        if (USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+                        {
+                            SkelComp->ClearAllBoneDeltas();
+                        }
                         RebuildNotifyTracks(ActiveState);
                         ActiveState->bIsPlaying = true;
                     }
@@ -1520,8 +1214,10 @@ void SPreviewWindow::OnRender()
                                         ActiveState->SelectedAnimationIndex = i;
                                         ActiveState->CurrentAnimation = NewAnim;
                                         ActiveState->CurrentAnimationTime = 0.0f;
-                                        ActiveState->EditedBoneTransforms.clear();
-                                        ActiveState->AnimationBoneTransforms.clear();
+                                        if (USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+                                        {
+                                            SkelComp->ClearAllBoneDeltas();
+                                        }
                                         ActiveState->bIsPlaying = true;
 
                                         if (NewAnim->GetDataModel())
@@ -1685,8 +1381,10 @@ void SPreviewWindow::OnRender()
                         ActiveState->SelectedAnimationIndex = i;
                         ActiveState->CurrentAnimation = Anim;
                         ActiveState->CurrentAnimationTime = 0.0f;
-                        ActiveState->EditedBoneTransforms.clear();
-                        ActiveState->AnimationBoneTransforms.clear();
+                        if (USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+                        {
+                            SkelComp->ClearAllBoneDeltas();
+                        }
                         RebuildNotifyTracks(ActiveState);
                         ActiveState->bIsPlaying = true;
 
@@ -1803,9 +1501,9 @@ void SPreviewWindow::OnRender()
                 ImGui::TextWrapped("No animations loaded. Import .fbx or .anim files to see animations here.");
                 ImGui::PopStyleColor();
             }
-        }
 
-        ImGui::EndChild();
+            ImGui::EndChild();
+        }
     }
 
     // Record 파일명 입력 모달 (Timeline 바깥에서 렌더링)
@@ -1876,49 +1574,115 @@ void SPreviewWindow::OnUpdate(float DeltaSeconds)
     if (!ActiveState || !ActiveState->Viewport)
         return;
 
-    // Spacebar 입력 처리 (Animation 모드이고, Gizmo/BoneAnchor가 선택되지 않았을 때만)
+    // Spacebar 입력 처리 (Animation 모드이고, Bone이 선택되지 않았을 때만)
     UInputManager& InputMgr = UInputManager::GetInstance();
 
-    // 기즈모 드래그 종료 감지 - Bone 편집 시 EditedBoneTransforms에 델타 저장
+    // 기즈모 드래그 상태 감지
     bool bIsGizmoDragging = InputMgr.GetIsGizmoDragging();
-    if (ActiveState->bWasGizmoDragging && !bIsGizmoDragging)
+
+    // 기즈모 드래그 시작 감지 - DragStartBoneIndex 설정만 수행
+    if (!ActiveState->bWasGizmoDragging && bIsGizmoDragging)
     {
-        // 드래그가 방금 종료됨 - Animation 모드에서 Bone 타겟일 때만 처리
         AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
         if (Gizmo && Gizmo->IsBoneTarget() && ActiveState->SelectedBoneIndex >= 0 &&
             ActiveState->ViewMode == EViewerMode::Animation && ActiveState->PreviewActor)
         {
-            USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
-            if (SkelComp)
-            {
-                // 현재 본의 로컬 트랜스폼 가져오기
-                FTransform CurrentLocalTransform = SkelComp->GetBoneLocalTransform(ActiveState->SelectedBoneIndex);
+            ActiveState->DragStartBoneIndex = ActiveState->SelectedBoneIndex;
+        }
+    }
 
-                // 애니메이션 원본 트랜스폼 가져오기 (없으면 현재 값 사용)
-                FTransform AnimTransform = CurrentLocalTransform;
-                auto It = ActiveState->AnimationBoneTransforms.find(ActiveState->SelectedBoneIndex);
-                if (It != ActiveState->AnimationBoneTransforms.end())
+    // 기즈모 드래그 종료 감지 - 새로운 총 델타 계산 (누적 아님, 교체)
+    if (ActiveState->bWasGizmoDragging && !bIsGizmoDragging)
+    {
+        // 드래그가 방금 종료됨 - Animation 모드에서 Bone 타겟일 때만 처리
+        AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
+        if (Gizmo && Gizmo->IsBoneTarget() && ActiveState->DragStartBoneIndex >= 0 &&
+            ActiveState->ViewMode == EViewerMode::Animation && ActiveState->PreviewActor)
+        {
+            USkeletalMeshComponent* SkeletalComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+            if (SkeletalComp)
+            {
+                int32 BoneIndex = ActiveState->DragStartBoneIndex;
+
+                // 현재 본의 로컬 트랜스폼 (드래그 후 최종 위치)
+                FTransform CurrentLocalTransform = SkeletalComp->GetBoneLocalTransform(BoneIndex);
+
+                // 현재 애니메이션 시간의 순수 애니메이션 값 가져오기
+                // AnimDataModel에서 인덱스로 직접 트랙 접근
+                FTransform PureAnimTransform = CurrentLocalTransform;
+
+                UAnimInstance* AnimInst = SkeletalComp->GetAnimInstance();
+                if (AnimInst && AnimInst->GetCurrentAnimation())
                 {
-                    AnimTransform = It->second;
+                    UAnimSequence* AnimSeq = Cast<UAnimSequence>(AnimInst->GetCurrentAnimation());
+                    if (AnimSeq && AnimSeq->GetDataModel())
+                    {
+                        UAnimDataModel* DataModel = AnimSeq->GetDataModel();
+                        const FBoneAnimationTrack* Track = DataModel->GetBoneTrackByIndex(BoneIndex);
+                        if (Track)
+                        {
+                            // 시간을 프레임으로 변환하여 보간
+                            float FrameRate = DataModel->GetFrameRate().AsDecimal();
+                            float CurrentTime = AnimInst->GetCurrentTime();
+                            float FrameFloat = CurrentTime * FrameRate;
+                            int32 Frame0 = static_cast<int32>(FrameFloat);
+                            int32 Frame1 = Frame0 + 1;
+                            float Alpha = FrameFloat - static_cast<float>(Frame0);
+
+                            int32 MaxFrame = DataModel->GetNumberOfFrames() - 1;
+                            Frame0 = FMath::Clamp(Frame0, 0, MaxFrame);
+                            Frame1 = FMath::Clamp(Frame1, 0, MaxFrame);
+
+                            // 키프레임 보간
+                            const auto& PosKeys = Track->InternalTrack.PosKeys;
+                            const auto& RotKeys = Track->InternalTrack.RotKeys;
+                            const auto& ScaleKeys = Track->InternalTrack.ScaleKeys;
+
+                            if (PosKeys.Num() > 0 && RotKeys.Num() > 0 && ScaleKeys.Num() > 0)
+                            {
+                                int32 PosIdx0 = FMath::Clamp(Frame0, 0, PosKeys.Num() - 1);
+                                int32 PosIdx1 = FMath::Clamp(Frame1, 0, PosKeys.Num() - 1);
+                                int32 RotIdx0 = FMath::Clamp(Frame0, 0, RotKeys.Num() - 1);
+                                int32 RotIdx1 = FMath::Clamp(Frame1, 0, RotKeys.Num() - 1);
+                                int32 ScaleIdx0 = FMath::Clamp(Frame0, 0, ScaleKeys.Num() - 1);
+                                int32 ScaleIdx1 = FMath::Clamp(Frame1, 0, ScaleKeys.Num() - 1);
+
+                                FVector Pos = FVector::Lerp(PosKeys[PosIdx0], PosKeys[PosIdx1], Alpha);
+                                FQuat Rot = FQuat::Slerp(RotKeys[RotIdx0], RotKeys[RotIdx1], Alpha);
+                                FVector Scl = FVector::Lerp(ScaleKeys[ScaleIdx0], ScaleKeys[ScaleIdx1], Alpha);
+
+                                PureAnimTransform = FTransform(Pos, Rot, Scl);
+                            }
+                        }
+                    }
                 }
 
-                // 델타 계산: 현재 값 - 애니메이션 원본 값
-                FTransform Delta;
-                Delta.Translation = CurrentLocalTransform.Translation - AnimTransform.Translation;
-                Delta.Rotation = AnimTransform.Rotation.IsIdentity() ? CurrentLocalTransform.Rotation : (AnimTransform.Rotation.Inverse() * CurrentLocalTransform.Rotation).GetNormalized();
-                Delta.Scale3D = FVector(
-                    AnimTransform.Scale3D.X != 0.0f ? CurrentLocalTransform.Scale3D.X / AnimTransform.Scale3D.X : 1.0f,
-                    AnimTransform.Scale3D.Y != 0.0f ? CurrentLocalTransform.Scale3D.Y / AnimTransform.Scale3D.Y : 1.0f,
-                    AnimTransform.Scale3D.Z != 0.0f ? CurrentLocalTransform.Scale3D.Z / AnimTransform.Scale3D.Z : 1.0f
+                // 새로운 총 델타 계산: 현재 위치 - 순수 애니메이션 값
+                FTransform NewTotalDelta;
+                NewTotalDelta.Translation = CurrentLocalTransform.Translation - PureAnimTransform.Translation;
+                NewTotalDelta.Rotation = (PureAnimTransform.Rotation.Inverse() * CurrentLocalTransform.Rotation).GetNormalized();
+                NewTotalDelta.Scale3D = FVector(
+                    PureAnimTransform.Scale3D.X != 0.0f ? CurrentLocalTransform.Scale3D.X / PureAnimTransform.Scale3D.X : 1.0f,
+                    PureAnimTransform.Scale3D.Y != 0.0f ? CurrentLocalTransform.Scale3D.Y / PureAnimTransform.Scale3D.Y : 1.0f,
+                    PureAnimTransform.Scale3D.Z != 0.0f ? CurrentLocalTransform.Scale3D.Z / PureAnimTransform.Scale3D.Z : 1.0f
                 );
 
-                // EditedBoneTransforms에 저장
-                ActiveState->EditedBoneTransforms[ActiveState->SelectedBoneIndex] = Delta;
+                // 총 델타 저장 (교체, 누적 아님) - SkeletalMeshComponent에 저장
+                SkeletalComp->SetBoneDelta(BoneIndex, NewTotalDelta);
+
+                UE_LOG("[PreviewWindow] DragEnd: BoneIndex=%d, Current=(%.3f, %.3f, %.3f), PureAnim=(%.3f, %.3f, %.3f), TotalDelta=(%.3f, %.3f, %.3f)",
+                    BoneIndex,
+                    CurrentLocalTransform.Translation.X, CurrentLocalTransform.Translation.Y, CurrentLocalTransform.Translation.Z,
+                    PureAnimTransform.Translation.X, PureAnimTransform.Translation.Y, PureAnimTransform.Translation.Z,
+                    NewTotalDelta.Translation.X, NewTotalDelta.Translation.Y, NewTotalDelta.Translation.Z);
 
                 // UI 업데이트
                 ActiveState->EditBoneLocation = CurrentLocalTransform.Translation;
                 ActiveState->EditBoneRotation = CurrentLocalTransform.Rotation.ToEulerZYXDeg();
                 ActiveState->EditBoneScale = CurrentLocalTransform.Scale3D;
+
+                // 드래그 상태 초기화
+                ActiveState->DragStartBoneIndex = -1;
             }
         }
     }
@@ -2022,29 +1786,7 @@ void SPreviewWindow::OnUpdate(float DeltaSeconds)
 
         SkelComp->SetTickEnabled(bShouldTick);
 
-        // 애니메이션 업데이트 후, 에디터에서 편집된 본 트랜스폼 델타 적용
-        if (ActiveState->ViewMode == EViewerMode::Animation && !ActiveState->EditedBoneTransforms.empty())
-        {
-            for (const auto& Pair : ActiveState->EditedBoneTransforms)
-            {
-                int32 BoneIndex = Pair.first;
-                const FTransform& Delta = Pair.second;
-
-                // 현재 애니메이션 트랜스폼 가져오기
-                FTransform AnimTransform = SkelComp->GetBoneLocalTransform(BoneIndex);
-
-                // 델타 계산용으로 현재 애니메이션 트랜스폼 저장
-                ActiveState->AnimationBoneTransforms[BoneIndex] = AnimTransform;
-
-                // 델타 적용: Position=덧셈, Rotation=곱셈, Scale=곱셈
-                FTransform FinalTransform;
-                FinalTransform.Translation = AnimTransform.Translation + Delta.Translation;
-                FinalTransform.Rotation = (AnimTransform.Rotation * Delta.Rotation).GetNormalized();
-                FinalTransform.Scale3D = AnimTransform.Scale3D * Delta.Scale3D;
-
-                SkelComp->SetBoneLocalTransform(BoneIndex, FinalTransform);
-            }
-        }
+        // Note: 델타 적용은 AnimInstance::EvaluateAnimation에서 자동으로 처리됨
 
         // Recording: 본 트랜스폼 데이터 수집
         if (ActiveState->bIsRecording && ActiveState->ViewMode == EViewerMode::Animation)
@@ -2361,8 +2103,10 @@ void SPreviewWindow::LoadSkeletalMesh(const FString& Path)
             ActiveState->SelectedAnimationIndex = 0;
             ActiveState->CurrentAnimation = Animations[0];
             ActiveState->CurrentAnimationTime = 0.0f;
-            ActiveState->EditedBoneTransforms.clear();
-            ActiveState->AnimationBoneTransforms.clear();
+            if (USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+            {
+                SkelComp->ClearAllBoneDeltas();
+            }
             RebuildNotifyTracks(ActiveState);
             ActiveState->bIsPlaying = true;
         }
@@ -2389,25 +2133,34 @@ void SPreviewWindow::UpdateBoneTransformFromSkeleton(ViewerState* State)
 
 void SPreviewWindow::ApplyBoneTransform(ViewerState* State)
 {
-    if (!State || !State->CurrentMesh || State->SelectedBoneIndex < 0)
+    if (!State || !State->CurrentMesh || State->SelectedBoneIndex < 0 || !State->PreviewActor)
+        return;
+
+    USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
+    if (!SkelComp)
         return;
 
     FTransform NewTransform(State->EditBoneLocation, FQuat::MakeFromEulerZYX(State->EditBoneRotation), State->EditBoneScale);
 
-    // 애니메이션 원본 트랜스폼 가져오기
-    FTransform AnimTransform;
-    auto It = State->AnimationBoneTransforms.find(State->SelectedBoneIndex);
-    if (It != State->AnimationBoneTransforms.end())
+    // 현재 애니메이션 원본 트랜스폼 계산 (델타 제외)
+    // AnimInstance에서 GetBoneTransformAtTime으로 순수 애니메이션 값을 가져옴
+    FTransform AnimTransform = SkelComp->GetBoneLocalTransform(State->SelectedBoneIndex);
+
+    // 기존 델타가 있으면 원본 트랜스폼 역산
+    const FTransform* ExistingDelta = SkelComp->GetBoneDelta(State->SelectedBoneIndex);
+    if (ExistingDelta)
     {
-        AnimTransform = It->second;
-    }
-    else
-    {
-        // 애니메이션 원본이 없으면 현재 본 트랜스폼 사용
-        AnimTransform = State->PreviewActor->GetSkeletalMeshComponent()->GetBoneLocalTransform(State->SelectedBoneIndex);
+        // 델타 역적용하여 순수 애니메이션 값 계산
+        AnimTransform.Translation = AnimTransform.Translation - ExistingDelta->Translation;
+        AnimTransform.Rotation = (AnimTransform.Rotation * ExistingDelta->Rotation.Inverse()).GetNormalized();
+        AnimTransform.Scale3D = FVector(
+            ExistingDelta->Scale3D.X != 0.0f ? AnimTransform.Scale3D.X / ExistingDelta->Scale3D.X : AnimTransform.Scale3D.X,
+            ExistingDelta->Scale3D.Y != 0.0f ? AnimTransform.Scale3D.Y / ExistingDelta->Scale3D.Y : AnimTransform.Scale3D.Y,
+            ExistingDelta->Scale3D.Z != 0.0f ? AnimTransform.Scale3D.Z / ExistingDelta->Scale3D.Z : AnimTransform.Scale3D.Z
+        );
     }
 
-    // 델타 계산: 현재 값 - 애니메이션 원본 값
+    // 델타 계산: 새 값 - 애니메이션 원본 값
     FTransform Delta;
     Delta.Translation = NewTransform.Translation - AnimTransform.Translation;
     Delta.Rotation = AnimTransform.Rotation.IsIdentity() ? NewTransform.Rotation : (AnimTransform.Rotation.Inverse() * NewTransform.Rotation).GetNormalized();
@@ -2417,11 +2170,11 @@ void SPreviewWindow::ApplyBoneTransform(ViewerState* State)
         AnimTransform.Scale3D.Z != 0.0f ? NewTransform.Scale3D.Z / AnimTransform.Scale3D.Z : 1.0f
     );
 
-    // 델타를 EditedBoneTransforms에 저장
-    State->EditedBoneTransforms[State->SelectedBoneIndex] = Delta;
+    // 델타를 SkeletalMeshComponent에 저장
+    SkelComp->SetBoneDelta(State->SelectedBoneIndex, Delta);
 
-    // SkeletalMeshComponent에 적용
-    State->PreviewActor->GetSkeletalMeshComponent()->SetBoneLocalTransform(State->SelectedBoneIndex, NewTransform);
+    // 즉시 적용 (다음 Tick에서 AnimInstance가 적용)
+    SkelComp->SetBoneLocalTransform(State->SelectedBoneIndex, NewTransform);
 }
 
 void SPreviewWindow::ExpandToSelectedBone(ViewerState* State, int32 BoneIndex)

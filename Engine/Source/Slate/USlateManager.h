@@ -5,6 +5,7 @@
 #include "Windows/SSplitterH.h"
 #include "Windows/SViewportWindow.h"
 #include "Windows/PreviewWindow.h"
+#include "Windows/SkeletalEditorWindow.h"
 #include "Windows/BlendSpace2DEditorWindow.h"
 #include "Windows/ParticleEditorWindow.h"
 #include "Windows/SPhysicsAssetEditorWindow.h"
@@ -157,7 +158,7 @@ private:
     float ConsoleDragStartHeight = 0.0f; // 드래그 시작 시 콘솔 높이
 
     // Detached skeletal mesh viewer window
-    SPreviewWindow* SkeletalViewerWindow = nullptr;
+    SSkeletalEditorWindow* SkeletalViewerWindow = nullptr;
     SAnimStateMachineWindow* AnimStateMachineWindow = nullptr;
 
     // Blend Space 2D Editor window

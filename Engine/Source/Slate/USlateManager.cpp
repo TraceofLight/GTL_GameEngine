@@ -190,7 +190,7 @@ void USlateManager::OpenSkeletalMeshViewer()
         return;
     }
 
-    SkeletalViewerWindow = new SPreviewWindow();
+    SkeletalViewerWindow = new SSkeletalEditorWindow();
 
     // Open as a detached window at a default size and position
     const float toolbarHeight = 50.0f;
@@ -1002,14 +1002,28 @@ void USlateManager::ProcessInput()
     // ParticleEditorWindow가 포커스된 경우 EditorWorld 입력 차단
     bool bParticleEditorFocused = ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput();
 
+    // SkeletalViewerWindow가 포커스된 경우 해당 윈도우의 기즈모 처리
+    bool bSkeletalViewerFocused = SkeletalViewerWindow && SkeletalViewerWindow->ShouldBlockEditorInput();
+
     // Update main editor gizmo interaction state based on tool window focus
     if (World->GetGizmoActor())
     {
-        World->GetGizmoActor()->SetInteractionEnabled(!bParticleEditorFocused);
+        World->GetGizmoActor()->SetInteractionEnabled(!bParticleEditorFocused && !bSkeletalViewerFocused);
     }
 
     if (bParticleEditorFocused)
     {
+        return;
+    }
+
+    // SkeletalViewerWindow가 포커스된 경우 해당 윈도우의 기즈모 모드 전환 처리
+    if (bSkeletalViewerFocused)
+    {
+        AGizmoActor* Gizmo = SkeletalViewerWindow->GetGizmoActor();
+        if (Gizmo)
+        {
+            Gizmo->ProcessGizmoModeSwitch();
+        }
         return;
     }
 
