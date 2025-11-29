@@ -183,7 +183,9 @@ void UPrimitiveComponent::RecreatePhysicsBody()
 		return;
 	}
 
-	if (!PHYSICS.GetPhysics() || !PHYSICS.GetScene())
+	// World별 Physics Scene 사용
+	PxScene* WorldScene = World->GetPhysicsScene();
+	if (!PHYSICS.GetPhysics() || !WorldScene)
 	{
 		return;
 	}
@@ -199,6 +201,6 @@ void UPrimitiveComponent::RecreatePhysicsBody()
 	if (BodyInstance.IsValid())
 	{
 		OnCreatePhysicsState();
-		BodyInstance.AddToScene(PHYSICS.GetScene());
+		BodyInstance.AddToScene(WorldScene);
 	}
 }
