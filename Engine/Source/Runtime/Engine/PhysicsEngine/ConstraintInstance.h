@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "BodyInstance.h"
+#include "FBodyInstance.h"
 
 struct FConstraintInstance
 {

@@ -3,7 +3,7 @@
 #include "SceneComponent.h"
 #include "Material.h"
 #include "UPrimitiveComponent.generated.h"
-#include "BodyInstance.h"
+#include "FBodyInstance.h"
 
 // 전방 선언
 struct FSceneCompData;
@@ -79,12 +79,12 @@ public:
         return bIsCulled;
     }
 
-    // ───── 충돌 관련 ──────────────────────────── 
+    // ───── 충돌 관련 ────────────────────────────
     bool IsOverlappingActor(const AActor* Other) const;
     virtual const TArray<FOverlapInfo>& GetOverlapInfos() const { static TArray<FOverlapInfo> Empty; return Empty; }
 
-    //Delegate 
-    
+    //Delegate
+
     // ───── 복사 관련 ────────────────────────────
     void DuplicateSubObjects() override;
 
@@ -98,7 +98,7 @@ public:
 	FBodyInstance BodyInstance{this};
 protected:
     bool bIsCulled = false;
-     
+
     // ───── 충돌 관련 ────────────────────────────
 
 };

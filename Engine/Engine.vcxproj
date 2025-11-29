@@ -508,7 +508,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\Particle\DynamicEmitterDataBase.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\AggregateGeom.cpp" />
-    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\BodyInstance.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\FBodyInstance.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\BodySetup.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\BoxElem.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\CapsuleElem.cpp" />
@@ -871,7 +871,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\Particle\TypeData\ParticleModuleTypeDataBase.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\AggregateGeom.h" />
-    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\BodyInstance.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\FBodyInstance.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\BodySetup.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\BoxElem.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\CapsuleElem.h" />

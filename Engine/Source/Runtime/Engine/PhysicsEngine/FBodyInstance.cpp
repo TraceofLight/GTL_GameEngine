@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "PrimitiveComponent.h"
-#include "BodyInstance.h"
+#include "FBodyInstance.h"
 #include "BodySetup.h"
 #include "Source/Runtime/Engine/Components/ShapeComponent.h"
 #include "PhysXGlobals.h"
