@@ -4,12 +4,6 @@
 
 void FPhysicsEventCallback::onContact(const PxContactPairHeader& pairHeader, const PxContactPair* pairs, PxU32 nbPairs)
 {
-	PxRigidActor* actorA = pairHeader.actors[0];
-	PxRigidActor* actorB = pairHeader.actors[1];
-
-	void* dataA = actorA->userData;
-	void* dataB = actorB->userData;
-
 	for (PxU32 i = 0; i < nbPairs; ++i)
 	{
 		const PxContactPair& cp = pairs[i];
@@ -23,13 +17,11 @@ void FPhysicsEventCallback::onContact(const PxContactPairHeader& pairHeader, con
 		if (CompA)
 		{
 			CompA->OnComponentHit(CompB);
-
 		}
 
 		if (CompB)
 		{
 			CompB->OnComponentHit(CompA);
-
 		}
 	}
 }

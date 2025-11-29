@@ -43,6 +43,19 @@ void FBodyInstance::AddToScene(PxScene* Scene)
     if (PhysicsActor && Scene)
     {
         Scene->addActor(*PhysicsActor);
+
+        // 디버그: Scene에 추가된 총 액터 수 + 소유 액터 이름
+        PxU32 numActors = Scene->getNbActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC);
+        bool bIsDynamic = PhysicsActor->is<PxRigidDynamic>() != nullptr;
+        PxTransform T = PhysicsActor->getGlobalPose();
+
+        const char* compName = OwnerComponent ? OwnerComponent->GetName().c_str() : "null";
+        const char* actorName = (OwnerComponent && OwnerComponent->GetOwner())
+            ? OwnerComponent->GetOwner()->GetName().c_str() : "no_actor";
+
+        UE_LOG("[Physics] AddToScene: %s, Total:%u, Comp=%s, Actor=%s, Pos=(%.1f,%.1f,%.1f)",
+            bIsDynamic ? "Dynamic" : "Static", numActors,
+            compName, actorName, T.p.x, T.p.y, T.p.z);
     }
 }
 
@@ -53,6 +66,7 @@ void FBodyInstance::SyncPhysicsToComponent()
     if (PhysicsActor->is<PxRigidDynamic>())
     {
         PxTransform T = PhysicsActor->getGlobalPose();
+
         const FVector Scale = OwnerComponent->GetWorldScale();
         FTransform NewTransform(
             FVector(T.p.x, T.p.y, T.p.z),
@@ -81,16 +95,18 @@ bool FBodyInstance::IsDynamic() const
 
 void FBodyInstance::TermBody()
 {
-    if (PhysicsActor)
-    {
-        if (PxScene* Scene = PhysicsActor->getScene())
-        {
-            Scene->removeActor(*PhysicsActor);
-        }
+    if (!PhysicsActor)
+        return;
 
-        PhysicsActor->release();
-        PhysicsActor = nullptr;
+    // PhysX Scene에서 제거 (Scene이 유효한 경우에만)
+    PxScene* Scene = PhysicsActor->getScene();
+    if (Scene)
+    {
+        Scene->removeActor(*PhysicsActor);
     }
+
+    PhysicsActor->release();
+    PhysicsActor = nullptr;
 }
 
 void FBodyInstance::AttachBoxShape(PxPhysics* Physics, PxMaterial* Material, const PxVec3& halfExtents, const PxVec3& localOffset)

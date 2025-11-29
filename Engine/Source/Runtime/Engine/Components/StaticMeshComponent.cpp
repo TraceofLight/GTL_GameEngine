@@ -225,8 +225,16 @@ void UStaticMeshComponent::OnCreatePhysicsState()
 
 	// SMC에서 PhysX(physics) 범위를 정한다. (기본은 AABB의 정보로 Box Collider)
 
-	if (!StaticMesh || !  PHYSICS.GetPhysics())
+	if (!StaticMesh)
+	{
+		UE_LOG("[Physics] OnCreatePhysicsState FAILED: StaticMesh is null! Component=%s", GetName().c_str());
 		return;
+	}
+	if (!PHYSICS.GetPhysics())
+	{
+		UE_LOG("[Physics] OnCreatePhysicsState FAILED: Physics is null! Component=%s", GetName().c_str());
+		return;
+	}
 
 	const FAABB LocalBound = StaticMesh->GetLocalBound();
 	const FVector LocalMin = LocalBound.Min;
@@ -248,6 +256,9 @@ void UStaticMeshComponent::OnCreatePhysicsState()
 		LocalCenter.Y * S.Y,
 		LocalCenter.Z * S.Z
 	);
+
+	UE_LOG("[Physics] OnCreatePhysicsState: Attaching BoxShape, HalfExtents=(%.2f, %.2f, %.2f), Component=%s",
+		HalfExtents.x, HalfExtents.y, HalfExtents.z, GetName().c_str());
 
 	// TODO: 일단은 박스 모양으로 설정
 	BodyInstance.AttachBoxShape(PHYSICS.GetPhysics(), PHYSICS.GetDefaultMaterial(), HalfExtents, LocalOffset);

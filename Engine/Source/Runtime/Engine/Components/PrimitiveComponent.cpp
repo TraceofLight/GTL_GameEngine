@@ -4,13 +4,21 @@
 #include "Actor.h"
 #include "WorldPartitionManager.h"
 // IMPLEMENT_CLASS is now auto-generated in .generated.cpp
-UPrimitiveComponent::UPrimitiveComponent() : bGenerateOverlapEvents(true), bSimulatePhysics(false)
+UPrimitiveComponent::UPrimitiveComponent()
+	: bGenerateOverlapEvents(true)
+	, bSimulatePhysics(false)
+	, bSimulatePhysics_Cached(false)
 {
+	// 물리 시뮬레이션 변경 감지를 위해 Tick 활성화
+	bCanEverTick = true;
 }
 
 void UPrimitiveComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// 캐시 동기화 후 물리 바디 생성
+	bSimulatePhysics_Cached = bSimulatePhysics;
 	RecreatePhysicsBody();
 }
 
@@ -22,6 +30,13 @@ void UPrimitiveComponent::InitPhysX()
 void UPrimitiveComponent::TickComponent(float DeltaSeconds)
 {
 	Super::TickComponent(DeltaSeconds);
+
+	// bSimulatePhysics 값이 외부에서 직접 변경되었는지 감지 (ImGui 등)
+	if (bSimulatePhysics != bSimulatePhysics_Cached)
+	{
+		bSimulatePhysics_Cached = bSimulatePhysics;
+		RecreatePhysicsBody();
+	}
 
 	if (bSimulatePhysics)
 	{
@@ -84,6 +99,9 @@ void UPrimitiveComponent::SetMaterialByName(uint32 InElementIndex, const FString
 void UPrimitiveComponent::DuplicateSubObjects()
 {
     Super::DuplicateSubObjects();
+
+    // FBodyInstance의 OwnerComponent를 복제된 컴포넌트(this)로 재설정
+    BodyInstance = FBodyInstance(this);
 }
 
 void UPrimitiveComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
@@ -93,8 +111,11 @@ void UPrimitiveComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
     const char* Key = "bSimulatePhysics";
     if (bInIsLoading)
     {
+        bool beforeValue = bSimulatePhysics;
         bool v = bSimulatePhysics;
         FJsonSerializer::ReadBool(InOutHandle, Key, v, v, false);
+        UE_LOG("[Physics] Serialize LOAD: Component=%s, before=%d, afterRead=%d",
+            GetName().c_str(), beforeValue, v);
         SetSimulatePhysics(v);
     }
     else
@@ -149,13 +170,23 @@ void UPrimitiveComponent::OnComponentEndOverlap(UPrimitiveComponent* Other)
 void UPrimitiveComponent::SetSimulatePhysics(bool bSimulate)
 {
 	bSimulatePhysics = bSimulate;
+	bSimulatePhysics_Cached = bSimulate;  // 캐시도 함께 업데이트
 	RecreatePhysicsBody();
 }
 
 void UPrimitiveComponent::RecreatePhysicsBody()
 {
-	if (!PHYSICS.GetPhysics() || !PHYSICS.GetScene())
+	// PIE World에서만 물리 body 생성 (Editor World에서는 생성하지 않음)
+	UWorld* World = GetWorld();
+	if (!World || !World->bPie)
+	{
 		return;
+	}
+
+	if (!PHYSICS.GetPhysics() || !PHYSICS.GetScene())
+	{
+		return;
+	}
 
 	if (BodyInstance.IsValid())
 	{

@@ -11,6 +11,24 @@ public:
     FBodyInstance(UPrimitiveComponent* InOwner) : OwnerComponent(InOwner), PhysicsActor(nullptr) {}
     ~FBodyInstance();
 
+    // 복사 시 PhysicsActor는 복사하지 않음 (dangling pointer 방지)
+    FBodyInstance(const FBodyInstance& Other)
+        : OwnerComponent(Other.OwnerComponent)
+        , PhysicsActor(nullptr)  // 물리 액터는 복사하지 않고 nullptr로 초기화
+    {
+    }
+
+    FBodyInstance& operator=(const FBodyInstance& Other)
+    {
+        if (this != &Other)
+        {
+            TermBody();  // 기존 물리 액터 정리
+            OwnerComponent = Other.OwnerComponent;
+            PhysicsActor = nullptr;  // 물리 액터는 복사하지 않음
+        }
+        return *this;
+    }
+
 	void CreateActor(PxPhysics* Physics, const FMatrix WorldMat, bool bIsDynamic);
 	void AddToScene(PxScene* Scene);
 
