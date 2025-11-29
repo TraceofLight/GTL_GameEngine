@@ -566,6 +566,8 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Slate\Windows\ConsoleWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ContentBrowserWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ControlPanelWindow.cpp" />
+    <ClCompile Include="Source\Slate\Windows\DynamicEditorPanels.cpp" />
+    <ClCompile Include="Source\Slate\Windows\DynamicEditorWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ExperimentalFeatureWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ParticleEditorWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\PropertyWindow.cpp" />
@@ -928,6 +930,8 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Slate\Windows\ConsoleWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ContentBrowserWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ControlPanelWindow.h" />
+    <ClInclude Include="Source\Slate\Windows\DynamicEditorPanels.h" />
+    <ClInclude Include="Source\Slate\Windows\DynamicEditorWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ExperimentalFeatureWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ParticleEditorWindow.h" />
     <ClInclude Include="Source\Slate\Windows\PropertyWindow.h" />
