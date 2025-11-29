@@ -72,7 +72,6 @@ namespace PhysXGlobals
         if (!gPhysics)
         {
             UE_LOG("[PhysX] ERROR: Failed to create PxPhysics");
-            ShutdownPhysX();
             return false;
         }
 
@@ -82,7 +81,6 @@ namespace PhysXGlobals
         if (!gCooking)
         {
             UE_LOG("[PhysX] ERROR: Failed to create PxCooking");
-            ShutdownPhysX();
             return false;
         }
 
@@ -91,14 +89,12 @@ namespace PhysXGlobals
         if (!gScene)
         {
             UE_LOG("[PhysX] ERROR: Failed to create PxScene");
-            ShutdownPhysX();
             return false;
         }
         CreateDefaultMaterial();
         if (!gMaterial)
         {
             UE_LOG("[PhysX] ERROR: Failed to create default PxMaterial");
-            ShutdownPhysX();
             return false;
         }
 

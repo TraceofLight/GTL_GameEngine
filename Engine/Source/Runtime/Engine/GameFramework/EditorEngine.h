@@ -51,8 +51,7 @@ private:
     static void GetViewportSize(HWND hWnd);
 
     void Tick(float DeltaSeconds);
-    void Render();
-	void Simulate(float DeltaSeconds);
+    void Render(); 
 
     void HandleUVInput(float DeltaSeconds);
 

@@ -10,18 +10,22 @@ using namespace physx;
 struct FBodyInstance
 {
 public:
-	FBodyInstance(UPrimitiveComponent* InOwner) : OwnerComponent(InOwner), PhysicsActor(nullptr) {}
-	~FBodyInstance();
+    FBodyInstance(UPrimitiveComponent* InOwner) : OwnerComponent(InOwner), PhysicsActor(nullptr) {}
+    ~FBodyInstance();
 
-	void InitBody(PxPhysics* Physics, PxScene* Scene, const FMatrix WorldMat, bool bIsDynamic);
+	void CreateActor(PxPhysics* Physics, const FMatrix WorldMat, bool bIsDynamic);
+	void AddToScene(PxScene* Scene);
 
-	void SyncPhysicsToComponent();
+    void SyncPhysicsToComponent();
+    void SetBodyTransform(const FMatrix& NewMatrix);
+    bool IsDynamic() const; 
 
-	void SetBodyTransform(const FMatrix& NewMatrix);
+    // Attach a simple box shape to the body (AABB-based). Half extents in meters.
+    void AttachBoxShape(PxPhysics* Physics, PxMaterial* Material, const PxVec3& halfExtents, const PxVec3& localOffset = PxVec3(0,0,0));
 
-	bool IsDynamic() const;
+    void TermBody();
 
-	void TermBody();
+	bool IsValid() const { return PhysicsActor != nullptr; }
 
     // Extended API
     void CreateShapesFromBodySetup();
@@ -33,8 +37,8 @@ public:
 
 private:
     UPrimitiveComponent* OwnerComponent;
-    PxRigidActor* PhysicsActor; // Dynamic or Static
+    PxRigidActor* PhysicsActor; // Dynamic과 Static의 부모 클래스
     PxMaterial* MaterialOverride = nullptr;
-
+	
     TArray<PxShape*> Shapes;
 };

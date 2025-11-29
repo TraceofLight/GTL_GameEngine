@@ -196,7 +196,7 @@ bool UEditorEngine::Startup(HINSTANCE hInstance)
     INPUT.Initialize(HWnd);
 
     // PhysX: initialize SDK/scene/material before world initialization
-    PhysXGlobals::InitializePhysX(false);
+    // PhysXGlobals::InitializePhysX(false);
 
     // 통합 에셋 프리로드
     UResourceManager::GetInstance().PreloadAllAssets();
@@ -266,14 +266,6 @@ void UEditorEngine::HandleUVInput(float DeltaSeconds)
 
 }
 
-void UEditorEngine::Simulate(float DeltaSeconds)
-{
-    if (!gScene)
-        return;
-
-    gScene->simulate(DeltaSeconds);
-    gScene->fetchResults(true); 
-}
 
 void UEditorEngine::MainLoop()
 {
@@ -324,8 +316,9 @@ void UEditorEngine::MainLoop()
             bChangedPieToEditor = false;
         }
 
+
         Tick(DeltaSeconds);
-		Simulate(DeltaSeconds);
+		PHYSICS.Simulate(DeltaSeconds);
         Render();
 
         // Shader Hot Reloading - Call AFTER render to avoid mid-frame resource conflicts
@@ -369,7 +362,7 @@ void UEditorEngine::Shutdown()
     RHIDevice.Release();
 
     // PhysX shutdown (release scene/SDK)
-    PhysXGlobals::ShutdownPhysX();
+    // PhysXGlobals::ShutdownPhysX();
 
     SaveIniFile();
 }

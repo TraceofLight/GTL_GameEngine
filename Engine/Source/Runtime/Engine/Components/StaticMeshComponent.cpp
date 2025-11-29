@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "StaticMeshComponent.h"
 #include "StaticMesh.h"
 #include "Shader.h"
@@ -219,12 +219,57 @@ void UStaticMeshComponent::OnTransformUpdated()
 	MarkWorldPartitionDirty();
 }
 
+void UStaticMeshComponent::OnCreatePhysicsState()
+{
+	Super::OnCreatePhysicsState();
+
+	// SMC에서 PhysX(physics) 범위를 정한다. (기본은 AABB의 정보로 Box Collider)
+
+	if (!StaticMesh || !  PHYSICS.GetPhysics())
+		return;
+
+	const FAABB LocalBound = StaticMesh->GetLocalBound();
+	const FVector LocalMin = LocalBound.Min;
+	const FVector LocalMax = LocalBound.Max;
+	const FVector LocalCenter = (LocalMin + LocalMax) * 0.5f;
+	const FVector LocalExtents = (LocalMax - LocalMin) * 0.5f;
+
+	const FVector S = GetWorldScale();
+	const FVector AbsS(FMath::Abs(S.X), FMath::Abs(S.Y), FMath::Abs(S.Z));
+
+	const PxVec3 HalfExtents(
+		LocalExtents.X * AbsS.X,
+		LocalExtents.Y * AbsS.Y,
+		LocalExtents.Z * AbsS.Z
+	);
+
+	const PxVec3 LocalOffset(
+		LocalCenter.X * S.X,
+		LocalCenter.Y * S.Y,
+		LocalCenter.Z * S.Z
+	);
+
+	// TODO: 일단은 박스 모양으로 설정
+	BodyInstance.AttachBoxShape(PHYSICS.GetPhysics(), PHYSICS.GetDefaultMaterial(), HalfExtents, LocalOffset);
+}
+
 void UStaticMeshComponent::DuplicateSubObjects()
 {
-	Super::DuplicateSubObjects();
+    Super::DuplicateSubObjects();
 }
 
 void UStaticMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
-	Super::Serialize(bInIsLoading, InOutHandle);
+    Super::Serialize(bInIsLoading, InOutHandle);
+}
+
+void UStaticMeshComponent::BeginPlay()
+{
+    Super::BeginPlay();
+	 
+}
+
+void UStaticMeshComponent::EndPlay()
+{ 
+    Super::EndPlay();
 }

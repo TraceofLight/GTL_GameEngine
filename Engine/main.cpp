@@ -25,6 +25,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	InitializeMiniDump();
 
+	PHYSICS.Initialize();
+
 	if (!GEngine.Startup(hInstance))
         return -1;
 
