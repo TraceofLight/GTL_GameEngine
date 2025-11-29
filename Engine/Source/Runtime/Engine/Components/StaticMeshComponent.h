@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "MeshComponent.h"
 #include "AABB.h"
@@ -16,12 +16,12 @@ class UStaticMeshComponent : public UMeshComponent
 {
 public:
 
-    GENERATED_REFLECTION_BODY()
+	GENERATED_REFLECTION_BODY()
 
-    UStaticMeshComponent();
+	UStaticMeshComponent();
 
 protected:
-    ~UStaticMeshComponent() override;
+	~UStaticMeshComponent() override;
 
 public:
 
@@ -38,17 +38,18 @@ public:
 	virtual void SetStaticMesh(const FString& PathFileName);
 
 	UStaticMesh* GetStaticMesh() const { return StaticMesh; }
-	
+
 	FAABB GetWorldAABB() const override;
 
-    void DuplicateSubObjects() override;
+	void DuplicateSubObjects() override;
+
+
+protected:
+	void OnTransformUpdated() override;
 
     // Physics hookup for StaticMesh only (AABB-based)
     void BeginPlay() override;
     void EndPlay() override;
-
-protected:
-    void OnTransformUpdated() override;
 
 	void OnCreatePhysicsState() override;
 protected:

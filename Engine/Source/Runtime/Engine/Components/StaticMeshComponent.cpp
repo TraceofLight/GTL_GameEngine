@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "StaticMeshComponent.h"
 #include "StaticMesh.h"
 #include "Shader.h"
@@ -10,6 +10,7 @@
 #include "Material.h"
 #include "SceneView.h"
 #include "LuaBindHelpers.h"
+#include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
 
 UStaticMeshComponent::UStaticMeshComponent() = default;
 
@@ -132,9 +133,10 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 	auto& RM = UResourceManager::GetInstance();
 
 	// Default 메쉬 즉시 표시 → 로드 완료 시 교체
-	StaticMesh = RM.GetDefaultStaticMesh();
-	if (StaticMesh && StaticMesh->GetStaticMeshAsset())
-	{
+    StaticMesh = RM.GetDefaultStaticMesh();
+    if (StaticMesh && StaticMesh->GetStaticMeshAsset())
+    {
+        StaticMesh->EnsureBodySetupBuilt();
 		const TArray<FGroupInfo>& GroupInfos = StaticMesh->GetMeshGroupInfo();
 		MaterialSlots.resize(GroupInfos.size());
 
@@ -147,9 +149,10 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 
 	RM.AsyncLoad<UStaticMesh>(PathFileName, [this, PathFileName](UStaticMesh* LoadedMesh)
 	{
-		if (LoadedMesh && LoadedMesh->GetStaticMeshAsset())
-		{
-			this->StaticMesh = LoadedMesh;
+        if (LoadedMesh && LoadedMesh->GetStaticMeshAsset())
+        {
+            this->StaticMesh = LoadedMesh;
+            this->StaticMesh->EnsureBodySetupBuilt();
 
 			const TArray<FGroupInfo>& GroupInfos = LoadedMesh->GetMeshGroupInfo();
 			this->MaterialSlots.resize(GroupInfos.size());
@@ -164,8 +167,20 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 		else
 		{
 			UE_LOG("[warning] StaticMeshComponent: Failed to load %s, keeping default cube", PathFileName.c_str());
-		}
-	}, EAssetLoadPriority::Normal);
+        }
+    }, EAssetLoadPriority::Normal);
+}
+
+void UStaticMeshComponent::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // After the body is created in UPrimitiveComponent::BeginPlay, attach shapes from BodySetup
+    if (StaticMesh && StaticMesh->GetBodySetup())
+    {
+        BodyInstance.BodySetup = StaticMesh->GetBodySetup();
+        BodyInstance.CreateShapesFromBodySetup();
+    }
 }
 
 FAABB UStaticMeshComponent::GetWorldAABB() const
@@ -263,13 +278,7 @@ void UStaticMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
     Super::Serialize(bInIsLoading, InOutHandle);
 }
 
-void UStaticMeshComponent::BeginPlay()
-{
-    Super::BeginPlay();
-	 
-}
-
 void UStaticMeshComponent::EndPlay()
-{ 
+{
     Super::EndPlay();
 }

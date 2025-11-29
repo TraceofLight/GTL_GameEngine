@@ -112,6 +112,31 @@ void FBodyInstance::CreateShapesFromBodySetup()
         PhysicsActor->attachShape(*Shape);
         Shapes.Add(Shape);
     }
+
+    // Capsules (Sphyls)
+    for (const FKCapsuleElem& C : BodySetup->AggGeom.SphylElems)
+    {
+        if (C.Radius <= 0.0f || C.Length <= 0.0f) continue; // PhysX requires positive dimensions
+        // PxCapsuleGeometry: radius and halfHeight (half of the cylindrical part length)
+        PxCapsuleGeometry Geom(C.Radius, C.Length * 0.5f);
+        // PhysX capsules are X-axis aligned; apply user rotation
+        const FQuat R = FQuat::MakeFromEulerZYX(C.Rotation);
+        PxQuat Q(R.X, R.Y, R.Z, R.W);
+        PxTransform LocalPose(PxVec3(C.Center.X, C.Center.Y, C.Center.Z), Q);
+        PxShape* Shape = Physics->createShape(Geom, *Mat, true);
+        if (!Shape) continue;
+        Shape->setLocalPose(LocalPose);
+        PhysicsActor->attachShape(*Shape);
+        Shapes.Add(Shape);
+    }
+
+	// If dynamic, compute mass/inertia now that shapes are attached
+	if (PhysicsActor && PhysicsActor->is<PxRigidDynamic>())
+	{
+		PxRigidDynamic* Dyn = PhysicsActor->is<PxRigidDynamic>();
+		PxRigidBodyExt::updateMassAndInertia(*Dyn, 1000.0f);
+		Dyn->wakeUp();
+	}
 }
 
 void FBodyInstance::AddSimpleShape(const FShape& S)
@@ -162,6 +187,14 @@ void FBodyInstance::AddSimpleShape(const FShape& S)
     default:
         break;
     }
+
+	// If dynamic, recompute mass/inertia and wake
+	if (PhysicsActor && PhysicsActor->is<PxRigidDynamic>())
+	{
+		PxRigidDynamic* Dyn = PhysicsActor->is<PxRigidDynamic>();
+		PxRigidBodyExt::updateMassAndInertia(*Dyn, 1000.0f);
+		Dyn->wakeUp();
+	}
 }
 
 bool FBodyInstance::IsDynamic() const

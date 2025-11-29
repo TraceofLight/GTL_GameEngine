@@ -18,7 +18,7 @@ public:
 
     void SyncPhysicsToComponent();
     void SetBodyTransform(const FMatrix& NewMatrix);
-    bool IsDynamic() const; 
+    bool IsDynamic() const;
 
     // Attach a simple box shape to the body (AABB-based). Half extents in meters.
     void AttachBoxShape(PxPhysics* Physics, PxMaterial* Material, const PxVec3& halfExtents, const PxVec3& localOffset = PxVec3(0,0,0));
@@ -39,6 +39,6 @@ private:
     UPrimitiveComponent* OwnerComponent;
     PxRigidActor* PhysicsActor; // Dynamic과 Static의 부모 클래스
     PxMaterial* MaterialOverride = nullptr;
-	
+
     TArray<PxShape*> Shapes;
 };

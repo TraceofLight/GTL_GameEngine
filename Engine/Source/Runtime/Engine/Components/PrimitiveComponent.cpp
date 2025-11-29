@@ -6,6 +6,7 @@
 // IMPLEMENT_CLASS is now auto-generated in .generated.cpp
 UPrimitiveComponent::UPrimitiveComponent() : bGenerateOverlapEvents(true), bSimulatePhysics(false)
 {
+    bSimulatePhysics = true;
 }
 
 void UPrimitiveComponent::BeginPlay()

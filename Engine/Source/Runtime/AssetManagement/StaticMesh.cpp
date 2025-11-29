@@ -4,6 +4,8 @@
 #include "ObjManager.h"
 #include "ResourceManager.h"
 #include "FBXLoader.h"
+#include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
+#include "Source/Runtime/Engine/PhysicsEngine/BoxElem.h"
 #include <filesystem>
 
 IMPLEMENT_CLASS(UStaticMesh)
@@ -45,6 +47,29 @@ namespace
 UStaticMesh::~UStaticMesh()
 {
     ReleaseResources();
+}
+
+void UStaticMesh::EnsureBodySetupBuilt()
+{
+    if (BodySetup)
+        return;
+
+    // Build a simple box from the local bound as default collision
+    BodySetup = NewObject<UBodySetup>();
+    if (!BodySetup)
+        return;
+
+    const FAABB& LB = GetLocalBound();
+    const FVector Center = LB.GetCenter();
+    const FVector Half = LB.GetHalfExtent();
+
+    FKBoxElem Box;
+    Box.Center = Center;
+    Box.Rotation = FVector(0, 0, 0);
+    Box.X = Half.X;
+    Box.Y = Half.Y;
+    Box.Z = Half.Z;
+    BodySetup->AggGeom.BoxElems.Add(Box);
 }
 
 void UStaticMesh::Load(const FString& InFilePath, ID3D11Device* InDevice, EVertexLayoutType InVertexType)
@@ -94,6 +119,9 @@ void UStaticMesh::Load(const FString& InFilePath, ID3D11Device* InDevice, EVerte
         CreateLocalBound(StaticMeshAsset);
         VertexCount = static_cast<uint32>(StaticMeshAsset->Vertices.size());
         IndexCount = static_cast<uint32>(StaticMeshAsset->Indices.size());
+
+        // Build default collision once we have a bound
+        EnsureBodySetupBuilt();
     }
 }
 
