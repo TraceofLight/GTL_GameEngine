@@ -67,8 +67,6 @@ FPhysicsSceneHandle FPhysicsManager::CreateScene()
 	// Scene 생성
 	Handle.Scene = Physics->createScene(sceneDesc);
 
-	UE_LOG("[Physics] CreateScene: Scene=%p", Handle.Scene);
-
 	return Handle;
 }
 
@@ -76,7 +74,6 @@ void FPhysicsManager::DestroyScene(FPhysicsSceneHandle& Handle)
 {
 	if (Handle.Scene)
 	{
-		UE_LOG("[Physics] DestroyScene: Scene=%p", Handle.Scene);
 		Handle.Scene->release();
 		Handle.Scene = nullptr;
 	}

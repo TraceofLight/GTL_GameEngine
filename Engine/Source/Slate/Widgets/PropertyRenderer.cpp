@@ -596,16 +596,7 @@ bool UPropertyRenderer::RenderBoolProperty(const FProperty& Prop, void* Instance
 	bool* Value = Prop.GetValuePtr<bool>(Instance);
 	if (!Value) return false;
 
-	bool oldValue = *Value;
 	bool bChanged = ImGui::Checkbox(Prop.Name, Value);
-
-	// bSimulatePhysics 디버깅
-	if (strcmp(Prop.Name, "bSimulatePhysics") == 0 && bChanged)
-	{
-		UE_LOG("[Physics] ImGui changed bSimulatePhysics: %d -> %d, Instance=%p, Offset=%zu, ValuePtr=%p",
-			oldValue, *Value, Instance, Prop.Offset, Value);
-	}
-
 	return bChanged;
 }
 

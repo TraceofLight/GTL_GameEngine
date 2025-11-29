@@ -111,11 +111,8 @@ void UPrimitiveComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
     const char* Key = "bSimulatePhysics";
     if (bInIsLoading)
     {
-        bool beforeValue = bSimulatePhysics;
         bool v = bSimulatePhysics;
         FJsonSerializer::ReadBool(InOutHandle, Key, v, v, false);
-        UE_LOG("[Physics] Serialize LOAD: Component=%s, before=%d, afterRead=%d",
-            GetName().c_str(), beforeValue, v);
         SetSimulatePhysics(v);
     }
     else
