@@ -591,10 +591,34 @@ void UPropertyRenderer::ClearResourcesCache()
 
 // ===== 타입별 렌더링 구현 =====
 
+//bool UPropertyRenderer::RenderBoolProperty(const FProperty& Prop, void* Instance)
+//{
+//	bool* Value = Prop.GetValuePtr<bool>(Instance);
+//	return ImGui::Checkbox(Prop.Name, Value);
+//}
+
 bool UPropertyRenderer::RenderBoolProperty(const FProperty& Prop, void* Instance)
 {
 	bool* Value = Prop.GetValuePtr<bool>(Instance);
-	return ImGui::Checkbox(Prop.Name, Value);
+	if (!Value) return false;
+
+	bool bChanged = ImGui::Checkbox(Prop.Name, Value);
+
+	if (bChanged)
+	{
+		if (strcmp(Prop.Name, "bSimulatePhysics") == 0)
+		{
+			UObject* Obj = static_cast<UObject*>(Instance);
+			if (Obj && Obj->IsA(UPrimitiveComponent::StaticClass()))
+			{
+				UPrimitiveComponent* Prim = static_cast<UPrimitiveComponent*>(Obj);
+				Prim->SetSimulatePhysics(*Value);
+			}
+		}
+	}
+	return bChanged;
+
+
 }
 
 bool UPropertyRenderer::RenderInt32Property(const FProperty& Prop, void* Instance)

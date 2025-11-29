@@ -261,15 +261,7 @@ void UEditorEngine::HandleUVInput(float DeltaSeconds)
     }
 
 }
-
-void UEditorEngine::Simulate(float DeltaSeconds)
-{
-    if (!gScene)
-        return;
-
-    gScene->simulate(DeltaSeconds);
-    gScene->fetchResults(true); 
-}
+ 
 
 void UEditorEngine::MainLoop()
 {
@@ -320,8 +312,9 @@ void UEditorEngine::MainLoop()
             bChangedPieToEditor = false;
         }
 
+
         Tick(DeltaSeconds);
-		Simulate(DeltaSeconds);
+		PHYSICS.Simulate(DeltaSeconds);
         Render();
 
         // Shader Hot Reloading - Call AFTER render to avoid mid-frame resource conflicts

@@ -33,8 +33,11 @@ public:
 
 	void UpdateWorldMatrixFromPhysics(const FMatrix& NewWorldMatrix);
 
-    // ===== Lua-Bindable Properties (Auto-moved from protected/private) =====
+	// 물리 시뮬리에션
+	UPROPERTY(EditAnywhere, Category = "Physics")
+	bool bSimulatePhysics;
 
+    // ===== Lua-Bindable Properties (Auto-moved from protected/private) ===== 
     UPROPERTY(EditAnywhere, Category="Shape")
     bool bGenerateOverlapEvents;
 
@@ -76,11 +79,18 @@ public:
     }
 
     // ───── 충돌 관련 ──────────────────────────── 
-    bool IsOverlappingActor(const AActor* Other) const;
+    bool IsOverlappingActor    (const AActor* Other) const;
     virtual const TArray<FOverlapInfo>& GetOverlapInfos() const { static TArray<FOverlapInfo> Empty; return Empty; }
 
-    //Delegate 
-    
+	virtual void OnComponentHit(UPrimitiveComponent* Other);
+	virtual void OnComponentBeginOverlap(UPrimitiveComponent* Other);
+	virtual void OnComponentEndOverlap(UPrimitiveComponent* Other);
+
+	void InitPhysX();
+
+	void SetSimulatePhysics(bool bSimulate);
+	bool IsSimulatingPhysics() const { return bSimulatePhysics; }
+
     // ───── 복사 관련 ────────────────────────────
     void DuplicateSubObjects() override;
 
@@ -93,8 +103,10 @@ public:
 
 	FBodyInstance BodyInstance{this};
 protected:
+    // Create/replace PhysX actor and attach shapes to match current settings
+    void RecreatePhysicsBody();
     bool bIsCulled = false;
      
     // ───── 충돌 관련 ────────────────────────────
-
+	virtual void OnCreatePhysicsState();
 };

@@ -32,16 +32,14 @@
 #include <iterator>
 
 //PhysX
-#include "PhysX/PxPhysicsAPI.h" 
-using namespace physx; 
-extern PxDefaultAllocator gAllocator;
-extern PxDefaultErrorCallback gErrorCallback;
-extern PxFoundation* gFoundation;
-extern PxPhysics* gPhysics;
-extern PxScene* gScene;
-extern PxMaterial* gMaterial;
-extern PxDefaultCpuDispatcher* gDispatcher;
+#include "PhysX/PxPhysicsAPI.h"
+#include "PhysicsManager.h"
 
+using namespace physx;
+extern PxDefaultAllocator      gAllocator;
+extern PxDefaultErrorCallback  gErrorCallback;
+
+#define PHYSICS     FPhysicsManager::GetInstance() 
 
 // Windows & DirectX
 #include <windows.h>

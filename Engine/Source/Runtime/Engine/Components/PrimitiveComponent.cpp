@@ -4,26 +4,31 @@
 #include "Actor.h"
 #include "WorldPartitionManager.h"
 // IMPLEMENT_CLASS is now auto-generated in .generated.cpp
-UPrimitiveComponent::UPrimitiveComponent() : bGenerateOverlapEvents(true)
+UPrimitiveComponent::UPrimitiveComponent() : bGenerateOverlapEvents(true), bSimulatePhysics(false)
 {
 }
 
 void UPrimitiveComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (gPhysics && gScene)
-	{
-		// 예시: Movable이면 Dynamic, 아니면 Static
-		//bool bIsDynamic = (Mobility == EComponentMobility::Movable);
-		BodyInstance.InitBody(gPhysics, gScene, GetWorldTransform().ToMatrix(), true);
-	}
+	RecreatePhysicsBody();
 }
+
+void UPrimitiveComponent::InitPhysX()
+{
+	RecreatePhysicsBody();
+}
+
 void UPrimitiveComponent::TickComponent(float DeltaSeconds)
 {
 	Super::TickComponent(DeltaSeconds);
-	BodyInstance.SyncPhysicsToComponent();
+
+	if (bSimulatePhysics)
+	{
+		BodyInstance.SyncPhysicsToComponent();
+	}
 }
+
 void UPrimitiveComponent::EndPlay()
 {
 	BodyInstance.TermBody();
@@ -38,7 +43,7 @@ void UPrimitiveComponent::OnRegister(UWorld* InWorld)
 {
     Super::OnRegister(InWorld);
 
-    // UStaticMeshComponent라면 World Partition에 추가. (null 체크는 Register 내부에서 수행)
+    // UStaticMeshComponent??野껊갭??World Partition????⑤베堉?. (null 癲ル슪???띿물??Register ????????????얜Ŧ類?
     if (InWorld)
     {
         if (UWorldPartitionManager* Partition = InWorld->GetPartitionManager())
@@ -84,6 +89,23 @@ void UPrimitiveComponent::DuplicateSubObjects()
 void UPrimitiveComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
     Super::Serialize(bInIsLoading, InOutHandle);
+
+    const char* Key = "bSimulatePhysics";
+    if (bInIsLoading)
+    {
+        bool v = bSimulatePhysics;
+        FJsonSerializer::ReadBool(InOutHandle, Key, v, v, false);
+        SetSimulatePhysics(v);
+    }
+    else
+    {
+        InOutHandle[Key] = bSimulatePhysics;
+    }
+}
+
+void UPrimitiveComponent::OnCreatePhysicsState()
+{
+	// ???筌????????怨좊군?????筌??癲ル슢?꾤땟怨⑹젂??癲ル슢???섎뼀?Physics ???源놁젳
 }
 
 bool UPrimitiveComponent::IsOverlappingActor(const AActor* Other) const
@@ -107,5 +129,45 @@ bool UPrimitiveComponent::IsOverlappingActor(const AActor* Other) const
             }
         }
     }
+
     return false;
+}
+
+void UPrimitiveComponent::OnComponentHit(UPrimitiveComponent* Other)
+{
+	// ???ㅼ굡?곗㏓쎗??우┻?????誘⑦←뵳??釉먮윞??癲??????
+
+}
+
+void UPrimitiveComponent::OnComponentBeginOverlap(UPrimitiveComponent* Other)
+{
+}
+
+void UPrimitiveComponent::OnComponentEndOverlap(UPrimitiveComponent* Other)
+{
+}
+void UPrimitiveComponent::SetSimulatePhysics(bool bSimulate)
+{
+	bSimulatePhysics = bSimulate;
+	RecreatePhysicsBody();
+}
+
+void UPrimitiveComponent::RecreatePhysicsBody()
+{
+	if (!PHYSICS.GetPhysics() || !PHYSICS.GetScene())
+		return;
+
+	if (BodyInstance.IsValid())
+	{
+		BodyInstance.TermBody();
+	}
+
+	const bool bIsDynamic = bSimulatePhysics;
+	BodyInstance.CreateActor(PHYSICS.GetPhysics(), GetWorldTransform().ToMatrix(), bIsDynamic);
+
+	if (BodyInstance.IsValid())
+	{
+		OnCreatePhysicsState();
+		BodyInstance.AddToScene(PHYSICS.GetScene());
+	}
 }
