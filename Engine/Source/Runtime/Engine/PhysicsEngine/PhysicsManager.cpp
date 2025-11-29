@@ -47,6 +47,10 @@ void FPhysicsManager::Initialize()
 
 	// 6. 기본 머티리얼
 	DefaultMaterial = Physics->createMaterial(0.5f, 0.5f, 0.6f);
+
+	// 7. Cooking interface
+	PxCookingParams cookParams(Physics->getTolerancesScale());
+	Cooking = PxCreateCooking(PX_PHYSICS_VERSION, *Foundation, cookParams);
 }
 
 void FPhysicsManager::Shutdown()
@@ -54,6 +58,8 @@ void FPhysicsManager::Shutdown()
 	// 역순 파괴
 	if (Scene) { Scene->release(); Scene = nullptr; }
 	if (Dispatcher) { Dispatcher->release(); Dispatcher = nullptr; }
+	if (DefaultMaterial) { DefaultMaterial->release(); DefaultMaterial = nullptr; }
+	if (Cooking) { Cooking->release(); Cooking = nullptr; }
 	if (Physics) { Physics->release(); Physics = nullptr; }
 	if (SimulationCallback) { delete SimulationCallback; SimulationCallback = nullptr; }
 	if (Foundation) { Foundation->release(); Foundation = nullptr; }

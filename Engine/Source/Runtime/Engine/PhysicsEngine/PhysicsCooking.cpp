@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "PhysicsCooking.h"
 
-#include "PhysXGlobals.h"
 #include "PhysX/PxPhysicsAPI.h"
 
 using namespace physx;
@@ -31,7 +30,9 @@ bool PhysicsCooking::CookTriangleMesh(const TArray<FVector>& Vertices,
 {
     OutTriMesh = nullptr;
 
-    if (!gCooking || !gPhysics) return false;
+    PxCooking* Cooking = PHYSICS.GetCooking();
+    PxPhysics* Physics = PHYSICS.GetPhysics();
+    if (!Cooking || !Physics) return false;
     if (Vertices.IsEmpty() || Indices.IsEmpty() || (Indices.Num() % 3) != 0) return false;
 
     PxTriangleMeshDesc desc;
@@ -39,14 +40,14 @@ bool PhysicsCooking::CookTriangleMesh(const TArray<FVector>& Vertices,
     FillBoundedDataTriangles(Indices, desc.triangles);
 
     PxDefaultMemoryOutputStream cooked;
-    if (!gCooking->cookTriangleMesh(desc, cooked))
+    if (!Cooking->cookTriangleMesh(desc, cooked))
     {
         UE_LOG("[PhysXCooking] cookTriangleMesh failed");
         return false;
     }
 
     PxDefaultMemoryInputData input(cooked.getData(), cooked.getSize());
-    PxTriangleMesh* mesh = gPhysics->createTriangleMesh(input);
+    PxTriangleMesh* mesh = Physics->createTriangleMesh(input);
     if (!mesh)
     {
         UE_LOG("[PhysXCooking] createTriangleMesh failed");
@@ -63,7 +64,9 @@ bool PhysicsCooking::CookConvex(const TArray<FVector>& Vertices,
 {
     OutConvex = nullptr;
 
-    if (!gCooking || !gPhysics) return false;
+    PxCooking* Cooking = PHYSICS.GetCooking();
+    PxPhysics* Physics = PHYSICS.GetPhysics();
+    if (!Cooking || !Physics) return false;
     if (Vertices.IsEmpty()) return false;
 
     PxConvexMeshDesc desc;
@@ -78,14 +81,14 @@ bool PhysicsCooking::CookConvex(const TArray<FVector>& Vertices,
     }
 
     PxDefaultMemoryOutputStream cooked;
-    if (!gCooking->cookConvexMesh(desc, cooked))
+    if (!Cooking->cookConvexMesh(desc, cooked))
     {
         UE_LOG("[PhysXCooking] cookConvexMesh failed");
         return false;
     }
 
     PxDefaultMemoryInputData input(cooked.getData(), cooked.getSize());
-    PxConvexMesh* mesh = gPhysics->createConvexMesh(input);
+    PxConvexMesh* mesh = Physics->createConvexMesh(input);
     if (!mesh)
     {
         UE_LOG("[PhysXCooking] createConvexMesh failed");

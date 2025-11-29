@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "BodySetup.h"
-#include "PhysXGlobals.h"
 
 IMPLEMENT_CLASS(UBodySetup)
 

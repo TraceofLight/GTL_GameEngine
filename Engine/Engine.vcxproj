@@ -518,7 +518,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsAsset.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsConstraintSetup.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsCooking.cpp" />
-    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysXGlobals.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\ShapeElem.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\SphereElem.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Scripting\GameObject.cpp" />
@@ -883,7 +882,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsAsset.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsConstraintSetup.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsCooking.h" />
-    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysXGlobals.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\ShapeElem.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\SphereElem.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\GameObject.h" />

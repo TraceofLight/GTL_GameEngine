@@ -8,6 +8,9 @@
 #   include <crtdbg.h>
 #endif
 
+PxDefaultAllocator gAllocator;
+PxDefaultErrorCallback gErrorCallback;
+
 // Note: Old test helper using a "GameObject" struct has been removed
 // because that struct is no longer defined. Physics bodies are now
 // created and managed via FBodyInstance on components.

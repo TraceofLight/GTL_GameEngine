@@ -38,12 +38,6 @@
 using namespace physx;
 extern PxDefaultAllocator      gAllocator;
 extern PxDefaultErrorCallback  gErrorCallback;
-extern PxFoundation*           gFoundation;
-extern PxPhysics*              gPhysics;
-extern PxScene*                gScene;
-extern PxMaterial*             gMaterial;
-extern PxDefaultCpuDispatcher* gDispatcher;
-extern PxCooking*              gCooking;
 
 #define PHYSICS     FPhysicsManager::GetInstance() 
 

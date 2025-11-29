@@ -3,7 +3,6 @@
 #include "FBodyInstance.h"
 #include "BodySetup.h"
 #include "Source/Runtime/Engine/Components/ShapeComponent.h"
-#include "PhysXGlobals.h"
 // For mass/inertia helpers
 #include "extensions/PxRigidBodyExt.h"
 
@@ -82,15 +81,18 @@ void FBodyInstance::CreateShapesFromBodySetup()
 {
     if (!PhysicsActor || !BodySetup) return;
 
-    PxMaterial* Mat = MaterialOverride ? MaterialOverride : gMaterial;
+    PxMaterial* Mat = MaterialOverride ? MaterialOverride : PHYSICS.GetDefaultMaterial();
     if (!Mat) return;
+
+    PxPhysics* Physics = PHYSICS.GetPhysics();
+    if (!Physics) return;
 
     // Spheres
     for (const FKSphereElem& S : BodySetup->AggGeom.SphereElems)
     {
         PxSphereGeometry Geom(S.Radius);
         PxTransform LocalPose(PxVec3(S.Center.X, S.Center.Y, S.Center.Z));
-        PxShape* Shape = gPhysics->createShape(Geom, *Mat, true);
+        PxShape* Shape = Physics->createShape(Geom, *Mat, true);
         if (!Shape) continue;
         Shape->setLocalPose(LocalPose);
         PhysicsActor->attachShape(*Shape);
@@ -104,7 +106,7 @@ void FBodyInstance::CreateShapesFromBodySetup()
         const FQuat R = FQuat::MakeFromEulerZYX(B.Rotation);
         PxQuat Q(R.X, R.Y, R.Z, R.W);
         PxTransform LocalPose(PxVec3(B.Center.X, B.Center.Y, B.Center.Z), Q);
-        PxShape* Shape = gPhysics->createShape(Geom, *Mat, true);
+        PxShape* Shape = Physics->createShape(Geom, *Mat, true);
         if (!Shape) continue;
         Shape->setLocalPose(LocalPose);
         PhysicsActor->attachShape(*Shape);
@@ -115,15 +117,20 @@ void FBodyInstance::CreateShapesFromBodySetup()
 void FBodyInstance::AddSimpleShape(const FShape& S)
 {
     if (!PhysicsActor) return;
-    PxMaterial* Mat = MaterialOverride ? MaterialOverride : gMaterial;
+    PxMaterial* Mat = MaterialOverride ? MaterialOverride : PHYSICS.GetDefaultMaterial();
     if (!Mat) return;
+
+    PxPhysics* Physics = PHYSICS.GetPhysics();
+    if (!Physics) return;
 
     switch (S.Kind)
     {
     case EShapeKind::Sphere:
     {
-        PxSphereGeometry Geom(S.Sphere.SphereRadius);
-        PxShape* Shape = gPhysics->createShape(Geom, *Mat, true);
+        const float Radius = S.Sphere.SphereRadius;
+        if (Radius <= 0.0f) break; // PhysX requires positive radius
+        PxSphereGeometry Geom(Radius);
+        PxShape* Shape = Physics->createShape(Geom, *Mat, true);
         if (!Shape) break;
         PhysicsActor->attachShape(*Shape);
         Shapes.Add(Shape);
@@ -132,8 +139,9 @@ void FBodyInstance::AddSimpleShape(const FShape& S)
     case EShapeKind::Box:
     {
         const FVector& E = S.Box.BoxExtent; // half extents
+        if (E.X <= 0.0f || E.Y <= 0.0f || E.Z <= 0.0f) break; // PhysX requires positive extents
         PxBoxGeometry Geom(E.X, E.Y, E.Z);
-        PxShape* Shape = gPhysics->createShape(Geom, *Mat, true);
+        PxShape* Shape = Physics->createShape(Geom, *Mat, true);
         if (!Shape) break;
         PhysicsActor->attachShape(*Shape);
         Shapes.Add(Shape);
@@ -143,8 +151,9 @@ void FBodyInstance::AddSimpleShape(const FShape& S)
     {
         const float Radius = S.Capsule.CapsuleRadius;
         const float Half = S.Capsule.CapsuleHalfHeight;
+        if (Radius <= 0.0f || Half <= 0.0f) break; // PhysX requires positive dimensions
         PxCapsuleGeometry Geom(Radius, Half);
-        PxShape* Shape = gPhysics->createShape(Geom, *Mat, true);
+        PxShape* Shape = Physics->createShape(Geom, *Mat, true);
         if (!Shape) break;
         PhysicsActor->attachShape(*Shape);
         Shapes.Add(Shape);
