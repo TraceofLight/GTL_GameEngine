@@ -68,12 +68,24 @@ void UPrimitiveComponent::SetMaterialByName(uint32 InElementIndex, const FString
         return;
     }
 
-    UMaterial* Material = UResourceManager::GetInstance().Load<UMaterial>(InMaterialName);
-    if (!Material)
-    {
-        UE_LOG("[warning] SetMaterialByName: Failed to load material '%s' for slot %u", InMaterialName.c_str(), InElementIndex);
-    }
-    SetMaterial(InElementIndex, Material);
+    // 비동기 로드: Material이 로드 완료되면 자동으로 SetMaterial 호출
+    // 이미 로드된 경우 콜백이 즉시 실행됨
+    UResourceManager::GetInstance().AsyncLoad<UMaterial>(
+        InMaterialName,
+        [this, InElementIndex, InMaterialName](UMaterial* LoadedMaterial)
+        {
+            if (LoadedMaterial)
+            {
+                this->SetMaterial(InElementIndex, LoadedMaterial);
+            }
+            else
+            {
+                UE_LOG("[warning] SetMaterialByName: Failed to load material '%s' for slot %u",
+                    InMaterialName.c_str(), InElementIndex);
+            }
+        },
+        EAssetLoadPriority::Normal
+    );
 } 
  
 void UPrimitiveComponent::DuplicateSubObjects()

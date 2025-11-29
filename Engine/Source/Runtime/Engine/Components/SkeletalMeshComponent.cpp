@@ -343,6 +343,9 @@ void USkeletalMeshComponent::SetBoneWorldTransform(int32 BoneIndex, const FTrans
     if (BoneIndex < 0 || BoneIndex >= CurrentLocalSpacePose.Num())
         return;
 
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
+        return;
+
     const int32 ParentIndex = SkeletalMesh->GetSkeleton()->Bones[BoneIndex].ParentIndex;
 
     // 부모 본의 월드 트랜스폼 계산
@@ -394,7 +397,7 @@ FTransform USkeletalMeshComponent::GetBoneWorldTransform(int32 BoneIndex)
  */
 void USkeletalMeshComponent::ForceRecomputePose()
 {
-    if (!SkeletalMesh) { return; }
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData()) { return; }
 
     // LocalSpace -> ComponentSpace 계산
     UpdateComponentSpaceTransforms();

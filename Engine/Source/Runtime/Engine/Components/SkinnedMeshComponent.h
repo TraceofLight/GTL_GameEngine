@@ -42,7 +42,14 @@ public:
      */
     USkeletalMesh* GetSkeletalMesh() const { return SkeletalMesh; }
 
+    /**
+     * @brief 현재 설정된/로딩 중인 메시 경로 반환 (비동기 로드 중에도 유효)
+     */
+    const FString& GetSkeletalMeshPath() const { return SkeletalMeshPath; }
+
 protected:
+    /** @brief 현재 설정된 SkeletalMesh 경로 (비동기 로드 중에도 유지) */
+    FString SkeletalMeshPath;
     /**
      * @brief 자식에게서 원본 메시를 받아 CPU 스키닝을 수행
      * @param InSkinningMatrices 스키닝 매트릭스
