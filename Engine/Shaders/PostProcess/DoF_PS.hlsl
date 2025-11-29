@@ -332,31 +332,55 @@ static const float3 GaussianSamples[13] =  // xy = offset, z = weight
     float3(0.0, -0.5, 0.0540540541)
 };
 
-// Hexagonal: 19 샘플 6각형 패턴 (중심 + 6개 꼭지점 + 12개 중간점)
-static const float2 HexagonalSamples[19] =
+// Hexagonal: 37 샘플 6각형 패턴 (테두리 강조, 3개 링)
+// 외곽 테두리에 샘플을 집중시켜 6각형 보케 형태가 뚜렷하게 보이도록 함
+static const float3 HexagonalSamples[37] =  // xy = offset, z = weight
 {
-    float2(0.0, 0.0),         // 중심
-    // 외부 꼭지점 (60도 간격)
-    float2(1.0, 0.0),
-    float2(0.5, 0.866),
-    float2(-0.5, 0.866),
-    float2(-1.0, 0.0),
-    float2(-0.5, -0.866),
-    float2(0.5, -0.866),
-    // 중간 링 (30도 오프셋, 반경 0.577)
-    float2(0.577, 0.0),
-    float2(0.289, 0.5),
-    float2(-0.289, 0.5),
-    float2(-0.577, 0.0),
-    float2(-0.289, -0.5),
-    float2(0.289, -0.5),
-    // 가장자리 중간점
-    float2(0.75, 0.433),
-    float2(0.0, 0.866),
-    float2(-0.75, 0.433),
-    float2(-0.75, -0.433),
-    float2(0.0, -0.866),
-    float2(0.75, -0.433)
+    // 중심 (1개, 낮은 가중치)
+    float3(0.0, 0.0, 0.3),
+
+    // 링 1: 내부 6각형 (반경 0.33, 6개)
+    float3(0.33, 0.0, 0.5),
+    float3(0.165, 0.286, 0.5),
+    float3(-0.165, 0.286, 0.5),
+    float3(-0.33, 0.0, 0.5),
+    float3(-0.165, -0.286, 0.5),
+    float3(0.165, -0.286, 0.5),
+
+    // 링 2: 중간 6각형 (반경 0.66, 12개 - 꼭지점 + 변 중간)
+    float3(0.66, 0.0, 0.7),
+    float3(0.495, 0.286, 0.7),
+    float3(0.33, 0.572, 0.7),
+    float3(0.0, 0.572, 0.7),
+    float3(-0.33, 0.572, 0.7),
+    float3(-0.495, 0.286, 0.7),
+    float3(-0.66, 0.0, 0.7),
+    float3(-0.495, -0.286, 0.7),
+    float3(-0.33, -0.572, 0.7),
+    float3(0.0, -0.572, 0.7),
+    float3(0.33, -0.572, 0.7),
+    float3(0.495, -0.286, 0.7),
+
+    // 링 3: 외곽 6각형 테두리 (반경 1.0, 18개 - 높은 가중치로 테두리 강조)
+    // 각 변에 3개씩 샘플 배치
+    float3(1.0, 0.0, 1.0),              // 꼭지점 1
+    float3(0.833, 0.289, 1.0),
+    float3(0.667, 0.577, 1.0),
+    float3(0.5, 0.866, 1.0),            // 꼭지점 2
+    float3(0.167, 0.866, 1.0),
+    float3(-0.167, 0.866, 1.0),
+    float3(-0.5, 0.866, 1.0),           // 꼭지점 3
+    float3(-0.667, 0.577, 1.0),
+    float3(-0.833, 0.289, 1.0),
+    float3(-1.0, 0.0, 1.0),             // 꼭지점 4
+    float3(-0.833, -0.289, 1.0),
+    float3(-0.667, -0.577, 1.0),
+    float3(-0.5, -0.866, 1.0),          // 꼭지점 5
+    float3(-0.167, -0.866, 1.0),
+    float3(0.167, -0.866, 1.0),
+    float3(0.5, -0.866, 1.0),           // 꼭지점 6
+    float3(0.667, -0.577, 1.0),
+    float3(0.833, -0.289, 1.0)
 };
 
 // CircularGather: 48 샘플 다중 링 (3개 링: 8 + 16 + 24)
@@ -383,14 +407,32 @@ static const float2 CircularGatherSamples[48] =
 // 블러 적용 함수들
 //=============================================================================
 
-// 공통: 깊이 기반 가중치 계산 (전경 객체가 배경 위로 블리딩되는 것 방지)
+// 공통: 깊이 기반 가중치 계산 (블리딩 방지)
+// - 전경 객체가 배경 위로 블리딩되는 것 방지
+// - 배경 객체가 선명/전경 영역으로 블리딩되는 것 방지
 float CalculateSampleWeight(float centerCoC, float sampleCoC)
 {
     float weight = 1.0;
+
+    // Case 1: 배경 픽셀(centerCoC > 0)에 전경 샘플(sampleCoC < centerCoC) 블리딩 방지
+    // 전경 객체가 배경 블러 위로 번지는 것을 막음
     if (centerCoC > 0.0 && sampleCoC < centerCoC)
     {
         weight = saturate(1.0 - (centerCoC - sampleCoC) / MaxBlurRadius);
     }
+    // Case 2: 선명/전경 픽셀(centerCoC <= 0)에 배경 샘플(sampleCoC > 0) 블리딩 방지
+    // 배경 블러가 선명한 영역이나 전경으로 번지는 것을 막음
+    else if (centerCoC <= 0.0 && sampleCoC > 0.0)
+    {
+        weight = saturate(1.0 - sampleCoC / MaxBlurRadius);
+    }
+    // Case 3: 전경 픽셀(centerCoC < 0)에 더 가까운 전경 샘플 블리딩 방지
+    // 더 가까운 전경 블러가 덜 가까운 전경으로 번지는 것을 막음
+    else if (centerCoC < 0.0 && sampleCoC < centerCoC)
+    {
+        weight = saturate(1.0 - (centerCoC - sampleCoC) / MaxBlurRadius);
+    }
+
     return weight;
 }
 
@@ -478,15 +520,16 @@ float4 ApplyGaussianBlur(float2 texCoord, float blurRadius, float2 pixelSize, fl
     return (totalWeight > 0.0) ? (accumulatedColor / totalWeight) : float4(0, 0, 0, 1);
 }
 
-// Hexagonal 블러 (19 샘플, 6각형 보케)
+// Hexagonal 블러 (37 샘플, 6각형 보케 - 테두리 강조)
 float4 ApplyHexagonalBlur(float2 texCoord, float blurRadius, float2 pixelSize, float centerCoC)
 {
     float4 accumulatedColor = float4(0, 0, 0, 0);
     float totalWeight = 0.0;
 
-    for (int i = 0; i < 19; i++)
+    for (int i = 0; i < 37; i++)
     {
-        float2 offset = HexagonalSamples[i] * blurRadius * pixelSize;
+        float2 offset = HexagonalSamples[i].xy * blurRadius * pixelSize;
+        float hexWeight = HexagonalSamples[i].z;  // 6각형 패턴 가중치 (외곽일수록 높음)
         float2 sampleUV = texCoord + offset;
 
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0)
@@ -497,9 +540,11 @@ float4 ApplyHexagonalBlur(float2 texCoord, float blurRadius, float2 pixelSize, f
         float sampleViewDepth = GetLinearDepth(sampleRawDepth);
         float sampleCoC = CalculateCoC(sampleViewDepth, sampleUV, sampleRawDepth);
 
-        float sampleWeight = CalculateSampleWeight(centerCoC, sampleCoC);
-        accumulatedColor += sampleColor * sampleWeight;
-        totalWeight += sampleWeight;
+        float depthWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        float finalWeight = hexWeight * depthWeight;
+
+        accumulatedColor += sampleColor * finalWeight;
+        totalWeight += finalWeight;
     }
 
     return (totalWeight > 0.0) ? (accumulatedColor / totalWeight) : float4(0, 0, 0, 1);
