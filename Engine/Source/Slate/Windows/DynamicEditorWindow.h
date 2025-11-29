@@ -14,6 +14,7 @@ class UTexture;
 struct ImDrawList;
 class SAnimationWindow;
 class SBlendSpace2DWindow;
+class SAnimStateMachineWindow;
 
 class SDynamicEditorWindow;
 
@@ -311,4 +312,7 @@ private:
 
 	// BlendSpace2D 모드용 내장 에디터 (SSplitter 기반 4패널 레이아웃)
 	SBlendSpace2DWindow* EmbeddedBlendSpace2DEditor = nullptr;
+
+	// AnimGraph 모드용 내장 에디터 (SSplitter 기반 3패널 레이아웃)
+	SAnimStateMachineWindow* EmbeddedStateMachineEditor = nullptr;
 };

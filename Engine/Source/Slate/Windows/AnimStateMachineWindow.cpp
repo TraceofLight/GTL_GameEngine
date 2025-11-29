@@ -7,10 +7,40 @@
 #include "LuaManager.h"
 #include "PlatformProcess.h"
 #include "USlateManager.h"
+#include "SplitterH.h"
 #include <commdlg.h>  // Windows 파일 다이얼로그
 #include "ImGui/utilities/widgets.h"
 
 namespace ed = ax::NodeEditor;
+
+// ============================================================================
+// Panel Wrapper (SSplitter와 함께 사용)
+// SSplitter가 설정한 Rect의 위치에 ImGui 커서를 이동시킨 후 콜백 호출
+// ============================================================================
+class SStateMachinePanelWrapper : public SWindow
+{
+public:
+	using RenderFunc = std::function<void()>;
+	RenderFunc RenderCallback;
+
+	void SetRenderCallback(RenderFunc Callback) { RenderCallback = Callback; }
+
+	virtual void OnRender() override
+	{
+		if (RenderCallback)
+		{
+			// SSplitter가 설정한 Rect 위치로 ImGui 커서 이동
+			FRect PanelRect = GetRect();
+			ImGui::SetCursorScreenPos(ImVec2(PanelRect.Left, PanelRect.Top));
+			RenderCallback();
+		}
+	}
+
+	virtual void OnUpdate(float DeltaSeconds) override {}
+	virtual void OnMouseMove(FVector2D MousePos) override {}
+	virtual void OnMouseDown(FVector2D MousePos, uint32 Button) override {}
+	virtual void OnMouseUp(FVector2D MousePos, uint32 Button) override {}
+};
 
 SAnimStateMachineWindow::SAnimStateMachineWindow()
 {
@@ -19,6 +49,25 @@ SAnimStateMachineWindow::SAnimStateMachineWindow()
 
 SAnimStateMachineWindow::~SAnimStateMachineWindow()
 {
+    // SSplitter 해제
+    if (MainSplitter)
+    {
+        // Splitter의 자식들은 Splitter가 소유하지 않으므로 별도 삭제 필요
+        SWindow* Left = MainSplitter->GetLeftOrTop();
+        SWindow* Right = MainSplitter->GetRightOrBottom();
+
+        // InnerSplitter (Right)의 자식들 삭제
+        if (SSplitterH* InnerSplitter = dynamic_cast<SSplitterH*>(Right))
+        {
+            delete InnerSplitter->GetLeftOrTop();
+            delete InnerSplitter->GetRightOrBottom();
+        }
+        delete Left;
+        delete Right;
+        delete MainSplitter;
+        MainSplitter = nullptr;
+    }
+
     for (auto* State : Tabs)
     {
         delete State;
@@ -33,6 +82,42 @@ bool SAnimStateMachineWindow::Initialize(float StartX, float StartY, float Width
     Rect.Top = StartY;
     Rect.Right = StartX + Width;
     Rect.Bottom = StartY + Height;
+
+    // SSplitter 레이아웃 생성 (3패널: Left | Center | Right)
+    // 구조: MainSplitter(Left | InnerSplitter(Center | Right))
+
+    // 패널 래퍼 생성
+    SStateMachinePanelWrapper* LeftPanel = new SStateMachinePanelWrapper();
+    SStateMachinePanelWrapper* CenterPanel = new SStateMachinePanelWrapper();
+    SStateMachinePanelWrapper* RightPanel = new SStateMachinePanelWrapper();
+
+    // 콜백 설정 - SSplitter가 자식 rect를 먼저 설정하므로 패널의 GetRect() 사용
+    LeftPanel->SetRenderCallback([this, LeftPanel]() {
+        FRect r = LeftPanel->GetRect();
+        RenderLeftPanel(r.GetWidth(), r.GetHeight());
+    });
+    CenterPanel->SetRenderCallback([this, CenterPanel]() {
+        FRect r = CenterPanel->GetRect();
+        RenderCenterPanel(r.GetWidth(), r.GetHeight());
+    });
+    RightPanel->SetRenderCallback([this, RightPanel]() {
+        FRect r = RightPanel->GetRect();
+        RenderRightPanel(r.GetWidth(), r.GetHeight());
+    });
+
+    // InnerSplitter: Center | Right (좌우 분할)
+    SSplitterH* InnerSplitter = new SSplitterH();
+    InnerSplitter->SetLeftOrTop(CenterPanel);
+    InnerSplitter->SetRightOrBottom(RightPanel);
+    InnerSplitter->SetSplitRatio(0.75f);  // Center 75%, Right 25%
+    InnerSplitter->LoadFromConfig("StateMachine_Inner");
+
+    // MainSplitter: Left | InnerSplitter (좌우 분할)
+    MainSplitter = new SSplitterH();
+    MainSplitter->SetLeftOrTop(LeftPanel);
+    MainSplitter->SetRightOrBottom(InnerSplitter);
+    MainSplitter->SetSplitRatio(0.15f);  // Left 15%, Rest 85%
+    MainSplitter->LoadFromConfig("StateMachine_Main");
 
     return true;
 }
@@ -144,7 +229,7 @@ void SAnimStateMachineWindow::OnRender()
     if (ImGui::Begin("Animation State Machine Editor", &bIsOpen, flags))
     {
         // === Toolbar (File 메뉴 없이 버튼으로 직접 노출) ===
-        const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/Animation";
+        const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/StateMachine";
         const FWideString Extension = L".statemachine";
         const FWideString Description = L"State Machines";
         FWideString DefaultFileName = L"NewStateMachine";
@@ -300,6 +385,220 @@ void SAnimStateMachineWindow::OnRender()
 	{
 		SLATE.CloseAnimStateMachineWindow();
 	}
+}
+
+// ============================================================================
+// RenderEmbedded - DynamicEditorWindow 내장 모드용 렌더링
+// ============================================================================
+void SAnimStateMachineWindow::RenderEmbedded(const FRect& ContentRect)
+{
+    if (Tabs.empty())
+    {
+        return;
+    }
+
+    if (!ActiveState)
+    {
+        if (!Tabs.empty())
+        {
+            ActiveState = Tabs[0];
+            ActiveTabIndex = 0;
+        }
+        else
+        {
+            return;
+        }
+    }
+
+    // === Toolbar (New, Save, Load 버튼) ===
+    const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/StateMachine";
+    const FWideString Extension = L".statemachine";
+    const FWideString Description = L"State Machines";
+    FWideString DefaultFileName = L"NewStateMachine";
+
+    // New 버튼
+    if (ImGui::Button("New", ImVec2(60, 0)))
+    {
+        char label[64];
+        sprintf_s(label, "State Machine %d", static_cast<int32>(Tabs.size()) + 1);
+        CreateNewGraphTab(label, nullptr);
+    }
+
+    ImGui::SameLine();
+
+    // Save 버튼
+    if (ImGui::Button("Save", ImVec2(60, 0)))
+    {
+        if (ActiveState && ActiveState->StateMachine)
+        {
+            FWideString SavePath = ActiveState->AssetPath;
+
+            if (SavePath.empty())
+            {
+                std::filesystem::path SelectedPath = FPlatformProcess::OpenSaveFileDialog(BaseDir, Extension, Description, DefaultFileName);
+                if (!SelectedPath.empty())
+                {
+                    SavePath = SelectedPath.wstring();
+                    ActiveState->AssetPath = SavePath;
+                    ActiveState->Name = SelectedPath.stem().string();
+                }
+            }
+
+            if (!SavePath.empty())
+            {
+                try
+                {
+                    SaveNodePositions(ActiveState);
+                    if (ActiveState->StateMachine->SaveToFile(SavePath))
+                    {
+                        RESOURCE.Reload<UAnimStateMachine>(SavePath);
+                        UE_LOG("StateMachine saved: %s", WideToUTF8(SavePath).c_str());
+                    }
+                    else
+                    {
+                        UE_LOG("[error] StateMachine save failed.");
+                    }
+                }
+                catch (const std::exception& Exception)
+                {
+                    UE_LOG("[error] StateMachine Save Error: %s", Exception.what());
+                }
+            }
+        }
+    }
+
+    ImGui::SameLine();
+
+    // Load 버튼
+    if (ImGui::Button("Load", ImVec2(60, 0)))
+    {
+        std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(BaseDir, Extension, Description);
+
+        if (!SelectedPath.empty())
+        {
+            FString FinalPathStr = ResolveAssetRelativePath(WideToUTF8(SelectedPath.wstring()), "");
+            UAnimStateMachine* LoadedAsset = RESOURCE.Load<UAnimStateMachine>(FinalPathStr);
+
+            if (LoadedAsset)
+            {
+                std::string FileName = SelectedPath.stem().string();
+                CreateNewGraphTab(FileName.c_str(), LoadedAsset, UTF8ToWide(FinalPathStr));
+            }
+            else
+            {
+                UE_LOG("[Error] Failed to load AnimStateMachine: %S", FinalPathStr.c_str());
+            }
+        }
+    }
+
+    ImGui::Separator();
+
+    // === Tab Bar ===
+    bool bTabClosed = false;
+    if (ImGui::BeginTabBar("EmbeddedAnimGraphTabs", ImGuiTabBarFlags_AutoSelectNewTabs | ImGuiTabBarFlags_Reorderable))
+    {
+        for (int i = 0; i < static_cast<int>(Tabs.size()); ++i)
+        {
+            FGraphState* State = Tabs[i];
+            bool open = true;
+            if (ImGui::BeginTabItem(State->Name.c_str(), &open))
+            {
+                ActiveState = State;
+                ActiveTabIndex = i;
+                ImGui::EndTabItem();
+            }
+            if (!open)
+            {
+                CloseTab(i);
+                bTabClosed = true;
+                break;
+            }
+        }
+
+        if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing))
+        {
+            char label[64];
+            sprintf_s(label, "State Machine %d", static_cast<int>(Tabs.size()) + 1);
+            CreateNewGraphTab(label, nullptr);
+        }
+        ImGui::EndTabBar();
+    }
+
+    if (bTabClosed)
+    {
+        return;
+    }
+
+    // === 3패널 레이아웃 (SSplitter 기반) ===
+    if (MainSplitter)
+    {
+        // 현재 커서 위치에서 남은 영역 계산
+        ImVec2 contentMin = ImGui::GetCursorScreenPos();
+        ImVec2 contentAvail = ImGui::GetContentRegionAvail();
+
+        FRect PanelRect;
+        PanelRect.Left = contentMin.x;
+        PanelRect.Top = contentMin.y;
+        PanelRect.Right = contentMin.x + contentAvail.x;
+        PanelRect.Bottom = contentMin.y + contentAvail.y;
+        PanelRect.UpdateMinMax();
+
+        MainSplitter->SetRect(PanelRect.Left, PanelRect.Top, PanelRect.Right, PanelRect.Bottom);
+        MainSplitter->OnRender();
+
+        // 패널 Rect 캐시 (입력 처리용)
+        if (MainSplitter->GetLeftOrTop())
+        {
+            LeftPanelRect = MainSplitter->GetLeftOrTop()->GetRect();
+        }
+
+        if (SSplitterH* InnerSplitter = dynamic_cast<SSplitterH*>(MainSplitter->GetRightOrBottom()))
+        {
+            if (InnerSplitter->GetLeftOrTop())
+            {
+                CenterPanelRect = InnerSplitter->GetLeftOrTop()->GetRect();
+            }
+            if (InnerSplitter->GetRightOrBottom())
+            {
+                RightPanelRect = InnerSplitter->GetRightOrBottom()->GetRect();
+            }
+        }
+    }
+}
+
+// ============================================================================
+// 마우스/업데이트 이벤트 핸들러 - SSplitter 드래그 지원
+// ============================================================================
+void SAnimStateMachineWindow::OnUpdate(float DeltaSeconds)
+{
+    if (MainSplitter)
+    {
+        MainSplitter->OnUpdate(DeltaSeconds);
+    }
+}
+
+void SAnimStateMachineWindow::OnMouseMove(FVector2D MousePos)
+{
+    if (MainSplitter)
+    {
+        MainSplitter->OnMouseMove(MousePos);
+    }
+}
+
+void SAnimStateMachineWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
+{
+    if (MainSplitter)
+    {
+        MainSplitter->OnMouseDown(MousePos, Button);
+    }
+}
+
+void SAnimStateMachineWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
+{
+    if (MainSplitter)
+    {
+        MainSplitter->OnMouseUp(MousePos, Button);
+    }
 }
 
 void SAnimStateMachineWindow::RenderLeftPanel(float width, float height)
@@ -844,7 +1143,7 @@ void SAnimStateMachineWindow::RenderRightPanel(float width, float height)
                 {
                     // 현재 선택된 애셋 정보 박스
                     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
-                    ImGui::BeginChild("AssetInfo", ImVec2(-1, 50), true);
+                    ImGui::BeginChild("AssetInfo", ImVec2(-1, 70), true);
 
                     if (StateNode->AnimAssetType == EAnimAssetType::AnimSequence && StateNode->AnimationAsset)
                     {

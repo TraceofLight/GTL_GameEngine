@@ -2,6 +2,7 @@
 #include "DynamicEditorWindow.h"
 #include "AnimationWindow.h"
 #include "BlendSpace2DWindow.h"
+#include "AnimStateMachineWindow.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "FSkeletalViewerViewportClient.h"
@@ -51,6 +52,13 @@ SDynamicEditorWindow::~SDynamicEditorWindow()
 	{
 		delete EmbeddedBlendSpace2DEditor;
 		EmbeddedBlendSpace2DEditor = nullptr;
+	}
+
+	// EmbeddedStateMachineEditor 해제
+	if (EmbeddedStateMachineEditor)
+	{
+		delete EmbeddedStateMachineEditor;
+		EmbeddedStateMachineEditor = nullptr;
 	}
 
 	// 모든 탭 정리
@@ -535,12 +543,8 @@ void SDynamicEditorWindow::OnRender()
 		}
 		else
 		{
-			// Animation 모드가 아닐 때 EmbeddedAnimationEditor 해제
-			if (EmbeddedAnimationEditor)
-			{
-				delete EmbeddedAnimationEditor;
-				EmbeddedAnimationEditor = nullptr;
-			}
+			// Animation 모드가 아닐 때도 EmbeddedAnimationEditor 유지 (상태 보존)
+			// 소멸자에서만 해제
 
 			// ================================================================
 			// BlendSpace2D 모드: EmbeddedBlendSpace2DEditor 사용 (SSplitter 4패널 레이아웃)
@@ -606,12 +610,71 @@ void SDynamicEditorWindow::OnRender()
 			}
 			else
 			{
-				// BlendSpace2D 모드가 아닐 때 EmbeddedBlendSpace2DEditor 해제
-				if (EmbeddedBlendSpace2DEditor)
+				// BlendSpace2D 모드가 아닐 때도 EmbeddedBlendSpace2DEditor 유지 (상태 보존)
+				// 소멸자에서만 해제
+
+				// ================================================================
+				// AnimGraph 모드: EmbeddedStateMachineEditor 사용 (SSplitter 3패널 레이아웃)
+				// ================================================================
+				bool bIsAnimGraphMode = (ActiveState && ActiveState->Mode == EEditorMode::AnimGraph);
+
+				if (bIsAnimGraphMode)
 				{
-					delete EmbeddedBlendSpace2DEditor;
-					EmbeddedBlendSpace2DEditor = nullptr;
+					// EmbeddedStateMachineEditor 생성 (아직 없으면)
+					if (!EmbeddedStateMachineEditor)
+					{
+						EmbeddedStateMachineEditor = new SAnimStateMachineWindow();
+					}
+
+					// 콘텐츠 영역 계산
+					ImVec2 contentMin = ImGui::GetCursorScreenPos();
+
+					FRect ContentRect;
+					ContentRect.Left = contentMin.x;
+					ContentRect.Top = contentMin.y;
+					ContentRect.Right = contentMin.x + totalWidth;
+					ContentRect.Bottom = contentMin.y + totalHeight;
+					ContentRect.UpdateMinMax();
+
+					// EmbeddedStateMachineEditor 초기화 (한 번만)
+					if (EmbeddedStateMachineEditor->GetTabCount() == 0)
+					{
+						EmbeddedStateMachineEditor->Initialize(ContentRect.Left, ContentRect.Top,
+							ContentRect.GetWidth(), ContentRect.GetHeight());
+						EmbeddedStateMachineEditor->SetEmbeddedMode(true);
+
+						// StateMachine이 있으면 함께 전달, 없으면 빈 탭
+						if (ActiveState && ActiveState->StateMachine)
+						{
+							EmbeddedStateMachineEditor->LoadStateMachineFile(
+								WideToUTF8(ActiveState->StateMachineFilePath).c_str());
+						}
+						else
+						{
+							EmbeddedStateMachineEditor->CreateNewEmptyTab();
+						}
+					}
+
+					// SSplitter 기반 레이아웃 렌더링
+					EmbeddedStateMachineEditor->RenderEmbedded(ContentRect);
+
+					// CenterRect는 Graph 영역 (StateMachine은 뷰포트가 없으므로 ContentRect 사용)
+					CenterRect = ContentRect;
+
+					// StateMachine 탭 이름 동기화
+					FGraphState* SMState = EmbeddedStateMachineEditor->GetActiveState();
+					if (SMState && ActiveState)
+					{
+						if (!SMState->Name.empty())
+						{
+							ActiveState->Name = FName(SMState->Name.c_str());
+						}
+					}
 				}
+				else
+				{
+					// AnimGraph 모드가 아닐 때도 EmbeddedStateMachineEditor 유지 (상태 보존)
+					// 소멸자에서만 해제
 
 				// Skeletal 모드인지 확인
 				bool bIsSkeletalMode = (ActiveState->Mode == EEditorMode::Skeletal);
@@ -1024,6 +1087,7 @@ void SDynamicEditorWindow::OnRender()
 
 				ImGui::PopStyleVar();  // ItemSpacing
 
+				}  // else (non-AnimGraph mode = Skeletal mode)
 			}  // else (non-BlendSpace2D mode)
 		}  // else (non-Animation mode)
 	}
@@ -1048,18 +1112,24 @@ void SDynamicEditorWindow::OnRender()
 
 void SDynamicEditorWindow::OnUpdate(float DeltaSeconds)
 {
-	// Animation 모드: EmbeddedAnimationEditor 업데이트
-	if (EmbeddedAnimationEditor)
+	// 현재 모드에 따라 적절한 에디터 업데이트
+	if (ActiveState)
 	{
-		EmbeddedAnimationEditor->OnUpdate(DeltaSeconds);
-		return;
-	}
-
-	// BlendSpace2D 모드: EmbeddedBlendSpace2DEditor 업데이트
-	if (EmbeddedBlendSpace2DEditor)
-	{
-		EmbeddedBlendSpace2DEditor->OnUpdate(DeltaSeconds);
-		return;
+		if (ActiveState->Mode == EEditorMode::Animation && EmbeddedAnimationEditor)
+		{
+			EmbeddedAnimationEditor->OnUpdate(DeltaSeconds);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::BlendSpace2D && EmbeddedBlendSpace2DEditor)
+		{
+			EmbeddedBlendSpace2DEditor->OnUpdate(DeltaSeconds);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::AnimGraph && EmbeddedStateMachineEditor)
+		{
+			EmbeddedStateMachineEditor->OnUpdate(DeltaSeconds);
+			return;
+		}
 	}
 
 	if (!ActiveState || !ActiveState->Viewport)
@@ -1110,18 +1180,24 @@ void SDynamicEditorWindow::OnUpdate(float DeltaSeconds)
 
 void SDynamicEditorWindow::OnMouseMove(FVector2D MousePos)
 {
-	// Animation 모드: EmbeddedAnimationEditor로 라우팅
-	if (EmbeddedAnimationEditor)
+	// 현재 모드에 따라 적절한 에디터로 라우팅
+	if (ActiveState)
 	{
-		EmbeddedAnimationEditor->OnMouseMove(MousePos);
-		return;
-	}
-
-	// BlendSpace2D 모드: EmbeddedBlendSpace2DEditor로 라우팅
-	if (EmbeddedBlendSpace2DEditor)
-	{
-		EmbeddedBlendSpace2DEditor->OnMouseMove(MousePos);
-		return;
+		if (ActiveState->Mode == EEditorMode::Animation && EmbeddedAnimationEditor)
+		{
+			EmbeddedAnimationEditor->OnMouseMove(MousePos);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::BlendSpace2D && EmbeddedBlendSpace2DEditor)
+		{
+			EmbeddedBlendSpace2DEditor->OnMouseMove(MousePos);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::AnimGraph && EmbeddedStateMachineEditor)
+		{
+			EmbeddedStateMachineEditor->OnMouseMove(MousePos);
+			return;
+		}
 	}
 
 	if (!ActiveState || !ActiveState->Viewport)
@@ -1146,18 +1222,24 @@ void SDynamicEditorWindow::OnMouseMove(FVector2D MousePos)
 
 void SDynamicEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
-	// Animation 모드: EmbeddedAnimationEditor로 라우팅
-	if (EmbeddedAnimationEditor)
+	// 현재 모드에 따라 적절한 에디터로 라우팅
+	if (ActiveState)
 	{
-		EmbeddedAnimationEditor->OnMouseDown(MousePos, Button);
-		return;
-	}
-
-	// BlendSpace2D 모드: EmbeddedBlendSpace2DEditor로 라우팅
-	if (EmbeddedBlendSpace2DEditor)
-	{
-		EmbeddedBlendSpace2DEditor->OnMouseDown(MousePos, Button);
-		return;
+		if (ActiveState->Mode == EEditorMode::Animation && EmbeddedAnimationEditor)
+		{
+			EmbeddedAnimationEditor->OnMouseDown(MousePos, Button);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::BlendSpace2D && EmbeddedBlendSpace2DEditor)
+		{
+			EmbeddedBlendSpace2DEditor->OnMouseDown(MousePos, Button);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::AnimGraph && EmbeddedStateMachineEditor)
+		{
+			EmbeddedStateMachineEditor->OnMouseDown(MousePos, Button);
+			return;
+		}
 	}
 
 	if (!ActiveState || !ActiveState->Viewport)
@@ -1252,18 +1334,24 @@ void SDynamicEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 
 void SDynamicEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 {
-	// Animation 모드: EmbeddedAnimationEditor로 라우팅
-	if (EmbeddedAnimationEditor)
+	// 현재 모드에 따라 적절한 에디터로 라우팅
+	if (ActiveState)
 	{
-		EmbeddedAnimationEditor->OnMouseUp(MousePos, Button);
-		return;
-	}
-
-	// BlendSpace2D 모드: EmbeddedBlendSpace2DEditor로 라우팅
-	if (EmbeddedBlendSpace2DEditor)
-	{
-		EmbeddedBlendSpace2DEditor->OnMouseUp(MousePos, Button);
-		return;
+		if (ActiveState->Mode == EEditorMode::Animation && EmbeddedAnimationEditor)
+		{
+			EmbeddedAnimationEditor->OnMouseUp(MousePos, Button);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::BlendSpace2D && EmbeddedBlendSpace2DEditor)
+		{
+			EmbeddedBlendSpace2DEditor->OnMouseUp(MousePos, Button);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::AnimGraph && EmbeddedStateMachineEditor)
+		{
+			EmbeddedStateMachineEditor->OnMouseUp(MousePos, Button);
+			return;
+		}
 	}
 
 	if (!ActiveState || !ActiveState->Viewport)
