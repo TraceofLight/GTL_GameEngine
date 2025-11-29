@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "ImGui/imgui_node_editor.h"
 #include "AnimStateMachine.h"
-#include "SWindow.h"
+#include "Window.h"
 
 class UAnimStateMachine;
 class UAnimSequence;

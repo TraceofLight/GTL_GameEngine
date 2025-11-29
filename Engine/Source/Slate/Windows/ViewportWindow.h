@@ -1,5 +1,5 @@
 #pragma once
-#include "SWindow.h"
+#include "Window.h"
 #include "Enums.h"
 
 class FViewport;

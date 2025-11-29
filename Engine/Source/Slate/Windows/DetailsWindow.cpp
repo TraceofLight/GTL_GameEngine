@@ -1,5 +1,5 @@
 ﻿#include "pch.h"
-#include "SDetailsWindow.h"
+#include "DetailsWindow.h"
 #include "Windows/PropertyWindow.h"
 #include "UIManager.h"
 SDetailsWindow::SDetailsWindow()

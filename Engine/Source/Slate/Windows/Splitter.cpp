@@ -1,5 +1,5 @@
 ﻿#include "pch.h"
-#include "SSplitter.h"
+#include "Splitter.h"
 extern float CLIENTWIDTH;
 extern float CLIENTHEIGHT;
 SSplitter::SSplitter()

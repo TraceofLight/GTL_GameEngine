@@ -1,5 +1,5 @@
 #pragma once
-#include "SWindow.h"
+#include "Window.h"
 #include "Source/Runtime/Engine/SkeletalViewer/ViewerState.h"
 
 class FViewport;

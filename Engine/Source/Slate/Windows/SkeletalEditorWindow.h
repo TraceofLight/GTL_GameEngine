@@ -1,7 +1,7 @@
 #pragma once
-#include "SWindow.h"
-#include "SSplitterH.h"
-#include "SSplitterV.h"
+#include "Window.h"
+#include "SplitterH.h"
+#include "SplitterV.h"
 
 class FViewport;
 class FViewportClient;

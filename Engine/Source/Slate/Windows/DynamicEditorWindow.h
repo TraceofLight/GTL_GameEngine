@@ -1,7 +1,5 @@
 #pragma once
-#include "SWindow.h"
-#include "SSplitterH.h"
-#include "SSplitterV.h"
+#include "Window.h"
 
 class FViewport;
 class FViewportClient;
@@ -12,9 +10,10 @@ class UBlendSpace2D;
 class UAnimStateMachine;
 struct ID3D11Device;
 class AGizmoActor;
+class UTexture;
+struct ImDrawList;
+class SAnimationWindow;
 
-// Forward declarations for panel classes
-class SEditorPanel;
 class SDynamicEditorWindow;
 
 /**
@@ -132,32 +131,16 @@ struct FEditorTabState
 };
 
 /**
- * @brief 에디터 패널 기본 클래스
- * @details 모든 에디터 패널의 공통 인터페이스
- */
-class SEditorPanel : public SWindow
-{
-public:
-	SEditorPanel(SDynamicEditorWindow* InOwner) : Owner(InOwner) {}
-	virtual ~SEditorPanel() = default;
-
-	virtual void OnRender() override {}
-	virtual void OnUpdate(float DeltaSeconds) {}
-
-	// 패널이 현재 모드에서 활성화되는지 여부
-	virtual bool IsActiveForMode(EEditorMode Mode) const { return true; }
-
-protected:
-	SDynamicEditorWindow* Owner = nullptr;
-};
-
-/**
  * @brief 동적 에디터 윈도우
- * @details 스플리터 기반 레이아웃으로 여러 에디터 모드를 지원하는 통합 윈도우
+ * @details ImGui BeginChild 기반 레이아웃으로 여러 에디터 모드를 지원하는 통합 윈도우
  *          - Skeletal: 스켈레탈 메시 편집
  *          - Animation: 애니메이션 편집
  *          - AnimGraph: 스테이트 머신 편집
  *          - BlendSpace2D: 블렌드 스페이스 편집
+ *
+ * SPreviewWindow의 레이아웃 구조를 그대로 사용:
+ * - Skeletal 모드: [Left: Asset+BoneTree] | [Center: Viewport] | [Right: BoneProperties]
+ * - Animation 모드: [Center: Viewport] | [Right: Details] + [Bottom: Timeline | AnimList]
  */
 class SDynamicEditorWindow : public SWindow
 {
@@ -210,24 +193,56 @@ public:
 	void RenderToPreviewRenderTarget();
 	ID3D11ShaderResourceView* GetPreviewShaderResourceView() const { return PreviewShaderResourceView; }
 
-	// 패널 접근 (자식 패널에서 사용)
-	FRect GetViewportRect() const { return ViewportRect; }
+	// 뷰포트 영역 캐시
+	FRect GetViewportRect() const { return CenterRect; }
 
-protected:
+private:
 	// 탭 관리
 	FEditorTabState* CreateNewTab(const char* Name, EEditorMode Mode);
 	void DestroyTab(FEditorTabState* State);
 	void CloseTab(int32 Index);
-
-	// 레이아웃 구성 (모드별)
-	virtual void SetupLayoutForMode(EEditorMode Mode);
 
 	// Bone Transform 헬퍼
 	void UpdateBoneTransformFromSkeleton(FEditorTabState* State);
 	void ApplyBoneTransform(FEditorTabState* State);
 	void ExpandToSelectedBone(FEditorTabState* State, int32 BoneIndex);
 
-protected:
+	// Timeline 컨트롤 UI 렌더링 (PreviewWindow에서 복사)
+	void RenderTimelineControls(FEditorTabState* State);
+	void RenderTimeline(FEditorTabState* State);
+
+	// Timeline 컨트롤 기능
+	void TimelineToFront(FEditorTabState* State);
+	void TimelineToPrevious(FEditorTabState* State);
+	void TimelineReverse(FEditorTabState* State);
+	void TimelineRecord(FEditorTabState* State);
+	void TimelinePlay(FEditorTabState* State);
+	void TimelineToNext(FEditorTabState* State);
+	void TimelineToEnd(FEditorTabState* State);
+
+	// Timeline 헬퍼: 프레임 변경 시 공통 갱신 로직
+	void RefreshAnimationFrame(FEditorTabState* State);
+
+	// Timeline 렌더링 헬퍼
+	void DrawTimelineRuler(ImDrawList* DrawList, const struct ImVec2& RulerMin, const struct ImVec2& RulerMax, float StartTime, float EndTime, FEditorTabState* State);
+	void DrawPlaybackRange(ImDrawList* DrawList, const struct ImVec2& TimelineMin, const struct ImVec2& TimelineMax, float StartTime, float EndTime, FEditorTabState* State);
+	void DrawTimelinePlayhead(ImDrawList* DrawList, const struct ImVec2& TimelineMin, const struct ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime);
+	void DrawKeyframeMarkers(ImDrawList* DrawList, const struct ImVec2& TimelineMin, const struct ImVec2& TimelineMax, float StartTime, float EndTime, FEditorTabState* State);
+	void DrawNotifyTracksPanel(FEditorTabState* State, float StartTime, float EndTime);
+
+	// Notify Track 복원 (애니메이션 로드 시)
+	void RebuildNotifyTracks(FEditorTabState* State);
+
+	// Notify 라이브러리 관리
+	void ScanNotifyLibrary();
+	void CreateNewNotifyScript(const FString& ScriptName, bool bIsNotifyState);
+	void OpenNotifyScriptInEditor(const FString& NotifyClassName, bool bIsNotifyState);
+
+	// 렌더 타겟 관리
+	void CreateRenderTarget(uint32 Width, uint32 Height);
+	void ReleaseRenderTarget();
+
+private:
 	// 탭 상태
 	FEditorTabState* ActiveState = nullptr;
 	TArray<FEditorTabState*> Tabs;
@@ -238,26 +253,48 @@ protected:
 	UWorld* World = nullptr;
 	ID3D11Device* Device = nullptr;
 
-	// 스플리터 레이아웃
-	SSplitterV* MainSplitter = nullptr;
-	SSplitterH* ContentSplitter = nullptr;
-	SSplitterH* CenterRightSplitter = nullptr;
-	SSplitterV* RightSplitter = nullptr;
+	// 레이아웃 비율 (SPreviewWindow와 동일)
+	float LeftPanelRatio = 0.25f;   // 25% of width
+	float RightPanelRatio = 0.25f;  // 25% of width
 
-	// 패널들 (모드에 따라 다르게 구성)
-	TArray<SEditorPanel*> Panels;
-
-	// 뷰포트 패널 참조 (마우스 입력용)
-	class SViewportPreviewPanel* ViewportPanel = nullptr;
-
-	// 뷰포트 영역 캐시
-	FRect ViewportRect;
+	// Cached center region used for viewport sizing and input mapping
+	FRect CenterRect;
 
 	// UI 상태
 	bool bIsOpen = true;
 	bool bInitialPlacementDone = false;
 	bool bRequestFocus = false;
 	bool bIsFocused = false;
+	bool bRequestTabSwitch = false;
+	int32 RequestedTabIndex = -1;
+
+	// Timeline 아이콘
+	UTexture* IconGoToFront = nullptr;
+	UTexture* IconGoToFrontOff = nullptr;
+	UTexture* IconStepBackwards = nullptr;
+	UTexture* IconStepBackwardsOff = nullptr;
+	UTexture* IconBackwards = nullptr;
+	UTexture* IconBackwardsOff = nullptr;
+	UTexture* IconRecord = nullptr;
+	UTexture* IconPause = nullptr;
+	UTexture* IconPauseOff = nullptr;
+	UTexture* IconPlay = nullptr;
+	UTexture* IconPlayOff = nullptr;
+	UTexture* IconStepForward = nullptr;
+	UTexture* IconStepForwardOff = nullptr;
+	UTexture* IconGoToEnd = nullptr;
+	UTexture* IconGoToEndOff = nullptr;
+	UTexture* IconLoop = nullptr;
+	UTexture* IconLoopOff = nullptr;
+
+	// Notify 라이브러리
+	TArray<FString> AvailableNotifyClasses;
+	TArray<FString> AvailableNotifyStateClasses;
+
+	// New Notify Script 다이얼로그 상태
+	bool bShowNewNotifyDialog = false;
+	bool bShowNewNotifyStateDialog = false;
+	char NewNotifyNameBuffer[128] = "";
 
 	// 전용 렌더 타겟
 	ID3D11Texture2D* PreviewRenderTargetTexture = nullptr;
@@ -268,7 +305,6 @@ protected:
 	uint32 PreviewRenderTargetWidth = 0;
 	uint32 PreviewRenderTargetHeight = 0;
 
-	// 렌더 타겟 관리
-	void CreateRenderTarget(uint32 Width, uint32 Height);
-	void ReleaseRenderTarget();
+	// Animation 모드용 내장 에디터 (SSplitter 기반 4패널 레이아웃)
+	SAnimationWindow* EmbeddedAnimationEditor = nullptr;
 };

@@ -7,7 +7,7 @@
 #include "ObjectFactory.h"
 #include "TextRenderComponent.h"
 #include "FViewport.h"
-#include "Windows/SViewportWindow.h"
+#include "Windows/ViewportWindow.h"
 #include "USlateManager.h"
 #include "StaticMesh.h"
 #include "ObjManager.h"

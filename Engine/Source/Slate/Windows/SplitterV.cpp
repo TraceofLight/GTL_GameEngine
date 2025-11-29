@@ -1,5 +1,5 @@
 ﻿#include "pch.h"
-#include "SSplitterV.h"
+#include "SplitterV.h"
 
 SSplitterV::~SSplitterV()
 {

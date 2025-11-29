@@ -1,12 +1,13 @@
 ﻿#pragma once
 #include "Object.h"
-#include "Windows/SWindow.h" // for FRect and SWindow types used by children
-#include "Windows/SSplitterV.h"
-#include "Windows/SSplitterH.h"
-#include "Windows/SViewportWindow.h"
+#include "Windows/Window.h" // for FRect and SWindow types used by children
+#include "Windows/SplitterV.h"
+#include "Windows/SplitterH.h"
+#include "Windows/ViewportWindow.h"
 #include "Windows/PreviewWindow.h"
 #include "Windows/DynamicEditorWindow.h"
 #include "Windows/ParticleEditorWindow.h"
+#include "Windows/AnimationWindow.h"
 
 class SSceneIOWindow; // 새로 추가할 UI
 class SDetailsWindow;
@@ -119,6 +120,13 @@ public:
 	void CloseParticleEditorWindow();
 	bool IsParticleEditorWindowOpen() const { return ParticleEditorWindow != nullptr; }
 
+	// Animation Window 관리 (탭 기반 애니메이션 에디터)
+	void OpenAnimationWindow();
+	void OpenAnimationWindowWithFile(const char* FilePath);
+	void CloseAnimationWindow();
+	bool IsAnimationWindowOpen() const { return AnimationWindow != nullptr; }
+	SAnimationWindow* GetAnimationWindow() const { return AnimationWindow; }
+
 	// Scene 로드 요청
 	void RequestSceneLoad(const FString& ScenePath);
 
@@ -175,6 +183,9 @@ private:
 
     // Particle Editor window (Cascade 스타일)
     SParticleEditorWindow* ParticleEditorWindow = nullptr;
+
+    // Animation Window (탭 기반 애니메이션 에디터)
+    SAnimationWindow* AnimationWindow = nullptr;
 
     // Content Browser (Bottom panel overlay with animation)
     UContentBrowserWindow* ContentBrowserWindow = nullptr;

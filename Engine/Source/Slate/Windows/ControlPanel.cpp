@@ -1,5 +1,5 @@
 ﻿#include "pch.h"
-#include "SControlPanel.h"
+#include "ControlPanel.h"
 #include "Windows/ControlPanelWindow.h"
 #include "Windows/SceneWindow.h"
 
