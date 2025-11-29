@@ -98,10 +98,11 @@ static_assert(sizeof(FGammaCorrectionBufferType) % 16 == 0, "CB must be 16-byte 
 // DoF 모드 열거형
 enum class EDoFMode : int32
 {
-    Cinematic = 0,   // 시네마틱 DoF (선형 모델, 아티스트 친화적)
-    Physical = 1,    // 물리 기반 DoF (실제 카메라 렌즈 시뮬레이션)
-    TiltShift = 2,   // 틸트-시프트 (화면 Y 좌표 기반, 미니어처 효과)
-    PointFocus = 3,  // 점 초점 DoF (특정 3D 좌표 중심 구형 초점)
+    Cinematic = 0,       // 시네마틱 DoF (선형 모델, 아티스트 친화적)
+    Physical = 1,        // 물리 기반 DoF (실제 카메라 렌즈 시뮬레이션)
+    TiltShift = 2,       // 틸트-시프트 (화면 Y 좌표 기반, 미니어처 효과)
+    PointFocus = 3,      // 점 초점 DoF (특정 3D 좌표 중심 구형 초점, World Space)
+    ScreenPointFocus = 4,// 화면 점 초점 DoF (화면 좌표 + 깊이 기반, Screen Space)
 };
 
 // DoF 블러 방식 열거형
@@ -120,7 +121,7 @@ struct alignas(16) FDepthOfFieldBufferType // b2
     float FocusDistance;    // 초점 거리 (View Space 단위)
     float MaxBlurRadius;    // 최대 블러 반경 (픽셀 단위)
     float BokehSize;        // 보케 크기
-    int32 DoFMode;          // 0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus
+    int32 DoFMode;          // 0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus, 4: ScreenPointFocus
 
     // Cinematic 모드 파라미터 (16 bytes)
     float FocusRange;       // 초점 영역 범위
@@ -149,6 +150,17 @@ struct alignas(16) FDepthOfFieldBufferType // b2
     float PointFocusFalloff;    // 블러 감쇠 (1=선형, 2=제곱 등)
     int32 BlurMethod;           // 블러 방식 (EDoFBlurMethod)
     float _Pad3;
+
+    // ScreenPointFocus 모드 파라미터 (16 bytes)
+    FVector2D ScreenFocusPoint;     // 화면상의 초점 위치 (0~1 UV 좌표)
+    float ScreenFocusRadius;        // 화면상의 초점 반경 (0~1, 화면 비율)
+    float ScreenFocusDepthRange;    // 초점 깊이 허용 범위
+
+    // ScreenPointFocus 추가 파라미터 (16 bytes)
+    float ScreenFocusBlurScale;     // 블러 강도 스케일
+    float ScreenFocusFalloff;       // 블러 감쇠 (1=선형, 2=제곱 등)
+    float ScreenFocusAspectRatio;   // 화면 비율 보정 (width/height)
+    float _Pad4;
 };
 static_assert(sizeof(FDepthOfFieldBufferType) % 16 == 0, "CB must be 16-byte aligned");
 

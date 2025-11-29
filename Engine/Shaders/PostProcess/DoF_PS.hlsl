@@ -35,7 +35,7 @@ cbuffer DepthOfFieldCB : register(b2)
     float FocusDistance;    // 초점 거리 (View Space)
     float MaxBlurRadius;    // 최대 블러 반경 (픽셀)
     float BokehSize;        // 보케 크기
-    int DoFMode;            // 0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus
+    int DoFMode;            // 0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus, 4: ScreenPointFocus
 
     // Cinematic 모드 파라미터 (16 bytes)
     float FocusRange;       // 초점 영역 범위
@@ -64,6 +64,17 @@ cbuffer DepthOfFieldCB : register(b2)
     float PointFocusFalloff;    // 블러 감쇠 (1=선형, 2=제곱 등)
     int BlurMethod;             // 블러 방식 (0:Disc12, 1:Disc24, 2:Gaussian, 3:Hexagonal, 4:CircularGather)
     float _Pad3;
+
+    // ScreenPointFocus 모드 파라미터 (16 bytes)
+    float2 ScreenFocusPoint;        // 화면상의 초점 위치 (0~1 UV 좌표)
+    float ScreenFocusRadius;        // 화면상의 초점 반경 (0~1, 화면 비율)
+    float ScreenFocusDepthRange;    // 초점 깊이 허용 범위
+
+    // ScreenPointFocus 추가 파라미터 (16 bytes)
+    float ScreenFocusBlurScale;     // 블러 강도 스케일
+    float ScreenFocusFalloff;       // 블러 감쇠 (1=선형, 2=제곱 등)
+    float ScreenFocusAspectRatio;   // 화면 비율 보정 (width/height)
+    float _Pad4;
 }
 
 cbuffer ViewportConstants : register(b10)
@@ -239,6 +250,56 @@ float CalculateCoC_PointFocus(float3 worldPos)
     return clamp(coc, 0.0, MaxBlurRadius);
 }
 
+// Circle of Confusion (CoC) 계산 - ScreenPointFocus 모드
+// 화면상의 특정 x, y 좌표를 중심으로 초점 형성 (깊이도 고려)
+// 화면 좌표 기반 점 초점: 클릭한 위치 주변이 선명
+float CalculateCoC_ScreenPointFocus(float2 screenUV, float viewDepth)
+{
+    // 화면상의 거리 계산 (aspect ratio 보정)
+    float2 toFocus = screenUV - ScreenFocusPoint;
+    toFocus.x *= ScreenFocusAspectRatio;  // 가로 세로 비율 보정
+    float screenDist = length(toFocus);
+
+    // 초점 위치의 깊이 가져오기 (ScreenFocusPoint에서 샘플링)
+    float focusRawDepth = g_DepthTex.Sample(g_PointClampSample, ScreenFocusPoint).r;
+    float focusViewDepth = GetLinearDepth(focusRawDepth);
+
+    // 깊이 차이 계산
+    float depthDiff = abs(viewDepth - focusViewDepth);
+
+    // 화면상 초점 반경 내 + 깊이 범위 내에서는 블러 없음
+    if (screenDist <= ScreenFocusRadius && depthDiff <= ScreenFocusDepthRange)
+    {
+        return 0.0;
+    }
+
+    // 화면 거리와 깊이 차이를 결합하여 블러 계산
+    float screenBlur = 0.0;
+    float depthBlur = 0.0;
+
+    // 화면 거리 기반 블러
+    if (screenDist > ScreenFocusRadius)
+    {
+        float screenDistBeyond = screenDist - ScreenFocusRadius;
+        screenBlur = pow(screenDistBeyond, ScreenFocusFalloff);
+    }
+
+    // 깊이 차이 기반 블러
+    if (depthDiff > ScreenFocusDepthRange)
+    {
+        float depthDistBeyond = depthDiff - ScreenFocusDepthRange;
+        depthBlur = depthDistBeyond * 0.1;  // 깊이 블러 스케일
+    }
+
+    // 화면 거리와 깊이 블러를 결합 (둘 중 큰 값 사용)
+    float combinedBlur = max(screenBlur, depthBlur);
+
+    // 블러 강도 적용
+    float coc = combinedBlur * ScreenFocusBlurScale;
+
+    return clamp(coc, 0.0, MaxBlurRadius);
+}
+
 // 통합 CoC 계산 함수
 // PointFocus 모드는 World Position이 필요하므로 rawDepth와 screenUV를 받음
 float CalculateCoC(float viewDepth, float2 screenUV, float rawDepth)
@@ -255,10 +316,14 @@ float CalculateCoC(float viewDepth, float2 screenUV, float rawDepth)
     {
         return CalculateCoC_TiltShift(screenUV);
     }
-    else                    // PointFocus
+    else if (DoFMode == 3)  // PointFocus (World Space)
     {
         float3 worldPos = ReconstructWorldPosition(screenUV, rawDepth);
         return CalculateCoC_PointFocus(worldPos);
+    }
+    else                    // ScreenPointFocus (Screen Space)
+    {
+        return CalculateCoC_ScreenPointFocus(screenUV, viewDepth);
     }
 }
 
