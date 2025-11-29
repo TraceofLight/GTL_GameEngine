@@ -7,17 +7,7 @@
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
 #include "Source/Runtime/Engine/Animation/AnimSingleNodeInstance.h"
-#include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Editor/FBXLoader.h"
-#include "ImGui/imgui.h"
-
-#ifdef _EDITOR
-#include "Source/Runtime/Engine/GameFramework/EditorEngine.h"
-extern UEditorEngine GEngine;
-#else
-#include "Source/Runtime/Engine/GameFramework/GameEngine.h"
-extern UGameEngine GEngine;
-#endif
 
 // ============================================================================
 // Viewport Panel 렌더링

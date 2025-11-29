@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "AnimationWindow.h"
+#include "Source/Slate/Widgets/PlaybackControls.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/GameFramework/World.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
@@ -48,57 +49,26 @@ void SAnimationWindow::RenderTimelineControls(FAnimationTabState* State)
     ImGui::Separator();
 
     // === 2. 재생 컨트롤 버튼들 (항상 하단 고정) ===
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 2));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 4));
+    PlaybackControls::BeginStyle();
 
     float ButtonSize = 20.0f;
     ImVec2 ButtonSizeVec(ButtonSize, ButtonSize);
 
     // ToFront |<<
-    if (IconGoToFront && IconGoToFront->GetShaderResourceView())
+    if (PlaybackControls::RenderToFrontButton(IconGoToFront, ButtonSize))
     {
-        if (ImGui::ImageButton("##ToFront", IconGoToFront->GetShaderResourceView(), ButtonSizeVec))
-        {
-            TimelineToFront(State);
-        }
+        TimelineToFront(State);
     }
-    else
-    {
-        if (ImGui::Button("|<<", ButtonSizeVec))
-        {
-            TimelineToFront(State);
-        }
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("To Front");
-    }
-
     ImGui::SameLine();
 
     // ToPrevious |<
-    if (IconStepBackwards && IconStepBackwards->GetShaderResourceView())
+    if (PlaybackControls::RenderStepBackwardsButton(IconStepBackwards, ButtonSize))
     {
-        if (ImGui::ImageButton("##StepBackwards", IconStepBackwards->GetShaderResourceView(), ButtonSizeVec))
-        {
-            TimelineToPrevious(State);
-        }
+        TimelineToPrevious(State);
     }
-    else
-    {
-        if (ImGui::Button("|<", ButtonSizeVec))
-        {
-            TimelineToPrevious(State);
-        }
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Previous Frame");
-    }
-
     ImGui::SameLine();
 
-    // Reverse <<
+    // Reverse << (Animation 전용)
     if (IconBackwards && IconBackwards->GetShaderResourceView())
     {
         if (ImGui::ImageButton("##Backwards", IconBackwards->GetShaderResourceView(), ButtonSizeVec))
@@ -113,14 +83,10 @@ void SAnimationWindow::RenderTimelineControls(FAnimationTabState* State)
             TimelineReverse(State);
         }
     }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Reverse");
-    }
-
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("Reverse"); }
     ImGui::SameLine();
 
-    // Record 버튼 (녹화 중이면 빨간색)
+    // Record 버튼 (Animation 전용 - 녹화 중이면 빨간색)
     bool bWasRecording = State->bIsRecording;
     if (bWasRecording)
     {
@@ -128,7 +94,6 @@ void SAnimationWindow::RenderTimelineControls(FAnimationTabState* State)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.2f, 0.2f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7f, 0.0f, 0.0f, 1.0f));
     }
-
     if (IconRecord && IconRecord->GetShaderResourceView())
     {
         if (ImGui::ImageButton("##Record", IconRecord->GetShaderResourceView(), ButtonSizeVec))
@@ -143,193 +108,72 @@ void SAnimationWindow::RenderTimelineControls(FAnimationTabState* State)
             TimelineRecord(State);
         }
     }
-
-    if (bWasRecording)
-    {
-        ImGui::PopStyleColor(3);
-    }
-
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip(State->bIsRecording ? "Stop Recording" : "Record");
-    }
-
+    if (bWasRecording) { ImGui::PopStyleColor(3); }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip(State->bIsRecording ? "Stop Recording" : "Record"); }
     ImGui::SameLine();
 
     // Play/Pause (AnimInstance 컨트롤)
-    if (State->bIsPlaying)
+    if (PlaybackControls::RenderPlayPauseButton(IconPlay, IconPause, State->bIsPlaying, ButtonSize))
     {
-        bool bPauseClicked = false;
-        if (IconPause && IconPause->GetShaderResourceView())
+        if (State->bIsPlaying)
         {
-            bPauseClicked = ImGui::ImageButton("##Pause", IconPause->GetShaderResourceView(), ButtonSizeVec);
-        }
-        else
-        {
-            bPauseClicked = ImGui::Button("||", ButtonSizeVec);
-        }
-
-        // Tooltip은 버튼 직후에 체크 (클릭 여부와 무관)
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Pause");
-        }
-
-        if (bPauseClicked)
-        {
+            // 일시정지
             if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
             {
                 UAnimInstance* AnimInst = State->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
-                if (AnimInst)
-                {
-                    AnimInst->StopAnimation();
-                }
+                if (AnimInst) { AnimInst->StopAnimation(); }
             }
             State->bIsPlaying = false;
         }
-    }
-    else
-    {
-        bool bPlayClicked = false;
-        if (IconPlay && IconPlay->GetShaderResourceView())
-        {
-            bPlayClicked = ImGui::ImageButton("##Play", IconPlay->GetShaderResourceView(), ButtonSizeVec);
-        }
         else
         {
-            bPlayClicked = ImGui::Button(">", ButtonSizeVec);
-        }
-
-        // Tooltip은 버튼 직후에 체크
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Play");
-        }
-
-        if (bPlayClicked)
-        {
+            // 재생
             TimelinePlay(State);
         }
     }
-
     ImGui::SameLine();
 
     // ToNext >|
-    if (IconStepForward && IconStepForward->GetShaderResourceView())
+    if (PlaybackControls::RenderStepForwardButton(IconStepForward, ButtonSize))
     {
-        if (ImGui::ImageButton("##StepForward", IconStepForward->GetShaderResourceView(), ButtonSizeVec))
-        {
-            TimelineToNext(State);
-        }
+        TimelineToNext(State);
     }
-    else
-    {
-        if (ImGui::Button(">|", ButtonSizeVec))
-        {
-            TimelineToNext(State);
-        }
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Next Frame");
-    }
-
     ImGui::SameLine();
 
     // ToEnd >>|
-    if (IconGoToEnd && IconGoToEnd->GetShaderResourceView())
+    if (PlaybackControls::RenderToEndButton(IconGoToEnd, ButtonSize))
     {
-        if (ImGui::ImageButton("##ToEnd", IconGoToEnd->GetShaderResourceView(), ButtonSizeVec))
-        {
-            TimelineToEnd(State);
-        }
+        TimelineToEnd(State);
     }
-    else
-    {
-        if (ImGui::Button(">>|", ButtonSizeVec))
-        {
-            TimelineToEnd(State);
-        }
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("To End");
-    }
-
     ImGui::SameLine();
 
     // Loop 토글
-    bool bWasLooping = State->bLoopAnimation;
-    UTexture* LoopIcon = bWasLooping ? IconLoop : IconLoopOff;
-    if (LoopIcon && LoopIcon->GetShaderResourceView())
+    if (PlaybackControls::RenderLoopButton(IconLoop, IconLoopOff, State->bLoopAnimation, ButtonSize))
     {
-        if (ImGui::ImageButton("##Loop", LoopIcon->GetShaderResourceView(), ButtonSizeVec))
-        {
-            State->bLoopAnimation = !State->bLoopAnimation;
+        State->bLoopAnimation = !State->bLoopAnimation;
 
-            // AnimInstance의 루프 설정만 업데이트 (재시작하지 않음)
-            if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+        // AnimInstance의 루프 설정만 업데이트 (재시작하지 않음)
+        if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+        {
+            USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
+            if (UAnimInstance* AnimInst = SkelComp->GetAnimInstance())
             {
-                USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
-                if (UAnimInstance* AnimInst = SkelComp->GetAnimInstance())
+                if (UAnimSingleNodeInstance* SingleNodeInst = dynamic_cast<UAnimSingleNodeInstance*>(AnimInst))
                 {
-                    if (UAnimSingleNodeInstance* SingleNodeInst = dynamic_cast<UAnimSingleNodeInstance*>(AnimInst))
-                    {
-                        SingleNodeInst->SetLooping(State->bLoopAnimation);
-                    }
+                    SingleNodeInst->SetLooping(State->bLoopAnimation);
                 }
             }
         }
     }
-    else
-    {
-        if (bWasLooping)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
-        }
-        if (ImGui::Button("Loop", ButtonSizeVec))
-        {
-            State->bLoopAnimation = !State->bLoopAnimation;
-
-            // AnimInstance의 루프 설정만 업데이트 (재시작하지 않음)
-            if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
-            {
-                USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
-                if (UAnimInstance* AnimInst = SkelComp->GetAnimInstance())
-                {
-                    if (UAnimSingleNodeInstance* SingleNodeInst = dynamic_cast<UAnimSingleNodeInstance*>(AnimInst))
-                    {
-                        SingleNodeInst->SetLooping(State->bLoopAnimation);
-                    }
-                }
-            }
-        }
-        if (bWasLooping)
-        {
-            ImGui::PopStyleColor();
-        }
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Loop");
-    }
-
     ImGui::SameLine();
-    ImGui::Dummy(ImVec2(20, 0));  // Loop와 Speed 사이 패딩
+    ImGui::Dummy(ImVec2(20, 0));
     ImGui::SameLine();
 
-    // 재생 속도 (입력 가능 + 드래그)
-    ImGui::Text("Speed:");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(80.0f);
-    ImGui::DragFloat("##Speed", &State->PlaybackSpeed, 0.05f, 0.1f, 5.0f, "%.2fx");
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Drag or click to edit playback speed");
-    }
+    // 재생 속도
+    PlaybackControls::RenderSpeedControl(State->PlaybackSpeed);
 
     ImGui::SameLine();
-    ImGui::Dummy(ImVec2(20, 0));  // 간격
+    ImGui::Dummy(ImVec2(20, 0));
     ImGui::SameLine();
 
     // === Range 컨트롤 (재생 컨트롤 옆에 배치, 프레임 단위) ===
@@ -534,7 +378,7 @@ void SAnimationWindow::RenderTimelineControls(FAnimationTabState* State)
         ImGui::SetTooltip("Working Range End (Frame)");
     }
 
-    ImGui::PopStyleVar(2);
+    PlaybackControls::EndStyle();
 }
 
 // Timeline 헬퍼: 프레임 변경 시 공통 갱신 로직

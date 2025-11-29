@@ -3,30 +3,16 @@
 #include "Source/Runtime/Engine/SkeletalViewer/ViewerState.h"
 #include "Source/Runtime/Engine/SkeletalViewer/SkeletalViewerBootstrap.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
-#include "Source/Runtime/Engine/GameFramework/World.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/Engine/Components/LineComponent.h"
 #include "Source/Runtime/Engine/Collision/Picking.h"
-#include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
-#include "Source/Runtime/RHI/D3D11RHI.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
 #include "Source/Editor/PlatformProcess.h"
 #include "SelectionManager.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
-#include "ImGui/imgui.h"
-#include "ImGui/imgui_internal.h"
-#include <filesystem>
-
-#ifdef _EDITOR
-#include "Source/Runtime/Engine/GameFramework/EditorEngine.h"
-extern UEditorEngine GEngine;
-#else
-#include "Source/Runtime/Engine/GameFramework/GameEngine.h"
-extern UGameEngine GEngine;
-#endif
 
 // ============================================================================
 // SSkeletalEditorWindow

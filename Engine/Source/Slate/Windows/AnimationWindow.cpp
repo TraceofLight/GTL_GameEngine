@@ -10,7 +10,6 @@
 #include "Source/Editor/PlatformProcess.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
 #include "Source/Editor/FBXLoader.h"
-#include "Source/Runtime/Engine/GameFramework/World.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
@@ -20,23 +19,7 @@
 #include "Source/Runtime/Engine/Animation/AnimSingleNodeInstance.h"
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
 #include "Source/Runtime/Engine/Collision/Picking.h"
-#include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
-#include "Source/Runtime/RHI/D3D11RHI.h"
-#include "Source/Runtime/InputCore/InputManager.h"
-#include "ImGui/imgui.h"
-#include "ImGui/imgui_internal.h"
-#include <filesystem>
-
-#ifdef _EDITOR
-#include "Source/Runtime/Engine/GameFramework/EditorEngine.h"
-extern UEditorEngine GEngine;
-#else
-#include "Source/Runtime/Engine/GameFramework/GameEngine.h"
-extern UGameEngine GEngine;
-#endif
-
-extern const FString GDataDir;
 
 // ============================================================================
 // 패널 래퍼 클래스 (SSplitter에 연결하기 위한 SWindow 래퍼)

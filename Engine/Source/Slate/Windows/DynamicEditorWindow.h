@@ -13,6 +13,7 @@ class AGizmoActor;
 class UTexture;
 struct ImDrawList;
 class SAnimationWindow;
+class SBlendSpace2DWindow;
 
 class SDynamicEditorWindow;
 
@@ -307,4 +308,7 @@ private:
 
 	// Animation 모드용 내장 에디터 (SSplitter 기반 4패널 레이아웃)
 	SAnimationWindow* EmbeddedAnimationEditor = nullptr;
+
+	// BlendSpace2D 모드용 내장 에디터 (SSplitter 기반 4패널 레이아웃)
+	SBlendSpace2DWindow* EmbeddedBlendSpace2DEditor = nullptr;
 };
