@@ -5,6 +5,7 @@
 #include "Level.h"
 #include "Gizmo/GizmoActor.h"
 #include "LightManager.h"
+#include "PhysicsManager.h"
 
 // Forward Declarations
 class UResourceManager;
@@ -108,6 +109,10 @@ public:
     URenderSettings& GetRenderSettings() { return RenderSettings; }
     const URenderSettings& GetRenderSettings() const { return RenderSettings; }
 
+    // Per-world physics scene accessor
+    PxScene* GetPhysicsScene() { return PhysicsSceneHandle.Scene; }
+    FPhysicsSceneHandle& GetPhysicsSceneHandle() { return PhysicsSceneHandle; }
+
     // Per-world SelectionManager accessor
     USelectionManager* GetSelectionManager() { return SelectionMgr.get(); }
 
@@ -179,6 +184,9 @@ private:
 
     // Per-world selection manager
     std::unique_ptr<USelectionManager> SelectionMgr;
+
+    // Per-world physics scene (World별 물리 씬)
+    FPhysicsSceneHandle PhysicsSceneHandle;
 
     // Per-frame processed overlap pairs (A,B) keyed canonically
     TSet<uint64> FrameOverlapPairs;

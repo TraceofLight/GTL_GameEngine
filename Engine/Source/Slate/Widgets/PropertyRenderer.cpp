@@ -369,7 +369,7 @@ void UPropertyRenderer::RenderProperties(const TArray<FProperty>& Properties, UO
 
 		for (const FProperty* Prop : Props)
 		{
-			ImGui::PushID(Prop); // 프로퍼티 포인터로 고유 ID 푸시
+			ImGui::PushID(Prop);
 			RenderProperty(*Prop, Object);
 			ImGui::PopID();
 		}
@@ -594,7 +594,10 @@ void UPropertyRenderer::ClearResourcesCache()
 bool UPropertyRenderer::RenderBoolProperty(const FProperty& Prop, void* Instance)
 {
 	bool* Value = Prop.GetValuePtr<bool>(Instance);
-	return ImGui::Checkbox(Prop.Name, Value);
+	if (!Value) return false;
+
+	bool bChanged = ImGui::Checkbox(Prop.Name, Value);
+	return bChanged;
 }
 
 bool UPropertyRenderer::RenderInt32Property(const FProperty& Prop, void* Instance)

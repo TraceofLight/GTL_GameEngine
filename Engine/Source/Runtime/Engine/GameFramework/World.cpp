@@ -92,6 +92,12 @@ UWorld::~UWorld()
 	}
 	EditorActors.clear();
 
+	// Physics Scene 파괴
+	if (PhysicsSceneHandle.IsValid())
+	{
+		PHYSICS.DestroyScene(PhysicsSceneHandle);
+	}
+
 	GridActor = nullptr;
 	GizmoActor = nullptr;
 }
@@ -220,6 +226,12 @@ void UWorld::Tick(float DeltaSeconds)
 	// 중복충돌 방지 pair clear
     FrameOverlapPairs.clear();
 
+	// PIE World에서만 물리 시뮬레이션 실행
+	if (bPie && PhysicsSceneHandle.IsValid())
+	{
+		PHYSICS.SimulateScene(PhysicsSceneHandle, GetDeltaTime(EDeltaTime::Game));
+	}
+
     // Skip partition update for preview worlds (no spatial partitioning needed)
     if (Partition)
     {
@@ -274,6 +286,9 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 	//ULevel* NewLevel = ULevelService::CreateNewLevel();
 	UWorld* PIEWorld = NewObject<UWorld>(); // 레벨도 새로 생성됨
 	PIEWorld->bPie = true;
+
+	// PIE World용 Physics Scene 생성
+	PIEWorld->PhysicsSceneHandle = PHYSICS.CreateScene();
 
 	FWorldContext PIEWorldContext = FWorldContext(PIEWorld, EWorldType::Game);
 	GEngine.AddWorldContext(PIEWorldContext);

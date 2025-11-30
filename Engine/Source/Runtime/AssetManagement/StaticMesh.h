@@ -5,6 +5,7 @@
 
 class UStaticMeshComponent;
 class FMeshBVH;
+class UBodySetup;
 class UStaticMesh : public UResourceBase
 {
 public:
@@ -42,6 +43,10 @@ public:
     
     const FString& GetCacheFilePath() const { return CacheFilePath; }
 
+    // Physics (per-asset collision setup)
+    void EnsureBodySetupBuilt();
+    UBodySetup* GetBodySetup() const { return BodySetup; }
+
 private:
     void CreateVertexBuffer(FMeshData* InMeshData, ID3D11Device* InDevice, EVertexLayoutType InVertexType);
 	void CreateVertexBuffer(FStaticMesh* InStaticMesh, ID3D11Device* InDevice, EVertexLayoutType InVertexType);
@@ -63,6 +68,7 @@ private:
 
 	// CPU 리소스
     FStaticMesh* StaticMeshAsset = nullptr;
+    UBodySetup* BodySetup = nullptr; // simple collision setup (AggGeom)
 
     // 메시 단위 BVH (ResourceManager에서 캐싱, 소유)
     // 초기화되지 않는 멤버변수 (참조도 ResourceManager에서만 이루어짐) 

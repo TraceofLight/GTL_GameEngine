@@ -38,13 +38,19 @@ public:
 	virtual void SetStaticMesh(const FString& PathFileName);
 
 	UStaticMesh* GetStaticMesh() const { return StaticMesh; }
-	
+
 	FAABB GetWorldAABB() const override;
 
 	void DuplicateSubObjects() override;
 
+
 protected:
 	void OnTransformUpdated() override;
 
+    // Physics hookup for StaticMesh only (AABB-based)
+    void BeginPlay() override;
+    void EndPlay() override;
+
+	void OnCreatePhysicsState() override;
 protected:
 };

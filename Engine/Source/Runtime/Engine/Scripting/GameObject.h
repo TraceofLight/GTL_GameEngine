@@ -1,21 +1,6 @@
 #pragma once
 #include "Actor.h"
 
-//struct GameObject
-//{
-//	PxRigidDynamic* RigidBody = nullptr;
-//	FMatrix WorldMatrix = FMatrix::Identity();
-//
-//	void UpdateFromPhysics()
-//	{
-//		PxTransform T = RigidBody->getGlobalPose();
-//		PxMat44 Mat(T);
-//
-//		std::memcpy(&WorldMatrix, &Mat, sizeof(float) * 16);
-//	}
-//};
-
-
 class FGameObject
 {
 public:
@@ -24,7 +9,7 @@ public:
     FVector Scale;
     FVector Forward;
     bool bIsActive;
-    
+
     void SetTag(FString NewTag) { Owner->SetTag(NewTag); }
     FString GetTag() { return Owner->GetTag(); }
 
@@ -40,12 +25,12 @@ public:
         Owner->SetActorRotation(NewQuat);
     }
     FVector GetRotation() { return Owner->GetActorRotation().ToEulerZYXDeg(); }
-    
+
     void SetIsActive(bool NewIsActive)
     {
         Owner->SetActorActive(NewIsActive);
     }
-    
+
     bool GetIsActive()
     {
         return Owner->IsActorActive();

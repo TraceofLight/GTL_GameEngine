@@ -4,35 +4,55 @@
 #include "Actor.h"
 #include "WorldPartitionManager.h"
 // IMPLEMENT_CLASS is now auto-generated in .generated.cpp
-UPrimitiveComponent::UPrimitiveComponent() : bGenerateOverlapEvents(true)
+UPrimitiveComponent::UPrimitiveComponent()
+	: bGenerateOverlapEvents(true)
+	, bSimulatePhysics(false)
+	, bSimulatePhysics_Cached(false)
 {
+	// 물리 시뮬레이션 변경 감지를 위해 Tick 활성화
+	bCanEverTick = true;
 }
 
 void UPrimitiveComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (gPhysics && gScene)
-	{
-		// 예시: Movable이면 Dynamic, 아니면 Static
-		//bool bIsDynamic = (Mobility == EComponentMobility::Movable);
-		BodyInstance.InitBody(gPhysics, gScene, GetWorldTransform().ToMatrix(), true);
-	}
+	// 캐시 동기화 후 물리 바디 생성
+	bSimulatePhysics_Cached = bSimulatePhysics;
+	RecreatePhysicsBody();
 }
+
+void UPrimitiveComponent::InitPhysX()
+{
+	RecreatePhysicsBody();
+}
+
 void UPrimitiveComponent::TickComponent(float DeltaSeconds)
 {
 	Super::TickComponent(DeltaSeconds);
-	BodyInstance.SyncPhysicsToComponent();
+
+	// bSimulatePhysics 값이 외부에서 직접 변경되었는지 감지 (ImGui 등)
+	if (bSimulatePhysics != bSimulatePhysics_Cached)
+	{
+		bSimulatePhysics_Cached = bSimulatePhysics;
+		RecreatePhysicsBody();
+	}
+
+	if (bSimulatePhysics)
+	{
+		BodyInstance.SyncPhysicsToComponent();
+	}
 }
+
 void UPrimitiveComponent::EndPlay()
 {
 	BodyInstance.TermBody();
-	Super::EndPlay(); 
+	Super::EndPlay();
 }
 void UPrimitiveComponent::UpdateWorldMatrixFromPhysics(const FMatrix& NewWorldMatrix)
 {
 	SetWorldTransform(FTransform(NewWorldMatrix));
-	
+
 }
 void UPrimitiveComponent::OnRegister(UWorld* InWorld)
 {
@@ -86,16 +106,36 @@ void UPrimitiveComponent::SetMaterialByName(uint32 InElementIndex, const FString
         },
         EAssetLoadPriority::Normal
     );
-} 
- 
+}
+
 void UPrimitiveComponent::DuplicateSubObjects()
 {
     Super::DuplicateSubObjects();
+
+    // FBodyInstance의 OwnerComponent를 복제된 컴포넌트(this)로 재설정
+    BodyInstance = FBodyInstance(this);
 }
 
 void UPrimitiveComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
     Super::Serialize(bInIsLoading, InOutHandle);
+
+    const char* Key = "bSimulatePhysics";
+    if (bInIsLoading)
+    {
+        bool v = bSimulatePhysics;
+        FJsonSerializer::ReadBool(InOutHandle, Key, v, v, false);
+        SetSimulatePhysics(v);
+    }
+    else
+    {
+        InOutHandle[Key] = bSimulatePhysics;
+    }
+}
+
+void UPrimitiveComponent::OnCreatePhysicsState()
+{
+	// ???筌????????怨좊군?????筌??癲ル슢?꾤땟怨⑹젂??癲ル슢???섎뼀?Physics ???源놁젳
 }
 
 bool UPrimitiveComponent::IsOverlappingActor(const AActor* Other) const
@@ -119,5 +159,57 @@ bool UPrimitiveComponent::IsOverlappingActor(const AActor* Other) const
             }
         }
     }
+
     return false;
+}
+
+void UPrimitiveComponent::OnComponentHit(UPrimitiveComponent* Other)
+{
+	// ???ㅼ굡?곗㏓쎗??우┻?????誘⑦←뵳??釉먮윞??癲??????
+
+}
+
+void UPrimitiveComponent::OnComponentBeginOverlap(UPrimitiveComponent* Other)
+{
+}
+
+void UPrimitiveComponent::OnComponentEndOverlap(UPrimitiveComponent* Other)
+{
+}
+void UPrimitiveComponent::SetSimulatePhysics(bool bSimulate)
+{
+	bSimulatePhysics = bSimulate;
+	bSimulatePhysics_Cached = bSimulate;  // 캐시도 함께 업데이트
+	RecreatePhysicsBody();
+}
+
+void UPrimitiveComponent::RecreatePhysicsBody()
+{
+	// PIE World에서만 물리 body 생성 (Editor World에서는 생성하지 않음)
+	UWorld* World = GetWorld();
+	if (!World || !World->bPie)
+	{
+		return;
+	}
+
+	// World별 Physics Scene 사용
+	PxScene* WorldScene = World->GetPhysicsScene();
+	if (!PHYSICS.GetPhysics() || !WorldScene)
+	{
+		return;
+	}
+
+	if (BodyInstance.IsValid())
+	{
+		BodyInstance.TermBody();
+	}
+
+	const bool bIsDynamic = bSimulatePhysics;
+	BodyInstance.CreateActor(PHYSICS.GetPhysics(), GetWorldTransform().ToMatrix(), bIsDynamic);
+
+	if (BodyInstance.IsValid())
+	{
+		OnCreatePhysicsState();
+		BodyInstance.AddToScene(WorldScene);
+	}
 }

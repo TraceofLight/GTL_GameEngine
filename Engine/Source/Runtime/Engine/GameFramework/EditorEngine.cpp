@@ -8,7 +8,6 @@
 
 #include "MiniDump.h"
 
-
 float UEditorEngine::ClientWidth = 1024.0f;
 float UEditorEngine::ClientHeight = 1024.0f;
 
@@ -194,6 +193,9 @@ bool UEditorEngine::Startup(HINSTANCE hInstance)
     UI.Initialize(HWnd, RHIDevice.GetDevice(), RHIDevice.GetDeviceContext());
     INPUT.Initialize(HWnd);
 
+    // PhysX: initialize SDK/scene/material before world initialization
+    // PhysXGlobals::InitializePhysX(false);
+
     // 통합 에셋 프리로드
     UResourceManager::GetInstance().PreloadAllAssets();
 
@@ -262,14 +264,6 @@ void UEditorEngine::HandleUVInput(float DeltaSeconds)
 
 }
 
-void UEditorEngine::Simulate(float DeltaSeconds)
-{
-    if (!gScene)
-        return;
-
-    gScene->simulate(DeltaSeconds);
-    gScene->fetchResults(true); 
-}
 
 void UEditorEngine::MainLoop()
 {
@@ -320,8 +314,9 @@ void UEditorEngine::MainLoop()
             bChangedPieToEditor = false;
         }
 
+
         Tick(DeltaSeconds);
-		Simulate(DeltaSeconds);
+		// Physics simulation is now handled per-World in UWorld::Tick
         Render();
 
         // Shader Hot Reloading - Call AFTER render to avoid mid-frame resource conflicts
@@ -363,6 +358,9 @@ void UEditorEngine::Shutdown()
 
     // Explicitly release D3D11RHI resources before global destruction
     RHIDevice.Release();
+
+    // PhysX shutdown (release scene/SDK)
+    // PhysXGlobals::ShutdownPhysX();
 
     SaveIniFile();
 }

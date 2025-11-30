@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -507,7 +507,19 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\Particle\TypeData\ParticleModuleTypeDataBase.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\DynamicEmitterDataBase.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\AggregateGeom.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\FBodyInstance.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsEventCallback.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsManager.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\BodySetup.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\BoxElem.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\CapsuleElem.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\ConstraintInstance.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsAsset.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsConstraintSetup.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\PhysicsCooking.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\ShapeElem.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsEngine\SphereElem.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Scripting\GameObject.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Scripting\LuaBindHelpers.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Scripting\LuaBindingRegistry.cpp" />
@@ -866,7 +878,19 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\Particle\SubUV\ParticleModuleSubUV.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\TypeData\ParticleModuleTypeDataBase.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Velocity\ParticleModuleVelocity.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\AggregateGeom.h" />
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\FBodyInstance.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsEventCallback.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsManager.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\BodySetup.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\BoxElem.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\CapsuleElem.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\ConstraintInstance.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsAsset.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsConstraintSetup.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\PhysicsCooking.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\ShapeElem.h" />
+    <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\SphereElem.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\GameObject.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\LuaBindHelpers.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\LuaBindingRegistry.h" />

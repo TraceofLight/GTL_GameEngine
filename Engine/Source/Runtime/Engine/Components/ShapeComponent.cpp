@@ -16,6 +16,12 @@ UShapeComponent::UShapeComponent() : bShapeIsVisible(true), bShapeHiddenInGame(t
 void UShapeComponent::BeginPlay()
 {
     Super::BeginPlay();
+
+    // Ensure the physics body has a collision shape so it can simulate and collide.
+    // UPrimitiveComponent::BeginPlay already initialized the PhysX actor.
+    FShape ShapeDesc;
+    GetShape(ShapeDesc);
+    BodyInstance.AddSimpleShape(ShapeDesc);
 }
 
 void UShapeComponent::OnRegister(UWorld* InWorld)
