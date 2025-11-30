@@ -13,7 +13,7 @@ public:
     DECLARE_CLASS(UPhysicsAsset, UObject)
 
 	UPROPERTY(EditAnywhere)
-	TArray<UBodySetup> BodySetups;
+	TArray<UBodySetup*> BodySetups;
 
 	UPROPERTY(EditAnywhere)
 	TArray<UPhysicsConstraintSetup*> ConstraintSetups;
@@ -24,16 +24,12 @@ public:
 	UPROPERTY(EditAnywhere)
 	FString SourceSkeletalPath;
 
-    // Build physics bodies from skeletal mesh bone hierarchy
-    // Creates capsules for each bone based on bone length and heuristic radius
-    void BuildFromSkeletalMesh(const USkeletalMesh* InSkeletalMesh);
-
     int32 FindBodyIndexByBoneName(FName BoneName) const;
     UBodySetup* FindBodySetupByBoneName(FName BoneName);
     const UBodySetup* FindBodySetupByBoneName(FName BoneName) const;
 
     void RebuildNameToIndexMap();
-    int32 AddBodySetup(const UBodySetup& NewSetup);
+    int32 AddBodySetup(UBodySetup* NewSetup);
     bool RemoveBodyByBoneName(FName BoneName);
 
     FAABB CalcAABB(const FTransform& ComponentTM, float Scale = 1.0f) const;

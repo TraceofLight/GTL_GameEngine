@@ -45,7 +45,6 @@ void FPhysicsManager::Shutdown()
 	// 역순 파괴 (공유 리소스만)
 	if (DefaultMaterial) { DefaultMaterial->release(); DefaultMaterial = nullptr; }
 	if (Dispatcher) { Dispatcher->release(); Dispatcher = nullptr; }
-	if (DefaultMaterial) { DefaultMaterial->release(); DefaultMaterial = nullptr; }
 	if (Cooking) { Cooking->release(); Cooking = nullptr; }
 	if (Physics) { Physics->release(); Physics = nullptr; }
 	if (Foundation) { Foundation->release(); Foundation = nullptr; }
