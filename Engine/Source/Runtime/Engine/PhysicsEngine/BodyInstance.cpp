@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "PrimitiveComponent.h"
-#include "FBodyInstance.h"
+#include "BodyInstance.h"
 #include "BodySetup.h"
 #include "Source/Runtime/Engine/Components/ShapeComponent.h"
 // For mass/inertia helpers

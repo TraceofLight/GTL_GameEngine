@@ -3,7 +3,7 @@
 #include "SceneComponent.h"
 #include "Material.h"
 #include "UPrimitiveComponent.generated.h"
-#include "FBodyInstance.h"
+#include "BodyInstance.h"
 
 // 전방 선언
 struct FSceneCompData;
@@ -37,7 +37,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Physics")
 	bool bSimulatePhysics;
 
-    // ===== Lua-Bindable Properties (Auto-moved from protected/private) ===== 
+    // ===== Lua-Bindable Properties (Auto-moved from protected/private) =====
     UPROPERTY(EditAnywhere, Category="Shape")
     bool bGenerateOverlapEvents;
 
@@ -78,7 +78,7 @@ public:
         return bIsCulled;
     }
 
-    // ───── 충돌 관련 ──────────────────────────── 
+    // ───── 충돌 관련 ────────────────────────────
     bool IsOverlappingActor(const AActor* Other) const;
     virtual const TArray<FOverlapInfo>& GetOverlapInfos() const { static TArray<FOverlapInfo> Empty; return Empty; }
 
