@@ -13,6 +13,8 @@ FAnimNode_BlendSpace2D::FAnimNode_BlendSpace2D()
 	: BlendSpace(nullptr)
 	, BlendParameter(FVector2D::Zero())
 	, bAutoCalculateParameter(true)
+	, bPaused(false)
+	, bLoop(true)
 	, NormalizedTime(0.0f)
 	, OwnerPawn(nullptr)
 	, OwnerCharacter(nullptr)
@@ -116,11 +118,68 @@ void FAnimNode_BlendSpace2D::SetAutoCalculateParameter(bool bEnable)
 }
 
 /**
+ * @brief 정규화된 재생 시간 설정 (0~1)
+ */
+void FAnimNode_BlendSpace2D::SetNormalizedTime(float InNormalizedTime)
+{
+	NormalizedTime = std::max(0.0f, std::min(1.0f, InNormalizedTime));
+
+	// 모든 샘플의 시간을 정규화된 시간에 맞게 업데이트
+	if (BlendSpace)
+	{
+		const int32 NumSamples = BlendSpace->GetNumSamples();
+		for (int32 i = 0; i < NumSamples && i < SampleAnimTimes.Num(); ++i)
+		{
+			const FBlendSample& Sample = BlendSpace->Samples[i];
+			if (Sample.Animation && Sample.Animation->GetDataModel())
+			{
+				float Duration = Sample.Animation->GetDataModel()->GetPlayLength();
+				SampleAnimTimes[i] = NormalizedTime * Duration;
+				if (i < PreviousSampleAnimTimes.Num())
+				{
+					PreviousSampleAnimTimes[i] = SampleAnimTimes[i];
+				}
+			}
+		}
+	}
+}
+
+/**
+ * @brief 블렌딩된 애니메이션의 최대 길이 가져오기 (초)
+ */
+float FAnimNode_BlendSpace2D::GetMaxAnimationLength() const
+{
+	float MaxLength = 0.0f;
+
+	if (BlendSpace)
+	{
+		const int32 NumSamples = BlendSpace->GetNumSamples();
+		for (int32 i = 0; i < NumSamples; ++i)
+		{
+			const FBlendSample& Sample = BlendSpace->Samples[i];
+			if (Sample.Animation && Sample.Animation->GetDataModel())
+			{
+				float Duration = Sample.Animation->GetDataModel()->GetPlayLength();
+				MaxLength = std::max(MaxLength, Duration);
+			}
+		}
+	}
+
+	return MaxLength;
+}
+
+/**
  * @brief 매 프레임 업데이트
  */
 void FAnimNode_BlendSpace2D::Update(float DeltaSeconds)
 {
 	if (!BlendSpace)
+	{
+		return;
+	}
+
+	// 일시정지 상태면 시간 진행 없이 리턴 (Evaluate만 호출됨)
+	if (bPaused)
 	{
 		return;
 	}
@@ -199,7 +258,15 @@ void FAnimNode_BlendSpace2D::Update(float DeltaSeconds)
 	// 루프 처리
 	if (SampleAnimTimes[ReferenceSampleIndex] >= ReferenceDuration)
 	{
-		SampleAnimTimes[ReferenceSampleIndex] = fmod(SampleAnimTimes[ReferenceSampleIndex], ReferenceDuration);
+		if (bLoop)
+		{
+			SampleAnimTimes[ReferenceSampleIndex] = fmod(SampleAnimTimes[ReferenceSampleIndex], ReferenceDuration);
+		}
+		else
+		{
+			// 루프 안 함 - 끝에서 클램프
+			SampleAnimTimes[ReferenceSampleIndex] = ReferenceDuration - 0.001f;
+		}
 	}
 
 	// 정규화된 시간 계산 (0~1)

@@ -425,8 +425,11 @@ void UShader::CreateInputLayout(ID3D11Device* Device, const FString& InShaderPat
 					i, layout[i].SemanticName, layout[i].SemanticIndex, layout[i].Format,
 					layout[i].InputSlot, layout[i].AlignedByteOffset);
 			}
+
+			// 일부 셰이더는 InputLayout 불필요하기 때문에 InputLayout 없이 계속 진행
+			InOutVariant.InputLayout = nullptr;
+			return;
 		}
-		assert(SUCCEEDED(hr));
 	}
 }
 

@@ -1,10 +1,11 @@
 ﻿#pragma once
 #include "ImGui/imgui_node_editor.h"
 #include "AnimStateMachine.h"
-#include "SWindow.h"
+#include "Window.h"
 
 class UAnimStateMachine;
 class UAnimSequence;
+class SSplitterH;
 
 namespace ed = ax::NodeEditor;
 
@@ -109,15 +110,28 @@ public:
 
     bool Initialize(float StartX, float StartY, float Width, float Height);
     void OnRender() override;
+    void OnUpdate(float DeltaSeconds) override;
+    void OnMouseMove(FVector2D MousePos) override;
+    void OnMouseDown(FVector2D MousePos, uint32 Button) override;
+    void OnMouseUp(FVector2D MousePos, uint32 Button) override;
 
     void SetOpen(bool bOpen) { bIsOpen = bOpen; }
     bool IsOpen() const { return bIsOpen; }
 
-    // External API to open a file
+    // External API to open/save a file
     void LoadStateMachineFile(const char* FilePath);
+    void SaveCurrentStateMachine();
 
     // Create a new empty tab
     void CreateNewEmptyTab();
+
+    // === 내장 모드 (DynamicEditorWindow 내부에서 사용) ===
+    void RenderEmbedded(const FRect& ContentRect);
+    void SetEmbeddedMode(bool bEmbedded) { bIsEmbeddedMode = bEmbedded; }
+
+    // === Accessors ===
+    int32 GetTabCount() const { return static_cast<int32>(Tabs.size()); }
+    FGraphState* GetActiveState() const { return ActiveState; }
 
 private:
     // Tab Management
@@ -151,6 +165,7 @@ private:
 private:
     bool bIsOpen = true;
     bool bInitialPlacementDone = false;
+    bool bIsEmbeddedMode = false;
 
     FRect Rect;
 
@@ -159,7 +174,15 @@ private:
     FGraphState* ActiveState = nullptr;
     int ActiveTabIndex = -1;
 
-    // Panel Ratios
+    // === SSplitter 레이아웃 ===
+    SSplitterH* MainSplitter = nullptr;  // Left(Palette) / Center(Graph) / Right(Details)
+
+    // === 패널 Rect (SSplitter에서 계산) ===
+    FRect LeftPanelRect;
+    FRect CenterPanelRect;
+    FRect RightPanelRect;
+
+    // Panel Ratios (초기값, SSplitter 사용 후에는 SSplitter가 관리)
     float LeftPanelRatio = 0.15f;   // 15%
     float RightPanelRatio = 0.25f;  // 25%
 

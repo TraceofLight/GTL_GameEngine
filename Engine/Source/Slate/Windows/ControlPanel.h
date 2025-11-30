@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "SWindow.h"
+#include "Window.h"
 
 class UControlPanelWindow;
 class USceneWindow;

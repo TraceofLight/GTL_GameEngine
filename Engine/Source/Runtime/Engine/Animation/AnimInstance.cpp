@@ -368,6 +368,7 @@ void UAnimInstance::TriggerNotify(const FAnimNotifyEvent& NotifyEvent, USkeletal
 /**
  * @brief 현재 애니메이션 시간에서 본 포즈를 샘플링하여 SkeletalMeshComponent에 적용
  * @details 언리얼 표준 흐름: UpdateAnimation (시간 업데이트) -> EvaluateAnimation (포즈 샘플링)
+ *          기즈모로 편집 중인 본은 건너뛰어 사용자의 편집 내용을 유지
  */
 void UAnimInstance::EvaluateAnimation()
 {
@@ -393,9 +394,18 @@ void UAnimInstance::EvaluateAnimation()
 	const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
 	const int32 NumBones = Skeleton->Bones.Num();
 
+	// 기즈모로 편집 중인 본 인덱스 가져오기
+	const int32 EditingBoneIndex = OwnerComponent->GetEditingBoneIndex();
+
 	// 각 본의 현재 시간에서의 Transform 샘플링 (배치 업데이트)
 	for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
 	{
+		// 기즈모로 현재 드래그 중인 본은 건너뜀 (사용자의 편집 내용 유지)
+		if (BoneIndex == EditingBoneIndex)
+		{
+			continue;
+		}
+
 		const FBone& Bone = Skeleton->Bones[BoneIndex];
 
 		FVector Position;
@@ -405,8 +415,19 @@ void UAnimInstance::EvaluateAnimation()
 		// AnimSequence에서 본 Transform 샘플링
 		if (AnimSequence->GetBoneTransformAtTime(Bone.Name, CurrentTime, Position, Rotation, Scale))
 		{
-			// SkeletalMeshComponent에 직접 설정 (ForceRecomputePose 호출 안 함)
 			FTransform BoneTransform(Position, Rotation, Scale);
+
+			// 편집된 본 델타가 있으면 적용
+			const FTransform* Delta = OwnerComponent->GetBoneDelta(BoneIndex);
+			if (Delta)
+			{
+				// 델타 적용: Position += Delta, Rotation *= Delta, Scale *= Delta
+				BoneTransform.Translation = BoneTransform.Translation + Delta->Translation;
+				BoneTransform.Rotation = (BoneTransform.Rotation * Delta->Rotation).GetNormalized();
+				BoneTransform.Scale3D = BoneTransform.Scale3D * Delta->Scale3D;
+			}
+
+			// SkeletalMeshComponent에 직접 설정 (ForceRecomputePose 호출 안 함)
 			OwnerComponent->SetBoneLocalTransformDirect(BoneIndex, BoneTransform);
 		}
 	}

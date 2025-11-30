@@ -95,13 +95,6 @@ void FSceneRenderer::Render()
 	D3D11_VIEWPORT BackupViewport;
 	RHIDevice->GetDeviceContext()->RSGetViewports(&NumViewports, &BackupViewport);
 
-
-	/*static bool Loaded = false;
-	if (!Loaded)
-	{
-		FSkeletalMeshData Skeletal = UFbxLoader::GetInstance().LoadFbxMesh("C:\\Program Files\\Autodesk\\Fbx\\Fbx SDK\\2020.3.7\\build\\vc143_x64_dll\\Debug\\sadface.fbx");
-		Loaded = true;
-	}*/
     // 뷰(View) 준비: 행렬, 절두체 등 프레임에 필요한 기본 데이터 계산
     PrepareView();
     // (Background is cleared per-path when binding scene color)
@@ -1495,6 +1488,12 @@ void FSceneRenderer::RenderPostProcessingPasses()
 			{
 				GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "Gamma", OwnerRenderer->GetGPUTimer());
 				GammaPass.Execute(Modifier, View, RHIDevice);
+			}
+			break;
+		case EPostProcessEffectType::DepthOfField:
+			{
+				GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "DepthOfField", OwnerRenderer->GetGPUTimer());
+				DepthOfFieldPass.Execute(Modifier, View, RHIDevice);
 			}
 			break;
 		}

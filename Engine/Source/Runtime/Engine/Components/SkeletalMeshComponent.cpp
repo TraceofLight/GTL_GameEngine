@@ -146,7 +146,9 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
 {
     Super::TickComponent(DeltaTime);
 
-    // Animation 인스턴스 업데이트 (Unreal Engine 방식)
+    // Animation 인스턴스 업데이트
+    // 기즈모로 본을 편집 중일 때도 애니메이션은 계속 진행됨
+    // 편집 중인 본만 AnimInstance가 덮어쓰지 않도록 처리
     if (AnimInstance)
     {
         // BlendSpace2D 노드 우선 체크 (더 우선순위가 높음)
@@ -343,9 +345,25 @@ void USkeletalMeshComponent::SetBoneWorldTransform(int32 BoneIndex, const FTrans
     if (BoneIndex < 0 || BoneIndex >= CurrentLocalSpacePose.Num())
         return;
 
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
+        return;
+
     const int32 ParentIndex = SkeletalMesh->GetSkeleton()->Bones[BoneIndex].ParentIndex;
 
-    const FTransform& ParentWorldTransform = GetBoneWorldTransform(ParentIndex);
+    // 부모 본의 월드 트랜스폼 계산
+    FTransform ParentWorldTransform;
+    if (ParentIndex >= 0)
+    {
+        // 일반 본: 부모 본의 월드 트랜스폼 사용
+        ParentWorldTransform = GetBoneWorldTransform(ParentIndex);
+    }
+    else
+    {
+        // 루트 본: Component의 월드 트랜스폼을 부모로 사용
+        ParentWorldTransform = GetWorldTransform();
+    }
+
+    // World → Local 변환
     FTransform DesiredLocal = ParentWorldTransform.GetRelativeTransform(NewWorldTransform);
 
     SetBoneLocalTransform(BoneIndex, DesiredLocal);
@@ -381,7 +399,7 @@ FTransform USkeletalMeshComponent::GetBoneWorldTransform(int32 BoneIndex)
  */
 void USkeletalMeshComponent::ForceRecomputePose()
 {
-    if (!SkeletalMesh) { return; }
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData()) { return; }
 
     // LocalSpace -> ComponentSpace 계산
     UpdateComponentSpaceTransforms();
@@ -580,6 +598,40 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
         // AnimInstance는 저장하지 않음 (BeginPlay에서 재생성됨)
     }
 }
+
+// ===== Bone Delta 관리 =====
+
+void USkeletalMeshComponent::SetBoneDelta(int32 BoneIndex, const FTransform& Delta)
+{
+    EditedBoneDeltas[BoneIndex] = Delta;
+}
+
+void USkeletalMeshComponent::ClearBoneDelta(int32 BoneIndex)
+{
+    EditedBoneDeltas.erase(BoneIndex);
+}
+
+void USkeletalMeshComponent::ClearAllBoneDeltas()
+{
+    EditedBoneDeltas.clear();
+}
+
+bool USkeletalMeshComponent::HasBoneDelta(int32 BoneIndex) const
+{
+    return EditedBoneDeltas.find(BoneIndex) != EditedBoneDeltas.end();
+}
+
+const FTransform* USkeletalMeshComponent::GetBoneDelta(int32 BoneIndex) const
+{
+    auto It = EditedBoneDeltas.find(BoneIndex);
+    if (It != EditedBoneDeltas.end())
+    {
+        return &It->second;
+    }
+    return nullptr;
+}
+
+// ===== Physics 관리 =====
 
 void USkeletalMeshComponent::EnsurePhysicsAssetBuilt()
 {

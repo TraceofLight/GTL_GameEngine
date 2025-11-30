@@ -232,7 +232,7 @@ inline FString ACPToUTF8(const FString& InAcpStr)
  * @details 파티클 시스템, 씬 파일 등에서 에셋 경로를 저장할 때 사용합니다.
  *          절대 경로를 상대 경로로 변환하여 다른 PC에서도 동작하도록 합니다.
  *
- * 예: "C:/Users/Jungle/Projects/Engine/Data/Model/Box.obj" → "Data/Model/Box.obj"
+ * 예: "[ProjectRoot]/Data/Model/Box.obj" → "Data/Model/Box.obj"
  * 예: "Data/Model/Box.obj" → "Data/Model/Box.obj" (이미 상대 경로면 그대로)
  *
  * @param InPath 변환할 경로 (절대 또는 상대)

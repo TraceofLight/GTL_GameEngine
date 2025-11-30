@@ -583,7 +583,6 @@
     <ClCompile Include="Source\Runtime\Engine\Components\SkeletalMeshComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\SkinnedMeshComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\SkeletalMeshActor.cpp" />
-    <ClCompile Include="Source\Runtime\Engine\Components\BoneAnchorComponent.cpp" />
     <ClCompile Include="Source\Slate\Windows\ContentBrowserWindow.cpp" />
     <ClCompile Include="Source\Slate\ThumbnailManager.cpp" />
     <ClCompile Include="Generated\APawn.generated.cpp">
@@ -667,10 +666,7 @@
     </ClCompile>
     <ClCompile Include="Source\Runtime\Engine\Animation\MixamoChainMapper.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Animation\SingleAnimationPlayData.cpp" />
-    <ClCompile Include="Source\Slate\Windows\BlendSpace2DEditorWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\AnimStateMachineWindow.cpp" />
-    <ClCompile Include="Source\Slate\Windows\PreviewWindow.cpp" />
-    <ClCompile Include="Source\Slate\Windows\PreviewWindow_Timeline.cpp" />
     <ClCompile Include="ThirdParty\Include\ImGui\crude_json.cpp" />
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_canvas.cpp" />
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_node_editor.cpp" />
@@ -1377,7 +1373,6 @@
       <Filter>Generated</Filter>
     </ClInclude>
     <ClInclude Include="Source\Runtime\AssetManagement\SkeletalMesh.h" />
-    <ClInclude Include="Source\Runtime\Engine\Components\BoneAnchorComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\SkeletalMeshComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\SkinnedMeshComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\SkeletalMeshActor.h" />
@@ -1495,9 +1490,7 @@
     </ClInclude>
     <ClInclude Include="Source\Runtime\Engine\Animation\MixamoChainMapper.h" />
     <ClInclude Include="Source\Runtime\Engine\Animation\SingleAnimationPlayData.h" />
-    <ClInclude Include="Source\Slate\Windows\BlendSpace2DEditorWindow.h" />
     <ClInclude Include="Source\Slate\Windows\AnimStateMachineWindow.h" />
-    <ClInclude Include="Source\Slate\Windows\PreviewWindow.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Particle.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleDataContainer.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleEmitterInstance.h" />

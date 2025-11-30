@@ -434,6 +434,11 @@ inline HRESULT D3D11RHI::CreateVertexBuffer<FBillboardVertexInfo_GPU>(ID3D11Devi
 template<typename TVertex>
 inline HRESULT D3D11RHI::CreateVertexBuffer(ID3D11Device* Device, const std::vector<FSkinnedVertex>& SrcVertices, ID3D11Buffer** OutBuffer, bool bIsGPUSkinning)
 {
+	if (SrcVertices.empty())
+	{
+		return E_INVALIDARG;
+	}
+
 	std::vector<TVertex> VertexArray;
 	VertexArray.reserve(SrcVertices.size());
 

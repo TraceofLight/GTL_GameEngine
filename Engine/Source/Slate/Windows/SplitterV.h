@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "SSplitter.h"
+#include "Splitter.h"
 /**
  * @brief 수직 스플리터 (상/하 분할)
  */

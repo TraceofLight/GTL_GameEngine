@@ -1,46 +1,33 @@
 #include "pch.h"
-#include "BoneAnchorComponent.h"
-#include "SkeletalMeshActor.h"
-#include "PreviewWindow.h"
-#include "ImGui/imgui.h"
+#include "AnimationWindow.h"
+#include "Source/Slate/Widgets/PlaybackControls.h"
+#include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
+#include "Source/Runtime/Engine/GameFramework/World.h"
+#include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
 #include "Source/Runtime/Engine/Animation/AnimSingleNodeInstance.h"
-#include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
+#include "Source/Runtime/AssetManagement/ResourceManager.h"
+#include "Source/Runtime/AssetManagement/SkeletalMesh.h"
+#include "Source/Editor/Gizmo/GizmoActor.h"
+#include "ImGui/imgui.h"
+#include "ImGui/imgui_internal.h"
+#include <filesystem>
 
 // Timeline 컨트롤 UI 렌더링
-void SPreviewWindow::RenderTimelineControls(ViewerState* State)
+void SAnimationWindow::RenderTimelineControls(FAnimationTabState* State)
 {
     if (!State)
     {
         return;
     }
 
-    // 애니메이션이 없을 때 안내 메시지 표시
-    if (!State->CurrentAnimation)
-    {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-        float availHeight = ImGui::GetContentRegionAvail().y;
-        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + availHeight * 0.4f);
+    // 애니메이션이 없어도 빈 타임라인 UI는 표시
+    UAnimDataModel* DataModel = State->CurrentAnimation ? State->CurrentAnimation->GetDataModel() : nullptr;
 
-        const char* message = "Select an animation from the list to view timeline";
-        float textWidth = ImGui::CalcTextSize(message).x;
-        float windowWidth = ImGui::GetContentRegionAvail().x;
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (windowWidth - textWidth) * 0.5f);
-        ImGui::Text("%s", message);
-        ImGui::PopStyleColor();
-        return;
-    }
-
-    UAnimDataModel* DataModel = State->CurrentAnimation->GetDataModel();
-    if (!DataModel)
-    {
-        return;
-    }
-
-    float MaxTime = DataModel->GetPlayLength();
-    int32 TotalFrames = DataModel->GetNumberOfFrames();
+    float MaxTime = DataModel ? DataModel->GetPlayLength() : 1.0f;
+    int32 TotalFrames = DataModel ? DataModel->GetNumberOfFrames() : 30;
 
     // Working Range 기본값 설정 (프레임 단위)
     if (State->WorkingRangeEndFrame < 0)
@@ -62,57 +49,26 @@ void SPreviewWindow::RenderTimelineControls(ViewerState* State)
     ImGui::Separator();
 
     // === 2. 재생 컨트롤 버튼들 (항상 하단 고정) ===
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 2));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 4));
+    PlaybackControls::BeginStyle();
 
     float ButtonSize = 20.0f;
     ImVec2 ButtonSizeVec(ButtonSize, ButtonSize);
 
     // ToFront |<<
-    if (IconGoToFront && IconGoToFront->GetShaderResourceView())
+    if (PlaybackControls::RenderToFrontButton(IconGoToFront, ButtonSize))
     {
-        if (ImGui::ImageButton("##ToFront", IconGoToFront->GetShaderResourceView(), ButtonSizeVec))
-        {
-            TimelineToFront(State);
-        }
+        TimelineToFront(State);
     }
-    else
-    {
-        if (ImGui::Button("|<<", ButtonSizeVec))
-        {
-            TimelineToFront(State);
-        }
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("To Front");
-    }
-
     ImGui::SameLine();
 
     // ToPrevious |<
-    if (IconStepBackwards && IconStepBackwards->GetShaderResourceView())
+    if (PlaybackControls::RenderStepBackwardsButton(IconStepBackwards, ButtonSize))
     {
-        if (ImGui::ImageButton("##StepBackwards", IconStepBackwards->GetShaderResourceView(), ButtonSizeVec))
-        {
-            TimelineToPrevious(State);
-        }
+        TimelineToPrevious(State);
     }
-    else
-    {
-        if (ImGui::Button("|<", ButtonSizeVec))
-        {
-            TimelineToPrevious(State);
-        }
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Previous Frame");
-    }
-
     ImGui::SameLine();
 
-    // Reverse <<
+    // Reverse << (Animation 전용)
     if (IconBackwards && IconBackwards->GetShaderResourceView())
     {
         if (ImGui::ImageButton("##Backwards", IconBackwards->GetShaderResourceView(), ButtonSizeVec))
@@ -127,14 +83,10 @@ void SPreviewWindow::RenderTimelineControls(ViewerState* State)
             TimelineReverse(State);
         }
     }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Reverse");
-    }
-
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("Reverse"); }
     ImGui::SameLine();
 
-    // Record 버튼 (녹화 중이면 빨간색)
+    // Record 버튼 (Animation 전용 - 녹화 중이면 빨간색)
     bool bWasRecording = State->bIsRecording;
     if (bWasRecording)
     {
@@ -142,7 +94,6 @@ void SPreviewWindow::RenderTimelineControls(ViewerState* State)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.2f, 0.2f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7f, 0.0f, 0.0f, 1.0f));
     }
-
     if (IconRecord && IconRecord->GetShaderResourceView())
     {
         if (ImGui::ImageButton("##Record", IconRecord->GetShaderResourceView(), ButtonSizeVec))
@@ -157,193 +108,72 @@ void SPreviewWindow::RenderTimelineControls(ViewerState* State)
             TimelineRecord(State);
         }
     }
-
-    if (bWasRecording)
-    {
-        ImGui::PopStyleColor(3);
-    }
-
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip(State->bIsRecording ? "Stop Recording" : "Record");
-    }
-
+    if (bWasRecording) { ImGui::PopStyleColor(3); }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip(State->bIsRecording ? "Stop Recording" : "Record"); }
     ImGui::SameLine();
 
     // Play/Pause (AnimInstance 컨트롤)
-    if (State->bIsPlaying)
+    if (PlaybackControls::RenderPlayPauseButton(IconPlay, IconPause, State->bIsPlaying, ButtonSize))
     {
-        bool bPauseClicked = false;
-        if (IconPause && IconPause->GetShaderResourceView())
+        if (State->bIsPlaying)
         {
-            bPauseClicked = ImGui::ImageButton("##Pause", IconPause->GetShaderResourceView(), ButtonSizeVec);
-        }
-        else
-        {
-            bPauseClicked = ImGui::Button("||", ButtonSizeVec);
-        }
-
-        // Tooltip은 버튼 직후에 체크 (클릭 여부와 무관)
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Pause");
-        }
-
-        if (bPauseClicked)
-        {
+            // 일시정지
             if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
             {
                 UAnimInstance* AnimInst = State->PreviewActor->GetSkeletalMeshComponent()->GetAnimInstance();
-                if (AnimInst)
-                {
-                    AnimInst->StopAnimation();
-                }
+                if (AnimInst) { AnimInst->StopAnimation(); }
             }
             State->bIsPlaying = false;
         }
-    }
-    else
-    {
-        bool bPlayClicked = false;
-        if (IconPlay && IconPlay->GetShaderResourceView())
-        {
-            bPlayClicked = ImGui::ImageButton("##Play", IconPlay->GetShaderResourceView(), ButtonSizeVec);
-        }
         else
         {
-            bPlayClicked = ImGui::Button(">", ButtonSizeVec);
-        }
-
-        // Tooltip은 버튼 직후에 체크
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Play");
-        }
-
-        if (bPlayClicked)
-        {
+            // 재생
             TimelinePlay(State);
         }
     }
-
     ImGui::SameLine();
 
     // ToNext >|
-    if (IconStepForward && IconStepForward->GetShaderResourceView())
+    if (PlaybackControls::RenderStepForwardButton(IconStepForward, ButtonSize))
     {
-        if (ImGui::ImageButton("##StepForward", IconStepForward->GetShaderResourceView(), ButtonSizeVec))
-        {
-            TimelineToNext(State);
-        }
+        TimelineToNext(State);
     }
-    else
-    {
-        if (ImGui::Button(">|", ButtonSizeVec))
-        {
-            TimelineToNext(State);
-        }
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Next Frame");
-    }
-
     ImGui::SameLine();
 
     // ToEnd >>|
-    if (IconGoToEnd && IconGoToEnd->GetShaderResourceView())
+    if (PlaybackControls::RenderToEndButton(IconGoToEnd, ButtonSize))
     {
-        if (ImGui::ImageButton("##ToEnd", IconGoToEnd->GetShaderResourceView(), ButtonSizeVec))
-        {
-            TimelineToEnd(State);
-        }
+        TimelineToEnd(State);
     }
-    else
-    {
-        if (ImGui::Button(">>|", ButtonSizeVec))
-        {
-            TimelineToEnd(State);
-        }
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("To End");
-    }
-
     ImGui::SameLine();
 
     // Loop 토글
-    bool bWasLooping = State->bLoopAnimation;
-    UTexture* LoopIcon = bWasLooping ? IconLoop : IconLoopOff;
-    if (LoopIcon && LoopIcon->GetShaderResourceView())
+    if (PlaybackControls::RenderLoopButton(IconLoop, IconLoopOff, State->bLoopAnimation, ButtonSize))
     {
-        if (ImGui::ImageButton("##Loop", LoopIcon->GetShaderResourceView(), ButtonSizeVec))
-        {
-            State->bLoopAnimation = !State->bLoopAnimation;
+        State->bLoopAnimation = !State->bLoopAnimation;
 
-            // AnimInstance의 루프 설정만 업데이트 (재시작하지 않음)
-            if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+        // AnimInstance의 루프 설정만 업데이트 (재시작하지 않음)
+        if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+        {
+            USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
+            if (UAnimInstance* AnimInst = SkelComp->GetAnimInstance())
             {
-                USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
-                if (UAnimInstance* AnimInst = SkelComp->GetAnimInstance())
+                if (UAnimSingleNodeInstance* SingleNodeInst = dynamic_cast<UAnimSingleNodeInstance*>(AnimInst))
                 {
-                    if (UAnimSingleNodeInstance* SingleNodeInst = dynamic_cast<UAnimSingleNodeInstance*>(AnimInst))
-                    {
-                        SingleNodeInst->SetLooping(State->bLoopAnimation);
-                    }
+                    SingleNodeInst->SetLooping(State->bLoopAnimation);
                 }
             }
         }
     }
-    else
-    {
-        if (bWasLooping)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
-        }
-        if (ImGui::Button("Loop", ButtonSizeVec))
-        {
-            State->bLoopAnimation = !State->bLoopAnimation;
-
-            // AnimInstance의 루프 설정만 업데이트 (재시작하지 않음)
-            if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
-            {
-                USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
-                if (UAnimInstance* AnimInst = SkelComp->GetAnimInstance())
-                {
-                    if (UAnimSingleNodeInstance* SingleNodeInst = dynamic_cast<UAnimSingleNodeInstance*>(AnimInst))
-                    {
-                        SingleNodeInst->SetLooping(State->bLoopAnimation);
-                    }
-                }
-            }
-        }
-        if (bWasLooping)
-        {
-            ImGui::PopStyleColor();
-        }
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Loop");
-    }
-
     ImGui::SameLine();
-    ImGui::Dummy(ImVec2(20, 0));  // Loop와 Speed 사이 패딩
+    ImGui::Dummy(ImVec2(20, 0));
     ImGui::SameLine();
 
-    // 재생 속도 (입력 가능 + 드래그)
-    ImGui::Text("Speed:");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(80.0f);
-    ImGui::DragFloat("##Speed", &State->PlaybackSpeed, 0.05f, 0.1f, 5.0f, "%.2fx");
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Drag or click to edit playback speed");
-    }
+    // 재생 속도
+    PlaybackControls::RenderSpeedControl(State->PlaybackSpeed);
 
     ImGui::SameLine();
-    ImGui::Dummy(ImVec2(20, 0));  // 간격
+    ImGui::Dummy(ImVec2(20, 0));
     ImGui::SameLine();
 
     // === Range 컨트롤 (재생 컨트롤 옆에 배치, 프레임 단위) ===
@@ -548,11 +378,11 @@ void SPreviewWindow::RenderTimelineControls(ViewerState* State)
         ImGui::SetTooltip("Working Range End (Frame)");
     }
 
-    ImGui::PopStyleVar(2);
+    PlaybackControls::EndStyle();
 }
 
 // Timeline 헬퍼: 프레임 변경 시 공통 갱신 로직
-void SPreviewWindow::RefreshAnimationFrame(ViewerState* State)
+void SAnimationWindow::RefreshAnimationFrame(FAnimationTabState* State)
 {
     if (!State)
     {
@@ -572,30 +402,6 @@ void SPreviewWindow::RefreshAnimationFrame(ViewerState* State)
         if (AnimInst)
         {
             AnimInst->SetPosition(State->CurrentAnimationTime);
-        }
-
-        // 애니메이션 업데이트 후, 편집된 본 트랜스폼 델타 적용
-        if (State->ViewMode == EViewerMode::Animation && !State->EditedBoneTransforms.empty())
-        {
-            for (const auto& Pair : State->EditedBoneTransforms)
-            {
-                int32 BoneIndex = Pair.first;
-                const FTransform& Delta = Pair.second;
-
-                // 현재 애니메이션 트랜스폼 가져오기
-                FTransform AnimTransform = SkelComp->GetBoneLocalTransform(BoneIndex);
-
-                // 델타 계산용으로 현재 애니메이션 트랜스폼 저장
-                State->AnimationBoneTransforms[BoneIndex] = AnimTransform;
-
-                // 델타 적용: Position=덧셈, Rotation=곱셈, Scale=곱셈
-                FTransform FinalTransform;
-                FinalTransform.Translation = AnimTransform.Translation + Delta.Translation;
-                FinalTransform.Rotation = (AnimTransform.Rotation * Delta.Rotation).GetNormalized();
-                FinalTransform.Scale3D = AnimTransform.Scale3D * Delta.Scale3D;
-
-                SkelComp->SetBoneLocalTransform(BoneIndex, FinalTransform);
-            }
         }
     }
 
@@ -619,7 +425,7 @@ void SPreviewWindow::RefreshAnimationFrame(ViewerState* State)
     }
 }
 
-void SPreviewWindow::TimelineToFront(ViewerState* State)
+void SAnimationWindow::TimelineToFront(FAnimationTabState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -631,7 +437,7 @@ void SPreviewWindow::TimelineToFront(ViewerState* State)
     RefreshAnimationFrame(State);
 }
 
-void SPreviewWindow::TimelineToPrevious(ViewerState* State)
+void SAnimationWindow::TimelineToPrevious(FAnimationTabState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -660,7 +466,7 @@ void SPreviewWindow::TimelineToPrevious(ViewerState* State)
     RefreshAnimationFrame(State);
 }
 
-void SPreviewWindow::TimelineReverse(ViewerState* State)
+void SAnimationWindow::TimelineReverse(FAnimationTabState* State)
 {
     if (!State)
     {
@@ -694,7 +500,7 @@ void SPreviewWindow::TimelineReverse(ViewerState* State)
     }
 }
 
-void SPreviewWindow::TimelineRecord(ViewerState* State)
+void SAnimationWindow::TimelineRecord(FAnimationTabState* State)
 {
     if (!State || !State->CurrentMesh)
     {
@@ -787,8 +593,10 @@ void SPreviewWindow::TimelineRecord(ViewerState* State)
                         State->SelectedAnimationIndex = i;
                         State->CurrentAnimation = NewAnim;
                         State->CurrentAnimationTime = 0.0f;
-                        State->EditedBoneTransforms.clear();
-                        State->AnimationBoneTransforms.clear();
+                        if (USkeletalMeshComponent* SkelComp = State->PreviewActor ? State->PreviewActor->GetSkeletalMeshComponent() : nullptr)
+                        {
+                            SkelComp->ClearAllBoneDeltas();
+                        }
                         State->bIsPlaying = false;
 
                         if (NewAnim->GetDataModel())
@@ -821,7 +629,7 @@ void SPreviewWindow::TimelineRecord(ViewerState* State)
     }
 }
 
-void SPreviewWindow::TimelinePlay(ViewerState* State)
+void SAnimationWindow::TimelinePlay(FAnimationTabState* State)
 {
     if (!State)
     {
@@ -855,7 +663,7 @@ void SPreviewWindow::TimelinePlay(ViewerState* State)
     }
 }
 
-void SPreviewWindow::TimelineToNext(ViewerState* State)
+void SAnimationWindow::TimelineToNext(FAnimationTabState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -885,7 +693,7 @@ void SPreviewWindow::TimelineToNext(ViewerState* State)
     RefreshAnimationFrame(State);
 }
 
-void SPreviewWindow::TimelineToEnd(ViewerState* State)
+void SAnimationWindow::TimelineToEnd(FAnimationTabState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -907,7 +715,7 @@ void SPreviewWindow::TimelineToEnd(ViewerState* State)
 // 새로운 커스텀 타임라인 렌더링
 // ========================================
 
-void SPreviewWindow::RenderTimeline(ViewerState* State)
+void SAnimationWindow::RenderTimeline(FAnimationTabState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -1777,7 +1585,8 @@ void SPreviewWindow::RenderTimeline(ViewerState* State)
             int32 TrackIndex = RowIndex - 1;  // 첫 줄(0)은 Notifies 헤더
 
             // Notifies 헤더 줄(TrackIndex < 0)이 아닌 경우만 처리
-            if (TrackIndex >= 0 && TrackIndex < State->NotifyTrackNames.Num())
+            // Animation이 없으면 컨텍스트 메뉴 열지 않음
+            if (State->CurrentAnimation && TrackIndex >= 0 && TrackIndex < State->NotifyTrackNames.Num())
             {
                 RightClickTime = MouseTime;
                 RightClickTrackIndex = TrackIndex;
@@ -1790,6 +1599,15 @@ void SPreviewWindow::RenderTimeline(ViewerState* State)
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
     if (ImGui::BeginPopup("##TimelineContextMenu"))
     {
+        // Animation이 없으면 메뉴 닫기 (안전장치)
+        if (!State->CurrentAnimation)
+        {
+            ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+            ImGui::PopStyleVar(2);
+            return;
+        }
+
         // Paste (클립보드에 Notify가 있을 때만 활성화)
         if (ImGui::MenuItem("Paste", "CTRL+V", false, State->bHasNotifyClipboard))
         {
@@ -1919,8 +1737,8 @@ void SPreviewWindow::RenderTimeline(ViewerState* State)
     {
         bool bCtrlHeld = ImGui::GetIO().KeyCtrl;
 
-        // Ctrl+C: Copy
-        if (bCtrlHeld && ImGui::IsKeyPressed(ImGuiKey_C) && State->SelectedNotifyIndex >= 0)
+        // Ctrl+C: Copy (Animation이 있을 때만)
+        if (State->CurrentAnimation && bCtrlHeld && ImGui::IsKeyPressed(ImGuiKey_C) && State->SelectedNotifyIndex >= 0)
         {
             TArray<FAnimNotifyEvent>& Notifies = State->CurrentAnimation->Notifies;
             if (State->SelectedNotifyIndex < Notifies.Num())
@@ -1930,8 +1748,8 @@ void SPreviewWindow::RenderTimeline(ViewerState* State)
             }
         }
 
-        // Ctrl+V: Paste
-        if (bCtrlHeld && ImGui::IsKeyPressed(ImGuiKey_V) && State->bHasNotifyClipboard)
+        // Ctrl+V: Paste (Animation이 있을 때만)
+        if (State->CurrentAnimation && bCtrlHeld && ImGui::IsKeyPressed(ImGuiKey_V) && State->bHasNotifyClipboard)
         {
             FAnimNotifyEvent PastedNotify = State->NotifyClipboard;
             PastedNotify.TriggerTime = State->CurrentAnimationTime;
@@ -1948,8 +1766,8 @@ void SPreviewWindow::RenderTimeline(ViewerState* State)
             State->SelectedNotifyIndex = State->CurrentAnimation->Notifies.Num() - 1;
         }
 
-        // Ctrl+X: Cut
-        if (bCtrlHeld && ImGui::IsKeyPressed(ImGuiKey_X) && State->SelectedNotifyIndex >= 0)
+        // Ctrl+X: Cut (Animation이 있을 때만)
+        if (State->CurrentAnimation && bCtrlHeld && ImGui::IsKeyPressed(ImGuiKey_X) && State->SelectedNotifyIndex >= 0)
         {
             TArray<FAnimNotifyEvent>& Notifies = State->CurrentAnimation->Notifies;
             if (State->SelectedNotifyIndex < Notifies.Num())
@@ -1990,7 +1808,7 @@ void SPreviewWindow::RenderTimeline(ViewerState* State)
     ImGui::PopStyleVar();  // WindowPadding 복원
 }
 
-void SPreviewWindow::DrawTimelineRuler(ImDrawList* DrawList, const ImVec2& RulerMin, const ImVec2& RulerMax, float StartTime, float EndTime, ViewerState* State)
+void SAnimationWindow::DrawTimelineRuler(ImDrawList* DrawList, const ImVec2& RulerMin, const ImVec2& RulerMax, float StartTime, float EndTime, FAnimationTabState* State)
 {
     // 눈금자 배경
     DrawList->AddRectFilled(RulerMin, RulerMax, IM_COL32(50, 50, 50, 255));
@@ -2079,7 +1897,7 @@ void SPreviewWindow::DrawTimelineRuler(ImDrawList* DrawList, const ImVec2& Ruler
     }
 }
 
-void SPreviewWindow::DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime)
+void SAnimationWindow::DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float CurrentTime, float StartTime, float EndTime)
 {
     float Duration = EndTime - StartTime;
     if (Duration <= 0.0f)
@@ -2113,7 +1931,7 @@ void SPreviewWindow::DrawTimelinePlayhead(ImDrawList* DrawList, const ImVec2& Ti
     );
 }
 
-void SPreviewWindow::DrawPlaybackRange(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
+void SAnimationWindow::DrawPlaybackRange(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, FAnimationTabState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -2206,7 +2024,7 @@ void SPreviewWindow::DrawPlaybackRange(ImDrawList* DrawList, const ImVec2& Timel
     );
 }
 
-void SPreviewWindow::DrawNotifyTracksPanel(ViewerState* State, float StartTime, float EndTime)
+void SAnimationWindow::DrawNotifyTracksPanel(FAnimationTabState* State, float StartTime, float EndTime)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -2485,7 +2303,7 @@ void SPreviewWindow::DrawNotifyTracksPanel(ViewerState* State, float StartTime, 
     ImGui::Dummy(ImVec2(0, RulerHeight + (State->NotifyTrackNames.Num() * TrackHeight)));
 }
 
-void SPreviewWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, ViewerState* State)
+void SAnimationWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& TimelineMin, const ImVec2& TimelineMax, float StartTime, float EndTime, FAnimationTabState* State)
 {
     if (!State || !State->CurrentAnimation)
     {
@@ -2566,4 +2384,38 @@ void SPreviewWindow::DrawKeyframeMarkers(ImDrawList* DrawList, const ImVec2& Tim
             }
         }
     }
+}
+
+// ============================================================================
+// RenderTimelinePanel - Timeline 패널 전체 렌더링
+// ============================================================================
+
+void SAnimationWindow::RenderTimelinePanel()
+{
+    FAnimationTabState* State = ActiveState;
+    if (!State)
+    {
+        return;
+    }
+
+    FRect PanelRect = TimelineRect;
+    if (PanelRect.GetWidth() <= 0 || PanelRect.GetHeight() <= 0)
+    {
+        return;
+    }
+
+    ImGui::SetNextWindowPos(ImVec2(PanelRect.Left, PanelRect.Top));
+    ImGui::SetNextWindowSize(ImVec2(PanelRect.GetWidth(), PanelRect.GetHeight()));
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+    if (ImGui::Begin("Timeline##AnimTimeline", nullptr, flags))
+    {
+        RenderTimelineControls(State);
+    }
+    ImGui::End();
 }

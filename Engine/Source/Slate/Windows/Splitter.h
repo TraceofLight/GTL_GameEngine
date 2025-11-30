@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include"Vector.h"
-#include "SWindow.h"
+#include "Window.h"
 #include <fstream>
 #include <string>
 #include <vector>

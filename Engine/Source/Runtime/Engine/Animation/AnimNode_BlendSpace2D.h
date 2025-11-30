@@ -72,6 +72,44 @@ public:
 	 */
 	void SetAutoCalculateParameter(bool bEnable);
 
+	// ===== 재생 제어 =====
+
+	/**
+	 * @brief 일시정지 설정
+	 */
+	void SetPaused(bool bInPaused) { bPaused = bInPaused; }
+
+	/**
+	 * @brief 일시정지 상태 확인
+	 */
+	bool IsPaused() const { return bPaused; }
+
+	/**
+	 * @brief 정규화된 재생 시간 설정 (0~1)
+	 * @param InNormalizedTime 0.0 = 시작, 1.0 = 끝
+	 */
+	void SetNormalizedTime(float InNormalizedTime);
+
+	/**
+	 * @brief 정규화된 재생 시간 가져오기 (0~1)
+	 */
+	float GetNormalizedTime() const { return NormalizedTime; }
+
+	/**
+	 * @brief 블렌딩된 애니메이션의 최대 길이 가져오기 (초)
+	 */
+	float GetMaxAnimationLength() const;
+
+	/**
+	 * @brief 루프 설정
+	 */
+	void SetLoop(bool bInLoop) { bLoop = bInLoop; }
+
+	/**
+	 * @brief 루프 상태 확인
+	 */
+	bool IsLooping() const { return bLoop; }
+
 private:
 	// ===== 애셋 참조 =====
 	UBlendSpace2D* BlendSpace;
@@ -79,6 +117,8 @@ private:
 	// ===== 실행 상태 =====
 	FVector2D BlendParameter;      // 현재 블렌드 파라미터 (예: 속도, 방향)
 	bool bAutoCalculateParameter;  // Movement에서 자동으로 파라미터 계산할지
+	bool bPaused;                  // 일시정지 상태
+	bool bLoop;                    // 루프 재생 여부
 
 	// 각 샘플 애니메이션의 재생 시간
 	TArray<float> SampleAnimTimes;

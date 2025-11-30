@@ -3,14 +3,12 @@
 
 #include "CameraActor.h"
 #include "Source/Runtime/Engine/Animation/BlendSpace2D.h"
-#include "Windows/SWindow.h"
-#include "Windows/SSplitterV.h"
-#include "Windows/SDetailsWindow.h"
-#include "Windows/SControlPanel.h"
+#include "Windows/Window.h"
+#include "Windows/SplitterV.h"
+#include "Windows/DetailsWindow.h"
+#include "Windows/ControlPanel.h"
 #include "Windows/ControlPanelWindow.h"
-#include "Windows/SViewportWindow.h"
-#include "Windows/PreviewWindow.h"
-#include "Windows/BlendSpace2DEditorWindow.h"
+#include "Windows/ViewportWindow.h"
 #include "Windows/ConsoleWindow.h"
 #include "Windows/ContentBrowserWindow.h"
 #include "Widgets/MainToolbarWidget.h"
@@ -19,7 +17,6 @@
 #include "UIManager.h"
 #include "GlobalConsole.h"
 #include "ThumbnailManager.h"
-#include "Windows/AnimStateMachineWindow.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystem.h"
 #include "Gizmo/GizmoActor.h"
 
@@ -183,141 +180,162 @@ void USlateManager::Initialize(ID3D11Device* InDevice, UWorld* InWorld, const FR
     }
 }
 
-void USlateManager::OpenSkeletalMeshViewer()
+// ============================================================================
+// Dynamic Editor Window (통합 에디터)
+// ============================================================================
+
+void USlateManager::OpenDynamicEditor()
 {
-    if (SkeletalViewerWindow)
+    if (DynamicEditorWindow)
     {
         return;
     }
 
-    SkeletalViewerWindow = new SPreviewWindow();
+    DynamicEditorWindow = new SDynamicEditorWindow();
 
-    // Open as a detached window at a default size and position
     const float toolbarHeight = 50.0f;
     const float availableHeight = Rect.GetHeight() - toolbarHeight;
     const float w = Rect.GetWidth() * 0.85f;
     const float h = availableHeight * 0.85f;
     const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
     const float y = Rect.Top + toolbarHeight + (availableHeight - h) * 0.5f;
-    SkeletalViewerWindow->Initialize(x, y, w, h, World, Device);
+    DynamicEditorWindow->Initialize(x, y, w, h, World, Device);
 }
 
-void USlateManager::OpenSkeletalMeshViewerWithFile(const char* FilePath)
+void USlateManager::OpenDynamicEditorWithFile(const char* FilePath)
 {
-    // 뷰어가 이미 열려있으면 그냥 사용, 아니면 새로 열기
-    if (!SkeletalViewerWindow)
+    if (!DynamicEditorWindow)
     {
-        OpenSkeletalMeshViewer();
+        OpenDynamicEditor();
     }
 
-    // Load the skeletal mesh into the viewer
-    if (SkeletalViewerWindow && FilePath && FilePath[0] != '\0')
+    if (DynamicEditorWindow && FilePath && FilePath[0] != '\0')
     {
-        SkeletalViewerWindow->LoadSkeletalMesh(FilePath);
-        UE_LOG("Opening SkeletalMeshViewer with file: %s", FilePath);
+        DynamicEditorWindow->LoadSkeletalMesh(FilePath);
+        UE_LOG("Opening DynamicEditor with file: %s", FilePath);
     }
 }
 
-void USlateManager::CloseSkeletalMeshViewer()
+void USlateManager::OpenDynamicEditorWithAnimation(const char* AnimFilePath)
 {
-    if (!SkeletalViewerWindow)
+    // Animation은 DynamicEditorWindow의 Animation 모드에서 처리
+    if (!DynamicEditorWindow)
+    {
+        OpenDynamicEditor();
+    }
+
+    if (DynamicEditorWindow)
+    {
+        DynamicEditorWindow->SetEditorMode(EEditorMode::Animation);
+        if (AnimFilePath && AnimFilePath[0] != '\0')
+        {
+            DynamicEditorWindow->LoadAnimation(AnimFilePath);
+            UE_LOG("Opening DynamicEditor Animation mode with file: %s", AnimFilePath);
+        }
+    }
+}
+
+void USlateManager::CloseDynamicEditor()
+{
+    if (!DynamicEditorWindow)
     {
         return;
     }
 
-    // 완전히 삭제
-    delete SkeletalViewerWindow;
-    SkeletalViewerWindow = nullptr;
+    delete DynamicEditorWindow;
+    DynamicEditorWindow = nullptr;
 }
 
 void USlateManager::OpenBlendSpace2DEditor(UBlendSpace2D* BlendSpace)
 {
-    if (BlendSpace2DEditorWindow)
+    // SDynamicEditorWindow를 통해 BlendSpace2D 모드로 열기
+    if (DynamicEditorWindow)
     {
         // 이미 열려있으면 BlendSpace만 교체
         if (BlendSpace)
         {
-            BlendSpace2DEditorWindow->SetBlendSpace(BlendSpace);
+            DynamicEditorWindow->SetBlendSpace(BlendSpace);
+        }
+        else
+        {
+            DynamicEditorWindow->SetEditorMode(EEditorMode::BlendSpace2D);
         }
         return;
     }
 
-    BlendSpace2DEditorWindow = new SBlendSpace2DEditorWindow();
+    // DynamicEditor 생성
+    OpenDynamicEditor();
 
-    // 중앙에 적당한 크기로 열기
-    const float toolbarHeight = 50.0f;
-    const float availableHeight = Rect.GetHeight() - toolbarHeight;
-    const float w = 1600.0f;  // 1200 -> 1600
-    const float h = 1000.0f;  // 800 -> 1000
-    const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
-    const float y = Rect.Top + toolbarHeight + (availableHeight - h) * 0.5f;
-
-    BlendSpace2DEditorWindow->Initialize(x, y, w, h, World, Device);
-
-    // BlendSpace 설정
-    if (BlendSpace)
+    if (DynamicEditorWindow)
     {
-        BlendSpace2DEditorWindow->SetBlendSpace(BlendSpace);
+        if (BlendSpace)
+        {
+            DynamicEditorWindow->SetBlendSpace(BlendSpace);
+        }
+        else
+        {
+            DynamicEditorWindow->SetEditorMode(EEditorMode::BlendSpace2D);
+        }
     }
 }
 
 void USlateManager::CloseBlendSpace2DEditor()
 {
-    if (!BlendSpace2DEditorWindow)
+    // SDynamicEditorWindow를 통해 관리하므로 CloseDynamicEditor 호출
+    // 또는 모드만 변경하고 싶다면 별도 처리 가능
+    // 현재는 레거시 호환성을 위해 DynamicEditor를 닫음
+    if (DynamicEditorWindow)
     {
-        return;
+        CloseDynamicEditor();
     }
-
-    delete BlendSpace2DEditorWindow;
-    BlendSpace2DEditorWindow = nullptr;
 }
 
 void USlateManager::CreateAnimStateMachineWindowIfNeeded()
 {
-	if (AnimStateMachineWindow)
-		return;
-
-	AnimStateMachineWindow = new SAnimStateMachineWindow();
-
-	// Open as a detached window at a default size and position
-	const float ToolbarHeight = 50.0f;
-	const float AvailableHeight = Rect.GetHeight() - ToolbarHeight;
-	const float w = Rect.GetWidth() * 0.85f;
-	const float h = AvailableHeight * 0.85f;
-	const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
-	const float y = Rect.Top + ToolbarHeight + (AvailableHeight - h) * 0.5f;
-
-	AnimStateMachineWindow->Initialize(x, y, w, h);
+	// 레거시: SDynamicEditorWindow를 통해 관리
+	// 이 함수는 더 이상 AnimStateMachineWindow를 생성하지 않음
+	// 대신 OpenDynamicEditor()를 사용
 }
 
 void USlateManager::OpenAnimStateMachineWindow()
 {
-	CreateAnimStateMachineWindowIfNeeded();
-
-	// Create a new empty tab
-	if (AnimStateMachineWindow)
+	// SDynamicEditorWindow를 통해 AnimGraph 모드로 열기
+	if (DynamicEditorWindow)
 	{
-		AnimStateMachineWindow->CreateNewEmptyTab();
+		DynamicEditorWindow->SetEditorMode(EEditorMode::AnimGraph);
+		return;
+	}
+
+	// DynamicEditor 생성
+	OpenDynamicEditor();
+
+	if (DynamicEditorWindow)
+	{
+		DynamicEditorWindow->SetEditorMode(EEditorMode::AnimGraph);
 	}
 }
 
 void USlateManager::OpenAnimStateMachineWindowWithFile(const char* FilePath)
 {
-	CreateAnimStateMachineWindowIfNeeded();
-
-	// 파일 로드 로직
-	if (AnimStateMachineWindow && FilePath && FilePath[0] != '\0')
+	// SDynamicEditorWindow를 통해 AnimGraph 모드로 열고 파일 로드
+	if (!DynamicEditorWindow)
 	{
-		AnimStateMachineWindow->LoadStateMachineFile(FilePath);
+		OpenDynamicEditor();
+	}
+
+	if (DynamicEditorWindow && FilePath && FilePath[0] != '\0')
+	{
+		DynamicEditorWindow->LoadAnimGraph(FilePath);
 	}
 }
 
 void USlateManager::CloseAnimStateMachineWindow()
 {
-	if (!AnimStateMachineWindow) { return; }
-
-	delete AnimStateMachineWindow;
-	AnimStateMachineWindow = nullptr;
+	// SDynamicEditorWindow를 통해 관리하므로 CloseDynamicEditor 호출
+	if (DynamicEditorWindow)
+	{
+		CloseDynamicEditor();
+	}
 }
 
 void USlateManager::OpenParticleEditorWindow()
@@ -451,6 +469,13 @@ void USlateManager::Render()
         // 윈도우 위치 및 크기 설정
         ImGui::SetNextWindowPos(ImVec2(ContentBrowserXPos, CurrentYPos));
         ImGui::SetNextWindowSize(ImVec2(ContentBrowserWidth, ContentBrowserHeight));
+
+        // 포커스 요청 처리
+        if (bRequestContentBrowserFocus)
+        {
+            ImGui::SetNextWindowFocus();
+            bRequestContentBrowserFocus = false;
+        }
 
         // 윈도우 플래그
         ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove
@@ -648,27 +673,16 @@ void USlateManager::Render()
         ImGui::PopStyleVar(3);
     }
 
-    // Render detached viewer on top
-    if (SkeletalViewerWindow)
+    // Render Dynamic Editor Window (통합 에디터 - 모든 모드 지원)
+    if (DynamicEditorWindow)
     {
-        SkeletalViewerWindow->OnRender();
-    }
-
-    // Render BlendSpace2D Editor
-    if (BlendSpace2DEditorWindow)
-    {
-        BlendSpace2DEditorWindow->OnRender();
+        DynamicEditorWindow->OnRender();
 
         // 윈도우가 닫혔으면 삭제
-        if (!BlendSpace2DEditorWindow->IsOpen())
+        if (!DynamicEditorWindow->IsOpen())
         {
-            CloseBlendSpace2DEditor();
+            CloseDynamicEditor();
         }
-    }
-
-    if (AnimStateMachineWindow)
-    {
-        AnimStateMachineWindow->OnRender();
     }
 
     // Render Particle Editor Window (Cascade 스타일)
@@ -790,14 +804,9 @@ void USlateManager::Update(float DeltaSeconds)
         TopPanel->OnUpdate(DeltaSeconds);
     }
 
-    if (SkeletalViewerWindow)
+    if (DynamicEditorWindow)
     {
-        SkeletalViewerWindow->OnUpdate(DeltaSeconds);
-    }
-
-    if (BlendSpace2DEditorWindow)
-    {
-        BlendSpace2DEditorWindow->OnUpdate(DeltaSeconds);
+        DynamicEditorWindow->OnUpdate(DeltaSeconds);
     }
 
     if (ParticleEditorWindow)
@@ -867,33 +876,14 @@ void USlateManager::ProcessInput()
     const FVector2D MousePosition = INPUT.GetMousePosition();
 
     // Check if any tool window is focused and should block editor input
-    bool bToolWindowBlockingInput = (ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput());
+    bool bToolWindowBlockingInput = (ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput())
+        || (DynamicEditorWindow && DynamicEditorWindow->ShouldBlockEditorInput());
 
     // Update main editor gizmo interaction state BEFORE processing any input
     // This ensures the gizmo doesn't respond to global InputManager state
     if (World && World->GetGizmoActor())
     {
         World->GetGizmoActor()->SetInteractionEnabled(!bToolWindowBlockingInput);
-    }
-
-    if (SkeletalViewerWindow && SkeletalViewerWindow->Rect.Contains(MousePosition))
-    {
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-        {
-            OnMouseDown(MousePosition, 0);
-        }
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-        {
-            OnMouseDown(MousePosition, 1);
-        }
-        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-        {
-            OnMouseUp(MousePosition, 0);
-        }
-        if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
-        {
-            OnMouseUp(MousePosition, 1);
-        }
     }
 
     if (INPUT.IsMouseButtonPressed(LeftButton))
@@ -938,23 +928,37 @@ void USlateManager::ProcessInput()
         ToggleContentBrowser();
     }
 
-    // ESC closes the Skeletal Mesh Viewer if open
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape) && SkeletalViewerWindow)
+    // ESC closes the Dynamic Editor if open
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape) && DynamicEditorWindow)
     {
-        CloseSkeletalMeshViewer();
+        CloseDynamicEditor();
     }
 
     // ParticleEditorWindow가 포커스된 경우 EditorWorld 입력 차단
     bool bParticleEditorFocused = ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput();
 
+    // DynamicEditorWindow가 포커스된 경우 해당 윈도우의 기즈모 처리
+    bool bDynamicEditorFocused = DynamicEditorWindow && DynamicEditorWindow->ShouldBlockEditorInput();
+
     // Update main editor gizmo interaction state based on tool window focus
     if (World->GetGizmoActor())
     {
-        World->GetGizmoActor()->SetInteractionEnabled(!bParticleEditorFocused);
+        World->GetGizmoActor()->SetInteractionEnabled(!bParticleEditorFocused && !bDynamicEditorFocused);
     }
 
     if (bParticleEditorFocused)
     {
+        return;
+    }
+
+    // DynamicEditorWindow가 포커스된 경우 해당 윈도우의 기즈모 모드 전환 처리
+    if (bDynamicEditorFocused)
+    {
+        AGizmoActor* Gizmo = DynamicEditorWindow->GetGizmoActor();
+        if (Gizmo)
+        {
+            Gizmo->ProcessGizmoModeSwitch();
+        }
         return;
     }
 
@@ -967,23 +971,16 @@ void USlateManager::ProcessInput()
 
 void USlateManager::OnMouseMove(FVector2D MousePos)
 {
-    // Route to detached viewer if hovered or if gizmo is being dragged (for smooth bone editing)
-    if (SkeletalViewerWindow)
+    // Route to Dynamic Editor if hovered or gizmo is being dragged
+    if (DynamicEditorWindow)
     {
-        AGizmoActor* Gizmo = SkeletalViewerWindow->GetGizmoActor();
+        AGizmoActor* Gizmo = DynamicEditorWindow->GetGizmoActor();
         bool bGizmoDragging = (Gizmo && Gizmo->GetbIsDragging());
-        if (bGizmoDragging || SkeletalViewerWindow->IsHover(MousePos))
+        if (bGizmoDragging || DynamicEditorWindow->IsHover(MousePos))
         {
-            SkeletalViewerWindow->OnMouseMove(MousePos);
+            DynamicEditorWindow->OnMouseMove(MousePos);
             return;
         }
-    }
-
-    // Route to BlendSpace2D editor if hovered
-    if (BlendSpace2DEditorWindow && BlendSpace2DEditorWindow->IsHover(MousePos))
-    {
-        BlendSpace2DEditorWindow->OnMouseMove(MousePos);
-        return;
     }
 
     // Route to Particle Editor if hovered
@@ -1006,16 +1003,9 @@ void USlateManager::OnMouseMove(FVector2D MousePos)
 void USlateManager::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
     // 플로팅 윈도우가 열려있고 마우스가 그 영역 안에 있으면 해당 윈도우에 이벤트 전달
-    // IsOpen 체크를 추가하여 윈도우가 실제로 열려있는지 확인
-    if (SkeletalViewerWindow && SkeletalViewerWindow->IsOpen() && SkeletalViewerWindow->Rect.Contains(MousePos))
+    if (DynamicEditorWindow && DynamicEditorWindow->IsOpen() && DynamicEditorWindow->Rect.Contains(MousePos))
     {
-        SkeletalViewerWindow->OnMouseDown(MousePos, Button);
-        return;
-    }
-
-    if (BlendSpace2DEditorWindow && BlendSpace2DEditorWindow->IsOpen() && BlendSpace2DEditorWindow->Rect.Contains(MousePos))
-    {
-        BlendSpace2DEditorWindow->OnMouseDown(MousePos, Button);
+        DynamicEditorWindow->OnMouseDown(MousePos, Button);
         return;
     }
 
@@ -1060,15 +1050,9 @@ void USlateManager::OnMouseUp(FVector2D MousePos, uint32 Button)
         INPUT.ReleaseCursor();
     }
 
-    if (SkeletalViewerWindow && SkeletalViewerWindow->Rect.Contains(MousePos))
+    if (DynamicEditorWindow && DynamicEditorWindow->Rect.Contains(MousePos))
     {
-        SkeletalViewerWindow->OnMouseUp(MousePos, Button);
-        // do not return; still allow panels to finish mouse up
-    }
-
-    if (BlendSpace2DEditorWindow && BlendSpace2DEditorWindow->Rect.Contains(MousePos))
-    {
-        BlendSpace2DEditorWindow->OnMouseUp(MousePos, Button);
+        DynamicEditorWindow->OnMouseUp(MousePos, Button);
         // do not return; still allow panels to finish mouse up
     }
 
@@ -1139,18 +1123,16 @@ void USlateManager::Shutdown()
     MainViewport = nullptr;
     ActiveViewport = nullptr;
 
-    if (BlendSpace2DEditorWindow)
-    {
-        delete BlendSpace2DEditorWindow;
-        BlendSpace2DEditorWindow = nullptr;
-    }
     if (ParticleEditorWindow)
     {
         delete ParticleEditorWindow;
         ParticleEditorWindow = nullptr;
     }
-	CloseSkeletalMeshViewer();
-	CloseAnimStateMachineWindow();
+    if (DynamicEditorWindow)
+    {
+        delete DynamicEditorWindow;
+        DynamicEditorWindow = nullptr;
+    }
 }
 
 void USlateManager::SetPIEWorld(UWorld* InWorld)
@@ -1185,6 +1167,31 @@ void USlateManager::ToggleContentBrowser()
 {
     bIsContentBrowserVisible = !bIsContentBrowserVisible;
     bIsContentBrowserAnimating = true;
+}
+
+void USlateManager::OpenContentBrowser(const FString& InitialPath)
+{
+    if (!bIsContentBrowserVisible)
+    {
+        bIsContentBrowserVisible = true;
+        bIsContentBrowserAnimating = true;
+        bRequestContentBrowserFocus = true;
+    }
+    else
+    {
+        // 이미 열려있으면 포커스만 요청
+        bRequestContentBrowserFocus = true;
+    }
+
+    // InitialPath가 지정되면 해당 경로로 이동
+    if (!InitialPath.empty() && ContentBrowserWindow)
+    {
+        std::filesystem::path TargetPath = std::filesystem::path(GDataDir) / InitialPath;
+        if (std::filesystem::exists(TargetPath) && std::filesystem::is_directory(TargetPath))
+        {
+            ContentBrowserWindow->NavigateToPath(TargetPath);
+        }
+    }
 }
 
 bool USlateManager::IsContentBrowserVisible() const

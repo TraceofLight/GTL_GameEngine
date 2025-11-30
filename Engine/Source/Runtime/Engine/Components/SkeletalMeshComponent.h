@@ -60,6 +60,23 @@ public:
 	void SetBoneLocalTransform(int32 BoneIndex, const FTransform& NewLocalTransform);
 	void SetBoneWorldTransform(int32 BoneIndex, const FTransform& NewWorldTransform);
 
+	// Bone Editing Mode
+	void SetBoneEditingMode(bool bEnabled, int32 InEditingBoneIndex = -1)
+	{
+		bIsBoneEditingMode = bEnabled;
+		EditingBoneIndex = bEnabled ? InEditingBoneIndex : -1;
+	}
+	bool IsBoneEditingMode() const { return bIsBoneEditingMode; }
+	int32 GetEditingBoneIndex() const { return EditingBoneIndex; }
+
+	// 편집된 본 델타 관리
+	void SetBoneDelta(int32 BoneIndex, const FTransform& Delta);
+	void ClearBoneDelta(int32 BoneIndex);
+	void ClearAllBoneDeltas();
+	bool HasBoneDelta(int32 BoneIndex) const;
+	const FTransform* GetBoneDelta(int32 BoneIndex) const;
+	const TMap<int32, FTransform>& GetAllBoneDeltas() const { return EditedBoneDeltas; }
+
 	// ===== Phase 4: 애니메이션 편의 메서드 =====
 
 	/**
@@ -126,4 +143,7 @@ private:
 	float TestTime;
 	bool bIsInitialized;
 	FTransform TestBoneBasePose;
+	bool bIsBoneEditingMode = false;  // 기즈모로 본을 편집 중인지 여부
+	int32 EditingBoneIndex = -1;      // 현재 편집 중인 본 인덱스 (-1이면 없음)
+	TMap<int32, FTransform> EditedBoneDeltas;  // 편집된 본의 델타 (BoneIndex -> Delta Transform)
 };

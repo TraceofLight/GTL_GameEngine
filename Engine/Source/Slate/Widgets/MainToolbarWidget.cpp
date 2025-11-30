@@ -467,7 +467,6 @@ void UMainToolbarWidget::RenderPIEButtons()
     BeginButtonGroup();
 
 #ifdef _EDITOR
-    extern UEditorEngine GEngine;
     bool isPIE = GEngine.IsPIEActive();
 
     // Play 버튼
@@ -863,19 +862,13 @@ void UMainToolbarWidget::ProcessPendingCommands()
 
     case EToolbarCommand::StartPIE:
 #ifdef _EDITOR
-        {
-            extern UEditorEngine GEngine;
-            GEngine.StartPIE();
-        }
+        GEngine.StartPIE();
 #endif
         break;
 
     case EToolbarCommand::EndPIE:
 #ifdef _EDITOR
-        {
-            extern UEditorEngine GEngine;
-            GEngine.EndPIE();
-        }
+        GEngine.EndPIE();
 #endif
         break;
 
@@ -910,8 +903,6 @@ void UMainToolbarWidget::HandleKeyboardShortcuts()
     }
 
 #ifdef _EDITOR
-    extern UEditorEngine GEngine;
-
     // F5: Start PIE
     if (ImGui::IsKeyPressed(ImGuiKey_F5, false) && !GEngine.IsPIEActive())
     {
