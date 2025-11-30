@@ -118,8 +118,9 @@ public:
     void SetOpen(bool bOpen) { bIsOpen = bOpen; }
     bool IsOpen() const { return bIsOpen; }
 
-    // External API to open a file
+    // External API to open/save a file
     void LoadStateMachineFile(const char* FilePath);
+    void SaveCurrentStateMachine();
 
     // Create a new empty tab
     void CreateNewEmptyTab();

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "DynamicEditorWindow.h"
+#include "SkeletalEditorWindow.h"
 #include "AnimationWindow.h"
 #include "BlendSpace2DWindow.h"
 #include "AnimStateMachineWindow.h"
@@ -13,6 +14,7 @@
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "SelectionManager.h"
 #include "USlateManager.h"
+#include "ViewerState.h"
 #include "Source/Runtime/Engine/Collision/Picking.h"
 #include "Source/Editor/FBXLoader.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
@@ -61,6 +63,13 @@ SDynamicEditorWindow::~SDynamicEditorWindow()
 		EmbeddedStateMachineEditor = nullptr;
 	}
 
+	// EmbeddedSkeletalEditor 해제
+	if (EmbeddedSkeletalEditor)
+	{
+		delete EmbeddedSkeletalEditor;
+		EmbeddedSkeletalEditor = nullptr;
+	}
+
 	// 모든 탭 정리
 	for (FEditorTabState* State : Tabs)
 	{
@@ -97,22 +106,20 @@ bool SDynamicEditorWindow::Initialize(float StartX, float StartY, float Width, f
 	IconLoop = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Loop_24x.png");
 	IconLoopOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Loop_24x_OFF.png");
 
+	// Mode 아이콘 로드
+	IconModeSkeletal = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/SkeletalMeshActor_64.dds");
+	IconModeAnimation = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/AnimSequence_64.dds");
+	IconModeAnimGraph = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/StateMachine_512.png");
+	IconModeBlendSpace = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/BlendSpace_64.dds");
+
+	// New/Save/Load 아이콘 로드
+	IconNew = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/IconFileNew_40x.dds");
+	IconSave = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Save.dds");
+	IconLoad = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Toolbar_Load.dds");
+
 	ScanNotifyLibrary();
 
-	// 기본 탭 생성
-	FEditorTabState* State = CreateNewTab("Untitled", EEditorMode::Skeletal);
-	if (State)
-	{
-		Tabs.Add(State);
-		ActiveState = State;
-		ActiveTabIndex = 0;
-
-		if (State->Viewport)
-		{
-			State->Viewport->Resize((uint32)StartX, (uint32)StartY, (uint32)Width, (uint32)Height);
-		}
-	}
-
+	// 기본 탭 없이 시작 - 컨텐츠 브라우저에서 파일 열 때 탭 생성
 	bRequestFocus = true;
 	return true;
 }
@@ -205,8 +212,52 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 		return;
 	}
 
+	// 닫히는 탭의 모드 저장
+	EEditorMode ClosingMode = Tabs[Index]->Mode;
+
 	DestroyTab(Tabs[Index]);
 	Tabs.erase(Tabs.begin() + Index);
+
+	// 해당 모드의 남은 탭 수 확인
+	int32 RemainingTabsOfMode = 0;
+	for (const auto& Tab : Tabs)
+	{
+		if (Tab->Mode == ClosingMode)
+		{
+			++RemainingTabsOfMode;
+		}
+	}
+
+	// 해당 모드의 탭이 모두 닫히면 EmbeddedEditor 리셋
+	if (RemainingTabsOfMode == 0)
+	{
+		switch (ClosingMode)
+		{
+		case EEditorMode::AnimGraph:
+			if (EmbeddedStateMachineEditor)
+			{
+				delete EmbeddedStateMachineEditor;
+				EmbeddedStateMachineEditor = nullptr;
+			}
+			break;
+		case EEditorMode::BlendSpace2D:
+			if (EmbeddedBlendSpace2DEditor)
+			{
+				delete EmbeddedBlendSpace2DEditor;
+				EmbeddedBlendSpace2DEditor = nullptr;
+			}
+			break;
+		case EEditorMode::Skeletal:
+			if (EmbeddedSkeletalEditor)
+			{
+				delete EmbeddedSkeletalEditor;
+				EmbeddedSkeletalEditor = nullptr;
+			}
+			break;
+		default:
+			break;
+		}
+	}
 
 	// 활성 탭 조정
 	if (Tabs.Num() == 0)
@@ -214,6 +265,28 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 		ActiveState = nullptr;
 		ActiveTabIndex = -1;
 		bIsOpen = false;
+
+		// 모든 탭이 닫히면 모든 EmbeddedEditor 정리
+		if (EmbeddedStateMachineEditor)
+		{
+			delete EmbeddedStateMachineEditor;
+			EmbeddedStateMachineEditor = nullptr;
+		}
+		if (EmbeddedBlendSpace2DEditor)
+		{
+			delete EmbeddedBlendSpace2DEditor;
+			EmbeddedBlendSpace2DEditor = nullptr;
+		}
+		if (EmbeddedSkeletalEditor)
+		{
+			delete EmbeddedSkeletalEditor;
+			EmbeddedSkeletalEditor = nullptr;
+		}
+		if (EmbeddedAnimationEditor)
+		{
+			delete EmbeddedAnimationEditor;
+			EmbeddedAnimationEditor = nullptr;
+		}
 	}
 	else
 	{
@@ -246,13 +319,6 @@ void SDynamicEditorWindow::OnRender()
 {
 	if (!bIsOpen)
 	{
-		return;
-	}
-
-	// 탭이 없으면 렌더링하지 않음
-	if (Tabs.Num() == 0)
-	{
-		bIsOpen = false;
 		return;
 	}
 
@@ -323,37 +389,55 @@ void SDynamicEditorWindow::OnRender()
 			// 탭 전환 요청 처리 완료
 			bRequestTabSwitch = false;
 			RequestedTabIndex = -1;
-			if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing))
-			{
-				char label[32];
-				sprintf_s(label, "Editor %d", Tabs.Num() + 1);
-				FEditorTabState* NewState = CreateNewTab(label, EEditorMode::Skeletal);
-				if (NewState)
-				{
-					Tabs.Add(NewState);
-					ActiveTabIndex = (int32)Tabs.Num() - 1;
-					ActiveState = NewState;
-				}
-			}
 			ImGui::EndTabBar();
 		}
 
 		// 탭이 닫혔으면 즉시 종료
 		if (bTabClosed)
 		{
+			// 모든 탭이 닫히면 윈도우도 닫기
+			if (Tabs.Num() == 0)
+			{
+				bIsOpen = false;
+			}
 			ImGui::End();
 			return;
 		}
 
-		if (!ActiveState)
+		if (!ActiveState || Tabs.Num() == 0)
 		{
 			ImGui::End();
 			return;
 		}
 
-		// 탭 전환 시 애니메이션 자동 재생
-		if (PreviousTabIndex != ActiveTabIndex)
+		// 탭 전환 시 EmbeddedEditor에 해당 탭으로 전환
+		if (PreviousTabIndex != ActiveTabIndex && ActiveState)
 		{
+			switch (ActiveState->Mode)
+			{
+			case EEditorMode::Skeletal:
+				if (EmbeddedSkeletalEditor && ActiveState->EmbeddedSkeletalTabIndex >= 0)
+				{
+					EmbeddedSkeletalEditor->SetActiveTab(ActiveState->EmbeddedSkeletalTabIndex);
+				}
+				break;
+			case EEditorMode::BlendSpace2D:
+				if (EmbeddedBlendSpace2DEditor && !ActiveState->BlendSpaceFilePath.empty())
+				{
+					EmbeddedBlendSpace2DEditor->LoadBlendSpaceFile(WideToUTF8(ActiveState->BlendSpaceFilePath).c_str());
+				}
+				break;
+			case EEditorMode::AnimGraph:
+				if (EmbeddedStateMachineEditor && !ActiveState->StateMachineFilePath.empty())
+				{
+					EmbeddedStateMachineEditor->LoadStateMachineFile(WideToUTF8(ActiveState->StateMachineFilePath).c_str());
+				}
+				break;
+			default:
+				break;
+			}
+
+			// 애니메이션 자동 재생
 			if (ActiveState->CurrentAnimation && ActiveState->PreviewActor)
 			{
 				USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
@@ -381,13 +465,103 @@ void SDynamicEditorWindow::OnRender()
 		float totalWidth = contentAvail.x;
 		float totalHeight = contentAvail.y;
 
-		// Mode 선택 버튼 (Toolbar)
+		// Toolbar: 좌측 New/Save/Load + 우측 Mode 아이콘
 		{
-			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 4));
-			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
+			// 공통 설정 - 모든 버튼 동일한 패딩
+			float IconSize = 24.0f;
+			float UniformPadding = 4.0f;  // 모든 방향 동일 패딩
+			float ButtonSpacing = 10.0f;
 
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ButtonSpacing, 4));
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(UniformPadding, UniformPadding));
+
+			// === 좌측: New (StateMachine/BlendSpace만) / Save / Load 버튼 ===
+			bool bShowNewButton = ActiveState &&
+				(ActiveState->Mode == EEditorMode::AnimGraph || ActiveState->Mode == EEditorMode::BlendSpace2D);
+
+			if (bShowNewButton)
+			{
+				if (IconNew && IconNew->GetShaderResourceView())
+				{
+					if (ImGui::ImageButton("##NewBtn", (ImTextureID)IconNew->GetShaderResourceView(), ImVec2(IconSize, IconSize)))
+					{
+						OnNewClicked();
+					}
+				}
+				else
+				{
+					if (ImGui::Button("New"))
+					{
+						OnNewClicked();
+					}
+				}
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("Create new asset");
+				}
+				ImGui::SameLine();
+			}
+
+			if (IconSave && IconSave->GetShaderResourceView())
+			{
+				if (ImGui::ImageButton("##SaveBtn", (ImTextureID)IconSave->GetShaderResourceView(), ImVec2(IconSize, IconSize)))
+				{
+					OnSaveClicked();
+				}
+			}
+			else
+			{
+				if (ImGui::Button("Save"))
+				{
+					OnSaveClicked();
+				}
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("Save current asset");
+			}
+
+			ImGui::SameLine();
+
+			if (IconLoad && IconLoad->GetShaderResourceView())
+			{
+				if (ImGui::ImageButton("##LoadBtn", (ImTextureID)IconLoad->GetShaderResourceView(), ImVec2(IconSize, IconSize)))
+				{
+					OnLoadClicked();
+				}
+			}
+			else
+			{
+				if (ImGui::Button("Load"))
+				{
+					OnLoadClicked();
+				}
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("Open Content Browser to load asset");
+			}
+
+			ImGui::SameLine();
+
+			// === 우측: Mode 아이콘 버튼 (가로 넓게) ===
 			const char* ModeNames[] = { "Skeletal", "Animation", "AnimGraph", "BlendSpace" };
+			const char* ModeTooltips[] = { "Skeletal Mesh Viewer", "Animation Editor", "Animation State Machine", "BlendSpace 2D Editor" };
 			EEditorMode Modes[] = { EEditorMode::Skeletal, EEditorMode::Animation, EEditorMode::AnimGraph, EEditorMode::BlendSpace2D };
+			UTexture* ModeIcons[] = { IconModeSkeletal, IconModeAnimation, IconModeAnimGraph, IconModeBlendSpace };
+
+			float ModePaddingX = 12.0f;  // 좌우 패딩 확장
+			float ModeButtonWidth = IconSize + ModePaddingX * 2;
+			float TotalButtonsWidth = ModeButtonWidth * 4 + ButtonSpacing * 3;
+
+			// 우측 정렬
+			float AvailWidth = ImGui::GetContentRegionAvail().x;
+			float ModeStartX = ImGui::GetCursorPosX() + AvailWidth - TotalButtonsWidth;
+			ImGui::SetCursorPosX(ModeStartX);
+
+			// Mode 버튼용 패딩 (가로만 확장)
+			ImGui::PopStyleVar();  // FramePadding 해제
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ModePaddingX, UniformPadding));
 
 			for (int32 i = 0; i < 4; ++i)
 			{
@@ -406,7 +580,28 @@ void SDynamicEditorWindow::OnRender()
 					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.25f, 0.55f, 0.95f, 1.0f));
 				}
 
-				if (ImGui::Button(ModeNames[i]))
+				// 아이콘 버튼
+				bool bClicked = false;
+				UTexture* Icon = ModeIcons[i];
+
+				ImGui::PushID(i);
+				if (Icon && Icon->GetShaderResourceView())
+				{
+					bClicked = ImGui::ImageButton("##ModeBtn", (ImTextureID)Icon->GetShaderResourceView(), ImVec2(IconSize, IconSize));
+				}
+				else
+				{
+					bClicked = ImGui::Button(ModeNames[i], ImVec2(ModeButtonWidth, IconSize + UniformPadding * 2));
+				}
+				ImGui::PopID();
+
+				// 툴팁 표시
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("%s", ModeTooltips[i]);
+				}
+
+				if (bClicked)
 				{
 					// 1탭 1기능: 같은 탭에서 모드 전환 금지
 					// 해당 모드 + 같은 Mesh를 사용하는 탭이 있으면 이동, 없으면 새 탭 생성
@@ -472,7 +667,7 @@ void SDynamicEditorWindow::OnRender()
 				}
 			}
 
-			ImGui::PopStyleVar(2);
+			ImGui::PopStyleVar(2);  // FramePadding, ItemSpacing
 			ImGui::Spacing();
 			ImGui::Separator();
 			ImGui::Spacing();
@@ -576,17 +771,20 @@ void SDynamicEditorWindow::OnRender()
 						ContentRect.GetWidth(), ContentRect.GetHeight(), World, Device);
 					EmbeddedBlendSpace2DEditor->SetEmbeddedMode(true);
 
-					// BlendSpace나 Mesh가 있으면 함께 전달
+					// BlendSpace 파일이 있으면 로드, 없으면 빈 탭 (메쉬 없이 시작)
 					if (ActiveState && ActiveState->BlendSpace)
 					{
 						EmbeddedBlendSpace2DEditor->OpenNewTabWithBlendSpace(ActiveState->BlendSpace, "");
 					}
-					else if (ActiveState && ActiveState->CurrentMesh && !ActiveState->LoadedMeshPath.empty())
+					else if (ActiveState && !ActiveState->BlendSpaceFilePath.empty())
 					{
-						EmbeddedBlendSpace2DEditor->OpenNewTabWithMesh(ActiveState->CurrentMesh, ActiveState->LoadedMeshPath);
+						// 파일 경로가 있으면 먼저 탭 생성 후 파일 로드
+						EmbeddedBlendSpace2DEditor->OpenNewTab("");
+						EmbeddedBlendSpace2DEditor->LoadBlendSpaceFile(WideToUTF8(ActiveState->BlendSpaceFilePath).c_str());
 					}
 					else
 					{
+						// 새 BlendSpace는 메쉬 없이 빈 상태로 시작 (UE 동작과 동일)
 						EmbeddedBlendSpace2DEditor->OpenNewTab("");
 					}
 				}
@@ -597,14 +795,31 @@ void SDynamicEditorWindow::OnRender()
 				// CenterRect는 EmbeddedBlendSpace2DEditor의 ViewportRect 사용
 				CenterRect = EmbeddedBlendSpace2DEditor->GetViewportRect();
 
-				// BlendSpace 탭 이름을 현재 BlendSpace 이름으로 동기화
+				// BlendSpace 탭 이름 동기화
 				FBlendSpace2DTabState* BS2DState = EmbeddedBlendSpace2DEditor->GetActiveState();
-				if (BS2DState && BS2DState->BlendSpace && ActiveState)
+				if (BS2DState && ActiveState)
 				{
-					FString BSName = BS2DState->BlendSpace->GetName();
-					if (!BSName.empty())
+					// 1순위: BlendSpace 파일 경로가 있으면 파일명 사용
+					if (!BS2DState->FilePath.empty())
 					{
-						ActiveState->Name = FName(BSName.c_str());
+						FString FilePath = BS2DState->FilePath;
+						size_t LastSlash = FilePath.find_last_of("/\\");
+						FString FileName = (LastSlash != FString::npos) ? FilePath.substr(LastSlash + 1) : FilePath;
+						size_t DotPos = FileName.find_last_of('.');
+						if (DotPos != FString::npos)
+						{
+							FileName = FileName.substr(0, DotPos);
+						}
+						ActiveState->Name = FName(FileName.c_str());
+					}
+					// 2순위: EmbeddedEditor의 TabName 사용 (New BlendSpace 등)
+					else
+					{
+						FString TabNameStr = BS2DState->TabName.ToString();
+						if (!TabNameStr.empty() && TabNameStr != "Untitled")
+						{
+							ActiveState->Name = BS2DState->TabName;
+						}
 					}
 				}
 			}
@@ -643,11 +858,15 @@ void SDynamicEditorWindow::OnRender()
 							ContentRect.GetWidth(), ContentRect.GetHeight());
 						EmbeddedStateMachineEditor->SetEmbeddedMode(true);
 
-						// StateMachine이 있으면 함께 전달, 없으면 빈 탭
-						if (ActiveState && ActiveState->StateMachine)
+						// StateMachine 파일 경로가 있으면 해당 파일 로드 (독립 모드로 탭 생성)
+						// 파일 경로가 없으면 빈 탭 생성
+						if (ActiveState && !ActiveState->StateMachineFilePath.empty())
 						{
+							// 일시적으로 Embedded 모드 해제하여 새 탭으로 로드
+							EmbeddedStateMachineEditor->SetEmbeddedMode(false);
 							EmbeddedStateMachineEditor->LoadStateMachineFile(
 								WideToUTF8(ActiveState->StateMachineFilePath).c_str());
+							EmbeddedStateMachineEditor->SetEmbeddedMode(true);
 						}
 						else
 						{
@@ -676,417 +895,86 @@ void SDynamicEditorWindow::OnRender()
 					// AnimGraph 모드가 아닐 때도 EmbeddedStateMachineEditor 유지 (상태 보존)
 					// 소멸자에서만 해제
 
-				// Skeletal 모드인지 확인
-				bool bIsSkeletalMode = (ActiveState->Mode == EEditorMode::Skeletal);
+					// ================================================================
+					// Skeletal 모드: EmbeddedSkeletalEditor 사용 (SSplitter 기반 레이아웃)
+					// ================================================================
+					bool bIsSkeletalMode = (ActiveState && ActiveState->Mode == EEditorMode::Skeletal);
 
-				// 패널 너비 계산 (SPreviewWindow와 동일)
-				bool bShowLeftPanel = bIsSkeletalMode;  // Skeletal 모드에서만 좌측 패널 표시
-				float leftWidth = bShowLeftPanel ? (totalWidth * LeftPanelRatio) : 0.0f;
-				float rightWidth = totalWidth * RightPanelRatio;
-				float centerWidth = totalWidth - leftWidth - rightWidth;
-
-				// else 블록은 Animation 모드가 아닐 때만 실행됨
-				float mainAreaHeight = totalHeight;
-
-				// 패널 간 간격 제거
-				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-
-				// ================================================================
-				// 좌측 패널 - Asset Browser & Bone Hierarchy (Skeletal 모드에서만)
-				// ================================================================
-				if (bShowLeftPanel)
-				{
-					ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
-					ImGui::BeginChild("LeftPanel", ImVec2(leftWidth, mainAreaHeight), true, ImGuiWindowFlags_NoScrollbar);
-					ImGui::PopStyleVar();
-
-					// Asset Browser Section
-					ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.25f, 0.35f, 0.50f, 0.8f));
-					ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4);
-					ImGui::Indent(8.0f);
-					ImGui::Text("Asset Browser");
-					ImGui::Unindent(8.0f);
-					ImGui::PopStyleColor();
-
-					ImGui::Spacing();
-					ImGui::Separator();
-					ImGui::Spacing();
-
-					// Display Options
-					ImGui::Text("Display Options:");
-					ImGui::Spacing();
-
-					if (ImGui::Checkbox("Show Mesh", &ActiveState->bShowMesh))
+					if (bIsSkeletalMode)
 					{
-						if (ActiveState->PreviewActor && ActiveState->PreviewActor->GetSkeletalMeshComponent())
+						// EmbeddedSkeletalEditor 생성 (아직 없으면)
+						if (!EmbeddedSkeletalEditor)
 						{
-							ActiveState->PreviewActor->GetSkeletalMeshComponent()->SetVisibility(ActiveState->bShowMesh);
+							EmbeddedSkeletalEditor = new SSkeletalEditorWindow();
 						}
-					}
 
-					ImGui::SameLine();
-					if (ImGui::Checkbox("Show Bones", &ActiveState->bShowBones))
-					{
-						if (ActiveState->PreviewActor && ActiveState->PreviewActor->GetBoneLineComponent())
+						// 콘텐츠 영역 계산
+						ImVec2 contentMin = ImGui::GetCursorScreenPos();
+
+						FRect ContentRect;
+						ContentRect.Left = contentMin.x;
+						ContentRect.Top = contentMin.y;
+						ContentRect.Right = contentMin.x + totalWidth;
+						ContentRect.Bottom = contentMin.y + totalHeight;
+						ContentRect.UpdateMinMax();
+
+						// EmbeddedSkeletalEditor 초기화 (한 번만)
+						if (EmbeddedSkeletalEditor->GetTabCount() == 0)
 						{
-							ActiveState->PreviewActor->GetBoneLineComponent()->SetLineVisible(ActiveState->bShowBones);
+							EmbeddedSkeletalEditor->Initialize(ContentRect.Left, ContentRect.Top,
+								ContentRect.GetWidth(), ContentRect.GetHeight(), World, Device, true);
+							EmbeddedSkeletalEditor->SetEmbeddedMode(true);
+
+							// 현재 Skeletal Mesh가 있으면 함께 전달
+							if (ActiveState && ActiveState->CurrentMesh && !ActiveState->LoadedMeshPath.empty())
+							{
+								EmbeddedSkeletalEditor->OpenNewTabWithMesh(ActiveState->CurrentMesh, ActiveState->LoadedMeshPath);
+								ActiveState->EmbeddedSkeletalTabIndex = EmbeddedSkeletalEditor->GetActiveTabIndex();
+							}
+							else
+							{
+								EmbeddedSkeletalEditor->OpenNewTab("");
+								if (ActiveState)
+								{
+									ActiveState->EmbeddedSkeletalTabIndex = EmbeddedSkeletalEditor->GetActiveTabIndex();
+								}
+							}
 						}
-						if (ActiveState->bShowBones)
+
+						// SSplitter 기반 레이아웃 렌더링
+						EmbeddedSkeletalEditor->RenderEmbedded(ContentRect);
+
+						// CenterRect는 EmbeddedSkeletalEditor의 ViewportRect 사용
+						CenterRect = EmbeddedSkeletalEditor->GetViewportRect();
+
+						// Skeletal 탭 이름 동기화
+						ViewerState* SkelState = EmbeddedSkeletalEditor->GetActiveState();
+						if (SkelState && ActiveState)
 						{
-							ActiveState->bBoneLinesDirty = true;
-						}
-					}
-
-					ImGui::Spacing();
-					ImGui::Separator();
-					ImGui::Spacing();
-
-					// Bone Hierarchy Section
-					ImGui::Text("Bone Hierarchy:");
-					ImGui::Spacing();
-
-					if (!ActiveState->CurrentMesh)
-					{
-						ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-						ImGui::TextWrapped("No skeletal mesh loaded.");
-						ImGui::PopStyleColor();
-					}
-					else
-					{
-						const FSkeleton* Skeleton = ActiveState->CurrentMesh->GetSkeleton();
-						if (!Skeleton || Skeleton->Bones.IsEmpty())
-						{
-							ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-							ImGui::TextWrapped("This mesh has no skeleton data.");
-							ImGui::PopStyleColor();
-						}
-						else
-						{
-							// Scrollable tree view
-							ImGui::BeginChild("BoneTreeView", ImVec2(0, 0), true);
-							const TArray<FBone>& Bones = Skeleton->Bones;
-							TArray<TArray<int32>> Children;
-							Children.resize(Bones.size());
-							for (int32 i = 0; i < Bones.size(); ++i)
+							// 파일 경로에서 파일 이름 추출하여 탭 이름으로 사용 (확장자 제거)
+							if (!ActiveState->LoadedMeshPath.empty())
 							{
-								int32 Parent = Bones[i].ParentIndex;
-								if (Parent >= 0 && Parent < Bones.size())
+								FString MeshPath = ActiveState->LoadedMeshPath;
+								size_t LastSlash = MeshPath.find_last_of("/\\");
+								FString FileName = (LastSlash != FString::npos) ? MeshPath.substr(LastSlash + 1) : MeshPath;
+								size_t DotPos = FileName.find_last_of('.');
+								if (DotPos != FString::npos)
 								{
-									Children[Parent].Add(i);
+									FileName = FileName.substr(0, DotPos);
 								}
+								ActiveState->Name = FName(FileName.c_str());
 							}
-
-							std::function<void(int32)> DrawNode = [&](int32 Index)
+							else
 							{
-								const bool bLeaf = Children[Index].IsEmpty();
-								ImGuiTreeNodeFlags treeFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanFullWidth;
-
-								if (bLeaf)
+								// 메쉬가 없으면 EmbeddedEditor의 Name 사용
+								FString NameStr = SkelState->Name.ToString();
+								if (!NameStr.empty() && NameStr != "Untitled")
 								{
-									treeFlags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+									ActiveState->Name = SkelState->Name;
 								}
-
-								if (ActiveState->ExpandedBoneIndices.count(Index) > 0)
-								{
-									ImGui::SetNextItemOpen(true);
-								}
-
-								if (ActiveState->SelectedBoneIndex == Index)
-								{
-									treeFlags |= ImGuiTreeNodeFlags_Selected;
-								}
-
-								ImGui::PushID(Index);
-								const char* Label = Bones[Index].Name.c_str();
-
-								if (ActiveState->SelectedBoneIndex == Index)
-								{
-									ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.35f, 0.55f, 0.85f, 0.8f));
-									ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.40f, 0.60f, 0.90f, 1.0f));
-									ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.30f, 0.50f, 0.80f, 1.0f));
-								}
-
-								bool open = ImGui::TreeNodeEx((void*)(intptr_t)Index, treeFlags, "%s", Label ? Label : "<noname>");
-
-								if (ActiveState->SelectedBoneIndex == Index)
-								{
-									ImGui::PopStyleColor(3);
-									ImGui::SetScrollHereY(0.5f);
-								}
-
-								if (ImGui::IsItemToggledOpen())
-								{
-									if (open)
-									{
-										ActiveState->ExpandedBoneIndices.insert(Index);
-									}
-									else
-									{
-										ActiveState->ExpandedBoneIndices.erase(Index);
-									}
-								}
-
-								if (ImGui::IsItemClicked())
-								{
-									if (ActiveState->SelectedBoneIndex != Index)
-									{
-										ActiveState->SelectedBoneIndex = Index;
-										ActiveState->bBoneLinesDirty = true;
-
-										ExpandToSelectedBone(ActiveState, Index);
-
-										if (ActiveState->PreviewActor && ActiveState->World && ActiveState->CurrentMesh)
-										{
-											AGizmoActor* GizmoActor = ActiveState->World->GetGizmoActor();
-											USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
-											if (GizmoActor && SkelComp)
-											{
-												GizmoActor->SetBoneTarget(SkelComp, Index);
-												GizmoActor->SetbRender(true);
-											}
-											ActiveState->World->GetSelectionManager()->SelectActor(ActiveState->PreviewActor);
-										}
-									}
-								}
-
-								if (!bLeaf && open)
-								{
-									for (int32 Child : Children[Index])
-									{
-										DrawNode(Child);
-									}
-									ImGui::TreePop();
-								}
-								ImGui::PopID();
-							};
-
-							for (int32 i = 0; i < Bones.size(); ++i)
-							{
-								if (Bones[i].ParentIndex < 0)
-								{
-									DrawNode(i);
-								}
-							}
-
-							ImGui::EndChild();
-						}
-					}
-
-					ImGui::EndChild();
-
-					ImGui::SameLine(0, 0);
-				}
-
-				// ================================================================
-				// 중앙 패널 - Viewport
-				// ================================================================
-				ImGui::BeginChild("ViewportArea", ImVec2(centerWidth, mainAreaHeight), true, ImGuiWindowFlags_NoScrollbar);
-
-				ImGui::BeginChild("ViewportRenderArea", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollbar);
-
-				const ImVec2 ViewportSize = ImGui::GetContentRegionAvail();
-				const uint32 NewWidth = static_cast<uint32>(ViewportSize.x);
-				const uint32 NewHeight = static_cast<uint32>(ViewportSize.y);
-
-				if (NewWidth > 0 && NewHeight > 0)
-				{
-					UpdateViewportRenderTarget(NewWidth, NewHeight);
-					RenderToPreviewRenderTarget();
-
-					ID3D11ShaderResourceView* PreviewSRV = GetPreviewShaderResourceView();
-					if (PreviewSRV)
-					{
-						ImVec2 ImagePos = ImGui::GetCursorScreenPos();
-
-						ImTextureID TextureID = reinterpret_cast<ImTextureID>(PreviewSRV);
-						ImGui::Image(TextureID, ViewportSize);
-
-						// CenterRect 업데이트
-						CenterRect.Left = ImagePos.x;
-						CenterRect.Top = ImagePos.y;
-						CenterRect.Right = ImagePos.x + ViewportSize.x;
-						CenterRect.Bottom = ImagePos.y + ViewportSize.y;
-						CenterRect.UpdateMinMax();
-
-						// 드래그 앤 드랍 타겟 (Content Browser에서 파일 드롭)
-						if (ImGui::BeginDragDropTarget())
-						{
-							if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE"))
-							{
-								const char* filePath = static_cast<const char*>(payload->Data);
-								FString path(filePath);
-
-								if (path.ends_with(".anim"))
-								{
-									// Animation은 별도의 SAnimationWindow에서 처리
-									USlateManager::GetInstance().OpenAnimationWindowWithFile(path.c_str());
-								}
-								else if (path.ends_with(".fbx") || path.ends_with(".FBX"))
-								{
-									// FBX에서 애니메이션 로드 시 SAnimationWindow에서 처리
-									USlateManager::GetInstance().OpenAnimationWindowWithFile(path.c_str());
-								}
-							}
-							ImGui::EndDragDropTarget();
-						}
-					}
-				}
-				else
-				{
-					CenterRect = FRect(0, 0, 0, 0);
-					CenterRect.UpdateMinMax();
-				}
-
-				// Recording 상태 오버레이
-				if (ActiveState->bIsRecording)
-				{
-					ImGui::SetCursorPos(ImVec2(ViewportSize.x - 180, ViewportSize.y - 40));
-					ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.05f, 0.05f, 0.85f));
-					ImGui::BeginChild("RecordingOverlay", ImVec2(170, 30), true, ImGuiWindowFlags_NoScrollbar);
-					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.2f, 0.2f, 1.0f));
-					ImGui::Text("REC");
-					ImGui::PopStyleColor();
-					ImGui::SameLine();
-					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
-					ImGui::Text("%d frames", ActiveState->RecordedFrames.Num());
-					ImGui::PopStyleColor();
-					ImGui::EndChild();
-					ImGui::PopStyleColor();
-				}
-
-				ImGui::EndChild();  // ViewportRenderArea
-				ImGui::EndChild();  // ViewportArea
-
-				ImGui::SameLine(0, 0);
-
-				// ================================================================
-				// 우측 패널 - Properties
-				// ================================================================
-				ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
-				ImGui::BeginChild("RightPanel", ImVec2(rightWidth, mainAreaHeight), true);
-				ImGui::PopStyleVar();
-
-				// Panel header
-				ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.25f, 0.35f, 0.50f, 0.8f));
-				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4);
-				ImGui::Indent(8.0f);
-				ImGui::Text(bIsAnimationMode ? "Animation Properties" : "Bone Properties");
-				ImGui::Unindent(8.0f);
-				ImGui::PopStyleColor();
-
-				ImGui::Spacing();
-				ImGui::Separator();
-				ImGui::Spacing();
-
-				// Bone Properties 편집 UI
-				if (ActiveState->SelectedBoneIndex >= 0 && ActiveState->CurrentMesh)
-				{
-					const FSkeleton* Skeleton = ActiveState->CurrentMesh->GetSkeleton();
-					if (Skeleton && ActiveState->SelectedBoneIndex < Skeleton->Bones.size())
-					{
-						const FBone& SelectedBone = Skeleton->Bones[ActiveState->SelectedBoneIndex];
-
-						ImGui::Text("Bone Name");
-						ImGui::SameLine(100.0f);
-						ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.90f, 0.95f, 1.00f, 1.0f));
-						ImGui::Text("%s", SelectedBone.Name.c_str());
-						ImGui::PopStyleColor();
-
-						ImGui::Spacing();
-
-						if (ImGui::CollapsingHeader("Transforms", ImGuiTreeNodeFlags_DefaultOpen))
-						{
-							if (!ActiveState->bBoneRotationEditing)
-							{
-								UpdateBoneTransformFromSkeleton(ActiveState);
-							}
-
-							float labelWidth = 70.0f;
-							float inputWidth = (rightWidth - labelWidth - 40.0f) / 3.0f;
-
-							ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.85f, 0.9f, 1.0f));
-							ImGui::Text("Bone");
-							ImGui::PopStyleColor();
-							ImGui::Spacing();
-
-							// Location
-							ImGui::Text("Location");
-							ImGui::SameLine(labelWidth);
-							ImGui::PushItemWidth(inputWidth);
-							bool bLocationChanged = false;
-							bLocationChanged |= ImGui::DragFloat("##BoneLocX", &ActiveState->EditBoneLocation.X, 0.1f, 0.0f, 0.0f, "%.2f");
-							ImGui::SameLine();
-							bLocationChanged |= ImGui::DragFloat("##BoneLocY", &ActiveState->EditBoneLocation.Y, 0.1f, 0.0f, 0.0f, "%.2f");
-							ImGui::SameLine();
-							bLocationChanged |= ImGui::DragFloat("##BoneLocZ", &ActiveState->EditBoneLocation.Z, 0.1f, 0.0f, 0.0f, "%.2f");
-							ImGui::PopItemWidth();
-
-							if (bLocationChanged)
-							{
-								ApplyBoneTransform(ActiveState);
-								ActiveState->bBoneLinesDirty = true;
-							}
-
-							// Rotation
-							ImGui::Text("Rotation");
-							ImGui::SameLine(labelWidth);
-							ImGui::PushItemWidth(inputWidth);
-							bool bRotationChanged = false;
-
-							if (ImGui::IsAnyItemActive())
-							{
-								ActiveState->bBoneRotationEditing = true;
-							}
-
-							bRotationChanged |= ImGui::DragFloat("##BoneRotX", &ActiveState->EditBoneRotation.X, 0.5f, -180.0f, 180.0f, "%.2f");
-							ImGui::SameLine();
-							bRotationChanged |= ImGui::DragFloat("##BoneRotY", &ActiveState->EditBoneRotation.Y, 0.5f, -180.0f, 180.0f, "%.2f");
-							ImGui::SameLine();
-							bRotationChanged |= ImGui::DragFloat("##BoneRotZ", &ActiveState->EditBoneRotation.Z, 0.5f, -180.0f, 180.0f, "%.2f");
-							ImGui::PopItemWidth();
-
-							if (!ImGui::IsAnyItemActive())
-							{
-								ActiveState->bBoneRotationEditing = false;
-							}
-
-							if (bRotationChanged)
-							{
-								ApplyBoneTransform(ActiveState);
-								ActiveState->bBoneLinesDirty = true;
-							}
-
-							// Scale
-							ImGui::Text("Scale");
-							ImGui::SameLine(labelWidth);
-							ImGui::PushItemWidth(inputWidth);
-							bool bScaleChanged = false;
-							bScaleChanged |= ImGui::DragFloat("##BoneScaleX", &ActiveState->EditBoneScale.X, 0.01f, 0.001f, 100.0f, "%.2f");
-							ImGui::SameLine();
-							bScaleChanged |= ImGui::DragFloat("##BoneScaleY", &ActiveState->EditBoneScale.Y, 0.01f, 0.001f, 100.0f, "%.2f");
-							ImGui::SameLine();
-							bScaleChanged |= ImGui::DragFloat("##BoneScaleZ", &ActiveState->EditBoneScale.Z, 0.01f, 0.001f, 100.0f, "%.2f");
-							ImGui::PopItemWidth();
-
-							if (bScaleChanged)
-							{
-								ApplyBoneTransform(ActiveState);
-								ActiveState->bBoneLinesDirty = true;
 							}
 						}
 					}
-				}
-				else
-				{
-					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-					ImGui::TextWrapped("Select a bone from the hierarchy to edit its transform properties.");
-					ImGui::PopStyleColor();
-				}
-
-				ImGui::EndChild();  // RightPanel
-
-				ImGui::PopStyleVar();  // ItemSpacing
-
 				}  // else (non-AnimGraph mode = Skeletal mode)
 			}  // else (non-BlendSpace2D mode)
 		}  // else (non-Animation mode)
@@ -1128,6 +1016,11 @@ void SDynamicEditorWindow::OnUpdate(float DeltaSeconds)
 		if (ActiveState->Mode == EEditorMode::AnimGraph && EmbeddedStateMachineEditor)
 		{
 			EmbeddedStateMachineEditor->OnUpdate(DeltaSeconds);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::Skeletal && EmbeddedSkeletalEditor)
+		{
+			EmbeddedSkeletalEditor->OnUpdate(DeltaSeconds);
 			return;
 		}
 	}
@@ -1198,6 +1091,11 @@ void SDynamicEditorWindow::OnMouseMove(FVector2D MousePos)
 			EmbeddedStateMachineEditor->OnMouseMove(MousePos);
 			return;
 		}
+		if (ActiveState->Mode == EEditorMode::Skeletal && EmbeddedSkeletalEditor)
+		{
+			EmbeddedSkeletalEditor->OnMouseMove(MousePos);
+			return;
+		}
 	}
 
 	if (!ActiveState || !ActiveState->Viewport)
@@ -1238,6 +1136,11 @@ void SDynamicEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 		if (ActiveState->Mode == EEditorMode::AnimGraph && EmbeddedStateMachineEditor)
 		{
 			EmbeddedStateMachineEditor->OnMouseDown(MousePos, Button);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::Skeletal && EmbeddedSkeletalEditor)
+		{
+			EmbeddedSkeletalEditor->OnMouseDown(MousePos, Button);
 			return;
 		}
 	}
@@ -1352,6 +1255,11 @@ void SDynamicEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 			EmbeddedStateMachineEditor->OnMouseUp(MousePos, Button);
 			return;
 		}
+		if (ActiveState->Mode == EEditorMode::Skeletal && EmbeddedSkeletalEditor)
+		{
+			EmbeddedSkeletalEditor->OnMouseUp(MousePos, Button);
+			return;
+		}
 	}
 
 	if (!ActiveState || !ActiveState->Viewport)
@@ -1382,17 +1290,75 @@ void SDynamicEditorWindow::OnRenderViewport()
 
 void SDynamicEditorWindow::LoadSkeletalMesh(const FString& Path)
 {
-	if (!ActiveState || Path.empty())
+	if (Path.empty())
+	{
+		return;
+	}
+
+	// 경로 정규화 (슬래시 통일, 소문자 변환)
+	auto NormalizePath = [](const FString& InPath) -> FString {
+		FString Result = InPath;
+		std::replace(Result.begin(), Result.end(), '\\', '/');
+		std::transform(Result.begin(), Result.end(), Result.begin(), ::tolower);
+		return Result;
+	};
+
+	FString NormalizedPath = NormalizePath(Path);
+
+	// 같은 파일이 열린 탭 찾기, 없으면 새로 생성
+	FEditorTabState* TargetState = nullptr;
+
+	// 같은 파일이 열린 Skeletal 탭 검색
+	for (int32 i = 0; i < Tabs.Num(); ++i)
+	{
+		if (Tabs[i]->Mode == EEditorMode::Skeletal && NormalizePath(Tabs[i]->LoadedMeshPath) == NormalizedPath)
+		{
+			ActiveTabIndex = i;
+			ActiveState = Tabs[i];
+			TargetState = Tabs[i];
+			bRequestFocus = true;  // 기존 탭으로 전환 시 포커스 요청
+
+			// EmbeddedSkeletalEditor 탭도 전환
+			if (EmbeddedSkeletalEditor && Tabs[i]->EmbeddedSkeletalTabIndex >= 0)
+			{
+				EmbeddedSkeletalEditor->SetActiveTab(Tabs[i]->EmbeddedSkeletalTabIndex);
+			}
+			return;  // 이미 열린 파일이므로 추가 로드 불필요
+		}
+	}
+
+	// 같은 파일이 없으면 새 탭 생성
+	bool bNewTabCreated = false;
+	if (!TargetState)
+	{
+		FString TabName = Path;
+		size_t LastSlash = Path.find_last_of("/\\");
+		if (LastSlash != FString::npos)
+		{
+			TabName = Path.substr(LastSlash + 1);
+		}
+
+		TargetState = CreateNewTab(TabName.c_str(), EEditorMode::Skeletal);
+		if (TargetState)
+		{
+			Tabs.Add(TargetState);
+			ActiveTabIndex = Tabs.Num() - 1;
+			ActiveState = TargetState;
+			bNewTabCreated = true;
+		}
+	}
+
+	if (!TargetState || !TargetState->PreviewActor)
 	{
 		return;
 	}
 
 	USkeletalMesh* Mesh = UResourceManager::GetInstance().Load<USkeletalMesh>(Path);
-	if (Mesh && ActiveState->PreviewActor)
+	if (Mesh)
 	{
-		ActiveState->PreviewActor->SetSkeletalMesh(Path);
-		ActiveState->CurrentMesh = Mesh;
-		ActiveState->LoadedMeshPath = Path;
+		TargetState->PreviewActor->SetSkeletalMesh(Path);
+		TargetState->CurrentMesh = Mesh;
+		TargetState->LoadedMeshPath = Path;
 
 		// 탭 이름을 로드된 에셋 이름으로 업데이트
 		FString TabName = Path;
@@ -1401,17 +1367,17 @@ void SDynamicEditorWindow::LoadSkeletalMesh(const FString& Path)
 		{
 			TabName = Path.substr(LastSlash + 1);
 		}
-		ActiveState->Name = FName(TabName.c_str());
+		TargetState->Name = FName(TabName.c_str());
 
-		if (auto* Skeletal = ActiveState->PreviewActor->GetSkeletalMeshComponent())
+		if (auto* Skeletal = TargetState->PreviewActor->GetSkeletalMeshComponent())
 		{
-			Skeletal->SetVisibility(ActiveState->bShowMesh);
+			Skeletal->SetVisibility(TargetState->bShowMesh);
 		}
-		ActiveState->bBoneLinesDirty = true;
-		if (auto* LineComp = ActiveState->PreviewActor->GetBoneLineComponent())
+		TargetState->bBoneLinesDirty = true;
+		if (auto* LineComp = TargetState->PreviewActor->GetBoneLineComponent())
 		{
 			LineComp->ClearLines();
-			LineComp->SetLineVisible(ActiveState->bShowBones);
+			LineComp->SetLineVisible(TargetState->bShowBones);
 		}
 
 		// 이미 로드된 모든 AnimSequence를 이 메쉬에 추가
@@ -1423,6 +1389,13 @@ void SDynamicEditorWindow::LoadSkeletalMesh(const FString& Path)
 				Mesh->AddAnimation(AnimSeq);
 			}
 		}
+
+		// EmbeddedSkeletalEditor가 이미 초기화되어 있으면 새 탭 생성
+		if (bNewTabCreated && EmbeddedSkeletalEditor && EmbeddedSkeletalEditor->GetTabCount() > 0)
+		{
+			EmbeddedSkeletalEditor->OpenNewTabWithMesh(Mesh, Path);
+			TargetState->EmbeddedSkeletalTabIndex = EmbeddedSkeletalEditor->GetActiveTabIndex();
+		}
 	}
 }
 
@@ -1433,37 +1406,78 @@ void SDynamicEditorWindow::LoadAnimation(const FString& Path)
 		return;
 	}
 
-	// Animation 모드는 별도의 SAnimationWindow에서 처리
-	USlateManager::GetInstance().OpenAnimationWindowWithFile(Path.c_str());
+	// Animation 모드로 전환
+	SetEditorMode(EEditorMode::Animation);
+
+	// EmbeddedAnimationEditor에서 애니메이션 파일 열기
+	if (EmbeddedAnimationEditor)
+	{
+		EmbeddedAnimationEditor->OpenNewTab(Path);
+	}
 }
 
 void SDynamicEditorWindow::LoadAnimGraph(const FString& Path)
 {
-	// 1탭 1기능: AnimGraph 모드 탭 찾거나 새로 생성
+	// 경로 정규화 (슬래시 통일, 소문자 변환)
+	auto NormalizePath = [](const FString& InPath) -> FString {
+		FString Result = InPath;
+		std::replace(Result.begin(), Result.end(), '\\', '/');
+		std::transform(Result.begin(), Result.end(), Result.begin(), ::tolower);
+		return Result;
+	};
+	auto NormalizeWidePath = [](const FWideString& InPath) -> FString {
+		FString Result;
+		Result.reserve(InPath.size());
+		for (wchar_t c : InPath)
+		{
+			Result.push_back(static_cast<char>(c));
+		}
+		std::replace(Result.begin(), Result.end(), '\\', '/');
+		std::transform(Result.begin(), Result.end(), Result.begin(), ::tolower);
+		return Result;
+	};
+
+	FString NormalizedPath = NormalizePath(Path);
+
+	// 파일명 추출 (확장자 제거)
+	FString TabName = Path;
+	size_t LastSlash = Path.find_last_of("/\\");
+	if (LastSlash != FString::npos)
+	{
+		TabName = Path.substr(LastSlash + 1);
+	}
+	size_t DotPos = TabName.find_last_of('.');
+	if (DotPos != FString::npos)
+	{
+		TabName = TabName.substr(0, DotPos);
+	}
+
+	// 같은 파일이 열린 탭 찾기
 	FEditorTabState* TargetState = nullptr;
 
-	// 기존 AnimGraph 탭 검색
+	// 같은 파일이 열린 AnimGraph 탭 검색
 	for (int32 i = 0; i < Tabs.Num(); ++i)
 	{
-		if (Tabs[i]->Mode == EEditorMode::AnimGraph)
+		if (Tabs[i]->Mode == EEditorMode::AnimGraph && NormalizeWidePath(Tabs[i]->StateMachineFilePath) == NormalizedPath)
 		{
 			ActiveTabIndex = i;
 			ActiveState = Tabs[i];
 			TargetState = Tabs[i];
-			break;
+			bRequestFocus = true;
+			return;  // 이미 열린 파일이므로 추가 로드 불필요
 		}
 	}
 
-	// 없으면 새 탭 생성
+	// 현재 탭이 AnimGraph 모드이고 수정되지 않은 New 상태면 재사용
+	if (!TargetState && ActiveState && ActiveState->Mode == EEditorMode::AnimGraph && ActiveState->StateMachineFilePath.empty())
+	{
+		TargetState = ActiveState;
+		TargetState->Name = FName(TabName.c_str());
+	}
+
+	// 재사용 가능한 탭이 없으면 새 탭 생성
 	if (!TargetState)
 	{
-		FString TabName = "AnimGraph";
-		size_t LastSlash = Path.find_last_of("/\\");
-		if (LastSlash != FString::npos)
-		{
-			TabName = Path.substr(LastSlash + 1);
-		}
-
 		TargetState = CreateNewTab(TabName.c_str(), EEditorMode::AnimGraph);
 		if (TargetState)
 		{
@@ -1481,36 +1495,78 @@ void SDynamicEditorWindow::LoadAnimGraph(const FString& Path)
 	if (TargetState)
 	{
 		TargetState->StateMachineFilePath = FWideString(Path.begin(), Path.end());
+
+		// EmbeddedStateMachineEditor가 이미 초기화되어 있으면 파일 로드
+		// GetTabCount() == 0이면 아직 초기화 안 됐으므로 OnRender에서 처리
+		if (EmbeddedStateMachineEditor && EmbeddedStateMachineEditor->GetTabCount() > 0)
+		{
+			EmbeddedStateMachineEditor->LoadStateMachineFile(Path.c_str());
+		}
 	}
 }
 
 void SDynamicEditorWindow::LoadBlendSpace(const FString& Path)
 {
-	// 1탭 1기능: BlendSpace2D 모드 탭 찾거나 새로 생성
+	// 경로 정규화 (슬래시 통일, 소문자 변환)
+	auto NormalizePath = [](const FString& InPath) -> FString {
+		FString Result = InPath;
+		std::replace(Result.begin(), Result.end(), '\\', '/');
+		std::transform(Result.begin(), Result.end(), Result.begin(), ::tolower);
+		return Result;
+	};
+	auto NormalizeWidePath = [](const FWideString& InPath) -> FString {
+		FString Result;
+		Result.reserve(InPath.size());
+		for (wchar_t c : InPath)
+		{
+			Result.push_back(static_cast<char>(c));
+		}
+		std::replace(Result.begin(), Result.end(), '\\', '/');
+		std::transform(Result.begin(), Result.end(), Result.begin(), ::tolower);
+		return Result;
+	};
+
+	FString NormalizedPath = NormalizePath(Path);
+
+	// 파일명 추출 (확장자 제거)
+	FString TabName = Path;
+	size_t LastSlash = Path.find_last_of("/\\");
+	if (LastSlash != FString::npos)
+	{
+		TabName = Path.substr(LastSlash + 1);
+	}
+	size_t DotPos = TabName.find_last_of('.');
+	if (DotPos != FString::npos)
+	{
+		TabName = TabName.substr(0, DotPos);
+	}
+
+	// 같은 파일이 열린 탭 찾기
 	FEditorTabState* TargetState = nullptr;
 
-	// 기존 BlendSpace2D 탭 검색
+	// 같은 파일이 열린 BlendSpace2D 탭 검색
 	for (int32 i = 0; i < Tabs.Num(); ++i)
 	{
-		if (Tabs[i]->Mode == EEditorMode::BlendSpace2D)
+		if (Tabs[i]->Mode == EEditorMode::BlendSpace2D && NormalizeWidePath(Tabs[i]->BlendSpaceFilePath) == NormalizedPath)
 		{
 			ActiveTabIndex = i;
 			ActiveState = Tabs[i];
 			TargetState = Tabs[i];
-			break;
+			bRequestFocus = true;
+			return;  // 이미 열린 파일이므로 추가 로드 불필요
 		}
 	}
 
-	// 없으면 새 탭 생성
+	// 현재 탭이 BlendSpace2D 모드이고 수정되지 않은 New 상태면 재사용
+	if (!TargetState && ActiveState && ActiveState->Mode == EEditorMode::BlendSpace2D && ActiveState->BlendSpaceFilePath.empty())
+	{
+		TargetState = ActiveState;
+		TargetState->Name = FName(TabName.c_str());
+	}
+
+	// 재사용 가능한 탭이 없으면 새 탭 생성
 	if (!TargetState)
 	{
-		FString TabName = "BlendSpace";
-		size_t LastSlash = Path.find_last_of("/\\");
-		if (LastSlash != FString::npos)
-		{
-			TabName = Path.substr(LastSlash + 1);
-		}
-
 		TargetState = CreateNewTab(TabName.c_str(), EEditorMode::BlendSpace2D);
 		if (TargetState)
 		{
@@ -1528,6 +1584,12 @@ void SDynamicEditorWindow::LoadBlendSpace(const FString& Path)
 	if (TargetState)
 	{
 		TargetState->BlendSpaceFilePath = FWideString(Path.begin(), Path.end());
+
+		// EmbeddedBlendSpace2DEditor가 이미 존재하면 파일 로드
+		if (EmbeddedBlendSpace2DEditor)
+		{
+			EmbeddedBlendSpace2DEditor->LoadBlendSpaceFile(Path.c_str());
+		}
 	}
 }
 
@@ -1551,9 +1613,8 @@ void SDynamicEditorWindow::SetBlendSpace(UBlendSpace2D* InBlendSpace)
 	// 없으면 새 탭 생성
 	if (!TargetState)
 	{
-		FString TabName = InBlendSpace ? InBlendSpace->GetName() : "BlendSpace";
-
-		TargetState = CreateNewTab(TabName.c_str(), EEditorMode::BlendSpace2D);
+		// 파일 경로가 없으므로 "New BlendSpace" 사용
+		TargetState = CreateNewTab("New BlendSpace", EEditorMode::BlendSpace2D);
 		if (TargetState)
 		{
 			if (ActiveState)
@@ -1570,6 +1631,12 @@ void SDynamicEditorWindow::SetBlendSpace(UBlendSpace2D* InBlendSpace)
 	if (TargetState)
 	{
 		TargetState->BlendSpace = InBlendSpace;
+
+		// EmbeddedBlendSpace2DEditor가 이미 존재하면 BlendSpace 전달
+		if (EmbeddedBlendSpace2DEditor && InBlendSpace)
+		{
+			EmbeddedBlendSpace2DEditor->OpenNewTabWithBlendSpace(InBlendSpace, "");
+		}
 	}
 }
 
@@ -2091,6 +2158,237 @@ void SDynamicEditorWindow::OpenNotifyScriptInEditor(const FString& NotifyClassNa
 	FString FilePath = Dir + NotifyClassName + ".lua";
 
 	ShellExecuteA(nullptr, "open", FilePath.c_str(), nullptr, nullptr, SW_SHOW);
+}
+
+// ============================================================================
+// New/Save/Load 핸들러
+// ============================================================================
+
+void SDynamicEditorWindow::OnNewClicked()
+{
+	if (!ActiveState)
+	{
+		return;
+	}
+
+	// AnimGraph 또는 BlendSpace2D 모드에서만 New 동작
+	switch (ActiveState->Mode)
+	{
+	case EEditorMode::AnimGraph:
+		{
+			// 기존 탭 중 "New State Machine"의 최대 번호 찾기
+			int32 MaxNumber = 0;
+			for (const auto& Tab : Tabs)
+			{
+				if (Tab->Mode == EEditorMode::AnimGraph)
+				{
+					FString TabName = Tab->Name.ToString();
+					if (TabName.find("New State Machine") != FString::npos)
+					{
+						// "New State Machine" 뒤에 숫자가 있으면 추출
+						size_t SpacePos = TabName.rfind(' ');
+						if (SpacePos != FString::npos && SpacePos > 0)
+						{
+							FString NumStr = TabName.substr(SpacePos + 1);
+							try
+							{
+								int32 Num = std::stoi(NumStr);
+								MaxNumber = std::max(MaxNumber, Num);
+							}
+							catch (...) {}
+						}
+						// "New State Machine" 자체는 1번으로 취급
+						if (TabName == "New State Machine")
+						{
+							MaxNumber = std::max(MaxNumber, 1);
+						}
+					}
+				}
+			}
+
+			// 새 탭 이름 생성
+			FString NewTabName = (MaxNumber == 0) ? "New State Machine" : ("New State Machine " + std::to_string(MaxNumber + 1));
+
+			// DynamicEditorWindow에 새 탭 생성
+			FEditorTabState* NewState = CreateNewTab(NewTabName.c_str(), EEditorMode::AnimGraph);
+			if (NewState)
+			{
+				Tabs.Add(NewState);
+				ActiveTabIndex = Tabs.Num() - 1;
+				ActiveState = NewState;
+
+				// EmbeddedStateMachineEditor에도 새 탭 생성
+				if (EmbeddedStateMachineEditor)
+				{
+					EmbeddedStateMachineEditor->CreateNewEmptyTab();
+				}
+			}
+		}
+		break;
+
+	case EEditorMode::BlendSpace2D:
+		{
+			// 기존 탭 중 "New BlendSpace"의 최대 번호 찾기
+			int32 MaxNumber = 0;
+			for (const auto& Tab : Tabs)
+			{
+				if (Tab->Mode == EEditorMode::BlendSpace2D)
+				{
+					FString TabName = Tab->Name.ToString();
+					if (TabName.find("New BlendSpace") != FString::npos)
+					{
+						size_t SpacePos = TabName.rfind(' ');
+						if (SpacePos != FString::npos && SpacePos > 0)
+						{
+							FString NumStr = TabName.substr(SpacePos + 1);
+							try
+							{
+								int32 Num = std::stoi(NumStr);
+								MaxNumber = std::max(MaxNumber, Num);
+							}
+							catch (...) {}
+						}
+						if (TabName == "New BlendSpace")
+						{
+							MaxNumber = std::max(MaxNumber, 1);
+						}
+					}
+				}
+			}
+
+			// 새 탭 이름 생성
+			FString NewTabName = (MaxNumber == 0) ? "New BlendSpace" : ("New BlendSpace " + std::to_string(MaxNumber + 1));
+
+			// DynamicEditorWindow에 새 탭 생성
+			FEditorTabState* NewState = CreateNewTab(NewTabName.c_str(), EEditorMode::BlendSpace2D);
+			if (NewState)
+			{
+				Tabs.Add(NewState);
+				ActiveTabIndex = Tabs.Num() - 1;
+				ActiveState = NewState;
+
+				// EmbeddedBlendSpace2DEditor에도 새 탭 생성
+				if (EmbeddedBlendSpace2DEditor)
+				{
+					EmbeddedBlendSpace2DEditor->CreateNewEmptyTab();
+				}
+			}
+		}
+		break;
+
+	default:
+		break;
+	}
+}
+
+void SDynamicEditorWindow::OnSaveClicked()
+{
+	if (!ActiveState)
+	{
+		return;
+	}
+
+	// 현재 모드에 따라 적절한 에디터의 Save 호출
+	switch (ActiveState->Mode)
+	{
+	case EEditorMode::Skeletal:
+		// Skeletal은 뷰어 모드이므로 저장할 내용 없음
+		UE_LOG("Skeletal mode: No asset to save (viewer only)");
+		break;
+
+	case EEditorMode::Animation:
+		if (EmbeddedAnimationEditor)
+		{
+			EmbeddedAnimationEditor->SaveCurrentAnimation();
+		}
+		break;
+
+	case EEditorMode::AnimGraph:
+		if (EmbeddedStateMachineEditor)
+		{
+			EmbeddedStateMachineEditor->SaveCurrentStateMachine();
+		}
+		break;
+
+	case EEditorMode::BlendSpace2D:
+		if (EmbeddedBlendSpace2DEditor)
+		{
+			EmbeddedBlendSpace2DEditor->SaveCurrentBlendSpace();
+		}
+		break;
+	}
+}
+
+void SDynamicEditorWindow::OnLoadClicked()
+{
+	// Content Browser 열기 - 현재 모드에 맞는 폴더로 이동
+	FString InitialPath = "";
+
+	if (ActiveState)
+	{
+		switch (ActiveState->Mode)
+		{
+		case EEditorMode::Skeletal:
+			InitialPath = "FBX";  // 스켈레탈 메시 (FBX 파일)
+			break;
+		case EEditorMode::Animation:
+			InitialPath = "Animation";  // 애니메이션 파일
+			break;
+		case EEditorMode::BlendSpace2D:
+			InitialPath = "Blend";  // 블렌드 스페이스 파일
+			break;
+		case EEditorMode::AnimGraph:
+			InitialPath = "StateMachine";  // 스테이트 머신 파일
+			break;
+		}
+	}
+
+	SLATE.OpenContentBrowser(InitialPath);
+}
+
+void SDynamicEditorWindow::OpenFileInCurrentMode(const FString& FilePath)
+{
+	if (!ActiveState || FilePath.empty())
+	{
+		return;
+	}
+
+	// 확장자에 따라 적절한 모드로 열기
+	FString LowerPath = FilePath;
+	std::transform(LowerPath.begin(), LowerPath.end(), LowerPath.begin(), ::tolower);
+
+	if (LowerPath.ends_with(".fbx") || LowerPath.ends_with(".skeletalmesh"))
+	{
+		// Skeletal Mesh
+		if (ActiveState->Mode == EEditorMode::Skeletal)
+		{
+			LoadSkeletalMesh(FilePath);
+		}
+	}
+	else if (LowerPath.ends_with(".anim"))
+	{
+		// Animation
+		if (ActiveState->Mode == EEditorMode::Animation && EmbeddedAnimationEditor)
+		{
+			EmbeddedAnimationEditor->LoadAnimationFile(FilePath.c_str());
+		}
+	}
+	else if (LowerPath.ends_with(".statemachine"))
+	{
+		// State Machine
+		if (ActiveState->Mode == EEditorMode::AnimGraph && EmbeddedStateMachineEditor)
+		{
+			EmbeddedStateMachineEditor->LoadStateMachineFile(FilePath.c_str());
+		}
+	}
+	else if (LowerPath.ends_with(".blend2d"))
+	{
+		// BlendSpace 2D
+		if (ActiveState->Mode == EEditorMode::BlendSpace2D && EmbeddedBlendSpace2DEditor)
+		{
+			EmbeddedBlendSpace2DEditor->LoadBlendSpaceFile(FilePath.c_str());
+		}
+	}
 }
 
 // ============================================================================

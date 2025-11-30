@@ -435,7 +435,7 @@ void UTargetActorTransformWidget::RenderComponentHierarchy(AActor* SelectedActor
 	}
 
 	// 삭제 입력 처리 (다이나믹 뷰포트에 포커스가 없을 때만)
-	// 다이나믹 뷰포트 윈도우들 체크 (Preview, ParticleEditor, BlendSpace2D 등)
+	// 다이나믹 뷰포트 윈도우들 체크 (Preview, ParticleEditor, BlendSpace2D, DynamicEditor 등)
 	bool bDynamicViewportFocused = false;
 	ImGuiContext* Context = ImGui::GetCurrentContext();
 
@@ -450,16 +450,39 @@ void UTargetActorTransformWidget::RenderComponentHierarchy(AActor* SelectedActor
 		"BlendSpace 2D Editor###BlendSpace2D"
 	};
 
+	// 윈도우 이름 접두사로 체크할 목록 (Dynamic Editor 등)
+	const char* DynamicWindowPrefixes[] = {
+		"Dynamic Editor",
+		"Animation Editor",
+		"Skeletal Mesh Viewer",
+		"State Machine Editor"
+	};
+
 	// 현재 포커스된 윈도우 이름 가져오기
 	if (Context->NavWindow)
 	{
 		const char* FocusedName = Context->NavWindow->Name;
+
+		// 정확히 일치하는 윈도우 이름 체크
 		for (const char* WindowName : DynamicWindowNames)
 		{
 			if (FocusedName && strcmp(FocusedName, WindowName) == 0)
 			{
 				bDynamicViewportFocused = true;
 				break;
+			}
+		}
+
+		// 접두사로 시작하는 윈도우 이름 체크
+		if (!bDynamicViewportFocused && FocusedName)
+		{
+			for (const char* Prefix : DynamicWindowPrefixes)
+			{
+				if (strncmp(FocusedName, Prefix, strlen(Prefix)) == 0)
+				{
+					bDynamicViewportFocused = true;
+					break;
+				}
 			}
 		}
 	}

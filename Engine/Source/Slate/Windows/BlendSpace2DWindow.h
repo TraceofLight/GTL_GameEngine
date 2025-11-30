@@ -86,8 +86,10 @@ struct FBlendSpace2DTabState
  * @brief BlendSpace2D 에디터 윈도우
  * @details SSplitter 기반 레이아웃 (UE5 스타일)
  *          - Details Panel (좌측): BlendSpace 속성/샘플 편집
- *          - Viewport Panel (우측 상단): 3D 프리뷰
- *          - Grid Panel (우측 하단): 2D 블렌드 그리드 + 타임라인
+ *          - Viewport Panel (중앙 상단): 3D 프리뷰
+ *          - Grid Panel (중앙 하단): 2D 블렌드 그리드 + 타임라인
+ *          - Right Detail Panel (우측 상단): 선택된 샘플/에셋 상세 정보
+ *          - Asset Browser Panel (우측 하단): 애니메이션 에셋 브라우저
  */
 class SBlendSpace2DWindow : public SWindow
 {
@@ -113,12 +115,15 @@ public:
 	void OpenNewTab(const FString& FilePath);
 	void OpenNewTabWithBlendSpace(UBlendSpace2D* InBlendSpace, const FString& FilePath);
 	void OpenNewTabWithMesh(USkeletalMesh* Mesh, const FString& MeshPath);
+	void CreateNewEmptyTab();  // 빈 BlendSpace 탭 생성
 	void CloseTab(int32 Index);
 	int32 GetTabCount() const { return Tabs.Num(); }
 
-	// === 에셋 로드 ===
+	// === 에셋 로드/저장 ===
 	void LoadBlendSpace(const FString& Path);
 	void LoadSkeletalMesh(const FString& Path);
+	void LoadBlendSpaceFile(const char* FilePath);  // DynamicEditorWindow에서 호출
+	void SaveCurrentBlendSpace();                   // DynamicEditorWindow에서 호출
 
 	// === Accessors ===
 	FViewport* GetViewport() const;
@@ -152,6 +157,8 @@ private:
 	void RenderDetailsPanel();
 	void RenderViewportPanel();
 	void RenderGridPanel();
+	void RenderRightDetailPanel();
+	void RenderAssetBrowserPanel();
 
 	// === 그리드 렌더링 헬퍼 ===
 	void RenderGrid(FBlendSpace2DTabState* State);
@@ -199,13 +206,21 @@ private:
 	ID3D11Device* Device = nullptr;
 
 	// === SSplitter 레이아웃 (UE5 스타일) ===
-	SSplitterH* MainSplitter = nullptr;      // 좌우 분할: Left(Details) / Right(RightSplitter)
-	SSplitterV* RightSplitter = nullptr;     // 상하 분할: Top(Viewport) / Bottom(Grid)
+	// MainSplitter (H): Left(Details) | Right(CenterRightSplitter)
+	//   CenterRightSplitter (H): Left(CenterSplitter) | Right(RightPanelSplitter)
+	//     CenterSplitter (V): Top(Viewport) | Bottom(Grid)
+	//     RightPanelSplitter (V): Top(RightDetail) | Bottom(AssetBrowser)
+	SSplitterH* MainSplitter = nullptr;
+	SSplitterH* CenterRightSplitter = nullptr;
+	SSplitterV* CenterSplitter = nullptr;
+	SSplitterV* RightPanelSplitter = nullptr;
 
 	// === 패널 Rect (SSplitter에서 계산) ===
 	FRect DetailsRect;
 	FRect ViewportRect;
 	FRect GridRect;
+	FRect RightDetailRect;
+	FRect AssetBrowserRect;
 
 	// === UI 상태 ===
 	bool bIsOpen = true;

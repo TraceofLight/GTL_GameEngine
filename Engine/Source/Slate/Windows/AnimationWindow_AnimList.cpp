@@ -8,6 +8,7 @@
 #include "Source/Runtime/Engine/Animation/AnimDataModel.h"
 #include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "ImGui/imgui.h"
+#include <filesystem>
 
 // ============================================================================
 // Animation List Panel 렌더링
@@ -272,6 +273,111 @@ void SAnimationWindow::RenderAnimationListPanel()
 					// 탭 이름 업데이트
 					State->TabName = FName(DisplayName.c_str());
 					State->FilePath = Anim->GetFilePath();
+				}
+
+				// 우클릭 컨텍스트 메뉴
+				char ContextMenuID[64];
+				(void)snprintf(ContextMenuID, sizeof(ContextMenuID), "AnimContextMenu_%d", i);
+				if (ImGui::BeginPopupContextItem(ContextMenuID))
+				{
+					if (ImGui::MenuItem("Delete"))
+					{
+						// 현재 재생 중인 애니메이션이면 정지
+						if (State->CurrentAnimation == Anim)
+						{
+							State->CurrentAnimation = nullptr;
+							State->SelectedAnimationIndex = -1;
+							State->bIsPlaying = false;
+							State->CurrentAnimationTime = 0.0f;
+
+							// AnimInstance 정지
+							if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+							{
+								USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
+								if (UAnimInstance* AnimInst = SkelComp->GetAnimInstance())
+								{
+									AnimInst->StopAnimation();
+								}
+								SkelComp->ResetToReferencePose();
+							}
+						}
+
+						// 파일 경로 저장 (Unload 전에)
+						FString FilePath = Anim->GetFilePath();
+
+						// ResourceManager에서 제거
+						UResourceManager::GetInstance().Unload<UAnimSequence>(FilePath);
+
+						// 실제 파일 삭제
+						if (!FilePath.empty())
+						{
+							std::error_code EC;
+							if (std::filesystem::exists(FilePath, EC))
+							{
+								if (std::filesystem::remove(FilePath, EC))
+								{
+									UE_LOG("Animation file deleted: %s", FilePath.c_str());
+								}
+								else
+								{
+									UE_LOG("Failed to delete animation file: %s (error: %s)", FilePath.c_str(), EC.message().c_str());
+								}
+							}
+						}
+
+						ImGui::EndPopup();
+						break;  // 리스트가 변경되었으므로 루프 종료
+					}
+					ImGui::EndPopup();
+				}
+
+				// Delete 키로 선택된 애니메이션 삭제
+				if (bIsSelected && ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Delete))
+				{
+					// 현재 재생 중인 애니메이션이면 정지
+					if (State->CurrentAnimation == Anim)
+					{
+						State->CurrentAnimation = nullptr;
+						State->SelectedAnimationIndex = -1;
+						State->bIsPlaying = false;
+						State->CurrentAnimationTime = 0.0f;
+
+						// AnimInstance 정지
+						if (State->PreviewActor && State->PreviewActor->GetSkeletalMeshComponent())
+						{
+							USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
+							if (UAnimInstance* AnimInst = SkelComp->GetAnimInstance())
+							{
+								AnimInst->StopAnimation();
+							}
+							SkelComp->ResetToReferencePose();
+						}
+					}
+
+					// 파일 경로 저장 (Unload 전에)
+					FString FilePath = Anim->GetFilePath();
+
+					// ResourceManager에서 제거
+					UResourceManager::GetInstance().Unload<UAnimSequence>(FilePath);
+
+					// 실제 파일 삭제
+					if (!FilePath.empty())
+					{
+						std::error_code EC;
+						if (std::filesystem::exists(FilePath, EC))
+						{
+							if (std::filesystem::remove(FilePath, EC))
+							{
+								UE_LOG("Animation file deleted: %s", FilePath.c_str());
+							}
+							else
+							{
+								UE_LOG("Failed to delete animation file: %s (error: %s)", FilePath.c_str(), EC.message().c_str());
+							}
+						}
+					}
+
+					break;  // 리스트가 변경되었으므로 루프 종료
 				}
 
 				// 더블클릭으로 새 탭에서 열기

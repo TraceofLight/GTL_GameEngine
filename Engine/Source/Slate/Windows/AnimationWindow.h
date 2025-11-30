@@ -141,9 +141,11 @@ public:
 	void CloseTab(int32 Index);
 	int32 GetTabCount() const { return Tabs.Num(); }
 
-	// === 에셋 로드 ===
+	// === 에셋 로드/저장 ===
 	void LoadSkeletalMesh(const FString& Path);
 	void LoadAnimation(const FString& Path);
+	void LoadAnimationFile(const char* FilePath);  // DynamicEditorWindow에서 호출
+	void SaveCurrentAnimation();                   // DynamicEditorWindow에서 호출
 
 	// === Accessors ===
 	FViewport* GetViewport() const;

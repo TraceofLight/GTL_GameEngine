@@ -6,6 +6,7 @@
 #include "ImGui/imgui_internal.h"
 #include "USlateManager.h"
 #include "ThumbnailManager.h"
+#include "DynamicEditorWindow.h"
 #include "Source/Runtime/Engine/Animation/BlendSpace2D.h"
 #include <algorithm>
 
@@ -450,28 +451,60 @@ void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 
 	if (ext == ".fbx")
 	{
-		// SkeletalMeshViewer 열기
+		// SkeletalMeshViewer 열기 - DynamicEditorWindow의 LoadSkeletalMesh 사용
 		std::string pathStr = Entry.Path.string();
-		USlateManager::GetInstance().OpenSkeletalMeshViewerWithFile(pathStr.c_str());
+		USlateManager& Slate = USlateManager::GetInstance();
+
+		// DynamicEditorWindow가 없으면 생성
+		if (!Slate.IsDynamicEditorOpen())
+		{
+			Slate.OpenDynamicEditor();
+		}
+
+		// LoadSkeletalMesh로 파일 로드
+		if (Slate.GetDynamicEditorWindow())
+		{
+			Slate.GetDynamicEditorWindow()->LoadSkeletalMesh(pathStr.c_str());
+		}
 		UE_LOG("Opening SkeletalMeshViewer for: %s", Entry.FileName.c_str());
 	}
 	else if (ext == ".anim")
 	{
-		// SkeletalMeshViewer에서 .anim 파일 열기
+		// Animation 에디터 열기 - DynamicEditorWindow의 LoadAnimation 사용
 		std::string pathStr = Entry.Path.string();
-		USlateManager::GetInstance().OpenSkeletalMeshViewerWithFile(pathStr.c_str());
-		UE_LOG("Opening SkeletalMeshViewer for animation: %s", Entry.FileName.c_str());
+		USlateManager& Slate = USlateManager::GetInstance();
+
+		// DynamicEditorWindow가 없으면 생성
+		if (!Slate.IsDynamicEditorOpen())
+		{
+			Slate.OpenDynamicEditor();
+		}
+
+		// LoadAnimation으로 파일 로드
+		if (Slate.GetDynamicEditorWindow())
+		{
+			Slate.GetDynamicEditorWindow()->LoadAnimation(pathStr.c_str());
+		}
+		UE_LOG("Opening Animation Editor for: %s", Entry.FileName.c_str());
 	}
 	else if (ext == ".blend2d")
 	{
-		// BlendSpace2D 에디터 열기
+		// BlendSpace2D 에디터 열기 - DynamicEditorWindow의 LoadBlendSpace 사용
 		std::string pathStr = Entry.Path.string();
-		UBlendSpace2D* LoadedBS = UBlendSpace2D::LoadFromFile(pathStr.c_str());
-		if (LoadedBS)
+		USlateManager& Slate = USlateManager::GetInstance();
+
+		// DynamicEditorWindow가 없으면 생성
+		if (!Slate.IsDynamicEditorOpen())
 		{
-			USlateManager::GetInstance().OpenBlendSpace2DEditor(LoadedBS);
-			UE_LOG("Opening BlendSpace2D Editor for: %s", Entry.FileName.c_str());
+			Slate.OpenDynamicEditor();
 		}
+
+		// LoadBlendSpace로 파일 로드
+		if (Slate.GetDynamicEditorWindow())
+		{
+			Slate.GetDynamicEditorWindow()->LoadBlendSpace(pathStr.c_str());
+		}
+		UE_LOG("Opening BlendSpace2D Editor for: %s", Entry.FileName.c_str());
 	}
 	else if (ext == ".psys")
 	{
@@ -496,6 +529,25 @@ void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 		std::string pathStr = Entry.Path.string();
 		USlateManager::GetInstance().RequestSceneLoad(pathStr.c_str());
 		UE_LOG("Opening scene load modal for: %s", Entry.FileName.c_str());
+	}
+	else if (ext == ".statemachine")
+	{
+		// StateMachine 에디터 열기 - DynamicEditorWindow의 LoadAnimGraph 사용
+		std::string pathStr = Entry.Path.string();
+		USlateManager& Slate = USlateManager::GetInstance();
+
+		// DynamicEditorWindow가 없으면 생성
+		if (!Slate.IsDynamicEditorOpen())
+		{
+			Slate.OpenDynamicEditor();
+		}
+
+		// LoadAnimGraph로 파일 로드
+		if (Slate.GetDynamicEditorWindow())
+		{
+			Slate.GetDynamicEditorWindow()->LoadAnimGraph(pathStr.c_str());
+		}
+		UE_LOG("Opening StateMachine Editor for: %s", Entry.FileName.c_str());
 	}
 	else
 	{

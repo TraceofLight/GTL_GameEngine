@@ -183,8 +183,16 @@ void SAnimStateMachineWindow::LoadStateMachineFile(const char* FilePath)
     if (!FilePath || FilePath[0] == '\0')
         return;
 
-    // Load the asset
     FString FilePathStr = FilePath;
+    FWideString WideFilePath = UTF8ToWide(FilePathStr);
+
+    // Embedded 모드에서 이미 같은 파일이 로드되어 있으면 스킵
+    if (bIsEmbeddedMode && ActiveState && ActiveState->AssetPath == WideFilePath)
+    {
+        return;
+    }
+
+    // Load the asset
     UAnimStateMachine* LoadedAsset = RESOURCE.Load<UAnimStateMachine>(FilePathStr);
 
     if (LoadedAsset)
@@ -193,8 +201,32 @@ void SAnimStateMachineWindow::LoadStateMachineFile(const char* FilePath)
         std::filesystem::path fsPath(FilePath);
         std::string FileName = fsPath.stem().string();
 
-        // Create new tab with loaded asset
-        CreateNewGraphTab(FileName.c_str(), LoadedAsset, UTF8ToWide(FilePathStr));
+        // Embedded 모드에서는 항상 현재 ActiveState에 로드 (탭은 DynamicEditorWindow에서 관리)
+        if (bIsEmbeddedMode && ActiveState)
+        {
+            // 현재 탭에 로드된 에셋 적용
+            ActiveState->Name = FileName;
+            ActiveState->StateMachine = LoadedAsset;
+            ActiveState->AssetPath = WideFilePath;
+
+            // 노드 초기화
+            ActiveState->Nodes.Empty();
+            ActiveState->Links.Empty();
+            ActiveState->NextNodeID = 1;
+            ActiveState->NextPinID = 100000;
+            ActiveState->NextLinkID = 200000;
+            ActiveState->StateCounter = 0;
+
+            // 노드 에디터 컨텍스트 설정 후 StateMachine 데이터를 그래프 노드로 변환
+            ed::SetCurrentEditor(ActiveState->Context);
+            SyncGraphFromStateMachine(ActiveState);
+            ed::SetCurrentEditor(nullptr);
+        }
+        else
+        {
+            // 독립 모드: 새 탭 생성
+            CreateNewGraphTab(FileName.c_str(), LoadedAsset, WideFilePath);
+        }
     }
     else
     {
@@ -205,6 +237,46 @@ void SAnimStateMachineWindow::LoadStateMachineFile(const char* FilePath)
 void SAnimStateMachineWindow::CreateNewEmptyTab()
 {
     CreateNewGraphTab("New State Machine", nullptr);
+}
+
+void SAnimStateMachineWindow::SaveCurrentStateMachine()
+{
+    if (!ActiveState || !ActiveState->StateMachine)
+    {
+        UE_LOG("No active state machine to save");
+        return;
+    }
+
+    // AssetPath가 없으면 Save As 다이얼로그 열기
+    if (ActiveState->AssetPath.empty())
+    {
+        std::filesystem::path SavePath = FPlatformProcess::OpenSaveFileDialog(
+            L"Data/StateMachine",
+            L".statemachine",
+            L"State Machine Files (*.statemachine)"
+        );
+
+        if (!SavePath.empty())
+        {
+            ActiveState->AssetPath = SavePath.wstring();
+        }
+        else
+        {
+            return;  // 취소됨
+        }
+    }
+
+    // 노드 위치 저장 후 파일로 저장
+    SaveNodePositions(ActiveState);
+    if (ActiveState->StateMachine->SaveToFile(ActiveState->AssetPath))
+    {
+        RESOURCE.Reload<UAnimStateMachine>(ActiveState->AssetPath);
+        UE_LOG("StateMachine saved: %s", WideToUTF8(ActiveState->AssetPath).c_str());
+    }
+    else
+    {
+        UE_LOG("[Error] Failed to save StateMachine: %s", WideToUTF8(ActiveState->AssetPath).c_str());
+    }
 }
 
 void SAnimStateMachineWindow::OnRender()
@@ -342,9 +414,28 @@ void SAnimStateMachineWindow::OnRender()
 
             if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing))
             {
+                // 기존 탭 중 가장 높은 넘버 찾기
+                const std::string BaseName = "State Machine ";
+                int32 MaxNumber = 0;
+                for (const FGraphState* Tab : Tabs)
+                {
+                    if (Tab->Name.find(BaseName) == 0)
+                    {
+                        std::string Suffix = Tab->Name.substr(BaseName.length());
+                        try
+                        {
+                            int32 Num = std::stoi(Suffix);
+                            if (Num > MaxNumber)
+                            {
+                                MaxNumber = Num;
+                            }
+                        }
+                        catch (...) {}
+                    }
+                }
                 char label[64];
-                sprintf_s(label, "State Machine %d", (int)Tabs.size() + 1);
-				CreateNewGraphTab(label, nullptr);
+                sprintf_s(label, "State Machine %d", MaxNumber + 1);
+                CreateNewGraphTab(label, nullptr);
             }
             ImGui::EndTabBar();
         }
@@ -408,125 +499,6 @@ void SAnimStateMachineWindow::RenderEmbedded(const FRect& ContentRect)
         {
             return;
         }
-    }
-
-    // === Toolbar (New, Save, Load 버튼) ===
-    const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/StateMachine";
-    const FWideString Extension = L".statemachine";
-    const FWideString Description = L"State Machines";
-    FWideString DefaultFileName = L"NewStateMachine";
-
-    // New 버튼
-    if (ImGui::Button("New", ImVec2(60, 0)))
-    {
-        char label[64];
-        sprintf_s(label, "State Machine %d", static_cast<int32>(Tabs.size()) + 1);
-        CreateNewGraphTab(label, nullptr);
-    }
-
-    ImGui::SameLine();
-
-    // Save 버튼
-    if (ImGui::Button("Save", ImVec2(60, 0)))
-    {
-        if (ActiveState && ActiveState->StateMachine)
-        {
-            FWideString SavePath = ActiveState->AssetPath;
-
-            if (SavePath.empty())
-            {
-                std::filesystem::path SelectedPath = FPlatformProcess::OpenSaveFileDialog(BaseDir, Extension, Description, DefaultFileName);
-                if (!SelectedPath.empty())
-                {
-                    SavePath = SelectedPath.wstring();
-                    ActiveState->AssetPath = SavePath;
-                    ActiveState->Name = SelectedPath.stem().string();
-                }
-            }
-
-            if (!SavePath.empty())
-            {
-                try
-                {
-                    SaveNodePositions(ActiveState);
-                    if (ActiveState->StateMachine->SaveToFile(SavePath))
-                    {
-                        RESOURCE.Reload<UAnimStateMachine>(SavePath);
-                        UE_LOG("StateMachine saved: %s", WideToUTF8(SavePath).c_str());
-                    }
-                    else
-                    {
-                        UE_LOG("[error] StateMachine save failed.");
-                    }
-                }
-                catch (const std::exception& Exception)
-                {
-                    UE_LOG("[error] StateMachine Save Error: %s", Exception.what());
-                }
-            }
-        }
-    }
-
-    ImGui::SameLine();
-
-    // Load 버튼
-    if (ImGui::Button("Load", ImVec2(60, 0)))
-    {
-        std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(BaseDir, Extension, Description);
-
-        if (!SelectedPath.empty())
-        {
-            FString FinalPathStr = ResolveAssetRelativePath(WideToUTF8(SelectedPath.wstring()), "");
-            UAnimStateMachine* LoadedAsset = RESOURCE.Load<UAnimStateMachine>(FinalPathStr);
-
-            if (LoadedAsset)
-            {
-                std::string FileName = SelectedPath.stem().string();
-                CreateNewGraphTab(FileName.c_str(), LoadedAsset, UTF8ToWide(FinalPathStr));
-            }
-            else
-            {
-                UE_LOG("[Error] Failed to load AnimStateMachine: %S", FinalPathStr.c_str());
-            }
-        }
-    }
-
-    ImGui::Separator();
-
-    // === Tab Bar ===
-    bool bTabClosed = false;
-    if (ImGui::BeginTabBar("EmbeddedAnimGraphTabs", ImGuiTabBarFlags_AutoSelectNewTabs | ImGuiTabBarFlags_Reorderable))
-    {
-        for (int i = 0; i < static_cast<int>(Tabs.size()); ++i)
-        {
-            FGraphState* State = Tabs[i];
-            bool open = true;
-            if (ImGui::BeginTabItem(State->Name.c_str(), &open))
-            {
-                ActiveState = State;
-                ActiveTabIndex = i;
-                ImGui::EndTabItem();
-            }
-            if (!open)
-            {
-                CloseTab(i);
-                bTabClosed = true;
-                break;
-            }
-        }
-
-        if (ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing))
-        {
-            char label[64];
-            sprintf_s(label, "State Machine %d", static_cast<int>(Tabs.size()) + 1);
-            CreateNewGraphTab(label, nullptr);
-        }
-        ImGui::EndTabBar();
-    }
-
-    if (bTabClosed)
-    {
-        return;
     }
 
     // === 3패널 레이아웃 (SSplitter 기반) ===
@@ -1074,6 +1046,24 @@ void SAnimStateMachineWindow::RenderCenterPanel(float width, float height)
 
         ed::End();
         ed::SetCurrentEditor(nullptr);
+    }
+
+    // 드래그 앤 드롭 타겟 (Content Browser에서 파일 드롭)
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE"))
+        {
+            const char* filePath = static_cast<const char*>(payload->Data);
+            FString path(filePath);
+            FString lowerPath = path;
+            std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), ::tolower);
+
+            if (lowerPath.ends_with(".statemachine"))
+            {
+                LoadStateMachineFile(filePath);
+            }
+        }
+        ImGui::EndDragDropTarget();
     }
 
     ImGui::EndChild();

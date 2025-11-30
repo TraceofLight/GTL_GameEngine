@@ -105,17 +105,33 @@ SBlendSpace2DWindow::~SBlendSpace2DWindow()
 {
 	ReleaseRenderTarget();
 
-	// SSplitter 해제 (역순)
-	// RightSplitter (SSplitterV): Viewport / Grid (상하 분할)
-	if (RightSplitter)
+	// SSplitter 해제 (역순 - 리프 노드부터)
+	// CenterSplitter (V): Viewport / Grid
+	if (CenterSplitter)
 	{
-		delete RightSplitter->GetLeftOrTop();       // ViewportPanel
-		delete RightSplitter->GetRightOrBottom();   // GridPanel
-		delete RightSplitter;
-		RightSplitter = nullptr;
+		delete CenterSplitter->GetLeftOrTop();       // ViewportPanel
+		delete CenterSplitter->GetRightOrBottom();   // GridPanel
+		delete CenterSplitter;
+		CenterSplitter = nullptr;
 	}
 
-	// MainSplitter (SSplitterH): Details / RightSplitter (좌우 분할 - 자식 Splitter는 이미 삭제됨)
+	// RightPanelSplitter (V): RightDetail / AssetBrowser
+	if (RightPanelSplitter)
+	{
+		delete RightPanelSplitter->GetLeftOrTop();       // RightDetailPanel
+		delete RightPanelSplitter->GetRightOrBottom();   // AssetBrowserPanel
+		delete RightPanelSplitter;
+		RightPanelSplitter = nullptr;
+	}
+
+	// CenterRightSplitter (H): CenterSplitter / RightPanelSplitter (자식은 이미 삭제됨)
+	if (CenterRightSplitter)
+	{
+		delete CenterRightSplitter;
+		CenterRightSplitter = nullptr;
+	}
+
+	// MainSplitter (H): Details / CenterRightSplitter (자식 Splitter는 이미 삭제됨)
 	if (MainSplitter)
 	{
 		delete MainSplitter->GetLeftOrTop();        // DetailsPanel
@@ -160,31 +176,51 @@ bool SBlendSpace2DWindow::Initialize(float StartX, float StartY, float Width, fl
 
 	// === SSplitter 레이아웃 생성 (UE5 스타일) ===
 	// 구조:
-	// MainSplitter (H - 좌우 분할): Left(DetailsPanel) / Right(RightSplitter)
-	//   RightSplitter (V - 상하 분할): Top(ViewportPanel) / Bottom(GridPanel)
+	// MainSplitter (H): Left(Details) | Right(CenterRightSplitter)
+	//   CenterRightSplitter (H): Left(CenterSplitter) | Right(RightPanelSplitter)
+	//     CenterSplitter (V): Top(Viewport) | Bottom(Grid)
+	//     RightPanelSplitter (V): Top(RightDetail) | Bottom(AssetBrowser)
 
 	// 패널 래퍼 생성
 	SBS2DPanelWrapper* DetailsPanel = new SBS2DPanelWrapper();
 	SBS2DPanelWrapper* ViewportPanel = new SBS2DPanelWrapper();
 	SBS2DPanelWrapper* GridPanel = new SBS2DPanelWrapper();
+	SBS2DPanelWrapper* RightDetailPanel = new SBS2DPanelWrapper();
+	SBS2DPanelWrapper* AssetBrowserPanel = new SBS2DPanelWrapper();
 
 	// 콜백 설정
 	DetailsPanel->SetRenderCallback([this]() { RenderDetailsPanel(); });
 	ViewportPanel->SetRenderCallback([this]() { RenderViewportPanel(); });
 	GridPanel->SetRenderCallback([this]() { RenderGridPanel(); });
+	RightDetailPanel->SetRenderCallback([this]() { RenderRightDetailPanel(); });
+	AssetBrowserPanel->SetRenderCallback([this]() { RenderAssetBrowserPanel(); });
 
-	// RightSplitter: Viewport / Grid (상하 분할)
-	RightSplitter = new SSplitterV();
-	RightSplitter->SetLeftOrTop(ViewportPanel);
-	RightSplitter->SetRightOrBottom(GridPanel);
-	RightSplitter->SetSplitRatio(0.55f);  // Viewport 55%, Grid 45%
-	RightSplitter->LoadFromConfig("BS2DWindow_Right");
+	// CenterSplitter (V): Viewport / Grid (상하 분할)
+	CenterSplitter = new SSplitterV();
+	CenterSplitter->SetLeftOrTop(ViewportPanel);
+	CenterSplitter->SetRightOrBottom(GridPanel);
+	CenterSplitter->SetSplitRatio(0.55f);  // Viewport 55%, Grid 45%
+	CenterSplitter->LoadFromConfig("BS2DWindow_Center");
 
-	// MainSplitter: Details / RightSplitter (좌우 분할)
+	// RightPanelSplitter (V): RightDetail / AssetBrowser (상하 분할)
+	RightPanelSplitter = new SSplitterV();
+	RightPanelSplitter->SetLeftOrTop(RightDetailPanel);
+	RightPanelSplitter->SetRightOrBottom(AssetBrowserPanel);
+	RightPanelSplitter->SetSplitRatio(0.5f);  // Detail 50%, AssetBrowser 50%
+	RightPanelSplitter->LoadFromConfig("BS2DWindow_RightPanel");
+
+	// CenterRightSplitter (H): CenterSplitter / RightPanelSplitter (좌우 분할)
+	CenterRightSplitter = new SSplitterH();
+	CenterRightSplitter->SetLeftOrTop(CenterSplitter);
+	CenterRightSplitter->SetRightOrBottom(RightPanelSplitter);
+	CenterRightSplitter->SetSplitRatio(0.75f);  // Center 75%, RightPanel 25%
+	CenterRightSplitter->LoadFromConfig("BS2DWindow_CenterRight");
+
+	// MainSplitter (H): Details / CenterRightSplitter (좌우 분할)
 	MainSplitter = new SSplitterH();
 	MainSplitter->SetLeftOrTop(DetailsPanel);
-	MainSplitter->SetRightOrBottom(RightSplitter);
-	MainSplitter->SetSplitRatio(0.25f);  // Details 25%, Right 75%
+	MainSplitter->SetRightOrBottom(CenterRightSplitter);
+	MainSplitter->SetSplitRatio(0.2f);  // Details 20%, CenterRight 80%
 	MainSplitter->LoadFromConfig("BS2DWindow_Main");
 
 	bRequestFocus = true;
@@ -356,7 +392,8 @@ void SBlendSpace2DWindow::OpenNewTabWithBlendSpace(UBlendSpace2D* InBlendSpace, 
 	FBlendSpace2DTabState* NewState = CreateTabState(FilePath);
 	if (NewState)
 	{
-		FString TabName = InBlendSpace ? InBlendSpace->GetName() : "BlendSpace";
+		// 파일 경로가 있으면 파일명 사용, 없으면 "New BlendSpace"
+		FString TabName = FilePath.empty() ? "New BlendSpace" : ExtractFileName(FilePath);
 		NewState->TabName = FName(TabName.c_str());
 		NewState->BlendSpace = InBlendSpace;
 
@@ -400,9 +437,25 @@ void SBlendSpace2DWindow::OpenNewTabWithMesh(USkeletalMesh* Mesh, const FString&
 	FBlendSpace2DTabState* NewState = CreateTabState("");
 	if (NewState)
 	{
-		NewState->TabName = FName(ExtractFileName(MeshPath).c_str());
+		// 새 BlendSpace이므로 "New BlendSpace" 사용 (mesh 이름 아님)
+		NewState->TabName = FName("New BlendSpace");
 		NewState->CurrentMesh = Mesh;
 		NewState->LoadedMeshPath = MeshPath;
+
+		// 기본 BlendSpace 생성
+		UBlendSpace2D* DefaultBS = NewObject<UBlendSpace2D>();
+		DefaultBS->ObjectName = FName("New BlendSpace");
+		DefaultBS->XAxisMin = -100.0f;
+		DefaultBS->XAxisMax = 100.0f;
+		DefaultBS->YAxisMin = -100.0f;
+		DefaultBS->YAxisMax = 100.0f;
+		DefaultBS->XAxisName = "Speed";
+		DefaultBS->YAxisName = "Direction";
+		NewState->BlendSpace = DefaultBS;
+
+		// 프리뷰 파라미터 초기화 (중앙)
+		NewState->PreviewParameter.X = 0.0f;
+		NewState->PreviewParameter.Y = 0.0f;
 
 		if (Mesh && NewState->PreviewActor)
 		{
@@ -490,6 +543,67 @@ void SBlendSpace2DWindow::LoadSkeletalMesh(const FString& Path)
 		{
 			ActiveState->BlendSpace->EditorSkeletalMeshPath = Path;
 		}
+	}
+}
+
+void SBlendSpace2DWindow::LoadBlendSpaceFile(const char* FilePath)
+{
+	if (!FilePath || FilePath[0] == '\0')
+	{
+		return;
+	}
+
+	FString PathStr(FilePath);
+
+	// Embedded 모드에서 이미 같은 파일이 로드되어 있으면 스킵
+	if (bIsEmbeddedMode && ActiveState && ActiveState->FilePath == PathStr)
+	{
+		return;
+	}
+
+	LoadBlendSpace(PathStr);
+}
+
+void SBlendSpace2DWindow::CreateNewEmptyTab()
+{
+	OpenNewTab("");  // 빈 경로로 호출하면 기본 BlendSpace 생성
+}
+
+void SBlendSpace2DWindow::SaveCurrentBlendSpace()
+{
+	if (!ActiveState || !ActiveState->BlendSpace)
+	{
+		UE_LOG("No active BlendSpace to save");
+		return;
+	}
+
+	// FilePath가 없으면 Save As 다이얼로그 열기
+	if (ActiveState->FilePath.empty())
+	{
+		std::filesystem::path SavePath = FPlatformProcess::OpenSaveFileDialog(
+			L"Data/BlendSpace",
+			L".blend2d",
+			L"BlendSpace Files (*.blend2d)"
+		);
+
+		if (!SavePath.empty())
+		{
+			ActiveState->FilePath = SavePath.string();
+		}
+		else
+		{
+			return;  // 취소됨
+		}
+	}
+
+	// BlendSpace 저장
+	if (ActiveState->BlendSpace->SaveToFile(ActiveState->FilePath))
+	{
+		UE_LOG("BlendSpace saved: %s", ActiveState->FilePath.c_str());
+	}
+	else
+	{
+		UE_LOG("[Error] Failed to save BlendSpace: %s", ActiveState->FilePath.c_str());
 	}
 }
 
@@ -641,21 +755,35 @@ void SBlendSpace2DWindow::RenderEmbedded(const FRect& ContentRect)
 		MainSplitter->OnRender();
 
 		// 패널 Rect 캐시 (입력 처리용)
-		// MainSplitter: Details / RightSplitter (좌우 분할)
+		// MainSplitter: Details / CenterRightSplitter (좌우 분할)
 		if (MainSplitter->GetLeftOrTop())
 		{
 			DetailsRect = MainSplitter->GetLeftOrTop()->GetRect();
 		}
-		// RightSplitter: Viewport / Grid (상하 분할)
-		if (RightSplitter)
+
+		// CenterSplitter: Viewport / Grid (상하 분할)
+		if (CenterSplitter)
 		{
-			if (RightSplitter->GetLeftOrTop())
+			if (CenterSplitter->GetLeftOrTop())
 			{
-				ViewportRect = RightSplitter->GetLeftOrTop()->GetRect();
+				ViewportRect = CenterSplitter->GetLeftOrTop()->GetRect();
 			}
-			if (RightSplitter->GetRightOrBottom())
+			if (CenterSplitter->GetRightOrBottom())
 			{
-				GridRect = RightSplitter->GetRightOrBottom()->GetRect();
+				GridRect = CenterSplitter->GetRightOrBottom()->GetRect();
+			}
+		}
+
+		// RightPanelSplitter: RightDetail / AssetBrowser (상하 분할)
+		if (RightPanelSplitter)
+		{
+			if (RightPanelSplitter->GetLeftOrTop())
+			{
+				RightDetailRect = RightPanelSplitter->GetLeftOrTop()->GetRect();
+			}
+			if (RightPanelSplitter->GetRightOrBottom())
+			{
+				AssetBrowserRect = RightPanelSplitter->GetRightOrBottom()->GetRect();
 			}
 		}
 	}
@@ -1020,6 +1148,28 @@ void SBlendSpace2DWindow::RenderViewportPanel()
 				ImGui::Image(TextureID, ViewportSize);
 			}
 		}
+
+		// 드래그 앤 드롭 타겟 (Content Browser에서 파일 드롭)
+		if (ImGui::BeginDragDropTarget())
+		{
+			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE"))
+			{
+				const char* filePath = static_cast<const char*>(payload->Data);
+				FString path(filePath);
+				FString lowerPath = path;
+				std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), ::tolower);
+
+				if (lowerPath.ends_with(".blend2d"))
+				{
+					LoadBlendSpaceFile(filePath);
+				}
+				else if (lowerPath.ends_with(".fbx"))
+				{
+					LoadSkeletalMesh(path);
+				}
+			}
+			ImGui::EndDragDropTarget();
+		}
 	}
 	ImGui::EndChild();
 }
@@ -1034,92 +1184,6 @@ void SBlendSpace2DWindow::RenderDetailsPanel()
 	ImGui::SetCursorScreenPos(ImVec2(DetailsRect.Left, DetailsRect.Top));
 	ImGui::BeginChild("DetailsPanel", ImVec2(DetailsRect.GetWidth(), DetailsRect.GetHeight()), true);
 	{
-		// === Toolbar (Save/Load/New) ===
-		if (ImGui::Button("Save"))
-		{
-			if (ActiveState->BlendSpace)
-			{
-				const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/Blend";
-				const FWideString Extension = L".blend2d";
-				const FWideString Description = L"BlendSpace2D Files";
-
-				std::filesystem::path SelectedPath = FPlatformProcess::OpenSaveFileDialog(BaseDir, Extension, Description);
-				if (!SelectedPath.empty())
-				{
-					// 현재 프리뷰 상태 저장
-					ActiveState->BlendSpace->EditorPreviewParameter = ActiveState->PreviewParameter;
-					if (!ActiveState->LoadedMeshPath.empty())
-					{
-						ActiveState->BlendSpace->EditorSkeletalMeshPath = ActiveState->LoadedMeshPath;
-					}
-
-					FWideString AbsolutePath = SelectedPath.wstring();
-					FString FinalPathStr = ResolveAssetRelativePath(WideToUTF8(AbsolutePath), "");
-					ActiveState->BlendSpace->SaveToFile(FinalPathStr);
-					ActiveState->FilePath = FinalPathStr;
-					UE_LOG("[BlendSpace2D] Saved to: %s", FinalPathStr.c_str());
-				}
-			}
-		}
-
-		ImGui::SameLine();
-		if (ImGui::Button("Load"))
-		{
-			const FWideString BaseDir = UTF8ToWide(GDataDir) + L"/Blend";
-			const FWideString Extension = L".blend2d";
-			const FWideString Description = L"BlendSpace2D Files";
-
-			std::filesystem::path SelectedPath = FPlatformProcess::OpenLoadFileDialog(BaseDir, Extension, Description);
-			if (!SelectedPath.empty())
-			{
-				FWideString AbsolutePath = SelectedPath.wstring();
-				FString FinalPathStr = ResolveAssetRelativePath(WideToUTF8(AbsolutePath), "");
-				UBlendSpace2D* LoadedBS = UBlendSpace2D::LoadFromFile(FinalPathStr);
-
-				if (LoadedBS)
-				{
-					ActiveState->BlendSpace = LoadedBS;
-					ActiveState->FilePath = FinalPathStr;
-
-					// 프리뷰 파라미터 초기화
-					ActiveState->PreviewParameter.X = (LoadedBS->XAxisMin + LoadedBS->XAxisMax) * 0.5f;
-					ActiveState->PreviewParameter.Y = (LoadedBS->YAxisMin + LoadedBS->YAxisMax) * 0.5f;
-
-					// 저장된 스켈레톤 메시 로드
-					if (!LoadedBS->EditorSkeletalMeshPath.empty())
-					{
-						LoadSkeletalMesh(LoadedBS->EditorSkeletalMeshPath);
-					}
-
-					UE_LOG("[BlendSpace2D] Loaded: %s", FinalPathStr.c_str());
-				}
-				else
-				{
-					UE_LOG("[Error] Failed to load BlendSpace2D: %s", FinalPathStr.c_str());
-				}
-			}
-		}
-
-		ImGui::SameLine();
-		if (ImGui::Button("New"))
-		{
-			// 새 BlendSpace 생성
-			UBlendSpace2D* NewBS = NewObject<UBlendSpace2D>();
-			NewBS->ObjectName = FName("New BlendSpace");
-			NewBS->XAxisMin = -100.0f;
-			NewBS->XAxisMax = 100.0f;
-			NewBS->YAxisMin = -100.0f;
-			NewBS->YAxisMax = 100.0f;
-			NewBS->XAxisName = "Speed";
-			NewBS->YAxisName = "Direction";
-			ActiveState->BlendSpace = NewBS;
-			ActiveState->FilePath = "";
-			ActiveState->SelectedSampleIndex = -1;
-			ActiveState->PreviewParameter = FVector2D(0.0f, 0.0f);
-		}
-
-		ImGui::Separator();
-
 		UBlendSpace2D* BlendSpace = ActiveState->BlendSpace;
 
 		if (ActiveState->SelectedSampleIndex >= 0 && BlendSpace &&
@@ -1431,8 +1495,54 @@ void SBlendSpace2DWindow::RenderGridPanel()
 		// 축 라벨 렌더링 (클리핑 외부 - 축 라벨은 캔버스 밖에 표시)
 		RenderAxisLabels(ActiveState);
 
-		// 캔버스 영역 확보
-		ImGui::Dummy(ImVec2(AvailableSize.x, AvailableSize.y - TimelineHeight));
+		// 캔버스 영역 확보 및 드롭 타겟 설정
+		ImGui::SetCursorScreenPos(CanvasMin);
+		ImGui::InvisibleButton("GridCanvas", ActiveState->CanvasSize,
+			ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+
+		// 드롭 타겟 - 애니메이션을 그리드에 드롭하면 샘플 추가
+		if (ImGui::BeginDragDropTarget())
+		{
+			if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("ANIM_SEQUENCE_PTR"))
+			{
+				UAnimSequence* DroppedAnim = *(UAnimSequence**)Payload->Data;
+				if (DroppedAnim && BlendSpace)
+				{
+					// 드롭된 위치를 파라미터 좌표로 변환
+					ImVec2 MousePos = ImGui::GetMousePos();
+					FVector2D DropPos = ScreenToParam(ActiveState, MousePos);
+
+					// 축 범위 내로 클램프
+					DropPos.X = FMath::Clamp(DropPos.X, BlendSpace->XAxisMin, BlendSpace->XAxisMax);
+					DropPos.Y = FMath::Clamp(DropPos.Y, BlendSpace->YAxisMin, BlendSpace->YAxisMax);
+
+					// 그리드 스냅 적용
+					if (ActiveState->bEnableGridSnapping)
+					{
+						DropPos.X = roundf(DropPos.X / ActiveState->GridSnapSize) * ActiveState->GridSnapSize;
+						DropPos.Y = roundf(DropPos.Y / ActiveState->GridSnapSize) * ActiveState->GridSnapSize;
+					}
+
+					// 새 샘플 추가
+					FBlendSample NewSample;
+					NewSample.Position = DropPos;
+					NewSample.Animation = DroppedAnim;
+					NewSample.RateScale = 1.0f;
+					BlendSpace->Samples.Add(NewSample);
+
+					// 삼각분할 갱신
+					BlendSpace->GenerateTriangulation();
+
+					// 새로 추가된 샘플 선택
+					ActiveState->SelectedSampleIndex = BlendSpace->Samples.Num() - 1;
+				}
+			}
+			ImGui::EndDragDropTarget();
+		}
+
+		// 나머지 캔버스 영역 (타임라인 위 공간)
+		ImGui::SetCursorScreenPos(ImVec2(CanvasMin.x, CanvasMax.y));
+		ImGui::Dummy(ImVec2(ActiveState->CanvasSize.x, AvailableSize.y - ActiveState->CanvasSize.y - TimelineHeight - TopMargin));
 
 		// 타임라인 컨트롤
 		ImGui::SetCursorScreenPos(ImVec2(GridRect.Left + 5.0f, GridRect.Bottom - TimelineHeight - 5.0f));
@@ -1441,6 +1551,201 @@ void SBlendSpace2DWindow::RenderGridPanel()
 			RenderTimelineControls(ActiveState);
 		}
 		ImGui::EndChild();
+	}
+	ImGui::EndChild();
+}
+
+// ============================================================================
+// 우측 패널 렌더링
+// ============================================================================
+
+void SBlendSpace2DWindow::RenderRightDetailPanel()
+{
+	if (!ActiveState)
+	{
+		return;
+	}
+
+	ImGui::SetCursorScreenPos(ImVec2(RightDetailRect.Left, RightDetailRect.Top));
+	ImGui::BeginChild("RightDetailPanel", ImVec2(RightDetailRect.GetWidth(), RightDetailRect.GetHeight()), true);
+	{
+		ImGui::Text("Details");
+		ImGui::Separator();
+
+		// Asset Browser에서 선택된 애니메이션 정보 표시
+		TArray<UAnimSequence*> AllAnimations = UResourceManager::GetInstance().GetAll<UAnimSequence>();
+		TArray<UAnimSequence*> Animations;
+		for (UAnimSequence* Anim : AllAnimations)
+		{
+			if (Anim && Anim->GetFilePath().ends_with(".anim"))
+			{
+				Animations.Add(Anim);
+			}
+		}
+
+		if (ActiveState->SelectedAnimationIndex >= 0 && ActiveState->SelectedAnimationIndex < Animations.Num())
+		{
+			UAnimSequence* SelectedAnim = Animations[ActiveState->SelectedAnimationIndex];
+			if (SelectedAnim)
+			{
+				ImGui::Text("Selected Animation");
+				ImGui::Separator();
+
+				// 기본 정보
+				ImGui::Text("Name: %s", SelectedAnim->GetName().c_str());
+				ImGui::Text("Duration: %.2f sec", SelectedAnim->GetPlayLength());
+				ImGui::Text("Frames: %d", SelectedAnim->GetDataModel() ? SelectedAnim->GetDataModel()->GetNumberOfFrames() : 0);
+
+				ImGui::Separator();
+
+				// 파일 경로
+				ImGui::Text("Path:");
+				ImGui::TextWrapped("%s", SelectedAnim->GetFilePath().c_str());
+
+				ImGui::Separator();
+
+				// Sync Markers
+				const TArray<FAnimSyncMarker>& Markers = SelectedAnim->GetSyncMarkers();
+				if (ImGui::CollapsingHeader("Sync Markers", ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					if (Markers.Num() > 0)
+					{
+						for (int32 i = 0; i < Markers.Num(); ++i)
+						{
+							const FAnimSyncMarker& Marker = Markers[i];
+							ImGui::Text("[%d] %s @ %.3fs", i, Marker.MarkerName.c_str(), Marker.Time);
+						}
+					}
+					else
+					{
+						ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "No sync markers");
+					}
+				}
+
+				ImGui::Separator();
+
+				// 힌트
+				ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), "Drag to Grid to add sample");
+			}
+		}
+		else
+		{
+			// Preview 정보
+			ImGui::Text("Preview Info");
+			ImGui::Separator();
+
+			if (ActiveState->CurrentMesh)
+			{
+				ImGui::Text("Mesh: %s", ActiveState->CurrentMesh->GetName().c_str());
+				ImGui::Text("Bones: %d", ActiveState->CurrentMesh->GetBoneCount());
+			}
+			else
+			{
+				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "No mesh loaded");
+			}
+
+			UBlendSpace2D* BlendSpace = ActiveState->BlendSpace;
+			if (BlendSpace)
+			{
+				ImGui::Separator();
+				ImGui::Text("Samples: %d", BlendSpace->GetNumSamples());
+				ImGui::Text("Triangles: %d", BlendSpace->Triangles.Num());
+			}
+
+			ImGui::Separator();
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Select animation in Asset Browser");
+		}
+	}
+	ImGui::EndChild();
+}
+
+void SBlendSpace2DWindow::RenderAssetBrowserPanel()
+{
+	if (!ActiveState)
+	{
+		return;
+	}
+
+	ImGui::SetCursorScreenPos(ImVec2(AssetBrowserRect.Left, AssetBrowserRect.Top));
+	ImGui::BeginChild("AssetBrowserPanel", ImVec2(AssetBrowserRect.GetWidth(), AssetBrowserRect.GetHeight()), true);
+	{
+		ImGui::Text("Asset Browser");
+		ImGui::Separator();
+
+		// 애니메이션 목록 표시
+		TArray<UAnimSequence*> AllAnimations = UResourceManager::GetInstance().GetAll<UAnimSequence>();
+		TArray<UAnimSequence*> Animations;
+		for (UAnimSequence* Anim : AllAnimations)
+		{
+			if (Anim && Anim->GetFilePath().ends_with(".anim"))
+			{
+				Animations.Add(Anim);
+			}
+		}
+
+		if (Animations.Num() > 0)
+		{
+			ImGui::Text("Animations (%d)", Animations.Num());
+			ImGui::Separator();
+
+			ImGui::BeginChild("AnimAssetList", ImVec2(0, 0), false);
+			{
+				for (int32 i = 0; i < Animations.Num(); ++i)
+				{
+					UAnimSequence* Anim = Animations[i];
+					if (!Anim)
+					{
+						continue;
+					}
+
+					FString DisplayName = Anim->GetName();
+					if (DisplayName.empty())
+					{
+						DisplayName = "Anim " + std::to_string(i);
+					}
+
+					char LabelBuffer[256];
+					sprintf_s(LabelBuffer, "%s (%.1fs)##AnimAsset_%d",
+						DisplayName.c_str(), Anim->GetPlayLength(), i);
+
+					// 선택 가능한 항목
+					bool bIsSelected = (ActiveState->SelectedAnimationIndex == i);
+					if (ImGui::Selectable(LabelBuffer, bIsSelected))
+					{
+						ActiveState->SelectedAnimationIndex = i;
+					}
+
+					// 드래그 소스 (그리드에 드롭하여 샘플 추가)
+					if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+					{
+						// UAnimSequence 포인터를 전달
+						ImGui::SetDragDropPayload("ANIM_SEQUENCE_PTR", &Anim, sizeof(UAnimSequence*));
+						ImGui::Text("Drop on grid: %s", DisplayName.c_str());
+						ImGui::EndDragDropSource();
+					}
+
+					// 툴팁
+					if (ImGui::IsItemHovered())
+					{
+						ImGui::BeginTooltip();
+						ImGui::Text("Name: %s", DisplayName.c_str());
+						ImGui::Text("Duration: %.2f seconds", Anim->GetPlayLength());
+						ImGui::Text("Path: %s", Anim->GetFilePath().c_str());
+						ImGui::Separator();
+						ImGui::TextColored(ImVec4(0.7f, 0.9f, 0.7f, 1.0f),
+							"Drag to grid to add sample");
+						ImGui::EndTooltip();
+					}
+				}
+			}
+			ImGui::EndChild();
+		}
+		else
+		{
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "No animations loaded");
+			ImGui::Spacing();
+			ImGui::TextWrapped("Load .anim files or FBX with animations");
+		}
 	}
 	ImGui::EndChild();
 }

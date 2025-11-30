@@ -4,10 +4,8 @@
 #include "Windows/SplitterV.h"
 #include "Windows/SplitterH.h"
 #include "Windows/ViewportWindow.h"
-#include "Windows/PreviewWindow.h"
 #include "Windows/DynamicEditorWindow.h"
 #include "Windows/ParticleEditorWindow.h"
-#include "Windows/AnimationWindow.h"
 
 class SSceneIOWindow; // 새로 추가할 UI
 class SDetailsWindow;
@@ -74,6 +72,7 @@ public:
 
     // Content Browser 관리
     void ToggleContentBrowser();
+    void OpenContentBrowser(const FString& InitialPath = "");  // Content Browser 열기 (이미 열려있으면 무시), InitialPath로 이동
     bool IsContentBrowserVisible() const;
 
     // Dynamic Editor Window (통합 에디터 - Skeletal, Animation, AnimGraph, BlendSpace2D)
@@ -119,13 +118,6 @@ public:
 	void OpenParticleEditorWindowWithFile(const char* FilePath);
 	void CloseParticleEditorWindow();
 	bool IsParticleEditorWindowOpen() const { return ParticleEditorWindow != nullptr; }
-
-	// Animation Window 관리 (탭 기반 애니메이션 에디터)
-	void OpenAnimationWindow();
-	void OpenAnimationWindowWithFile(const char* FilePath);
-	void CloseAnimationWindow();
-	bool IsAnimationWindowOpen() const { return AnimationWindow != nullptr; }
-	SAnimationWindow* GetAnimationWindow() const { return AnimationWindow; }
 
 	// Scene 로드 요청
 	void RequestSceneLoad(const FString& ScenePath);
@@ -184,13 +176,11 @@ private:
     // Particle Editor window (Cascade 스타일)
     SParticleEditorWindow* ParticleEditorWindow = nullptr;
 
-    // Animation Window (탭 기반 애니메이션 에디터)
-    SAnimationWindow* AnimationWindow = nullptr;
-
     // Content Browser (Bottom panel overlay with animation)
     UContentBrowserWindow* ContentBrowserWindow = nullptr;
     bool bIsContentBrowserVisible = false;
     bool bIsContentBrowserAnimating = false;
+    bool bRequestContentBrowserFocus = false; // 열릴 때 포커스 요청
     float ContentBrowserAnimationProgress = 0.0f; // 0.0 = 숨김, 1.0 = 완전히 표시
     const float ContentBrowserAnimationDuration = 0.25f; // 초 단위
     const float ContentBrowserHeightRatio = 0.35f; // 화면 높이의 35%

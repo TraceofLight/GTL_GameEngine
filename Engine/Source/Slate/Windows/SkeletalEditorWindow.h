@@ -34,7 +34,7 @@ public:
 	SSkeletalEditorWindow();
 	virtual ~SSkeletalEditorWindow();
 
-	bool Initialize(float StartX, float StartY, float Width, float Height, UWorld* InWorld, ID3D11Device* InDevice);
+	bool Initialize(float StartX, float StartY, float Width, float Height, UWorld* InWorld, ID3D11Device* InDevice, bool bEmbedded = false);
 
 	// SWindow overrides
 	virtual void OnRender() override;
@@ -45,6 +45,10 @@ public:
 
 	// Viewport 렌더링 (SlateManager에서 호출)
 	void OnRenderViewport();
+
+	// 내장 모드 (DynamicEditorWindow 내부에서 사용)
+	void RenderEmbedded(const FRect& ContentRect);
+	void SetEmbeddedMode(bool bEmbedded) { bIsEmbeddedMode = bEmbedded; }
 
 	// 스켈레탈 메시 로드
 	void LoadSkeletalMesh(const FString& Path);
@@ -60,6 +64,14 @@ public:
 
 	// 패널 접근용
 	ViewerState* GetActiveState() const { return ActiveState; }
+	int32 GetTabCount() const { return Tabs.Num(); }
+	FRect GetViewportRect() const { return ViewportRect; }
+
+	// 탭 관리 (DynamicEditorWindow에서 호출)
+	void OpenNewTab(const FString& FilePath);
+	void OpenNewTabWithMesh(class USkeletalMesh* Mesh, const FString& MeshPath);
+	void SetActiveTab(int32 TabIndex);
+	int32 GetActiveTabIndex() const { return ActiveTabIndex; }
 
 	// 렌더 타겟 관리
 	void UpdateViewportRenderTarget(uint32 NewWidth, uint32 NewHeight);
@@ -109,6 +121,7 @@ private:
 	bool bInitialPlacementDone = false;
 	bool bRequestFocus = false;
 	bool bIsFocused = false;
+	bool bIsEmbeddedMode = false;
 
 	// 전용 렌더 타겟 (스켈레탈 메쉬 프리뷰용)
 	ID3D11Texture2D* PreviewRenderTargetTexture = nullptr;

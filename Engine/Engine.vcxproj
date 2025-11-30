@@ -563,7 +563,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Slate\Widgets\SceneManagerWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\TargetActorTransformWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\Widget.cpp" />
-    <ClCompile Include="Source\Slate\Windows\BlendSpace2DEditorWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\BlendSpace2DWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ConsoleWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ContentBrowserWindow.cpp" />
@@ -581,8 +580,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Slate\Windows\SceneWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ControlPanel.cpp" />
     <ClCompile Include="Source\Slate\Windows\DetailsWindow.cpp" />
-    <ClCompile Include="Source\Slate\Windows\PreviewWindow.cpp" />
-    <ClCompile Include="Source\Slate\Windows\PreviewWindow_Timeline.cpp" />
     <ClCompile Include="Source\Slate\Windows\SkeletalEditorWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\Splitter.cpp" />
     <ClCompile Include="Source\Slate\Windows\SplitterH.cpp" />
@@ -933,7 +930,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Slate\Widgets\SceneManagerWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\TargetActorTransformWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\Widget.h" />
-    <ClInclude Include="Source\Slate\Windows\BlendSpace2DEditorWindow.h" />
     <ClInclude Include="Source\Slate\Windows\BlendSpace2DWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ConsoleWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ContentBrowserWindow.h" />
@@ -947,7 +943,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Slate\Windows\SceneWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ControlPanel.h" />
     <ClInclude Include="Source\Slate\Windows\DetailsWindow.h" />
-    <ClInclude Include="Source\Slate\Windows\PreviewWindow.h" />
     <ClInclude Include="Source\Slate\Windows\SkeletalEditorWindow.h" />
     <ClInclude Include="Source\Slate\Windows\Splitter.h" />
     <ClInclude Include="Source\Slate\Windows\SplitterH.h" />

@@ -666,10 +666,7 @@
     </ClCompile>
     <ClCompile Include="Source\Runtime\Engine\Animation\MixamoChainMapper.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Animation\SingleAnimationPlayData.cpp" />
-    <ClCompile Include="Source\Slate\Windows\BlendSpace2DEditorWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\AnimStateMachineWindow.cpp" />
-    <ClCompile Include="Source\Slate\Windows\PreviewWindow.cpp" />
-    <ClCompile Include="Source\Slate\Windows\PreviewWindow_Timeline.cpp" />
     <ClCompile Include="ThirdParty\Include\ImGui\crude_json.cpp" />
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_canvas.cpp" />
     <ClCompile Include="ThirdParty\Include\ImGui\imgui_node_editor.cpp" />
@@ -1493,9 +1490,7 @@
     </ClInclude>
     <ClInclude Include="Source\Runtime\Engine\Animation\MixamoChainMapper.h" />
     <ClInclude Include="Source\Runtime\Engine\Animation\SingleAnimationPlayData.h" />
-    <ClInclude Include="Source\Slate\Windows\BlendSpace2DEditorWindow.h" />
     <ClInclude Include="Source\Slate\Windows\AnimStateMachineWindow.h" />
-    <ClInclude Include="Source\Slate\Windows\PreviewWindow.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\Particle.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleDataContainer.h" />
     <ClInclude Include="Source\Runtime\Engine\Particle\ParticleEmitterInstance.h" />

@@ -9,7 +9,6 @@
 #include "Windows/ControlPanel.h"
 #include "Windows/ControlPanelWindow.h"
 #include "Windows/ViewportWindow.h"
-#include "Windows/PreviewWindow.h"
 #include "Windows/ConsoleWindow.h"
 #include "Windows/ContentBrowserWindow.h"
 #include "Widgets/MainToolbarWidget.h"
@@ -219,14 +218,20 @@ void USlateManager::OpenDynamicEditorWithFile(const char* FilePath)
 
 void USlateManager::OpenDynamicEditorWithAnimation(const char* AnimFilePath)
 {
-    // Animation은 별도의 SAnimationWindow에서 처리
-    if (AnimFilePath && AnimFilePath[0] != '\0')
+    // Animation은 DynamicEditorWindow의 Animation 모드에서 처리
+    if (!DynamicEditorWindow)
     {
-        OpenAnimationWindowWithFile(AnimFilePath);
+        OpenDynamicEditor();
     }
-    else
+
+    if (DynamicEditorWindow)
     {
-        OpenAnimationWindow();
+        DynamicEditorWindow->SetEditorMode(EEditorMode::Animation);
+        if (AnimFilePath && AnimFilePath[0] != '\0')
+        {
+            DynamicEditorWindow->LoadAnimation(AnimFilePath);
+            UE_LOG("Opening DynamicEditor Animation mode with file: %s", AnimFilePath);
+        }
     }
 }
 
@@ -399,53 +404,6 @@ void USlateManager::RequestSceneLoad(const FString& ScenePath)
 	}
 }
 
-// ============================================================================
-// Animation Window (탭 기반 애니메이션 에디터)
-// ============================================================================
-
-void USlateManager::OpenAnimationWindow()
-{
-	if (AnimationWindow)
-	{
-		return;
-	}
-
-	AnimationWindow = new SAnimationWindow();
-
-	const float toolbarHeight = 50.0f;
-	const float availableHeight = Rect.GetHeight() - toolbarHeight;
-	const float w = Rect.GetWidth() * 0.85f;
-	const float h = availableHeight * 0.85f;
-	const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
-	const float y = Rect.Top + toolbarHeight + (availableHeight - h) * 0.5f;
-	AnimationWindow->Initialize(x, y, w, h, World, Device);
-}
-
-void USlateManager::OpenAnimationWindowWithFile(const char* FilePath)
-{
-	if (!AnimationWindow)
-	{
-		OpenAnimationWindow();
-	}
-
-	if (AnimationWindow && FilePath && FilePath[0] != '\0')
-	{
-		AnimationWindow->OpenNewTab(FilePath);
-		UE_LOG("Opening AnimationWindow with file: %s", FilePath);
-	}
-}
-
-void USlateManager::CloseAnimationWindow()
-{
-	if (!AnimationWindow)
-	{
-		return;
-	}
-
-	delete AnimationWindow;
-	AnimationWindow = nullptr;
-}
-
 void USlateManager::SwitchLayout(EViewportLayoutMode NewMode)
 {
     if (NewMode == CurrentMode) return;
@@ -511,6 +469,13 @@ void USlateManager::Render()
         // 윈도우 위치 및 크기 설정
         ImGui::SetNextWindowPos(ImVec2(ContentBrowserXPos, CurrentYPos));
         ImGui::SetNextWindowSize(ImVec2(ContentBrowserWidth, ContentBrowserHeight));
+
+        // 포커스 요청 처리
+        if (bRequestContentBrowserFocus)
+        {
+            ImGui::SetNextWindowFocus();
+            bRequestContentBrowserFocus = false;
+        }
 
         // 윈도우 플래그
         ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove
@@ -732,18 +697,6 @@ void USlateManager::Render()
         }
     }
 
-    // Render Animation Window (탭 기반 애니메이션 에디터)
-    if (AnimationWindow)
-    {
-        AnimationWindow->OnRender();
-
-        // 윈도우가 닫혔으면 삭제
-        if (!AnimationWindow->IsOpen())
-        {
-            CloseAnimationWindow();
-        }
-    }
-
     // 로딩 UI (우상단)
     auto& RM = UResourceManager::GetInstance();
     int32 PendingCount = RM.GetPendingLoadCount();
@@ -861,11 +814,6 @@ void USlateManager::Update(float DeltaSeconds)
         ParticleEditorWindow->OnUpdate(DeltaSeconds);
     }
 
-    if (AnimationWindow)
-    {
-        AnimationWindow->OnUpdate(DeltaSeconds);
-    }
-
     // 콘솔 애니메이션 업데이트
     if (bIsConsoleAnimating)
     {
@@ -929,8 +877,7 @@ void USlateManager::ProcessInput()
 
     // Check if any tool window is focused and should block editor input
     bool bToolWindowBlockingInput = (ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput())
-        || (DynamicEditorWindow && DynamicEditorWindow->ShouldBlockEditorInput())
-        || (AnimationWindow && AnimationWindow->ShouldBlockEditorInput());
+        || (DynamicEditorWindow && DynamicEditorWindow->ShouldBlockEditorInput());
 
     // Update main editor gizmo interaction state BEFORE processing any input
     // This ensures the gizmo doesn't respond to global InputManager state
@@ -1024,18 +971,6 @@ void USlateManager::ProcessInput()
 
 void USlateManager::OnMouseMove(FVector2D MousePos)
 {
-    // Route to Animation Window if hovered or gizmo is being dragged
-    if (AnimationWindow)
-    {
-        AGizmoActor* Gizmo = AnimationWindow->GetGizmoActor();
-        bool bGizmoDragging = (Gizmo && Gizmo->GetbIsDragging());
-        if (bGizmoDragging || AnimationWindow->IsHover(MousePos))
-        {
-            AnimationWindow->OnMouseMove(MousePos);
-            return;
-        }
-    }
-
     // Route to Dynamic Editor if hovered or gizmo is being dragged
     if (DynamicEditorWindow)
     {
@@ -1068,12 +1003,6 @@ void USlateManager::OnMouseMove(FVector2D MousePos)
 void USlateManager::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
     // 플로팅 윈도우가 열려있고 마우스가 그 영역 안에 있으면 해당 윈도우에 이벤트 전달
-    if (AnimationWindow && AnimationWindow->IsOpen() && AnimationWindow->Rect.Contains(MousePos))
-    {
-        AnimationWindow->OnMouseDown(MousePos, Button);
-        return;
-    }
-
     if (DynamicEditorWindow && DynamicEditorWindow->IsOpen() && DynamicEditorWindow->Rect.Contains(MousePos))
     {
         DynamicEditorWindow->OnMouseDown(MousePos, Button);
@@ -1119,12 +1048,6 @@ void USlateManager::OnMouseUp(FVector2D MousePos, uint32 Button)
     {
         INPUT.SetCursorVisible(true);
         INPUT.ReleaseCursor();
-    }
-
-    if (AnimationWindow && AnimationWindow->Rect.Contains(MousePos))
-    {
-        AnimationWindow->OnMouseUp(MousePos, Button);
-        // do not return; still allow panels to finish mouse up
     }
 
     if (DynamicEditorWindow && DynamicEditorWindow->Rect.Contains(MousePos))
@@ -1210,11 +1133,6 @@ void USlateManager::Shutdown()
         delete DynamicEditorWindow;
         DynamicEditorWindow = nullptr;
     }
-    if (AnimationWindow)
-    {
-        delete AnimationWindow;
-        AnimationWindow = nullptr;
-    }
 }
 
 void USlateManager::SetPIEWorld(UWorld* InWorld)
@@ -1249,6 +1167,31 @@ void USlateManager::ToggleContentBrowser()
 {
     bIsContentBrowserVisible = !bIsContentBrowserVisible;
     bIsContentBrowserAnimating = true;
+}
+
+void USlateManager::OpenContentBrowser(const FString& InitialPath)
+{
+    if (!bIsContentBrowserVisible)
+    {
+        bIsContentBrowserVisible = true;
+        bIsContentBrowserAnimating = true;
+        bRequestContentBrowserFocus = true;
+    }
+    else
+    {
+        // 이미 열려있으면 포커스만 요청
+        bRequestContentBrowserFocus = true;
+    }
+
+    // InitialPath가 지정되면 해당 경로로 이동
+    if (!InitialPath.empty() && ContentBrowserWindow)
+    {
+        std::filesystem::path TargetPath = std::filesystem::path(GDataDir) / InitialPath;
+        if (std::filesystem::exists(TargetPath) && std::filesystem::is_directory(TargetPath))
+        {
+            ContentBrowserWindow->NavigateToPath(TargetPath);
+        }
+    }
 }
 
 bool USlateManager::IsContentBrowserVisible() const

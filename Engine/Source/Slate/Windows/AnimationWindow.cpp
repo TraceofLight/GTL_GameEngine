@@ -580,15 +580,19 @@ void SAnimationWindow::OnRender()
 		}
 
 		// 패널 윈도우들을 앞으로 가져오기
+		// Content Browser가 열려있으면 z-order 유지를 위해 front로 가져오지 않음
 		ImGuiWindow* ViewportWin = ImGui::FindWindowByName("##AnimViewport");
 		ImGuiWindow* PropertiesWin = ImGui::FindWindowByName("Properties##AnimProperties");
 		ImGuiWindow* AnimListWin = ImGui::FindWindowByName("Animation List##AnimList");
 		ImGuiWindow* TimelineWin = ImGui::FindWindowByName("Timeline##AnimTimeline");
 
-		if (ViewportWin) ImGui::BringWindowToDisplayFront(ViewportWin);
-		if (PropertiesWin) ImGui::BringWindowToDisplayFront(PropertiesWin);
-		if (AnimListWin) ImGui::BringWindowToDisplayFront(AnimListWin);
-		if (TimelineWin) ImGui::BringWindowToDisplayFront(TimelineWin);
+		if (!SLATE.IsContentBrowserVisible())
+		{
+			if (ViewportWin) ImGui::BringWindowToDisplayFront(ViewportWin);
+			if (PropertiesWin) ImGui::BringWindowToDisplayFront(PropertiesWin);
+			if (AnimListWin) ImGui::BringWindowToDisplayFront(AnimListWin);
+			if (TimelineWin) ImGui::BringWindowToDisplayFront(TimelineWin);
+		}
 
 		// 팝업들도 패널 위로 가져오기
 		ImGuiContext* g = ImGui::GetCurrentContext();
@@ -677,15 +681,19 @@ void SAnimationWindow::RenderEmbedded(const FRect& ContentRect)
 	}
 
 	// 패널 윈도우들을 앞으로 가져오기 (DynamicEditorWindow 뒤에 가려지는 문제 해결)
-	ImGuiWindow* ViewportWin = ImGui::FindWindowByName("##AnimViewport");
-	ImGuiWindow* PropertiesWin = ImGui::FindWindowByName("Properties##AnimProperties");
-	ImGuiWindow* AnimListWin = ImGui::FindWindowByName("Animation List##AnimList");
-	ImGuiWindow* TimelineWin = ImGui::FindWindowByName("Timeline##AnimTimeline");
+	// Content Browser가 열려있으면 z-order 유지를 위해 front로 가져오지 않음
+	if (!SLATE.IsContentBrowserVisible())
+	{
+		ImGuiWindow* ViewportWin = ImGui::FindWindowByName("##AnimViewport");
+		ImGuiWindow* PropertiesWin = ImGui::FindWindowByName("Properties##AnimProperties");
+		ImGuiWindow* AnimListWin = ImGui::FindWindowByName("Animation List##AnimList");
+		ImGuiWindow* TimelineWin = ImGui::FindWindowByName("Timeline##AnimTimeline");
 
-	if (ViewportWin) ImGui::BringWindowToDisplayFront(ViewportWin);
-	if (PropertiesWin) ImGui::BringWindowToDisplayFront(PropertiesWin);
-	if (AnimListWin) ImGui::BringWindowToDisplayFront(AnimListWin);
-	if (TimelineWin) ImGui::BringWindowToDisplayFront(TimelineWin);
+		if (ViewportWin) ImGui::BringWindowToDisplayFront(ViewportWin);
+		if (PropertiesWin) ImGui::BringWindowToDisplayFront(PropertiesWin);
+		if (AnimListWin) ImGui::BringWindowToDisplayFront(AnimListWin);
+		if (TimelineWin) ImGui::BringWindowToDisplayFront(TimelineWin);
+	}
 
 	// 팝업들도 패널 위로 가져오기
 	ImGuiContext* g = ImGui::GetCurrentContext();
@@ -1151,6 +1159,53 @@ void SAnimationWindow::LoadAnimation(const FString& Path)
 		}
 
 		RebuildNotifyTracks(ActiveState);
+	}
+}
+
+void SAnimationWindow::LoadAnimationFile(const char* FilePath)
+{
+	if (!FilePath || FilePath[0] == '\0')
+	{
+		return;
+	}
+	LoadAnimation(FString(FilePath));
+}
+
+void SAnimationWindow::SaveCurrentAnimation()
+{
+	if (!ActiveState || !ActiveState->CurrentAnimation)
+	{
+		UE_LOG("No active animation to save");
+		return;
+	}
+
+	// FilePath가 없으면 Save As 다이얼로그 열기
+	if (ActiveState->FilePath.empty())
+	{
+		std::filesystem::path SavePath = FPlatformProcess::OpenSaveFileDialog(
+			L"Data/Animation",
+			L".anim",
+			L"Animation Files (*.anim)"
+		);
+
+		if (!SavePath.empty())
+		{
+			ActiveState->FilePath = SavePath.string();
+		}
+		else
+		{
+			return;  // 취소됨
+		}
+	}
+
+	// 애니메이션 저장
+	if (ActiveState->CurrentAnimation->SaveToFile(ActiveState->FilePath))
+	{
+		UE_LOG("Animation saved: %s", ActiveState->FilePath.c_str());
+	}
+	else
+	{
+		UE_LOG("[Error] Failed to save Animation: %s", ActiveState->FilePath.c_str());
 	}
 }
 

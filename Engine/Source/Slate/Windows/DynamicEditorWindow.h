@@ -15,6 +15,7 @@ struct ImDrawList;
 class SAnimationWindow;
 class SBlendSpace2DWindow;
 class SAnimStateMachineWindow;
+class SSkeletalEditorWindow;
 
 class SDynamicEditorWindow;
 
@@ -56,6 +57,7 @@ struct FEditorTabState
 	bool bShowMesh = true;
 	bool bShowBones = true;
 	bool bBoneLinesDirty = true;
+	int32 EmbeddedSkeletalTabIndex = -1;  // EmbeddedSkeletalEditor 탭 인덱스
 	int32 LastSelectedBoneIndex = -1;
 	char MeshPathBuffer[260] = {0};
 	std::set<int32> ExpandedBoneIndices;
@@ -240,6 +242,14 @@ private:
 	void CreateNewNotifyScript(const FString& ScriptName, bool bIsNotifyState);
 	void OpenNotifyScriptInEditor(const FString& NotifyClassName, bool bIsNotifyState);
 
+	// New/Save/Load 툴바 핸들러
+	void OnNewClicked();
+	void OnSaveClicked();
+	void OnLoadClicked();
+
+	// 드래그 앤 드랍/더블클릭으로 파일 열기
+	void OpenFileInCurrentMode(const FString& FilePath);
+
 	// 렌더 타겟 관리
 	void CreateRenderTarget(uint32 Width, uint32 Height);
 	void ReleaseRenderTarget();
@@ -269,6 +279,17 @@ private:
 	bool bIsFocused = false;
 	bool bRequestTabSwitch = false;
 	int32 RequestedTabIndex = -1;
+
+	// Mode 아이콘 (툴바용)
+	UTexture* IconModeSkeletal = nullptr;
+	UTexture* IconModeAnimation = nullptr;
+	UTexture* IconModeAnimGraph = nullptr;
+	UTexture* IconModeBlendSpace = nullptr;
+
+	// New/Save/Load 아이콘 (툴바용)
+	UTexture* IconNew = nullptr;
+	UTexture* IconSave = nullptr;
+	UTexture* IconLoad = nullptr;
 
 	// Timeline 아이콘
 	UTexture* IconGoToFront = nullptr;
@@ -306,6 +327,9 @@ private:
 	ID3D11DepthStencilView* PreviewDepthStencilView = nullptr;
 	uint32 PreviewRenderTargetWidth = 0;
 	uint32 PreviewRenderTargetHeight = 0;
+
+	// Skeletal 모드용 내장 에디터 (SSplitter 기반 레이아웃)
+	SSkeletalEditorWindow* EmbeddedSkeletalEditor = nullptr;
 
 	// Animation 모드용 내장 에디터 (SSplitter 기반 4패널 레이아웃)
 	SAnimationWindow* EmbeddedAnimationEditor = nullptr;
