@@ -94,17 +94,56 @@ void FPhysicsManager::DestroyScene(FPhysicsSceneHandle& Handle)
 
 void FPhysicsManager::SimulateScene(FPhysicsSceneHandle& Handle, float DeltaTime)
 {
-	if (!Handle.Scene) return;
+	BeginSimulate(Handle, DeltaTime);
+	EndSimulate(Handle, true);
+}
 
-	// Sub-stepping 구현 (프레임 튀는 현상 방지)
-	Handle.Accumulator += DeltaTime;
-	if (Handle.Accumulator < Handle.StepSize) return;
+void FPhysicsManager::BeginSimulate(FPhysicsSceneHandle& Handle, float DeltaSeconds)
+{
+	// phsx scene이 없으면 패스 
+	if (!Handle.Scene)
+		return;
 
-	// 누적된 시간이 StepSize보다 크면 여러 번 시뮬레이션
-	while (Handle.Accumulator >= Handle.StepSize)
+	Handle.Accumulator += DeltaSeconds;
+
+	//아직 시뮬레이션을 돌릴 틱이 안모였으면 패스
+	if (Handle.Accumulator < Handle.StepSize)
+		return;
+
+	Handle.Accumulator -= Handle.StepSize;
+
+	// Physx를 통해서 시뮬레이션 시작
+	Handle.Scene->simulate(Handle.StepSize); 
+	Handle.bSimulationRunning = true;
+}
+
+bool FPhysicsManager::TryFetch(FPhysicsSceneHandle& Handle)
+{
+	if (!Handle.Scene || !Handle.bSimulationRunning)
+		return false;
+
+	// 아직 안끝났으면 return false ;
+	const bool bDone = Handle.Scene->fetchResults(false);
+	if (bDone)
 	{
-		Handle.Scene->simulate(Handle.StepSize);
-		Handle.Scene->fetchResults(true); // true = 블로킹
-		Handle.Accumulator -= Handle.StepSize;
+		Handle.bSimulationRunning = false;
+	}
+
+	return bDone;
+}
+
+void FPhysicsManager::EndSimulate(FPhysicsSceneHandle& Handle, bool bBlock)
+{
+	if (!Handle.Scene || !Handle.bSimulationRunning)
+		return;
+
+	if (bBlock)
+	{
+		Handle.Scene->fetchResults(true);
+		Handle.bSimulationRunning = false; 
+	}
+	else
+	{
+		TryFetch(Handle);
 	}
 }

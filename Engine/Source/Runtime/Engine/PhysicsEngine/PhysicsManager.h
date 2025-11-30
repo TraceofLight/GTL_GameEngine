@@ -4,6 +4,12 @@
 
 using namespace physx;
 
+enum class EPhysicsPipelineMode
+{
+	FetchBeforeRender,
+	FetchAfterRender,
+};
+
 // Scene 생성에 필요한 정보를 담은 구조체
 struct FPhysicsSceneHandle
 {
@@ -12,6 +18,7 @@ struct FPhysicsSceneHandle
 	float Accumulator = 0.0f;
 	float StepSize = 1.0f / 60.0f;
 
+	bool bSimulationRunning = false;
 	bool IsValid() const { return Scene != nullptr; }
 };
 
@@ -39,7 +46,19 @@ public:
 	PxDefaultCpuDispatcher* GetDispatcher() { return Dispatcher; }
 	PxCooking* GetCooking() { return Cooking; }
 
+
+	// simulate, fetch 분리 함수
+	void SetPipelineMode(EPhysicsPipelineMode InMode) { PipelineMode = InMode; }
+	EPhysicsPipelineMode GetPipelineMode() const { return PipelineMode; }
+
+	void BeginSimulate(FPhysicsSceneHandle& Handle, float DeltaSeconds);
+	bool TryFetch(FPhysicsSceneHandle& Handle);
+	void EndSimulate(FPhysicsSceneHandle& Handle, bool bBlock = true);
+
 private:
+
+	EPhysicsPipelineMode PipelineMode = EPhysicsPipelineMode::FetchAfterRender;
+
 	// 공유 PhysX 객체들
 	PxFoundation* Foundation = nullptr;
 	PxPhysics* Physics = nullptr;

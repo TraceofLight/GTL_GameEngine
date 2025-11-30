@@ -222,14 +222,23 @@ void UWorld::Tick(float DeltaSeconds)
             ActorTimingMap.Remove(Key);
         }
 	}
-
+	
 	// 중복충돌 방지 pair clear
     FrameOverlapPairs.clear();
 
 	// PIE World에서만 물리 시뮬레이션 실행
 	if (bPie && PhysicsSceneHandle.IsValid())
 	{
-		PHYSICS.SimulateScene(PhysicsSceneHandle, GetDeltaTime(EDeltaTime::Game));
+		const float Dt = GetDeltaTime(EDeltaTime::Game);
+
+		if (PHYSICS.GetPipelineMode() == EPhysicsPipelineMode::FetchBeforeRender)
+		{
+			PHYSICS.SimulateScene(PhysicsSceneHandle, Dt);
+		}
+		else
+		{
+			PHYSICS.BeginSimulate(PhysicsSceneHandle, Dt);
+		}
 	}
 
     // Skip partition update for preview worlds (no spatial partitioning needed)
