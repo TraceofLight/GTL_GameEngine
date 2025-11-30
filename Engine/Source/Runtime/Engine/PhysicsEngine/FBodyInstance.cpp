@@ -100,11 +100,17 @@ void FBodyInstance::CreateShapesFromBodySetup()
     PxPhysics* Physics = PHYSICS.GetPhysics();
     if (!Physics) return;
 
+    // Apply component world scale to geometry sizes and local offsets
+    const FVector WS = OwnerComponent ? OwnerComponent->GetWorldScale() : FVector(1,1,1);
+    const FVector AbsS(FMath::Abs(WS.X), FMath::Abs(WS.Y), FMath::Abs(WS.Z));
+
     // Spheres
     for (const FKSphereElem& S : BodySetup->AggGeom.SphereElems)
     {
-        PxSphereGeometry Geom(S.Radius);
-        PxTransform LocalPose(PxVec3(S.Center.X, S.Center.Y, S.Center.Z));
+        const float RadiusWS = S.Radius * (AbsS.X + AbsS.Y + AbsS.Z) / 3.0f; // uniform approx
+        PxSphereGeometry Geom(PxMax(RadiusWS, 0.01f));
+        const PxVec3 C(S.Center.X * WS.X, S.Center.Y * WS.Y, S.Center.Z * WS.Z);
+        PxTransform LocalPose(C);
         PxShape* Shape = Physics->createShape(Geom, *Mat, true);
         if (!Shape) continue;
         Shape->setLocalPose(LocalPose);
@@ -115,10 +121,12 @@ void FBodyInstance::CreateShapesFromBodySetup()
     // Boxes
     for (const FKBoxElem& B : BodySetup->AggGeom.BoxElems)
     {
-        PxBoxGeometry Geom(B.X, B.Y, B.Z);
+        const PxVec3 HE(B.X * AbsS.X, B.Y * AbsS.Y, B.Z * AbsS.Z);
+        PxBoxGeometry Geom(PxMax(HE.x, 0.01f), PxMax(HE.y, 0.01f), PxMax(HE.z, 0.01f));
         const FQuat R = FQuat::MakeFromEulerZYX(B.Rotation);
         PxQuat Q(R.X, R.Y, R.Z, R.W);
-        PxTransform LocalPose(PxVec3(B.Center.X, B.Center.Y, B.Center.Z), Q);
+        const PxVec3 C(B.Center.X * WS.X, B.Center.Y * WS.Y, B.Center.Z * WS.Z);
+        PxTransform LocalPose(C, Q);
         PxShape* Shape = Physics->createShape(Geom, *Mat, true);
         if (!Shape) continue;
         Shape->setLocalPose(LocalPose);
@@ -131,16 +139,58 @@ void FBodyInstance::CreateShapesFromBodySetup()
     {
         if (C.Radius <= 0.0f || C.Length <= 0.0f) continue; // PhysX requires positive dimensions
         // PxCapsuleGeometry: radius and halfHeight (half of the cylindrical part length)
-        PxCapsuleGeometry Geom(C.Radius, C.Length * 0.5f);
+        const float RadiusWS = C.Radius * 0.5f * (AbsS.Y + AbsS.Z); // approximate using YZ for X-axis capsule
+        const float HalfWS = (C.Length * 0.5f) * AbsS.X; // PhysX capsule along X
+        PxCapsuleGeometry Geom(PxMax(RadiusWS, 0.01f), PxMax(HalfWS, 0.01f));
         // PhysX capsules are X-axis aligned; apply user rotation
         const FQuat R = FQuat::MakeFromEulerZYX(C.Rotation);
         PxQuat Q(R.X, R.Y, R.Z, R.W);
-        PxTransform LocalPose(PxVec3(C.Center.X, C.Center.Y, C.Center.Z), Q);
+        const PxVec3 Ctr(C.Center.X * WS.X, C.Center.Y * WS.Y, C.Center.Z * WS.Z);
+        PxTransform LocalPose(Ctr, Q);
         PxShape* Shape = Physics->createShape(Geom, *Mat, true);
         if (!Shape) continue;
         Shape->setLocalPose(LocalPose);
         PhysicsActor->attachShape(*Shape);
         Shapes.Add(Shape);
+    }
+
+    // Cooked convex mesh (works for both static and dynamic actors)
+    if (BodySetup->ConvexMesh)
+    {
+        // Apply uniform scale to convex mesh
+        const float UniformScale = (AbsS.X + AbsS.Y + AbsS.Z) / 3.0f;
+        PxMeshScale MeshScale(PxVec3(AbsS.X, AbsS.Y, AbsS.Z), PxQuat(PxIdentity));
+        PxConvexMeshGeometry Geom(BodySetup->ConvexMesh, MeshScale);
+        PxShape* Shape = Physics->createShape(Geom, *Mat, true);
+        if (Shape)
+        {
+            PhysicsActor->attachShape(*Shape);
+            Shapes.Add(Shape);
+            UE_LOG("[Physics] Attached convex mesh shape");
+        }
+    }
+
+    // Cooked triangle mesh (static actors only - PhysX limitation!)
+    if (BodySetup->TriMesh)
+    {
+        // Triangle meshes can only be attached to static actors
+        if (PhysicsActor->is<PxRigidStatic>())
+        {
+            PxMeshScale MeshScale(PxVec3(AbsS.X, AbsS.Y, AbsS.Z), PxQuat(PxIdentity));
+            PxTriangleMeshGeometry Geom(BodySetup->TriMesh, MeshScale);
+            PxShape* Shape = Physics->createShape(Geom, *Mat, true);
+            if (Shape)
+            {
+                PhysicsActor->attachShape(*Shape);
+                Shapes.Add(Shape);
+                UE_LOG("[Physics] Attached triangle mesh shape");
+            }
+        }
+        else
+        {
+            UE_LOG("[Physics] WARNING: Triangle mesh collision requested but actor is dynamic! "
+                   "Triangle meshes only work with static actors. Use convex mesh instead.");
+        }
     }
 
 	// If dynamic, compute mass/inertia now that shapes are attached

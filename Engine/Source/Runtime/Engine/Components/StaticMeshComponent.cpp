@@ -171,18 +171,6 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
     }, EAssetLoadPriority::Normal);
 }
 
-void UStaticMeshComponent::BeginPlay()
-{
-    Super::BeginPlay();
-
-    // After the body is created in UPrimitiveComponent::BeginPlay, attach shapes from BodySetup
-    if (StaticMesh && StaticMesh->GetBodySetup())
-    {
-        BodyInstance.BodySetup = StaticMesh->GetBodySetup();
-        BodyInstance.CreateShapesFromBodySetup();
-    }
-}
-
 FAABB UStaticMeshComponent::GetWorldAABB() const
 {
 	const FTransform WorldTransform = GetWorldTransform();
@@ -238,8 +226,6 @@ void UStaticMeshComponent::OnCreatePhysicsState()
 {
 	Super::OnCreatePhysicsState();
 
-	// SMC에서 PhysX(physics) 범위를 정한다. (기본은 AABB의 정보로 Box Collider)
-
 	if (!StaticMesh)
 	{
 		UE_LOG("[Physics] OnCreatePhysicsState FAILED: StaticMesh is null! Component=%s", GetName().c_str());
@@ -251,32 +237,41 @@ void UStaticMeshComponent::OnCreatePhysicsState()
 		return;
 	}
 
-	const FAABB LocalBound = StaticMesh->GetLocalBound();
-	const FVector LocalMin = LocalBound.Min;
-	const FVector LocalMax = LocalBound.Max;
-	const FVector LocalCenter = (LocalMin + LocalMax) * 0.5f;
-	const FVector LocalExtents = (LocalMax - LocalMin) * 0.5f;
+	// Ensure collision data is built
+	StaticMesh->EnsureBodySetupBuilt();
 
-	const FVector S = GetWorldScale();
-	const FVector AbsS(FMath::Abs(S.X), FMath::Abs(S.Y), FMath::Abs(S.Z));
+	UBodySetup* Setup = StaticMesh->GetBodySetup();
+	if (!Setup)
+	{
+		UE_LOG("[Physics] OnCreatePhysicsState: No BodySetup available for %s", GetName().c_str());
+		return;
+	}
 
-	const PxVec3 HalfExtents(
-		LocalExtents.X * AbsS.X,
-		LocalExtents.Y * AbsS.Y,
-		LocalExtents.Z * AbsS.Z
-	);
+	// Now that PhysX is ready, try to cook the mesh if we have source data
+	// This is deferred from asset loading time when PhysX wasn't initialized yet
+	if (!Setup->HasCookedData() && !Setup->CookSourceVertices.IsEmpty())
+	{
+		if (Setup->EnsureCooked())
+		{
+			// Cooking succeeded - clear the fallback box since we have real mesh collision
+			Setup->AggGeom.BoxElems.Empty();
+			UE_LOG("[Physics] Cooked mesh collision for %s", GetName().c_str());
+		}
+	}
 
-	const PxVec3 LocalOffset(
-		LocalCenter.X * S.X,
-		LocalCenter.Y * S.Y,
-		LocalCenter.Z * S.Z
-	);
+	// Assign BodySetup to BodyInstance and create shapes from it
+	BodyInstance.BodySetup = Setup;
+	BodyInstance.CreateShapesFromBodySetup();
 
-	UE_LOG("[Physics] OnCreatePhysicsState: Attaching BoxShape, HalfExtents=(%.2f, %.2f, %.2f), Component=%s",
-		HalfExtents.x, HalfExtents.y, HalfExtents.z, GetName().c_str());
-
-	// TODO: 일단은 박스 모양으로 설정
-	BodyInstance.AttachBoxShape(PHYSICS.GetPhysics(), PHYSICS.GetDefaultMaterial(), HalfExtents, LocalOffset);
+	if (Setup->HasCookedData())
+	{
+		UE_LOG("[Physics] OnCreatePhysicsState: Using cooked mesh collision for %s", GetName().c_str());
+	}
+	else
+	{
+		UE_LOG("[Physics] OnCreatePhysicsState: Using simple collision (%d shapes) for %s",
+			Setup->GetElementCount(), GetName().c_str());
+	}
 }
 
 void UStaticMeshComponent::DuplicateSubObjects()
@@ -287,6 +282,11 @@ void UStaticMeshComponent::DuplicateSubObjects()
 void UStaticMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
     Super::Serialize(bInIsLoading, InOutHandle);
+}
+
+void UStaticMeshComponent::BeginPlay()
+{
+	Super::BeginPlay();
 }
 
 void UStaticMeshComponent::EndPlay()
