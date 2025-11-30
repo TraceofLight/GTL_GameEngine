@@ -2,6 +2,7 @@
 #include "../Animation/SingleAnimationPlayData.h"
 #include "SkinnedMeshComponent.h"
 #include "Source/Runtime/Core/Misc/Delegates.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
 #include "USkeletalMeshComponent.generated.h"
 
 class UAnimInstance;
@@ -99,6 +100,16 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Animation")
 	FSingleAnimationPlayData AnimationData;
+
+	// Physics
+	UPROPERTY(EditAnywhere, Category="Physics")
+	UPhysicsAsset* PhysicsAsset = nullptr;
+
+	// Build physics asset from skeletal mesh if not already set
+	void EnsurePhysicsAssetBuilt();
+
+	// Override to create per-bone physics shapes
+	void OnCreatePhysicsState() override;
 
 protected:
 	TArray<FTransform> CurrentLocalSpacePose;

@@ -139,8 +139,10 @@ void FBodyInstance::CreateShapesFromBodySetup()
     {
         if (C.Radius <= 0.0f || C.Length <= 0.0f) continue; // PhysX requires positive dimensions
         // PxCapsuleGeometry: radius and halfHeight (half of the cylindrical part length)
-        const float RadiusWS = C.Radius * 0.5f * (AbsS.Y + AbsS.Z); // approximate using YZ for X-axis capsule
-        const float HalfWS = (C.Length * 0.5f) * AbsS.X; // PhysX capsule along X
+        // Use average scale for radius, and appropriate axis scale for length
+        const float AvgScale = (AbsS.X + AbsS.Y + AbsS.Z) / 3.0f;
+        const float RadiusWS = C.Radius * AvgScale;
+        const float HalfWS = (C.Length * 0.5f) * AvgScale;
         PxCapsuleGeometry Geom(PxMax(RadiusWS, 0.01f), PxMax(HalfWS, 0.01f));
         // PhysX capsules are X-axis aligned; apply user rotation
         const FQuat R = FQuat::MakeFromEulerZYX(C.Rotation);

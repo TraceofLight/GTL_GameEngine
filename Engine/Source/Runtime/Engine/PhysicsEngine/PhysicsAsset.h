@@ -5,6 +5,8 @@
 #include "Vector.h"
 #include "Source/Runtime/Engine/Collision/AABB.h"
 
+class USkeletalMesh;
+
 class UPhysicsAsset : public UObject
 {
 public:
@@ -21,6 +23,10 @@ public:
 
 	UPROPERTY(EditAnywhere)
 	FString SourceSkeletalPath;
+
+    // Build physics bodies from skeletal mesh bone hierarchy
+    // Creates capsules for each bone based on bone length and heuristic radius
+    void BuildFromSkeletalMesh(const USkeletalMesh* InSkeletalMesh);
 
     int32 FindBodyIndexByBoneName(FName BoneName) const;
     UBodySetup* FindBodySetupByBoneName(FName BoneName);
