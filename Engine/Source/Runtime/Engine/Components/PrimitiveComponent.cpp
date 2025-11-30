@@ -88,8 +88,15 @@ void UPrimitiveComponent::SetMaterialByName(uint32 InElementIndex, const FString
         return;
     }
 
-    // 비동기 로드: Material이 로드 완료되면 자동으로 SetMaterial 호출
-    // 이미 로드된 경우 콜백이 즉시 실행됨
+    // 먼저 캐시에서 동기적으로 확인 (이미 로드된 경우 즉시 설정)
+    UMaterial* CachedMaterial = UResourceManager::GetInstance().Get<UMaterial>(InMaterialName);
+    if (CachedMaterial)
+    {
+        SetMaterial(InElementIndex, CachedMaterial);
+        return;
+    }
+
+    // 캐시에 없으면 비동기 로드
     UResourceManager::GetInstance().AsyncLoad<UMaterial>(
         InMaterialName,
         [this, InElementIndex, InMaterialName](UMaterial* LoadedMaterial)
