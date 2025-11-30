@@ -45,19 +45,6 @@ void FBodyInstance::AddToScene(PxScene* Scene)
     if (PhysicsActor && Scene)
     {
         Scene->addActor(*PhysicsActor);
-
-        // 디버그: Scene에 추가된 총 액터 수 + 소유 액터 이름
-        PxU32 numActors = Scene->getNbActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC);
-        bool bIsDynamic = PhysicsActor->is<PxRigidDynamic>() != nullptr;
-        PxTransform T = PhysicsActor->getGlobalPose();
-
-        const char* compName = OwnerComponent ? OwnerComponent->GetName().c_str() : "null";
-        const char* actorName = (OwnerComponent && OwnerComponent->GetOwner())
-            ? OwnerComponent->GetOwner()->GetName().c_str() : "no_actor";
-
-        UE_LOG("[Physics] AddToScene: %s, Total:%u, Comp=%s, Actor=%s, Pos=(%.1f,%.1f,%.1f)",
-            bIsDynamic ? "Dynamic" : "Static", numActors,
-            compName, actorName, T.p.x, T.p.y, T.p.z);
     }
 }
 

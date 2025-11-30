@@ -226,14 +226,14 @@ void UStaticMeshComponent::OnCreatePhysicsState()
 {
 	Super::OnCreatePhysicsState();
 
+	// SMC에서 PhysX(physics) 범위를 정한다. (기본은 AABB의 정보로 Box Collider)
+
 	if (!StaticMesh)
 	{
-		UE_LOG("[Physics] OnCreatePhysicsState FAILED: StaticMesh is null! Component=%s", GetName().c_str());
 		return;
 	}
 	if (!PHYSICS.GetPhysics())
 	{
-		UE_LOG("[Physics] OnCreatePhysicsState FAILED: Physics is null! Component=%s", GetName().c_str());
 		return;
 	}
 

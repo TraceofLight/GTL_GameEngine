@@ -316,7 +316,7 @@ void UEditorEngine::MainLoop()
 
 
         Tick(DeltaSeconds);
-		PHYSICS.Simulate(DeltaSeconds);
+		// Physics simulation is now handled per-World in UWorld::Tick
         Render();
 
         // Shader Hot Reloading - Call AFTER render to avoid mid-frame resource conflicts

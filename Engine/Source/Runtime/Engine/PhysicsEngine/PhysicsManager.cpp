@@ -19,33 +19,20 @@ static PxFilterFlags CoreSimulationFilterShader(
 
 void FPhysicsManager::Initialize()
 {
-	// 1. Foundation
+	// 1. Foundation (공유 리소스)
 	Foundation = PxCreateFoundation(PX_PHYSICS_VERSION, gAllocator, gErrorCallback);
 	if (!Foundation) { MessageBoxA(nullptr, "PxCreateFoundation failed!", "Error", MB_OK); return; }
 
-	// 2. Physics
+	// 2. Physics (공유 리소스)
 	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale());
 
-	// 3. Scene Setting
-	PxSceneDesc sceneDesc(Physics->getTolerancesScale());
-	sceneDesc.gravity = PxVec3(0.0f, 0.0f, -9.81f); // Z-Up 기준 중력 (아래 방향)
-
-	// CPU Dispatcher (스레드)
+	// 3. CPU Dispatcher (공유 리소스)
 	SYSTEM_INFO SysInfo;
 	GetSystemInfo(&SysInfo);
 	int NumWorkerThreads = PxMax(1, (int)(SysInfo.dwNumberOfProcessors - 1));
 	Dispatcher = PxDefaultCpuDispatcherCreate(NumWorkerThreads);
-	sceneDesc.cpuDispatcher = Dispatcher;
 
-	// 4. Filter Shader & Event Callback 설정
-	SimulationCallback = new FPhysicsEventCallback(); // 여기서 생성
-	sceneDesc.simulationEventCallback = SimulationCallback;
-	sceneDesc.filterShader = CoreSimulationFilterShader;
-
-	// 5. Scene 생성
-	Scene = Physics->createScene(sceneDesc);
-
-	// 6. 기본 머티리얼
+	// 4. 기본 머티리얼 (공유 리소스)
 	DefaultMaterial = Physics->createMaterial(0.5f, 0.5f, 0.6f);
 
 	// 7. Cooking interface
@@ -55,29 +42,70 @@ void FPhysicsManager::Initialize()
 
 void FPhysicsManager::Shutdown()
 {
-	// 역순 파괴
-	if (Scene) { Scene->release(); Scene = nullptr; }
+	// 역순 파괴 (공유 리소스만)
+	if (DefaultMaterial) { DefaultMaterial->release(); DefaultMaterial = nullptr; }
 	if (Dispatcher) { Dispatcher->release(); Dispatcher = nullptr; }
 	if (DefaultMaterial) { DefaultMaterial->release(); DefaultMaterial = nullptr; }
 	if (Cooking) { Cooking->release(); Cooking = nullptr; }
 	if (Physics) { Physics->release(); Physics = nullptr; }
-	if (SimulationCallback) { delete SimulationCallback; SimulationCallback = nullptr; }
 	if (Foundation) { Foundation->release(); Foundation = nullptr; }
 }
 
-void FPhysicsManager::Simulate(float DeltaTime)
+FPhysicsSceneHandle FPhysicsManager::CreateScene()
 {
-	if (!Scene) return;
+	FPhysicsSceneHandle Handle;
+
+	if (!Physics || !Dispatcher)
+	{
+		return Handle;
+	}
+
+	// Scene 설정
+	PxSceneDesc sceneDesc(Physics->getTolerancesScale());
+	sceneDesc.gravity = PxVec3(0.0f, 0.0f, -9.81f); // Z-Up 기준 중력
+	sceneDesc.cpuDispatcher = Dispatcher;
+
+	// 이 Scene 전용 콜백 생성
+	Handle.Callback = new FPhysicsEventCallback();
+	sceneDesc.simulationEventCallback = Handle.Callback;
+	sceneDesc.filterShader = CoreSimulationFilterShader;
+
+	// Scene 생성
+	Handle.Scene = Physics->createScene(sceneDesc);
+
+	return Handle;
+}
+
+void FPhysicsManager::DestroyScene(FPhysicsSceneHandle& Handle)
+{
+	if (Handle.Scene)
+	{
+		Handle.Scene->release();
+		Handle.Scene = nullptr;
+	}
+
+	if (Handle.Callback)
+	{
+		delete Handle.Callback;
+		Handle.Callback = nullptr;
+	}
+
+	Handle.Accumulator = 0.0f;
+}
+
+void FPhysicsManager::SimulateScene(FPhysicsSceneHandle& Handle, float DeltaTime)
+{
+	if (!Handle.Scene) return;
 
 	// Sub-stepping 구현 (프레임 튀는 현상 방지)
-	Accumulator += DeltaTime;
-	if (Accumulator < StepSize) return;
+	Handle.Accumulator += DeltaTime;
+	if (Handle.Accumulator < Handle.StepSize) return;
 
 	// 누적된 시간이 StepSize보다 크면 여러 번 시뮬레이션
-	while (Accumulator >= StepSize)
+	while (Handle.Accumulator >= Handle.StepSize)
 	{
-		Scene->simulate(StepSize);
-		Scene->fetchResults(true); // true = 블로킹
-		Accumulator -= StepSize;
+		Handle.Scene->simulate(Handle.StepSize);
+		Handle.Scene->fetchResults(true); // true = 블로킹
+		Handle.Accumulator -= Handle.StepSize;
 	}
 }

@@ -4,6 +4,16 @@
 
 using namespace physx;
 
+// Scene 생성에 필요한 정보를 담은 구조체
+struct FPhysicsSceneHandle
+{
+	PxScene* Scene = nullptr;
+	FPhysicsEventCallback* Callback = nullptr;
+	float Accumulator = 0.0f;
+	float StepSize = 1.0f / 60.0f;
+
+	bool IsValid() const { return Scene != nullptr; }
+};
 
 class FPhysicsManager
 {
@@ -17,26 +27,23 @@ public:
 	void Initialize();
 	void Shutdown();
 
-	void Simulate(float DeltaSeconds);
-	  
-	PxFoundation* GetFoundation() { return Foundation;  }
-	PxPhysics* GetPhysics() { return Physics;  }
-	PxScene* GetScene() { return Scene;  }
-	PxMaterial* GetDefaultMaterial() { return DefaultMaterial;  }
-	PxDefaultCpuDispatcher* GetDispatcher() { return Dispatcher;  }
+	// World별 Scene 생성/파괴 헬퍼
+	FPhysicsSceneHandle CreateScene();
+	void DestroyScene(FPhysicsSceneHandle& Handle);
+	void SimulateScene(FPhysicsSceneHandle& Handle, float DeltaTime);
+
+	// 공유 리소스 접근
+	PxFoundation* GetFoundation() { return Foundation; }
+	PxPhysics* GetPhysics() { return Physics; }
+	PxMaterial* GetDefaultMaterial() { return DefaultMaterial; }
+	PxDefaultCpuDispatcher* GetDispatcher() { return Dispatcher; }
 	PxCooking* GetCooking() { return Cooking; }
+
 private:
-	// PhysX 객체들
+	// 공유 PhysX 객체들
 	PxFoundation* Foundation = nullptr;
 	PxPhysics* Physics = nullptr;
-	PxScene* Scene = nullptr;
-	PxMaterial* DefaultMaterial = nullptr;
 	PxDefaultCpuDispatcher* Dispatcher = nullptr;
 	PxCooking* Cooking = nullptr;
-
-	// 이벤트 콜백 관리
-	FPhysicsEventCallback* SimulationCallback = nullptr;
-	// 고정 타임스텝 처리를 위한 누적 시간
-	float Accumulator = 0.0f;
-	const float StepSize = 1.0f / 60.0f; 
+	PxMaterial* DefaultMaterial = nullptr;
 };
