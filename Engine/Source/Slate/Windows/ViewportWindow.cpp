@@ -994,15 +994,18 @@ void SViewportWindow::RenderCameraOptionDropdownMenu()
 			}
 			ImGui::Text("근평면");
 
-			float nearClip = camComp->GetNearClip();
+			float NearClip = camComp->GetNearClip();
+			float FarClip = camComp->GetFarClip();
 			ImGui::SetNextItemWidth(180);
-			if (ImGui::SliderFloat("##NearClip", &nearClip, 0.01f, 10.0f, "%.2f"))
+
+			float NearMax = std::max(1.0f, FarClip * 0.5f);
+			if (ImGui::SliderFloat("##NearClip", &NearClip, 0.1f, NearMax, "%.2f"))
 			{
-				camComp->SetClipPlanes(nearClip, camComp->GetFarClip());
+				camComp->SetClipPlanes(NearClip, FarClip);
 			}
 			if (ImGui::IsItemHovered())
 			{
-				ImGui::SetTooltip("카메라에서 가장 가까운 렌더링 거리 (0.01-10)\n이 값보다 가까운 오브젝트는 보이지 않습니다");
+				ImGui::SetTooltip("카메라에서 가장 가까운 렌더링 거리\n이 값보다 가까운 오브젝트는 보이지 않습니다");
 			}
 
 			// 원평면
@@ -1013,15 +1016,15 @@ void SViewportWindow::RenderCameraOptionDropdownMenu()
 			}
 			ImGui::Text("원평면");
 
-			float farClip = camComp->GetFarClip();
 			ImGui::SetNextItemWidth(180);
-			if (ImGui::SliderFloat("##FarClip", &farClip, 10.0f, 1000.0f, "%.0f"))
+			float FarMin = NearClip * 2.0f;
+			if (ImGui::DragFloat("##FarClip", &FarClip, 100.0f, FarMin, 100000.0f, "%.0f"))
 			{
-				camComp->SetClipPlanes(camComp->GetNearClip(), farClip);
+				camComp->SetClipPlanes(NearClip, FarClip);
 			}
 			if (ImGui::IsItemHovered())
 			{
-				ImGui::SetTooltip("카메라에서 가장 먼 렌더링 거리 (100-10000)\n이 값보다 먼 오브젝트는 보이지 않습니다");
+				ImGui::SetTooltip("카메라에서 가장 먼 렌더링 거리 (드래그로 조절)\n이 값보다 먼 오브젝트는 보이지 않습니다");
 			}
 		}
 

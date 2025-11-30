@@ -121,7 +121,7 @@ namespace
 
 			ImGuiTreeNodeFlags NodeFlags =
 				ImGuiTreeNodeFlags_SpanAvailWidth |
-				ImGuiTreeNodeFlags_Leaf | 
+				ImGuiTreeNodeFlags_Leaf |
 				ImGuiTreeNodeFlags_NoTreePushOnOpen;
 
 			// 선택 하이라이트: 현재 선택된 컴포넌트와 같으면 Selected 플래그
@@ -149,7 +149,7 @@ namespace
 				}
 				ImGui::EndPopup();
 			}
-			
+
 			ImGui::PopID();
 		}
 	}
@@ -320,7 +320,7 @@ void UTargetActorTransformWidget::RenderWidget()
 	// 위 함수에서 SelectedComponent를 Delete하는데 아래 함수에서 SelectedComponent를 그대로 인자로 사용하고 있었음.
 	// 댕글링 포인터 참조를 막기 위해 다시 한번 SelectionManager에서 Component를 얻어옴
 	// 기존에는 DestroyComponent에서 DeleteObject를 호출하지도 않았음. Delete를 실제로 진행하면서 발견된 버그.
-	
+
 	// 3. 선택된 컴포넌트, 엑터의 상세 정보 렌더링 (Transform 포함)
 	if (GWorld->GetSelectionManager()->IsActorMode())
 	{
@@ -357,6 +357,9 @@ void UTargetActorTransformWidget::RenderHeader(AActor* SelectedActor, UActorComp
 	{
 		ImGui::OpenPopup("AddComponentPopup");
 	}
+
+	// 팝업 크기 제한 설정
+	ImGui::SetNextWindowSizeConstraints(ImVec2(180, 0), ImVec2(300, 250));
 
 	if (ImGui::BeginPopup("AddComponentPopup"))
 	{

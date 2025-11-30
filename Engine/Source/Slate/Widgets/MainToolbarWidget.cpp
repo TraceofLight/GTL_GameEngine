@@ -283,6 +283,9 @@ void UMainToolbarWidget::RenderActorSpawnButton()
     }
 
     // Actor Spawn 팝업 렌더링
+    // 팝업 크기 제한 설정
+    ImGui::SetNextWindowSizeConstraints(ImVec2(200, 0), ImVec2(400, 300));
+
     if (ImGui::BeginPopup("ActorSpawnPopup"))
     {
         // 버튼 색상 스타일 설정 (테마에 맞게)
