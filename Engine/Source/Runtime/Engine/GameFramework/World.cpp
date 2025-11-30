@@ -39,6 +39,7 @@
 #include "Hash.h"
 #include"Character.h"
 #include "LuaBindHelpers.h"
+#include "SkySphereActor.h"
 
 IMPLEMENT_CLASS(UWorld)
 
@@ -490,10 +491,16 @@ void UWorld::CreateLevel()
 		{
 			AmbientLight->GetLightComponent()->SetIntensity(0.2f);
 		}
+
+		// 기본 Sky Sphere 생성
+		SpawnActor<ASkySphereActor>();
 	}
 	else
 	{
 		SetLevel(ULevelService::CreateNewLevel());
+
+		// 기본 Sky Sphere 생성
+		SpawnActor<ASkySphereActor>();
 	}
 
 	// 이름 카운터 초기화: 씬을 새로 시작할 때 각 BaseName 별 suffix를 0부터 다시 시작

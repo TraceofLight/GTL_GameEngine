@@ -77,7 +77,7 @@ protected:
     bool PerspectiveCameraInput = false;
     FVector PerspectiveCameraPosition = FVector(-5.0f, 5.0f, 5.0f);
     FVector PerspectiveCameraRotation = FVector(0.0f, 22.5f, -45.0f);
-    float PerspectiveCameraFov=60;
+    float PerspectiveCameraFov = 90.0f;
 
     // 피킹 활성화 여부 (플로팅 윈도우에서는 false로 설정)
     bool bPickingEnabled = true;

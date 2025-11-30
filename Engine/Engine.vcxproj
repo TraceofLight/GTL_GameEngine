@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -444,6 +444,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\Components\ShapeComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\SkeletalMeshComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\SkinnedMeshComponent.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\Components\SkySphereComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\SphereComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\SpotLightComponent.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Components\StaticMeshComponent.cpp" />
@@ -476,6 +477,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\GameFramework\PlayerController.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\PointLightActor.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\SkeletalMeshActor.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\GameFramework\SkySphereActor.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\SpotLightActor.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\StaticMeshActor.cpp" />
     <ClCompile Include="Source\Runtime\Engine\GameFramework\World.cpp" />
@@ -667,6 +669,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\UShapeComponent.generated.cpp" />
     <ClCompile Include="Generated\USkeletalMeshComponent.generated.cpp" />
     <ClCompile Include="Generated\USkinnedMeshComponent.generated.cpp" />
+    <ClCompile Include="Generated\USkySphereComponent.generated.cpp" />
     <ClCompile Include="Generated\USphereComponent.generated.cpp" />
     <ClCompile Include="Generated\USpotLightComponent.generated.cpp" />
     <ClCompile Include="Generated\UStaticMeshComponent.generated.cpp" />
@@ -689,6 +692,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\APlayerController.generated.cpp" />
     <ClCompile Include="Generated\APointLightActor.generated.cpp" />
     <ClCompile Include="Generated\ASkeletalMeshActor.generated.cpp" />
+    <ClCompile Include="Generated\ASkySphereActor.generated.cpp" />
     <ClCompile Include="Generated\ASpotLightActor.generated.cpp" />
     <ClCompile Include="Generated\AStaticMeshActor.generated.cpp" />
     <ClCompile Include="Generated\UParticleEmitter.generated.cpp" />
@@ -810,6 +814,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\Components\ShapeComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\SkeletalMeshComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\SkinnedMeshComponent.h" />
+    <ClInclude Include="Source\Runtime\Engine\Components\SkySphereComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\SphereComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\SpotLightComponent.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\StaticMeshComponent.h" />
@@ -843,6 +848,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\GameFramework\PlayerController.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\PointLightActor.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\SkeletalMeshActor.h" />
+    <ClInclude Include="Source\Runtime\Engine\GameFramework\SkySphereActor.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\SpotLightActor.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\StaticMeshActor.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\World.h" />
@@ -1033,6 +1039,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\UShapeComponent.generated.h" />
     <ClInclude Include="Generated\USkeletalMeshComponent.generated.h" />
     <ClInclude Include="Generated\USkinnedMeshComponent.generated.h" />
+    <ClInclude Include="Generated\USkySphereComponent.generated.h" />
     <ClInclude Include="Generated\USphereComponent.generated.h" />
     <ClInclude Include="Generated\USpotLightComponent.generated.h" />
     <ClInclude Include="Generated\UStaticMeshComponent.generated.h" />
@@ -1055,6 +1062,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\APlayerController.generated.h" />
     <ClInclude Include="Generated\APointLightActor.generated.h" />
     <ClInclude Include="Generated\ASkeletalMeshActor.generated.h" />
+    <ClInclude Include="Generated\ASkySphereActor.generated.h" />
     <ClInclude Include="Generated\ASpotLightActor.generated.h" />
     <ClInclude Include="Generated\AStaticMeshActor.generated.h" />
     <ClInclude Include="Generated\UParticleEmitter.generated.h" />
@@ -1077,6 +1085,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <Content Include="Shaders\Common\LightingBuffers.hlsl" />
     <Content Include="Shaders\Common\LightingCommon.hlsl" />
     <Content Include="Shaders\Common\LightStructures.hlsl" />
+    <Content Include="Shaders\Sky\Sky.hlsl" />
     <Content Include="Shaders\Effects\Decal.hlsl" />
     <Content Include="Shaders\Materials\Fireball.hlsl" />
     <Content Include="Shaders\Materials\UberLit.hlsl" />

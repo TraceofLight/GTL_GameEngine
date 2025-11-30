@@ -698,8 +698,8 @@ void AGizmoActor::ProcessGizmoModeSwitch()
 	{
 		SetMode(EGizmoMode::Scale);
 	}
-	// 스페이스 키로 기즈모 모드 순환 전환 (기존 기능 유지)
-	else if (InputManager->IsKeyPressed(VK_SPACE))
+	// 스페이스 키로 기즈모 모드 순환 전환
+	else if (InputManager->IsKeyPressed(VK_SPACE) && !InputManager->IsKeyDown(VK_CONTROL))
 	{
 		int GizmoModeIndex = static_cast<int>(GetMode());
 		GizmoModeIndex = (GizmoModeIndex + 1) % static_cast<uint32>(EGizmoMode::Select);	// 3 = enum 개수

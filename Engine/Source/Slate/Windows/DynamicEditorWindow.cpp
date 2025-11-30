@@ -1000,6 +1000,16 @@ void SDynamicEditorWindow::OnRender()
 
 void SDynamicEditorWindow::OnUpdate(float DeltaSeconds)
 {
+	// 공통 처리: World Tick 및 기즈모 모드 전환
+	if (ActiveState && ActiveState->World)
+	{
+		ActiveState->World->Tick(DeltaSeconds);
+		if (bIsFocused && ActiveState->World->GetGizmoActor())
+		{
+			ActiveState->World->GetGizmoActor()->ProcessGizmoModeSwitch();
+		}
+	}
+
 	// 현재 모드에 따라 적절한 에디터 업데이트
 	if (ActiveState)
 	{
@@ -1028,16 +1038,6 @@ void SDynamicEditorWindow::OnUpdate(float DeltaSeconds)
 	if (!ActiveState || !ActiveState->Viewport)
 	{
 		return;
-	}
-
-	// Tick the preview world
-	if (ActiveState->World)
-	{
-		ActiveState->World->Tick(DeltaSeconds);
-		if (ActiveState->World->GetGizmoActor())
-		{
-			ActiveState->World->GetGizmoActor()->ProcessGizmoModeSwitch();
-		}
 	}
 
 	if (ActiveState->Client)
