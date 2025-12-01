@@ -36,12 +36,33 @@ SPhysicsAssetEditorWindow::~SPhysicsAssetEditorWindow()
 {
     ReleaseRenderTarget();
 
-    // 스플리터 정리
+    // Graph State 정리
+    if (GraphState)
+    {
+        delete GraphState;
+        GraphState = nullptr;
+    }
+
+    // 스플리터 정리 (패널들은 스플리터가 소유하지 않으므로 별도 삭제)
     if (MainSplitter)
     {
+        // InnerSplitter 자식들 (ViewportPanelWidget, PropertiesPanelWidget)
+        // LeftSplitter 자식들 (BodyListPanel, GraphPanelWidget)
+        // 스플리터들
+        delete LeftSplitter;
+        delete InnerSplitter;
         delete MainSplitter;
         MainSplitter = nullptr;
+        LeftSplitter = nullptr;
+        InnerSplitter = nullptr;
     }
+
+    // 패널 정리
+    delete ToolbarPanel;
+    delete ViewportPanelWidget;
+    delete BodyListPanel;
+    delete PropertiesPanelWidget;
+    delete GraphPanelWidget;
 
     PhysicsAssetViewerBootstrap::DestroyViewerState(ActiveState);
 }
@@ -59,24 +80,40 @@ bool SPhysicsAssetEditorWindow::Initialize(float StartX, float StartY, float Wid
     ActiveState = PhysicsAssetViewerBootstrap::CreateViewerState("PhysicsAsset", InWorld, InDevice);
     if (!ActiveState) return false;
 
+    // Graph State 생성
+    GraphState = new FPAEGraphState();
+
     // 패널 생성
     ToolbarPanel = new SPhysicsAssetToolbarPanel(this);
     ViewportPanelWidget = new SPhysicsAssetViewportPanel(this);
     BodyListPanel = new SPhysicsAssetBodyListPanel(this);
     PropertiesPanelWidget = new SPhysicsAssetPropertiesPanel(this);
+    GraphPanelWidget = new SPhysicsAssetGraphPanel(this);
 
-    // 스플리터 계층 구조 생성
-    // 우측: BodyList(상) | Properties(하)
-    RightSplitter = new SSplitterV();
-    RightSplitter->SetSplitRatio(0.5f);
-    RightSplitter->SideLT = BodyListPanel;
-    RightSplitter->SideRB = PropertiesPanelWidget;
+    // 스플리터 계층 구조 생성 (새 레이아웃)
+    // 레이아웃: [Left: SkeletonTree|NodeGraph] | [Center: Viewport] | [Right: Properties]
+    //
+    // MainSplitter (H): LeftSplitter | InnerSplitter
+    //   LeftSplitter (V): BodyListPanel(상) | GraphPanelWidget(하)
+    //   InnerSplitter (H): ViewportPanelWidget(좌) | PropertiesPanelWidget(우)
 
-    // 메인: Viewport(좌) | Right(우)
+    // 좌측: BodyList(상) | Graph(하)
+    LeftSplitter = new SSplitterV();
+    LeftSplitter->SetSplitRatio(0.5f);
+    LeftSplitter->SideLT = BodyListPanel;
+    LeftSplitter->SideRB = GraphPanelWidget;
+
+    // 내부: Viewport(좌) | Properties(우)
+    InnerSplitter = new SSplitterH();
+    InnerSplitter->SetSplitRatio(0.70f);  // Viewport 70%, Properties 30%
+    InnerSplitter->SideLT = ViewportPanelWidget;
+    InnerSplitter->SideRB = PropertiesPanelWidget;
+
+    // 메인: Left(좌) | Inner(우)
     MainSplitter = new SSplitterH();
-    MainSplitter->SetSplitRatio(0.65f);
-    MainSplitter->SideLT = ViewportPanelWidget;
-    MainSplitter->SideRB = RightSplitter;
+    MainSplitter->SetSplitRatio(0.20f);  // Left 20%, Rest 80%
+    MainSplitter->SideLT = LeftSplitter;
+    MainSplitter->SideRB = InnerSplitter;
 
     // 스플리터 초기 Rect 설정
     MainSplitter->SetRect(StartX, StartY, StartX + Width, StartY + Height);
@@ -1803,4 +1840,299 @@ void SPhysicsAssetPropertiesPanel::RenderConstraintProperties(PhysicsAssetViewer
 
     // TODO: Render selected constraint properties
     ImGui::TextDisabled("(Select a constraint to view properties)");
+}
+
+// ============================================================================
+// SPhysicsAssetGraphPanel - Node Graph 패널
+// ============================================================================
+
+SPhysicsAssetGraphPanel::SPhysicsAssetGraphPanel(SPhysicsAssetEditorWindow* InOwner)
+    : Owner(InOwner)
+{
+}
+
+void SPhysicsAssetGraphPanel::OnRender()
+{
+    if (!Owner) return;
+
+    PhysicsAssetViewerState* State = Owner->GetActiveState();
+    FPAEGraphState* GraphState = Owner->GraphState;
+
+    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+
+    ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
+    ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
+
+    if (ImGui::Begin("Graph##PhysicsAssetGraph", nullptr, WindowFlags))
+    {
+        if (!State || !State->CurrentMesh)
+        {
+            ImGui::TextDisabled("Load a SkeletalMesh first");
+        }
+        else if (!State->PhysicsAsset || State->PhysicsAsset->BodySetups.Num() == 0)
+        {
+            ImGui::TextDisabled("No bodies to display");
+            ImGui::TextDisabled("Use 'Auto-Generate Bodies' or add bodies manually");
+        }
+        else
+        {
+            RenderNodeGraph(State, GraphState);
+        }
+    }
+    ImGui::End();
+}
+
+void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FPAEGraphState* GraphState)
+{
+    if (!State || !GraphState || !State->PhysicsAsset) return;
+
+    // Graph State와 PhysicsAsset 동기화 (Body 수가 달라졌을 때)
+    if (GraphState->BodyNodes.Num() != State->PhysicsAsset->BodySetups.Num())
+    {
+        Owner->SyncGraphFromPhysicsAsset();
+    }
+
+    ed::SetCurrentEditor(GraphState->Context);
+    ed::Begin("PhysicsAssetGraph", ImVec2(0.0f, 0.0f));
+
+    // 스타일 설정
+    ed::PushStyleVar(ed::StyleVar_NodeRounding, 8.0f);
+    ed::PushStyleVar(ed::StyleVar_NodePadding, ImVec4(8, 4, 8, 8));
+
+    // Body 노드 그리기
+    for (auto& BodyNode : GraphState->BodyNodes)
+    {
+        // 선택 상태 확인
+        bool bSelected = (State->EditMode == EPhysicsAssetEditMode::Body &&
+                          State->SelectedBodyIndex == BodyNode.BodyIndex);
+
+        // 노드 색상
+        ImU32 HeaderColor = bSelected ? IM_COL32(70, 130, 180, 255) : IM_COL32(60, 60, 70, 255);
+
+        ed::BeginNode(BodyNode.ID);
+
+        ImGui::PushID(static_cast<int>(BodyNode.ID.Get()));
+
+        // 헤더
+        ImGui::BeginGroup();
+        {
+            ImGui::Dummy(ImVec2(0, 2));
+            ImGui::Indent(4.0f);
+
+            // Body 이름 (Bone 이름)
+            ImGui::TextColored(ImVec4(1, 1, 1, 1), "%s", BodyNode.BoneName.c_str());
+
+            // Shape 수 표시
+            if (BodyNode.BodyIndex >= 0 && BodyNode.BodyIndex < State->PhysicsAsset->BodySetups.Num())
+            {
+                UBodySetup* Setup = State->PhysicsAsset->BodySetups[BodyNode.BodyIndex];
+                if (Setup)
+                {
+                    int32 ShapeCount = Setup->GetElementCount();
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                    ImGui::Text("%d shapes", ShapeCount);
+                    ImGui::PopStyleColor();
+                }
+            }
+
+            ImGui::Unindent(4.0f);
+            ImGui::Dummy(ImVec2(0, 2));
+        }
+        ImGui::EndGroup();
+
+        // 헤더 크기
+        ImRect HeaderRect;
+        HeaderRect.Min = ImGui::GetItemRectMin();
+        HeaderRect.Max = ImGui::GetItemRectMax();
+
+        // 최소 너비 보장
+        float minWidth = 120.0f;
+        if (HeaderRect.GetWidth() < minWidth)
+        {
+            ImGui::SameLine();
+            ImGui::Dummy(ImVec2(minWidth - HeaderRect.GetWidth(), 0));
+        }
+
+        ImGui::Dummy(ImVec2(0, 4));
+
+        // 핀 영역
+        ImGui::BeginGroup();
+        {
+            // 입력 핀 (왼쪽)
+            if (!BodyNode.InputPins.empty())
+            {
+                ed::BeginPin(BodyNode.InputPins[0], ed::PinKind::Input);
+                ImGui::TextDisabled(">");
+                ed::EndPin();
+            }
+
+            // 공간 확보
+            ImGui::SameLine();
+            ImGui::Dummy(ImVec2(60, 0));
+            ImGui::SameLine();
+
+            // 출력 핀 (오른쪽)
+            if (!BodyNode.OutputPins.empty())
+            {
+                ed::BeginPin(BodyNode.OutputPins[0], ed::PinKind::Output);
+                ImGui::TextDisabled(">");
+                ed::EndPin();
+            }
+        }
+        ImGui::EndGroup();
+
+        ImGui::Dummy(ImVec2(0, 2));
+        ImGui::PopID();
+
+        ed::EndNode();
+
+        // 배경 그리기
+        if (ImGui::IsItemVisible())
+        {
+            ImDrawList* drawList = ed::GetNodeBackgroundDrawList(BodyNode.ID);
+
+            ImVec2 nodeMin = ed::GetNodePosition(BodyNode.ID);
+            ImVec2 nodeSize = ed::GetNodeSize(BodyNode.ID);
+            ImVec2 nodeMax = ImVec2(nodeMin.x + nodeSize.x, nodeMin.y + nodeSize.y);
+
+            float headerHeight = HeaderRect.GetHeight() + 4;
+            ImVec2 headerMax = ImVec2(nodeMax.x, nodeMin.y + headerHeight);
+
+            // 헤더 배경
+            drawList->AddRectFilled(nodeMin, headerMax, HeaderColor,
+                ed::GetStyle().NodeRounding, ImDrawFlags_RoundCornersTop);
+
+            // 바디 배경
+            drawList->AddRectFilled(ImVec2(nodeMin.x, headerMax.y), nodeMax,
+                IM_COL32(30, 30, 35, 230),
+                ed::GetStyle().NodeRounding, ImDrawFlags_RoundCornersBottom);
+
+            // 테두리
+            if (bSelected)
+            {
+                drawList->AddRect(nodeMin, nodeMax, IM_COL32(100, 180, 255, 255),
+                    ed::GetStyle().NodeRounding, 0, 2.0f);
+            }
+        }
+    }
+
+    ed::PopStyleVar(2);
+
+    // Constraint 링크 그리기 (TODO: Constraint 구현 후 추가)
+    for (auto& Link : GraphState->ConstraintLinks)
+    {
+        ed::Link(Link.ID, Link.StartPinID, Link.EndPinID, ImColor(200, 200, 200, 255), 2.0f);
+    }
+
+    // 노드 선택 처리
+    if (ed::GetSelectedObjectCount() > 0)
+    {
+        ed::NodeId selectedNodeId;
+        if (ed::GetSelectedNodes(&selectedNodeId, 1) > 0)
+        {
+            GraphState->SelectedNodeID = selectedNodeId;
+            GraphState->SelectedLinkID = ed::LinkId::Invalid;
+
+            // PhysicsAssetViewerState에 선택 반영
+            FPAEBodyNode* SelectedBody = Owner->FindBodyNode(selectedNodeId);
+            if (SelectedBody && SelectedBody->BodyIndex >= 0)
+            {
+                State->SelectBody(SelectedBody->BodyIndex);
+            }
+        }
+        else
+        {
+            ed::LinkId selectedLinkId;
+            if (ed::GetSelectedLinks(&selectedLinkId, 1) > 0)
+            {
+                GraphState->SelectedLinkID = selectedLinkId;
+                GraphState->SelectedNodeID = ed::NodeId::Invalid;
+            }
+        }
+    }
+
+    ed::End();
+    ed::SetCurrentEditor(nullptr);
+}
+
+// ============================================================================
+// Node Graph 헬퍼 함수들
+// ============================================================================
+
+void SPhysicsAssetEditorWindow::SyncGraphFromPhysicsAsset()
+{
+    if (!GraphState || !ActiveState || !ActiveState->PhysicsAsset) return;
+
+    // 기존 데이터 클리어
+    GraphState->Clear();
+    GraphState->NextNodeID = 1;
+    GraphState->NextPinID = 100000;
+    GraphState->NextLinkID = 200000;
+
+    ed::SetCurrentEditor(GraphState->Context);
+
+    UPhysicsAsset* PhysAsset = ActiveState->PhysicsAsset;
+
+    // Body 노드 생성
+    for (int32 i = 0; i < PhysAsset->BodySetups.Num(); ++i)
+    {
+        UBodySetup* Setup = PhysAsset->BodySetups[i];
+        if (!Setup) continue;
+
+        FPAEBodyNode Node;
+        Node.ID = GraphState->GetNextNodeId();
+        Node.BodyIndex = i;
+        Node.BoneName = Setup->BoneName.ToString();
+
+        // 입력/출력 핀 생성
+        Node.InputPins.push_back(GraphState->GetNextPinId());
+        Node.OutputPins.push_back(GraphState->GetNextPinId());
+
+        GraphState->BodyNodes.Add(Node);
+
+        // 노드 위치 설정 (그리드 배치)
+        int32 row = i / 4;
+        int32 col = i % 4;
+        ed::SetNodePosition(Node.ID, ImVec2(50.0f + col * 180.0f, 50.0f + row * 120.0f));
+    }
+
+    // TODO: Constraint 링크 생성 (Constraint 구현 후)
+
+    ed::SetCurrentEditor(nullptr);
+}
+
+FPAEBodyNode* SPhysicsAssetEditorWindow::FindBodyNode(ed::NodeId NodeID)
+{
+    if (!GraphState) return nullptr;
+
+    for (auto& Node : GraphState->BodyNodes)
+    {
+        if (Node.ID == NodeID) return &Node;
+    }
+    return nullptr;
+}
+
+FPAEBodyNode* SPhysicsAssetEditorWindow::FindBodyNodeByPin(ed::PinId PinID)
+{
+    if (!GraphState) return nullptr;
+
+    for (auto& Node : GraphState->BodyNodes)
+    {
+        for (auto& Pin : Node.InputPins)
+            if (Pin == PinID) return &Node;
+        for (auto& Pin : Node.OutputPins)
+            if (Pin == PinID) return &Node;
+    }
+    return nullptr;
+}
+
+FPAEConstraintLink* SPhysicsAssetEditorWindow::FindConstraintLink(ed::LinkId LinkID)
+{
+    if (!GraphState) return nullptr;
+
+    for (auto& Link : GraphState->ConstraintLinks)
+    {
+        if (Link.ID == LinkID) return &Link;
+    }
+    return nullptr;
 }
