@@ -327,7 +327,27 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 
 void SDynamicEditorWindow::SetEditorMode(EEditorMode NewMode)
 {
-	if (ActiveState && ActiveState->Mode != NewMode)
+	// 탭이 없으면 해당 모드로 새 탭 생성
+	if (!ActiveState)
+	{
+		const char* TabName = "New Tab";
+		switch (NewMode)
+		{
+		case EEditorMode::Skeletal: TabName = "Skeletal"; break;
+		case EEditorMode::Animation: TabName = "Animation"; break;
+		case EEditorMode::AnimGraph: TabName = "AnimGraph"; break;
+		case EEditorMode::BlendSpace2D: TabName = "BlendSpace2D"; break;
+		case EEditorMode::PhysicsAsset: TabName = "PhysicsAsset"; break;
+		}
+		ActiveState = CreateNewTab(TabName, NewMode);
+		if (ActiveState)
+		{
+			ActiveTabIndex = (int32)Tabs.Num() - 1;
+		}
+		return;
+	}
+
+	if (ActiveState->Mode != NewMode)
 	{
 		ActiveState->Mode = NewMode;
 	}

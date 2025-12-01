@@ -3,7 +3,7 @@
 #include "PhysicsAssetViewerState.h"
 #include "CameraActor.h"
 #include "FViewport.h"
-#include "FViewportClient.h"
+#include "FSkeletalViewerViewportClient.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
 #include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
@@ -22,16 +22,16 @@ PhysicsAssetViewerState* PhysicsAssetViewerBootstrap::CreateViewerState(const ch
     State->World->Initialize();
     State->World->GetRenderSettings().DisableShowFlag(EEngineShowFlags::SF_EditorIcon);
 
-    // Viewport + Client
+    // Viewport + Client (SkeletalMeshViewer와 동일한 ViewportClient 사용)
     State->Viewport = new FViewport();
     State->Viewport->Initialize(0, 0, 1, 1, InDevice);
 
-    auto* Client = new FViewportClient();
+    auto* Client = new FSkeletalViewerViewportClient();
     Client->SetWorld(State->World);
     Client->SetViewportType(EViewportType::Perspective);
     Client->SetViewMode(EViewMode::VMI_Lit_Phong);
     Client->SetPickingEnabled(true);
-    Client->GetCamera()->SetActorLocation(FVector(3, 0, 2));
+    // 카메라 초기 위치/회전은 FSkeletalViewerViewportClient 생성자에서 설정됨
 
     State->Client = Client;
     State->Viewport->SetViewportClient(Client);

@@ -187,9 +187,19 @@ void SPhysicsAssetEditorWindow::RenderEmbedded(const FRect& ContentRect)
 
 void SPhysicsAssetEditorWindow::OnUpdate(float DeltaSeconds)
 {
-    if (!ActiveState || !ActiveState->World) return;
+    if (!ActiveState) return;
 
-    ActiveState->World->Tick(DeltaSeconds);
+    // ViewportClient Tick (카메라 입력 처리 - WASD, 마우스 드래그 등)
+    if (ActiveState->Client)
+    {
+        ActiveState->Client->Tick(DeltaSeconds);
+    }
+
+    // World Tick (기즈모 등 액터 업데이트)
+    if (ActiveState->World)
+    {
+        ActiveState->World->Tick(DeltaSeconds);
+    }
 }
 
 void SPhysicsAssetEditorWindow::OnMouseMove(FVector2D MousePos)
@@ -205,8 +215,13 @@ void SPhysicsAssetEditorWindow::OnMouseMove(FVector2D MousePos)
         return;
     }
 
-    // 뷰포트 영역 가져오기
-    FRect VPRect = ViewportPanelWidget ? ViewportPanelWidget->ContentRect : FRect();
+    // 뷰포트 영역 가져오기 (ViewportRect는 RenderEmbedded에서 설정됨)
+    FRect VPRect = ViewportRect;
+    // ContentRect가 있으면 더 정확한 영역 사용
+    if (ViewportPanelWidget && ViewportPanelWidget->ContentRect.GetWidth() > 0)
+    {
+        VPRect = ViewportPanelWidget->ContentRect;
+    }
 
     // 기즈모 드래그 중인지 확인
     AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
@@ -249,8 +264,12 @@ void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
         return;
     }
 
-    // 뷰포트 영역 가져오기
-    FRect VPRect = ViewportPanelWidget ? ViewportPanelWidget->ContentRect : FRect();
+    // 뷰포트 영역 가져오기 (ViewportRect는 RenderEmbedded에서 설정됨)
+    FRect VPRect = ViewportRect;
+    if (ViewportPanelWidget && ViewportPanelWidget->ContentRect.GetWidth() > 0)
+    {
+        VPRect = ViewportPanelWidget->ContentRect;
+    }
     bool bInViewport = VPRect.Contains(MousePos);
 
     if (bInViewport)
@@ -278,8 +297,12 @@ void SPhysicsAssetEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
         return;
     }
 
-    // 뷰포트 영역 가져오기
-    FRect VPRect = ViewportPanelWidget ? ViewportPanelWidget->ContentRect : FRect();
+    // 뷰포트 영역 가져오기 (ViewportRect는 RenderEmbedded에서 설정됨)
+    FRect VPRect = ViewportRect;
+    if (ViewportPanelWidget && ViewportPanelWidget->ContentRect.GetWidth() > 0)
+    {
+        VPRect = ViewportPanelWidget->ContentRect;
+    }
 
     // 기즈모 드래그 중이면 항상 처리
     AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
