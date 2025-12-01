@@ -3,7 +3,7 @@
 
 struct FBoxShape;
 
-class FKBoxElem : public FKShapeElem
+struct FKBoxElem : public FKShapeElem
 {
 public:
 	/** Position of the box's origin */

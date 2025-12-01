@@ -77,6 +77,7 @@ SDynamicEditorWindow::~SDynamicEditorWindow()
 	// EmbeddedPhysicsAssetEditor 해제
 	if (EmbeddedPhysicsAssetEditor)
 	{
+		EmbeddedPhysicsAssetEditor->PrepareForDelete();
 		delete EmbeddedPhysicsAssetEditor;
 		EmbeddedPhysicsAssetEditor = nullptr;
 	}
@@ -269,6 +270,14 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 				EmbeddedSkeletalEditor = nullptr;
 			}
 			break;
+		case EEditorMode::PhysicsAsset:
+			if (EmbeddedPhysicsAssetEditor)
+			{
+				EmbeddedPhysicsAssetEditor->PrepareForDelete();
+				delete EmbeddedPhysicsAssetEditor;
+				EmbeddedPhysicsAssetEditor = nullptr;
+			}
+			break;
 		default:
 			break;
 		}
@@ -301,6 +310,12 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 		{
 			delete EmbeddedAnimationEditor;
 			EmbeddedAnimationEditor = nullptr;
+		}
+		if (EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->PrepareForDelete();
+			delete EmbeddedPhysicsAssetEditor;
+			EmbeddedPhysicsAssetEditor = nullptr;
 		}
 	}
 	else

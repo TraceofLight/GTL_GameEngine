@@ -76,6 +76,9 @@ public:
     void RenderToPreviewRenderTarget();
     ID3D11ShaderResourceView* GetPreviewShaderResourceView() const { return PreviewShaderResourceView; }
 
+    // delete 전 호출하여 리소스 안전하게 해제 (ImGui 지연 렌더링 문제 방지)
+    void PrepareForDelete();
+
 private:
     // UI Panels (Legacy - 독립 윈도우 모드용)
     void RenderToolbar();
@@ -155,6 +158,10 @@ private:
     SPhysicsAssetEditorWindow* Owner = nullptr;
 };
 
+// Forward declarations for body list panel
+class UPhysicsAsset;
+struct FSkeleton;
+
 /**
  * @brief Physics Asset Body/Constraint 목록 패널
  */
@@ -168,6 +175,9 @@ private:
     SPhysicsAssetEditorWindow* Owner = nullptr;
     void RenderBodyTree(PhysicsAssetViewerState* State);
     void RenderConstraintList(PhysicsAssetViewerState* State);
+    void RenderSkeletonBodyTree(PhysicsAssetViewerState* State, UPhysicsAsset* PhysAsset, const FSkeleton* Skeleton);
+    void RenderBodySetupList(PhysicsAssetViewerState* State, UPhysicsAsset* PhysAsset);
+    void RenderBodyShapes(PhysicsAssetViewerState* State, UPhysicsAsset* PhysAsset, int32 BodyIndex);
 };
 
 /**
@@ -182,5 +192,6 @@ public:
 private:
     SPhysicsAssetEditorWindow* Owner = nullptr;
     void RenderBodyProperties(PhysicsAssetViewerState* State);
+    void RenderShapeProperties(PhysicsAssetViewerState* State);
     void RenderConstraintProperties(PhysicsAssetViewerState* State);
 };

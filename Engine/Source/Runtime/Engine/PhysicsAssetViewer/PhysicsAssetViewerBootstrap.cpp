@@ -5,6 +5,9 @@
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
+#include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
+#include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
+#include "Source/Editor/Gizmo/GizmoActor.h"
 
 PhysicsAssetViewerState* PhysicsAssetViewerBootstrap::CreateViewerState(const char* Name, UWorld* InWorld, ID3D11Device* InDevice)
 {
@@ -27,14 +30,31 @@ PhysicsAssetViewerState* PhysicsAssetViewerBootstrap::CreateViewerState(const ch
     Client->SetWorld(State->World);
     Client->SetViewportType(EViewportType::Perspective);
     Client->SetViewMode(EViewMode::VMI_Lit_Phong);
-    Client->SetPickingEnabled(false);
+    Client->SetPickingEnabled(true);
     Client->GetCamera()->SetActorLocation(FVector(3, 0, 2));
 
     State->Client = Client;
     State->Viewport->SetViewportClient(Client);
     State->World->SetEditorCameraActor(Client->GetCamera());
 
-    // Preview Actor
+    // Gizmo Actor
+    AGizmoActor* Gizmo = State->World->SpawnActor<AGizmoActor>();
+    if (Gizmo)
+    {
+        Gizmo->SetEditorCameraActor(Client->GetCamera());
+    }
+    State->GizmoActor = Gizmo;
+
+    // Floor Actor (바닥) - SkeletalViewerBootstrap과 동일한 방식 사용
+    AStaticMeshActor* Floor = State->World->SpawnActor<AStaticMeshActor>();
+    if (Floor && Floor->GetStaticMeshComponent())
+    {
+        Floor->GetStaticMeshComponent()->SetStaticMesh("Data/Default/StaticMesh/Cube.obj");
+        Floor->GetStaticMeshComponent()->SetVisibility(false);  // 초기에는 숨김
+    }
+    State->FloorActor = Floor;
+
+    // Preview Actor (스켈레탈 메쉬)
     ASkeletalMeshActor* Preview = State->World->SpawnActor<ASkeletalMeshActor>();
     if (Preview)
     {

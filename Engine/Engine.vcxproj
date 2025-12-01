@@ -532,6 +532,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\Engine\SkeletalViewer\SkeletalViewerBootstrap.cpp" />
     <ClCompile Include="Source\Runtime\Engine\SkeletalViewer\ViewerState.cpp" />
     <ClCompile Include="Source\Runtime\Engine\PhysicsAssetViewer\PhysicsAssetViewerBootstrap.cpp" />
+    <ClCompile Include="Source\Runtime\Engine\PhysicsAssetViewer\PhysicsAssetViewerState.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Spatial\BVHierarchy.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Spatial\MeshBVH.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Spatial\Occlusion.cpp" />
