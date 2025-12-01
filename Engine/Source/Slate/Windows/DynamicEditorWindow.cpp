@@ -2460,6 +2460,10 @@ void SDynamicEditorWindow::OpenFileInCurrentMode(const FString& FilePath)
 		{
 			LoadSkeletalMesh(FilePath);
 		}
+		else if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->LoadSkeletalMesh(FilePath);
+		}
 	}
 	else if (LowerPath.ends_with(".anim"))
 	{
@@ -2483,6 +2487,14 @@ void SDynamicEditorWindow::OpenFileInCurrentMode(const FString& FilePath)
 		if (ActiveState->Mode == EEditorMode::BlendSpace2D && EmbeddedBlendSpace2DEditor)
 		{
 			EmbeddedBlendSpace2DEditor->LoadBlendSpaceFile(FilePath.c_str());
+		}
+	}
+	else if (LowerPath.ends_with(".physicsasset"))
+	{
+		// Physics Asset
+		if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->LoadPhysicsAsset(FilePath);
 		}
 	}
 }
