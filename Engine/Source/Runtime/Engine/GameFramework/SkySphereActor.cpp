@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "SkySphereActor.h"
 #include "SkySphereComponent.h"
+#include "BillboardComponent.h"
 #include "ObjectFactory.h"
 
 IMPLEMENT_CLASS(ASkySphereActor)
@@ -10,6 +11,12 @@ ASkySphereActor::ASkySphereActor()
     // SkySphereComponent 생성 및 루트로 설정
     SkySphereComponent = CreateDefaultSubobject<USkySphereComponent>(FName("SkySphereComponent"));
     SetRootComponent(SkySphereComponent);
+
+    // BillboardComponent 생성 (에디터 아이콘)
+    BillboardComponent = CreateDefaultSubobject<UBillboardComponent>("BillboardComponent");
+    BillboardComponent->SetEditability(false);  // PIE에서 숨김
+    BillboardComponent->SetTexture("Data/Default/Icon/SkyAtmosphere_64x.png");
+    BillboardComponent->SetupAttachment(RootComponent);
 
     // 에디터에서도 Tick 허용 (실시간 파라미터 업데이트)
     bTickInEditor = true;
@@ -50,6 +57,43 @@ void ASkySphereActor::Tick(float DeltaSeconds)
         PrevSunDiskSize = SunDiskSize;
         PrevHorizonFalloff = HorizonFalloff;
         PrevOverallBrightness = OverallBrightness;
+    }
+}
+
+void ASkySphereActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
+{
+    Super::Serialize(bInIsLoading, InOutHandle);
+
+    if (bInIsLoading)
+    {
+        // 로드 시 컴포넌트 포인터 복원
+        SkySphereComponent = Cast<USkySphereComponent>(RootComponent);
+
+        for (UActorComponent* Component : OwnedComponents)
+        {
+            if (UBillboardComponent* Billboard = Cast<UBillboardComponent>(Component))
+            {
+                BillboardComponent = Billboard;
+                break;
+            }
+        }
+    }
+}
+
+void ASkySphereActor::DuplicateSubObjects()
+{
+    Super::DuplicateSubObjects();
+
+    for (UActorComponent* Component : OwnedComponents)
+    {
+        if (USkySphereComponent* Sky = Cast<USkySphereComponent>(Component))
+        {
+            SkySphereComponent = Sky;
+        }
+        else if (UBillboardComponent* Billboard = Cast<UBillboardComponent>(Component))
+        {
+            BillboardComponent = Billboard;
+        }
     }
 }
 

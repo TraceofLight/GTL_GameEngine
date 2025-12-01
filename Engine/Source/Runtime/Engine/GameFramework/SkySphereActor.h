@@ -5,6 +5,7 @@
 #include "ASkySphereActor.generated.h"
 
 class USkySphereComponent;
+class UBillboardComponent;
 
 /**
  * @brief Sky Sphere 렌더링을 위한 액터
@@ -28,9 +29,12 @@ public:
     // AActor Interface
     void BeginPlay() override;
     void Tick(float DeltaSeconds) override;
+    void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
+    void DuplicateSubObjects() override;
 
     // Sky Component 접근
     USkySphereComponent* GetSkySphereComponent() const { return SkySphereComponent; }
+    UBillboardComponent* GetBillboardComponent() const { return BillboardComponent; }
 
     // ===== Sky Parameters (에디터 노출) =====
 
@@ -66,6 +70,7 @@ public:
 
 protected:
     USkySphereComponent* SkySphereComponent = nullptr;
+    UBillboardComponent* BillboardComponent = nullptr;
 
 private:
     // 이전 프레임 파라미터 (변경 감지용)
