@@ -10,7 +10,7 @@ public:
     UCamMod_DepthOfField() = default;
     virtual ~UCamMod_DepthOfField() = default;
 
-    // DoF 모드: 0 = Cinematic, 1 = Physical, 2 = TiltShift, 3 = PointFocus
+    // DoF 모드: 0 = Cinematic, 1 = Physical, 2 = TiltShift, 3 = PointFocus, 4 = ScreenPointFocus
     int32 DoFMode = 0;
 
     // 공통 파라미터
@@ -33,11 +33,19 @@ public:
     float TiltShiftBandWidth = 0.3f;    // 선명한 띠의 너비 (0~1)
     float TiltShiftBlurScale = 5.0f;    // 블러 강도
 
-    // PointFocus 모드 파라미터 (점 초점, 구형 초점 영역)
+    // PointFocus 모드 파라미터 (점 초점, 구형 초점 영역, World Space)
     FVector FocusPoint = FVector(0.0f, 0.0f, 0.0f);  // 초점 지점 (World Space)
     float FocusRadius = 2.0f;           // 초점 반경 (이 반경 내에서는 선명)
     float PointFocusBlurScale = 0.5f;   // 블러 강도 스케일
     float PointFocusFalloff = 1.0f;     // 블러 감쇠 (1=선형, 2=제곱)
+
+    // ScreenPointFocus 모드 파라미터 (화면 좌표 기반 점 초점, Screen Space)
+    FVector2D ScreenFocusPoint = FVector2D(0.5f, 0.5f);  // 화면상의 초점 위치 (0~1 UV)
+    float ScreenFocusRadius = 0.1f;         // 화면상의 초점 반경 (0~1)
+    float ScreenFocusDepthRange = 50.0f;    // 초점 깊이 허용 범위
+    float ScreenFocusBlurScale = 2.0f;      // 블러 강도 스케일
+    float ScreenFocusFalloff = 1.0f;        // 블러 감쇠 (1=선형, 2=제곱)
+    float ScreenFocusAspectRatio = 1.777f;  // 화면 비율 (16:9 = 1.777)
 
     // 블러 방식: 0=Disc12, 1=Disc24, 2=Gaussian, 3=Hexagonal, 4=CircularGather
     int32 BlurMethod = 0;
@@ -63,6 +71,10 @@ public:
         M.Payload.Params2 = FVector4(FocalLength, FNumber, SensorWidth, static_cast<float>(BlurMethod));
         // Params3: FocusPoint.x, FocusPoint.y, FocusPoint.z, FocusRadius (PointFocus용)
         M.Payload.Params3 = FVector4(FocusPoint.X, FocusPoint.Y, FocusPoint.Z, FocusRadius);
+        // Params4: ScreenFocusPoint.x, ScreenFocusPoint.y, ScreenFocusRadius, ScreenFocusDepthRange (ScreenPointFocus용)
+        M.Payload.Params4 = FVector4(ScreenFocusPoint.X, ScreenFocusPoint.Y, ScreenFocusRadius, ScreenFocusDepthRange);
+        // Params5: ScreenFocusBlurScale, ScreenFocusFalloff, ScreenFocusAspectRatio (ScreenPointFocus용)
+        M.Payload.Params5 = FVector4(ScreenFocusBlurScale, ScreenFocusFalloff, ScreenFocusAspectRatio, 0.0f);
         // Color: TiltShiftCenterY, TiltShiftBandWidth, TiltShiftBlurScale, PointFocusBlurScale
         M.Payload.Color = FLinearColor(TiltShiftCenterY, TiltShiftBandWidth, TiltShiftBlurScale, PointFocusBlurScale);
 

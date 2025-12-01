@@ -1825,10 +1825,10 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 			ImGui::Indent(20.0f);
 			ImGui::PushItemWidth(150.0f);
 
-			// 모드 선택 (0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus)
-			const char* modeItems[] = { "Cinematic (시네마틱)", "Physical (물리 기반)", "Tilt-Shift (미니어처)", "Point Focus (점 초점)" };
+			// 모드 선택 (0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus, 4: ScreenPointFocus)
+			const char* modeItems[] = { "Cinematic (시네마틱)", "Physical (물리 기반)", "Tilt-Shift (미니어처)", "Point Focus (World)", "Screen Point Focus (Local)" };
 			ImGui::Combo("모드##DoF", &DoFSettings.DoFMode, modeItems, IM_ARRAYSIZE(modeItems));
-			if (ImGui::IsItemHovered()) ImGui::SetTooltip("Cinematic: 아티스트 친화적 선형 모델\nPhysical: 렌즈 물리학 기반 (과초점 거리 적용)\nTilt-Shift: 화면 위치 기반 (미니어처 효과)\nPoint Focus: 특정 3D 좌표 중심 구형 초점");
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("Cinematic: 아티스트 친화적 선형 모델\nPhysical: 렌즈 물리학 기반 (과초점 거리 적용)\nTilt-Shift: 화면 위치 기반 (미니어처 효과)\nPoint Focus (World): 3D 월드 좌표 중심 구형 초점\nScreen Point Focus (Local): 화면 좌표 기반 초점");
 
 			ImGui::Separator();
 
@@ -1919,9 +1919,9 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 				ImGui::SliderFloat("블러 강도##DoF", &DoFSettings.TiltShiftBlurScale, 1.0f, 20.0f, "%.1f");
 				if (ImGui::IsItemHovered()) ImGui::SetTooltip("띠 바깥쪽의 블러 강도입니다.");
 			}
-			else  // PointFocus 모드
+			else if (DoFSettings.DoFMode == 3)  // PointFocus 모드 (World Space)
 			{
-				ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Point Focus 모드 설정");
+				ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Point Focus (World) 모드 설정");
 				ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "특정 3D 좌표 중심으로 구형 초점 영역");
 
 				ImGui::Separator();
@@ -1947,6 +1947,38 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 
 				ImGui::SliderFloat("감쇠 곡선##DoF", &DoFSettings.PointFocusFalloff, 0.5f, 3.0f, "%.2f");
 				if (ImGui::IsItemHovered()) ImGui::SetTooltip("블러 증가 곡선입니다.\n1.0 = 선형\n2.0 = 제곱 (더 급격한 변화)\n0.5 = 루트 (더 완만한 변화)");
+			}
+			else  // ScreenPointFocus 모드 (Screen Space / Local)
+			{
+				ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Screen Point Focus (Local) 모드 설정");
+				ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "화면 좌표 기반 초점 영역 (Screen Space)");
+
+				ImGui::Separator();
+				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "초점 지점 (Screen Space)");
+
+				ImGui::SliderFloat("X (화면)##ScreenFocus", &DoFSettings.ScreenFocusPoint.X, 0.0f, 1.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("화면 X 좌표 (0 = 왼쪽, 0.5 = 중앙, 1 = 오른쪽)");
+
+				ImGui::SliderFloat("Y (화면)##ScreenFocus", &DoFSettings.ScreenFocusPoint.Y, 0.0f, 1.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("화면 Y 좌표 (0 = 상단, 0.5 = 중앙, 1 = 하단)");
+
+				ImGui::Separator();
+				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "초점 영역 설정");
+
+				ImGui::SliderFloat("초점 반경##ScreenFocus", &DoFSettings.ScreenFocusRadius, 0.01f, 0.5f, "%.3f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("화면 상의 초점 반경 (0~1, 화면 비율 기준)");
+
+				ImGui::SliderFloat("깊이 범위##ScreenFocus", &DoFSettings.ScreenFocusDepthRange, 1.0f, 500.0f, "%.1f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점 지점 주변의 깊이 허용 범위입니다.");
+
+				ImGui::SliderFloat("블러 강도##ScreenFocus", &DoFSettings.ScreenFocusBlurScale, 0.1f, 5.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점 영역 바깥쪽의 블러 강도입니다.");
+
+				ImGui::SliderFloat("감쇠 곡선##ScreenFocus", &DoFSettings.ScreenFocusFalloff, 0.5f, 3.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("블러 증가 곡선입니다.\n1.0 = 선형\n2.0 = 제곱");
+
+				ImGui::SliderFloat("종횡비##ScreenFocus", &DoFSettings.ScreenFocusAspectRatio, 0.5f, 2.0f, "%.2f");
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("초점 영역 형태입니다.\n1.0 = 원형\n< 1 = 세로로 긴 타원\n> 1 = 가로로 긴 타원");
 			}
 
 			ImGui::Separator();

@@ -395,6 +395,35 @@ void USlateManager::CloseParticleEditorWindow()
 	ParticleEditorWindow = nullptr;
 }
 
+void USlateManager::OpenPhysicsAssetEditorWindow()
+{
+	// DynamicEditorWindow로 리다이렉트하고 PhysicsAsset 모드로 전환
+	if (!DynamicEditorWindow)
+	{
+		OpenDynamicEditor();
+	}
+
+	if (DynamicEditorWindow)
+	{
+		DynamicEditorWindow->SetEditorMode(EEditorMode::PhysicsAsset);
+	}
+}
+
+void USlateManager::ClosePhysicsAssetEditorWindow()
+{
+	// DynamicEditorWindow가 PhysicsAsset 모드일 때 닫기
+	if (DynamicEditorWindow && DynamicEditorWindow->GetEditorMode() == EEditorMode::PhysicsAsset)
+	{
+		CloseDynamicEditor();
+	}
+}
+
+bool USlateManager::IsPhysicsAssetEditorWindowOpen() const
+{
+	return DynamicEditorWindow != nullptr &&
+	       DynamicEditorWindow->GetEditorMode() == EEditorMode::PhysicsAsset;
+}
+
 void USlateManager::RequestSceneLoad(const FString& ScenePath)
 {
 	if (MainViewport && !ScenePath.empty())
@@ -697,6 +726,8 @@ void USlateManager::Render()
         }
     }
 
+    // Physics Asset Editor는 DynamicEditorWindow로 통합됨 (위에서 렌더링됨)
+
     // 로딩 UI (우상단)
     auto& RM = UResourceManager::GetInstance();
     int32 PendingCount = RM.GetPendingLoadCount();
@@ -814,6 +845,8 @@ void USlateManager::Update(float DeltaSeconds)
         ParticleEditorWindow->OnUpdate(DeltaSeconds);
     }
 
+    // Physics Asset Editor는 DynamicEditorWindow로 통합됨 (위에서 업데이트됨)
+
     // 콘솔 애니메이션 업데이트
     if (bIsConsoleAnimating)
     {
@@ -928,7 +961,16 @@ void USlateManager::ProcessInput()
         ToggleContentBrowser();
     }
 
-    // ESC closes the Dynamic Editor if open
+    // Ctrl + Shift + P로 Physics Asset Editor 토글
+    if (ImGui::IsKeyPressed(ImGuiKey_P) && ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift)
+    {
+        if (IsPhysicsAssetEditorWindowOpen())
+            ClosePhysicsAssetEditorWindow();
+        else
+            OpenPhysicsAssetEditorWindow();
+    }
+
+    // ESC closes the Skeletal Mesh Viewer if open
     if (ImGui::IsKeyPressed(ImGuiKey_Escape) && DynamicEditorWindow)
     {
         CloseDynamicEditor();

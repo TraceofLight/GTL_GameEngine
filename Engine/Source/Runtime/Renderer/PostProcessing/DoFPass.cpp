@@ -95,6 +95,15 @@ void FDepthOfFieldPass::Execute(const FPostProcessModifier& M, FSceneView* View,
     // 번짐 처리 방식 (Params4에서 읽음)
     DoFBuffer.BleedingMethod = static_cast<int32>(M.Payload.Params4.X);
 
+    // ScreenPointFocus 모드 파라미터
+    DoFBuffer.ScreenFocusPoint = FVector2D(M.Payload.Params4.X, M.Payload.Params4.Y);
+    DoFBuffer.ScreenFocusRadius = M.Payload.Params4.Z;
+    DoFBuffer.ScreenFocusDepthRange = M.Payload.Params4.W;
+    DoFBuffer.ScreenFocusBlurScale = M.Payload.Params5.X;
+    DoFBuffer.ScreenFocusFalloff = M.Payload.Params5.Y;
+    DoFBuffer.ScreenFocusAspectRatio = M.Payload.Params5.Z;
+    DoFBuffer._Pad4 = 0.0f;
+
     RHIDevice->SetAndUpdateConstantBuffer(DoFBuffer);
 
     // 6) Draw

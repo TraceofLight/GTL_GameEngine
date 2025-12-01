@@ -4,6 +4,7 @@
 #include "AnimationWindow.h"
 #include "BlendSpace2DWindow.h"
 #include "AnimStateMachineWindow.h"
+#include "SPhysicsAssetEditorWindow.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "FSkeletalViewerViewportClient.h"
@@ -73,6 +74,14 @@ SDynamicEditorWindow::~SDynamicEditorWindow()
 		EmbeddedSkeletalEditor = nullptr;
 	}
 
+	// EmbeddedPhysicsAssetEditor 해제
+	if (EmbeddedPhysicsAssetEditor)
+	{
+		EmbeddedPhysicsAssetEditor->PrepareForDelete();
+		delete EmbeddedPhysicsAssetEditor;
+		EmbeddedPhysicsAssetEditor = nullptr;
+	}
+
 	// 모든 탭 정리
 	for (FEditorTabState* State : Tabs)
 	{
@@ -114,6 +123,7 @@ bool SDynamicEditorWindow::Initialize(float StartX, float StartY, float Width, f
 	IconModeAnimation = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/AnimSequence_64.dds");
 	IconModeAnimGraph = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/StateMachine_512.png");
 	IconModeBlendSpace = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/BlendSpace_64.dds");
+	IconModePhysicsAsset = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/PhysicsAsset_64.dds");
 
 	// New/Save/Load 아이콘 로드
 	IconNew = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/IconFileNew_40x.dds");
@@ -260,6 +270,14 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 				EmbeddedSkeletalEditor = nullptr;
 			}
 			break;
+		case EEditorMode::PhysicsAsset:
+			if (EmbeddedPhysicsAssetEditor)
+			{
+				EmbeddedPhysicsAssetEditor->PrepareForDelete();
+				delete EmbeddedPhysicsAssetEditor;
+				EmbeddedPhysicsAssetEditor = nullptr;
+			}
+			break;
 		default:
 			break;
 		}
@@ -292,6 +310,12 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 		{
 			delete EmbeddedAnimationEditor;
 			EmbeddedAnimationEditor = nullptr;
+		}
+		if (EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->PrepareForDelete();
+			delete EmbeddedPhysicsAssetEditor;
+			EmbeddedPhysicsAssetEditor = nullptr;
 		}
 	}
 	else
@@ -551,14 +575,14 @@ void SDynamicEditorWindow::OnRender()
 			ImGui::SameLine();
 
 			// === 우측: Mode 아이콘 버튼 (가로 넓게) ===
-			const char* ModeNames[] = { "Skeletal", "Animation", "AnimGraph", "BlendSpace" };
-			const char* ModeTooltips[] = { "Skeletal Mesh Viewer", "Animation Editor", "Animation State Machine", "BlendSpace 2D Editor" };
-			EEditorMode Modes[] = { EEditorMode::Skeletal, EEditorMode::Animation, EEditorMode::AnimGraph, EEditorMode::BlendSpace2D };
-			UTexture* ModeIcons[] = { IconModeSkeletal, IconModeAnimation, IconModeAnimGraph, IconModeBlendSpace };
+			const char* ModeNames[] = { "Skeletal", "Animation", "AnimGraph", "BlendSpace", "PhysicsAsset" };
+			const char* ModeTooltips[] = { "Skeletal Mesh Viewer", "Animation Editor", "Animation State Machine", "BlendSpace 2D Editor", "Physics Asset Editor" };
+			EEditorMode Modes[] = { EEditorMode::Skeletal, EEditorMode::Animation, EEditorMode::AnimGraph, EEditorMode::BlendSpace2D, EEditorMode::PhysicsAsset };
+			UTexture* ModeIcons[] = { IconModeSkeletal, IconModeAnimation, IconModeAnimGraph, IconModeBlendSpace, IconModePhysicsAsset };
 
 			float ModePaddingX = 12.0f;  // 좌우 패딩 확장
 			float ModeButtonWidth = IconSize + ModePaddingX * 2;
-			float TotalButtonsWidth = ModeButtonWidth * 4 + ButtonSpacing * 3;
+			float TotalButtonsWidth = ModeButtonWidth * 5 + ButtonSpacing * 4;
 
 			// 우측 정렬
 			float AvailWidth = ImGui::GetContentRegionAvail().x;
@@ -569,7 +593,7 @@ void SDynamicEditorWindow::OnRender()
 			ImGui::PopStyleVar();  // FramePadding 해제
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ModePaddingX, UniformPadding));
 
-			for (int32 i = 0; i < 4; ++i)
+			for (int32 i = 0; i < 5; ++i)
 			{
 				if (i > 0)
 				{
@@ -981,7 +1005,53 @@ void SDynamicEditorWindow::OnRender()
 							}
 						}
 					}
-				}  // else (non-AnimGraph mode = Skeletal mode)
+					else
+					{
+						// ================================================================
+						// PhysicsAsset 모드: EmbeddedPhysicsAssetEditor 사용 (SSplitter 기반 레이아웃)
+						// ================================================================
+						bool bIsPhysicsAssetMode = (ActiveState && ActiveState->Mode == EEditorMode::PhysicsAsset);
+
+						if (bIsPhysicsAssetMode)
+						{
+							// EmbeddedPhysicsAssetEditor 생성 (아직 없으면)
+							if (!EmbeddedPhysicsAssetEditor)
+							{
+								EmbeddedPhysicsAssetEditor = new SPhysicsAssetEditorWindow();
+							}
+
+							// 콘텐츠 영역 계산
+							ImVec2 contentMin = ImGui::GetCursorScreenPos();
+
+							FRect ContentRect;
+							ContentRect.Left = contentMin.x;
+							ContentRect.Top = contentMin.y;
+							ContentRect.Right = contentMin.x + totalWidth;
+							ContentRect.Bottom = contentMin.y + totalHeight;
+							ContentRect.UpdateMinMax();
+
+							// EmbeddedPhysicsAssetEditor 초기화 (한 번만)
+							if (!EmbeddedPhysicsAssetEditor->GetActiveState())
+							{
+								EmbeddedPhysicsAssetEditor->Initialize(ContentRect.Left, ContentRect.Top,
+									ContentRect.GetWidth(), ContentRect.GetHeight(), World, Device, true);
+								EmbeddedPhysicsAssetEditor->SetEmbeddedMode(true);
+							}
+
+							// SSplitter 기반 레이아웃 렌더링
+							EmbeddedPhysicsAssetEditor->RenderEmbedded(ContentRect);
+
+							// CenterRect는 EmbeddedPhysicsAssetEditor의 ViewportRect 사용
+							CenterRect = EmbeddedPhysicsAssetEditor->GetViewportRect();
+
+							// PhysicsAsset 탭 이름 설정
+							if (ActiveState && ActiveState->Name.ToString().empty())
+							{
+								ActiveState->Name = FName("Physics Asset");
+							}
+						}
+					}  // else (non-Skeletal mode = PhysicsAsset mode)
+				}  // else (non-AnimGraph mode)
 			}  // else (non-BlendSpace2D mode)
 		}  // else (non-Animation mode)
 	}
@@ -1037,6 +1107,11 @@ void SDynamicEditorWindow::OnUpdate(float DeltaSeconds)
 		if (ActiveState->Mode == EEditorMode::Skeletal && EmbeddedSkeletalEditor)
 		{
 			EmbeddedSkeletalEditor->OnUpdate(DeltaSeconds);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->OnUpdate(DeltaSeconds);
 			return;
 		}
 	}

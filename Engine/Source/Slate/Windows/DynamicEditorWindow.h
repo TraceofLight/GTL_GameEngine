@@ -16,6 +16,7 @@ class SAnimationWindow;
 class SBlendSpace2DWindow;
 class SAnimStateMachineWindow;
 class SSkeletalEditorWindow;
+class SPhysicsAssetEditorWindow;
 
 class SDynamicEditorWindow;
 
@@ -28,7 +29,8 @@ enum class EEditorMode : uint8
 	Skeletal,      // 스켈레탈 메시 편집 (본 구조, 메시)
 	Animation,     // 애니메이션 편집 (타임라인, 키프레임)
 	AnimGraph,     // 애니메이션 그래프 (스테이트 머신)
-	BlendSpace2D   // 블렌드 스페이스 2D 편집
+	BlendSpace2D,  // 블렌드 스페이스 2D 편집
+	PhysicsAsset   // 피직스 에셋 편집 (Bodies, Constraints)
 };
 
 /**
@@ -133,6 +135,15 @@ struct FEditorTabState
 	FVector2D PreviewBlendPosition;
 	int32 SelectedSampleIndex = -1;
 	bool bIsDraggingSample = false;
+
+	// PhysicsAsset 모드 상태
+	class UPhysicsAsset* PhysicsAsset = nullptr;
+	FWideString PhysicsAssetFilePath;
+	int32 SelectedBodyIndex = -1;
+	int32 SelectedConstraintIndex = -1;
+	bool bShowBodies = true;
+	bool bShowConstraints = true;
+	bool bShowBoneNames = false;
 };
 
 /**
@@ -170,6 +181,7 @@ public:
 	void LoadAnimation(const FString& Path);
 	void LoadAnimGraph(const FString& Path);
 	void LoadBlendSpace(const FString& Path);
+	void LoadPhysicsAsset(const FString& Path);
 
 	// 직접 에셋 설정 (이미 로드된 객체 전달용)
 	void SetBlendSpace(UBlendSpace2D* InBlendSpace);
@@ -289,6 +301,7 @@ private:
 	UTexture* IconModeAnimation = nullptr;
 	UTexture* IconModeAnimGraph = nullptr;
 	UTexture* IconModeBlendSpace = nullptr;
+	UTexture* IconModePhysicsAsset = nullptr;
 
 	// New/Save/Load 아이콘 (툴바용)
 	UTexture* IconNew = nullptr;
@@ -343,4 +356,7 @@ private:
 
 	// AnimGraph 모드용 내장 에디터 (SSplitter 기반 3패널 레이아웃)
 	SAnimStateMachineWindow* EmbeddedStateMachineEditor = nullptr;
+
+	// PhysicsAsset 모드용 내장 에디터 (SSplitter 기반 레이아웃)
+	SPhysicsAssetEditorWindow* EmbeddedPhysicsAssetEditor = nullptr;
 };
