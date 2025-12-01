@@ -1127,6 +1127,10 @@ void USlateManager::Shutdown()
 {
     if (bIsShutdown) { return; }
     bIsShutdown = true;
+
+    // ThumbnailManager 먼저 정리 (ResourceManager 텍스처 참조 해제)
+    FThumbnailManager::GetInstance().Shutdown();
+
     // 레이아웃/설정 저장
     SaveSplitterConfig();
 
