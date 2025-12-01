@@ -7,6 +7,8 @@
 #include "WindowsBinWriter.h"
 #include "PathUtils.h"
 #include <filesystem>
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAssetUtils.h"
 
 IMPLEMENT_CLASS(USkeletalMesh)
 
@@ -95,4 +97,26 @@ void USkeletalMesh::CreateIndexBuffer(FSkeletalMeshData* InSkeletalMesh, ID3D11D
 {
     HRESULT hr = D3D11RHI::CreateIndexBuffer(InDevice, InSkeletalMesh, &IndexBuffer);
     assert(SUCCEEDED(hr));
+}
+
+UPhysicsAsset* USkeletalMesh::GetPhysicsAsset()
+{
+    // Return existing physics asset if already created
+    if (PhysicsAsset)
+        return PhysicsAsset;
+
+    // Need skeleton to create physics asset
+    if (!GetSkeleton())
+        return nullptr;
+
+    // Auto-generate physics asset from skeleton
+    PhysicsAsset = NewObject<UPhysicsAsset>();
+    if (PhysicsAsset)
+    {
+        FPhysicsAssetUtils::CreateFromSkeletalMesh(PhysicsAsset, this);
+        UE_LOG("[SkeletalMesh] Built PhysicsAsset with %d bodies for %s",
+               PhysicsAsset->BodySetups.Num(), GetPathFileName().c_str());
+    }
+
+    return PhysicsAsset;
 }

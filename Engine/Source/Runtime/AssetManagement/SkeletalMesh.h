@@ -1,7 +1,9 @@
 #pragma once
 #include "ResourceBase.h"
 #include"USkeletalMesh.generated.h"
+
 class UAnimSequence;
+class UPhysicsAsset;
 
 class USkeletalMesh : public UResourceBase
 {
@@ -75,4 +77,14 @@ private:
 
     // Animations
     TArray<UAnimSequence*> Animations;
+
+    // Physics asset for this skeletal mesh (auto-generated if not set)
+    UPhysicsAsset* PhysicsAsset = nullptr;
+
+public:
+    // Get or create physics asset for this skeletal mesh
+    UPhysicsAsset* GetPhysicsAsset();
+
+    // Set physics asset (for manual assignment)
+    void SetPhysicsAsset(UPhysicsAsset* InPhysicsAsset) { PhysicsAsset = InPhysicsAsset; }
 };
