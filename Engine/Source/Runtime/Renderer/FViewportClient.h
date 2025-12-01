@@ -87,7 +87,7 @@ public:
     struct FEditorDoFSettings
     {
         bool bEnabled = false;
-        int32 DoFMode = 0;  // 0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus
+        int32 DoFMode = 0;  // 0: Cinematic, 1: Physical, 2: TiltShift, 3: PointFocus, 4: ScreenPointFocus
 
         // 공통 파라미터
         float FocusDistance = 500.0f;
@@ -109,11 +109,19 @@ public:
         float TiltShiftBandWidth = 0.3f;    // 선명한 띠의 너비 (0~1)
         float TiltShiftBlurScale = 5.0f;    // 블러 강도
 
-        // PointFocus 모드 파라미터 (점 초점, 구형 초점 영역)
+        // PointFocus 모드 파라미터 (점 초점, 구형 초점 영역, World Space)
         FVector FocusPoint = FVector(0.0f, 0.0f, 0.0f);  // 초점 지점 (World Space)
         float FocusRadius = 2.0f;           // 초점 반경 (이 반경 내에서는 선명)
         float PointFocusBlurScale = 0.5f;   // 블러 강도 스케일
         float PointFocusFalloff = 1.0f;     // 블러 감쇠 (1=선형, 2=제곱)
+
+        // ScreenPointFocus 모드 파라미터 (화면 좌표 + 깊이 기반, Screen Space)
+        FVector2D ScreenFocusPoint = FVector2D(0.5f, 0.5f);  // 화면 좌표 (0~1, 0.5=중앙)
+        float ScreenFocusRadius = 0.2f;         // 화면 상의 초점 반경 (0~1)
+        float ScreenFocusDepthRange = 100.0f;   // 초점 깊이 범위
+        float ScreenFocusBlurScale = 1.0f;      // 블러 강도 스케일
+        float ScreenFocusFalloff = 1.0f;        // 블러 감쇠 곡선
+        float ScreenFocusAspectRatio = 1.0f;    // 종횡비 보정 (1.0 = 원형, 다른 값 = 타원형)
 
         // 블러 방식 (0: Disc12, 1: Disc24, 2: Gaussian, 3: Hexagonal, 4: CircularGather)
         int32 BlurMethod = 0;

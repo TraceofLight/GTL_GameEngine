@@ -182,6 +182,20 @@ void FViewportClient::Draw(FViewport* Viewport)
 			EditorDoFSettings.TiltShiftBlurScale,
 			EditorDoFSettings.PointFocusBlurScale
 		);
+		// Params4: ScreenFocusPoint.X, ScreenFocusPoint.Y, ScreenFocusRadius, ScreenFocusDepthRange (ScreenPointFocus용)
+		DoFModifier.Payload.Params4 = FVector4(
+			EditorDoFSettings.ScreenFocusPoint.X,
+			EditorDoFSettings.ScreenFocusPoint.Y,
+			EditorDoFSettings.ScreenFocusRadius,
+			EditorDoFSettings.ScreenFocusDepthRange
+		);
+		// Params5: ScreenFocusBlurScale, ScreenFocusFalloff, ScreenFocusAspectRatio, (unused)
+		DoFModifier.Payload.Params5 = FVector4(
+			EditorDoFSettings.ScreenFocusBlurScale,
+			EditorDoFSettings.ScreenFocusFalloff,
+			EditorDoFSettings.ScreenFocusAspectRatio,
+			0.0f
+		);
 		RenderView.Modifiers.Add(DoFModifier);
 	}
 

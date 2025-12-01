@@ -9,6 +9,7 @@
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
+#include "Source/Editor/PlatformProcess.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "USlateManager.h"
@@ -17,6 +18,7 @@
 #include "ImGui/imgui.h"
 #include <d3d11.h>
 #include <functional>
+#include <algorithm>
 
 // ============================================================================
 // SPhysicsAssetEditorWindow
@@ -221,12 +223,70 @@ FViewportClient* SPhysicsAssetEditorWindow::GetViewportClient() const
 
 void SPhysicsAssetEditorWindow::LoadSkeletalMesh(const FString& Path)
 {
-    // TODO: Load skeletal mesh and setup preview
+    if (Path.empty() || !ActiveState)
+    {
+        return;
+    }
+
+    // SkeletalMesh 로드
+    USkeletalMesh* Mesh = UResourceManager::GetInstance().Load<USkeletalMesh>(Path);
+    if (!Mesh)
+    {
+        return;
+    }
+
+    // PreviewActor에 메시 설정
+    if (ActiveState->PreviewActor)
+    {
+        ActiveState->PreviewActor->SetSkeletalMesh(Path);
+
+        // 메시 가시성 설정
+        if (auto* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent())
+        {
+            SkelComp->SetVisibility(ActiveState->bShowMesh);
+        }
+    }
+
+    // State 업데이트
+    ActiveState->CurrentMesh = Mesh;
+    ActiveState->LoadedMeshPath = Path;
+
+    // 기존 Physics Asset이 있으면 유지, 없으면 새로 생성
+    if (!ActiveState->PhysicsAsset)
+    {
+        // 새 Physics Asset 생성
+        ActiveState->PhysicsAsset = NewObject<UPhysicsAsset>();
+        ActiveState->PhysicsAsset->SourceSkeletalPath = Path;
+    }
+
+    // 선택 상태 초기화
+    ActiveState->ClearSelection();
 }
 
 void SPhysicsAssetEditorWindow::LoadPhysicsAsset(const FString& Path)
 {
-    // TODO: Load physics asset
+    if (Path.empty() || !ActiveState)
+    {
+        return;
+    }
+
+    // TODO: Physics Asset 직렬화/역직렬화 구현 필요
+    // 현재는 Physics Asset 파일 로드가 구현되지 않음
+    // PhysicsAsset은 UResourceBase를 상속하지 않으므로 별도 로드 로직 필요
+
+    // 임시: 새 Physics Asset 생성
+    UPhysicsAsset* PhysAsset = NewObject<UPhysicsAsset>();
+    if (!PhysAsset)
+    {
+        return;
+    }
+
+    // State 업데이트
+    ActiveState->PhysicsAsset = PhysAsset;
+    ActiveState->LoadedPhysicsAssetPath = Path;
+
+    // 선택 상태 초기화
+    ActiveState->ClearSelection();
 }
 
 void SPhysicsAssetEditorWindow::RenderToolbar()
@@ -235,20 +295,67 @@ void SPhysicsAssetEditorWindow::RenderToolbar()
     {
         if (ImGui::BeginMenu("File"))
         {
-            if (ImGui::MenuItem("Load SkeletalMesh...")) { /* TODO */ }
-            if (ImGui::MenuItem("Save Physics Asset")) { /* TODO */ }
+            if (ImGui::MenuItem("Load SkeletalMesh..."))
+            {
+                std::filesystem::path FilePath = FPlatformProcess::OpenLoadFileDialog(
+                    L"Data",
+                    L".fbx",
+                    L"SkeletalMesh Files (*.fbx)"
+                );
+                if (!FilePath.empty())
+                {
+                    FString PathStr = FilePath.string();
+                    LoadSkeletalMesh(PathStr);
+                }
+            }
+
+            if (ImGui::MenuItem("Load Physics Asset..."))
+            {
+                std::filesystem::path FilePath = FPlatformProcess::OpenLoadFileDialog(
+                    L"Data",
+                    L".physicsasset",
+                    L"Physics Asset Files (*.physicsasset)"
+                );
+                if (!FilePath.empty())
+                {
+                    FString PathStr = FilePath.string();
+                    LoadPhysicsAsset(PathStr);
+                }
+            }
+
+            ImGui::Separator();
+
+            // Save는 SkeletalMesh가 로드되어 있어야 활성화
+            bool bCanSave = ActiveState && ActiveState->CurrentMesh && ActiveState->PhysicsAsset;
+            if (ImGui::MenuItem("Save Physics Asset", nullptr, false, bCanSave))
+            {
+                // TODO: 저장 로직 구현
+            }
+
             ImGui::EndMenu();
         }
+
         if (ImGui::BeginMenu("View"))
         {
             if (ActiveState)
             {
+                ImGui::Checkbox("Show Mesh", &ActiveState->bShowMesh);
                 ImGui::Checkbox("Show Bodies", &ActiveState->bShowBodies);
                 ImGui::Checkbox("Show Constraints", &ActiveState->bShowConstraints);
                 ImGui::Checkbox("Show Bone Names", &ActiveState->bShowBoneNames);
+
+                // Mesh 가시성 변경 시 적용
+                if (ActiveState->PreviewActor)
+                {
+                    if (auto* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent())
+                    {
+                        SkelComp->SetVisibility(ActiveState->bShowMesh);
+                    }
+                }
             }
             ImGui::EndMenu();
         }
+
         ImGui::EndMenuBar();
     }
 }
@@ -468,7 +575,7 @@ void SPhysicsAssetViewportPanel::OnRender()
     if (!Owner) return;
 
     // 삭제 예정이면 렌더링 스킵 (ImGui 지연 렌더링 크래시 방지)
-    if (!Owner->IsOpen() || Owner->IsPreparedForDelete()) return;
+    //if (!Owner->IsOpen() || Owner->IsPreparedForDelete()) return;
 
     PhysicsAssetViewerState* State = Owner->GetActiveState();
     if (!State) return;
@@ -487,18 +594,118 @@ void SPhysicsAssetViewportPanel::OnRender()
         uint32 Width = static_cast<uint32>(AvailSize.x);
         uint32 Height = static_cast<uint32>(AvailSize.y);
 
-        if (Width > 0 && Height > 0)
+        // SkeletalMesh가 없으면 가이드 UI 표시
+        if (!State->CurrentMesh)
         {
-            // 렌더 타겟 업데이트
-            Owner->UpdateViewportRenderTarget(Width, Height);
+            // 배경 채우기
+            ImDrawList* DrawList = ImGui::GetWindowDrawList();
+            ImVec2 WindowPos = ImGui::GetWindowPos();
+            DrawList->AddRectFilled(
+                WindowPos,
+                ImVec2(WindowPos.x + AvailSize.x, WindowPos.y + AvailSize.y),
+                IM_COL32(40, 40, 40, 255)
+            );
 
-            // 씬 렌더링 + Physics Bodies 디버그 드로잉
-            Owner->RenderToPreviewRenderTarget();
+            // 중앙 가이드 박스
+            float BoxWidth = 350.0f;
+            float BoxHeight = 120.0f;
+            float BoxX = WindowPos.x + (AvailSize.x - BoxWidth) * 0.5f;
+            float BoxY = WindowPos.y + (AvailSize.y - BoxHeight) * 0.5f;
 
-            ID3D11ShaderResourceView* SRV = Owner->GetPreviewShaderResourceView();
-            if (SRV)
+            // 박스 배경
+            DrawList->AddRectFilled(
+                ImVec2(BoxX, BoxY),
+                ImVec2(BoxX + BoxWidth, BoxY + BoxHeight),
+                IM_COL32(60, 60, 60, 200),
+                8.0f
+            );
+
+            // 박스 테두리
+            DrawList->AddRect(
+                ImVec2(BoxX, BoxY),
+                ImVec2(BoxX + BoxWidth, BoxY + BoxHeight),
+                IM_COL32(100, 100, 100, 255),
+                8.0f,
+                0,
+                2.0f
+            );
+
+            // 텍스트
+            const char* MainText = "Drop SkeletalMesh here to start";
+            const char* SubText = "or use File > Load SkeletalMesh";
+            ImVec2 MainTextSize = ImGui::CalcTextSize(MainText);
+            ImVec2 SubTextSize = ImGui::CalcTextSize(SubText);
+
+            // 메인 텍스트 (흰색)
+            DrawList->AddText(
+                ImVec2(BoxX + (BoxWidth - MainTextSize.x) * 0.5f, BoxY + 35.0f),
+                IM_COL32(220, 220, 220, 255),
+                MainText
+            );
+
+            // 서브 텍스트 (회색)
+            DrawList->AddText(
+                ImVec2(BoxX + (BoxWidth - SubTextSize.x) * 0.5f, BoxY + 70.0f),
+                IM_COL32(150, 150, 150, 255),
+                SubText
+            );
+
+            // 드래그앤드롭 타겟 (전체 영역)
+            ImGui::SetCursorPos(ImVec2(0, 0));
+            ImGui::InvisibleButton("##DropTarget", AvailSize);
+
+            if (ImGui::BeginDragDropTarget())
             {
-                ImGui::Image((void*)SRV, AvailSize);
+                if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("ASSET_FILE"))
+                {
+                    const char* FilePath = static_cast<const char*>(Payload->Data);
+                    FString Path(FilePath);
+                    FString LowerPath = Path;
+                    std::transform(LowerPath.begin(), LowerPath.end(), LowerPath.begin(), ::tolower);
+
+                    // SkeletalMesh 파일인지 확인 (.fbx)
+                    if (LowerPath.ends_with(".fbx"))
+                    {
+                        Owner->LoadSkeletalMesh(Path);
+                    }
+                }
+                ImGui::EndDragDropTarget();
+            }
+        }
+        else
+        {
+            // SkeletalMesh가 있으면 뷰포트 렌더링
+            if (Width > 0 && Height > 0)
+            {
+                // 렌더 타겟 업데이트
+                Owner->UpdateViewportRenderTarget(Width, Height);
+
+                // 씬 렌더링 + Physics Bodies 디버그 드로잉
+                Owner->RenderToPreviewRenderTarget();
+
+                ID3D11ShaderResourceView* SRV = Owner->GetPreviewShaderResourceView();
+                if (SRV)
+                {
+                    ImGui::Image((void*)SRV, AvailSize);
+                }
+            }
+
+            // 드래그앤드롭으로 다른 Mesh 로드도 가능
+            if (ImGui::BeginDragDropTarget())
+            {
+                if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("ASSET_FILE"))
+                {
+                    const char* FilePath = static_cast<const char*>(Payload->Data);
+                    FString Path(FilePath);
+                    FString LowerPath = Path;
+                    std::transform(LowerPath.begin(), LowerPath.end(), LowerPath.begin(), ::tolower);
+
+                    if (LowerPath.ends_with(".fbx"))
+                    {
+                        Owner->LoadSkeletalMesh(Path);
+                    }
+                }
+                ImGui::EndDragDropTarget();
             }
         }
 
@@ -562,6 +769,14 @@ void SPhysicsAssetBodyListPanel::RenderBodyTree(PhysicsAssetViewerState* State)
     if (!State)
     {
         ImGui::TextDisabled("(No state)");
+        return;
+    }
+
+    // SkeletalMesh가 없으면 가이드 메시지 표시
+    if (!State->CurrentMesh)
+    {
+        ImGui::TextDisabled("Load a SkeletalMesh first");
+        ImGui::TextDisabled("(File > Load SkeletalMesh)");
         return;
     }
 
@@ -891,7 +1106,14 @@ void SPhysicsAssetBodyListPanel::RenderConstraintList(PhysicsAssetViewerState* S
 {
     if (!State)
     {
-        ImGui::TextDisabled("(No physics asset loaded)");
+        ImGui::TextDisabled("(No state)");
+        return;
+    }
+
+    // SkeletalMesh가 없으면 가이드 메시지 표시
+    if (!State->CurrentMesh)
+    {
+        ImGui::TextDisabled("Load a SkeletalMesh first");
         return;
     }
 
@@ -920,7 +1142,12 @@ void SPhysicsAssetPropertiesPanel::OnRender()
     {
         if (!State)
         {
-            ImGui::TextDisabled("(No physics asset loaded)");
+            ImGui::TextDisabled("(No state)");
+        }
+        else if (!State->CurrentMesh)
+        {
+            ImGui::TextDisabled("Load a SkeletalMesh first");
+            ImGui::TextDisabled("(File > Load SkeletalMesh)");
         }
         else
         {
