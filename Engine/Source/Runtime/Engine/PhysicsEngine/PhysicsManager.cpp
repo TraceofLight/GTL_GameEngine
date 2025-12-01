@@ -13,7 +13,7 @@ static PxFilterFlags CoreSimulationFilterShader(
 	// 충돌 시작/종료 이벤트 활성화
 	pairFlags |= PxPairFlag::eNOTIFY_TOUCH_FOUND;
 	pairFlags |= PxPairFlag::eNOTIFY_TOUCH_LOST;
-
+		
 	return PxFilterFlag::eDEFAULT;
 }
 
@@ -23,8 +23,19 @@ void FPhysicsManager::Initialize()
 	Foundation = PxCreateFoundation(PX_PHYSICS_VERSION, gAllocator, gErrorCallback);
 	if (!Foundation) { MessageBoxA(nullptr, "PxCreateFoundation failed!", "Error", MB_OK); return; }
 
+
+	//TOOD: Release모드에서 PVD가 안붙도록 
+	// PVD 연결 
+	Pvd = PxCreatePvd(*Foundation);
+
+	Transport =
+		PxDefaultPvdSocketTransportCreate("127.0.0.1", 5425, 10);
+	Pvd->connect(*Transport, PxPvdInstrumentationFlag::eALL);
+	 
+
 	// 2. Physics (공유 리소스)
-	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale());
+	// PVD on/off를 정할 수 있음
+	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale() , /*pvd설정*/true, Pvd);
 
 	// 3. CPU Dispatcher (공유 리소스)
 	SYSTEM_INFO SysInfo;
@@ -38,15 +49,18 @@ void FPhysicsManager::Initialize()
 	// 7. Cooking interface
 	PxCookingParams cookParams(Physics->getTolerancesScale());
 	Cooking = PxCreateCooking(PX_PHYSICS_VERSION, *Foundation, cookParams);
+
 }
 
 void FPhysicsManager::Shutdown()
-{
+{ 
 	// 역순 파괴 (공유 리소스만)
 	if (DefaultMaterial) { DefaultMaterial->release(); DefaultMaterial = nullptr; }
 	if (Dispatcher) { Dispatcher->release(); Dispatcher = nullptr; }
 	if (Cooking) { Cooking->release(); Cooking = nullptr; }
 	if (Physics) { Physics->release(); Physics = nullptr; }
+	if (Pvd) { Pvd->release();	 Pvd = nullptr; }
+	if (Transport) { Transport->release(); Transport = nullptr;  }
 	if (Foundation) { Foundation->release(); Foundation = nullptr; }
 }
 
@@ -71,6 +85,18 @@ FPhysicsSceneHandle FPhysicsManager::CreateScene()
 
 	// Scene 생성
 	Handle.Scene = Physics->createScene(sceneDesc);
+
+	// PVD 연결
+	PxPvdSceneClient* pvdClient = Handle.Scene->getScenePvdClient();
+
+	if (pvdClient)
+	{
+		pvdClient->setScenePvdFlags(
+			PxPvdSceneFlag::eTRANSMIT_CONSTRAINTS |
+			PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES |
+			PxPvdSceneFlag::eTRANSMIT_CONTACTS
+		);
+	}
 
 	return Handle;
 }

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "MeshComponent.h"
 #include "AABB.h"
@@ -54,3 +54,4 @@ protected:
 	void OnCreatePhysicsState() override;
 protected:
 };
+;

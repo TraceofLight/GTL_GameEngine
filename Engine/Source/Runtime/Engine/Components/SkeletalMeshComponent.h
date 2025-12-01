@@ -127,7 +127,7 @@ public:
 
 	// Override to create per-bone physics shapes
 	void OnCreatePhysicsState() override;
-
+		
 protected:
 	TArray<FTransform> CurrentLocalSpacePose;
 	TArray<FTransform> CurrentComponentSpacePose;

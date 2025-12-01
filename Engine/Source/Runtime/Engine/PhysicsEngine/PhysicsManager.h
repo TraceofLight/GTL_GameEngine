@@ -65,4 +65,9 @@ private:
 	PxDefaultCpuDispatcher* Dispatcher = nullptr;
 	PxCooking* Cooking = nullptr;
 	PxMaterial* DefaultMaterial = nullptr;
+
+	//PVD용 객체들 
+	PxPvd* Pvd; 
+	PxPvdTransport* Transport;
+
 };
