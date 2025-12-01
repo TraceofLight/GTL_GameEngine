@@ -8,6 +8,7 @@ class UImGuiHelper;
 class UWidget;
 class UWorld;
 class UTargetActorTransformWidget;
+class UMainMenuBarWindow;
 
 // Forward declarations for compatibility
 struct ID3D11Device;
@@ -94,7 +95,10 @@ private:
 
 	// ImGui Helper
 	UImGuiHelper* ImGuiHelper = nullptr;
-	
+
+	// Main Menu Bar Window (Borderless Title Bar)
+	UMainMenuBarWindow* MainMenuBar = nullptr;
+
 	// Actor references
 	ACameraActor* CameraActorRef = nullptr;
 	AActor* PickedActorRef = nullptr;

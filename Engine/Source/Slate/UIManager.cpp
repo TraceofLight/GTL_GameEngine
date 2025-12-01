@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "Actor.h"
 #include "Windows/UIWindow.h"
+#include "Windows/MainMenuBarWindow.h"
 #include "ImGui/ImGuiHelper.h"
 #include "Widgets/Widget.h"
 #include "ImGui/imgui.h"
@@ -60,11 +61,22 @@ void UUIManager::Initialize(HWND hWindow, ID3D11Device* InDevice, ID3D11DeviceCo
 {
 	// 기본 초기화
 	Initialize();
-	
+
 	// ImGui 초기화 (device와 context 포함)
 	if (ImGuiHelper)
 	{
 		ImGuiHelper->Initialize(hWindow, InDevice, InDeviceContext);
+	}
+
+	// MainMenuBar 생성 (Borderless 타이틀바)
+	if (!MainMenuBar)
+	{
+		MainMenuBar = NewObject<UMainMenuBarWindow>();
+		if (MainMenuBar)
+		{
+			MainMenuBar->Initialize();
+			UE_LOG("UIManager: MainMenuBar created");
+		}
 	}
 }
 
@@ -79,6 +91,13 @@ void UUIManager::Shutdown()
 	}
 
 	UE_LOG("UIManager: Shutting Down UI system...");
+
+	// MainMenuBar 정리
+	if (MainMenuBar)
+	{
+		DeleteObject(MainMenuBar);
+		MainMenuBar = nullptr;
+	}
 
 	// ImGui 정리
 	if (ImGuiHelper)
@@ -155,6 +174,12 @@ void UUIManager::Render()
 
 	// ImGui 프레임 시작
 	ImGuiHelper->BeginFrame();
+
+	// MainMenuBar 먼저 렌더링 (Borderless 타이틀바)
+	if (MainMenuBar)
+	{
+		MainMenuBar->RenderMenuBar();
+	}
 
 	// 우선순위에 따라 정렬 (필요한 경우에만 진행)
 	// SortUIWindowsByPriority();

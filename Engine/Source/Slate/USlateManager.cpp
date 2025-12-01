@@ -193,13 +193,14 @@ void USlateManager::OpenDynamicEditor()
 
     DynamicEditorWindow = new SDynamicEditorWindow();
 
-    const float toolbarHeight = 50.0f;
-    const float availableHeight = Rect.GetHeight() - toolbarHeight;
-    const float w = Rect.GetWidth() * 0.85f;
-    const float h = availableHeight * 0.85f;
-    const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
-    const float y = Rect.Top + toolbarHeight + (availableHeight - h) * 0.5f;
-    DynamicEditorWindow->Initialize(x, y, w, h, World, Device);
+    // 패딩(4) + 메뉴바(22) + 레벨탭(28) + 툴바(40) = 94px
+    constexpr float TotalHeaderHeight = 94.0f;
+    const float AvailableHeight = Rect.GetHeight() - TotalHeaderHeight;
+    const float Width = Rect.GetWidth() * 0.85f;
+    const float Height = AvailableHeight * 0.85f;
+    const float x = Rect.Left + (Rect.GetWidth() - Width) * 0.5f;
+    const float y = Rect.Top + TotalHeaderHeight + (AvailableHeight - Height) * 0.5f;
+    DynamicEditorWindow->Initialize(x, y, Width, Height, World, Device);
 }
 
 void USlateManager::OpenDynamicEditorWithFile(const char* FilePath)
@@ -348,14 +349,15 @@ void USlateManager::OpenParticleEditorWindow()
 	ParticleEditorWindow = new SParticleEditorWindow();
 
 	// 중앙에 적당한 크기로 열기
-	const float toolbarHeight = 50.0f;
-	const float availableHeight = Rect.GetHeight() - toolbarHeight;
-	const float w = Rect.GetWidth() * 0.92f;
-	const float h = availableHeight * 0.92f;
-	const float x = Rect.Left + (Rect.GetWidth() - w) * 0.5f;
-	const float y = Rect.Top + toolbarHeight + (availableHeight - h) * 0.5f;
+	// 패딩(4) + 메뉴바(22) + 레벨탭(28) + 툴바(40) = 94px
+	constexpr float TotalHeaderHeight = 94.0f;
+	const float AvailableHeight = Rect.GetHeight() - TotalHeaderHeight;
+	const float Width = Rect.GetWidth() * 0.92f;
+	const float Height = AvailableHeight * 0.92f;
+	const float X = Rect.Left + (Rect.GetWidth() - Width) * 0.5f;
+	const float Y = Rect.Top + TotalHeaderHeight + (AvailableHeight - Height) * 0.5f;
 
-	ParticleEditorWindow->Initialize(x, y, w, h, World, Device);
+	ParticleEditorWindow->Initialize(X, Y, Width, Height, World, Device);
 }
 
 void USlateManager::OpenParticleEditorWindowWithSystem(UParticleSystem* System)
@@ -829,9 +831,9 @@ void USlateManager::Update(float DeltaSeconds)
 
     if (TopPanel)
     {
-        // 툴바 높이만큼 아래로 이동 (50px)
-        const float toolbarHeight = 50.0f;
-        TopPanel->Rect = FRect(0, toolbarHeight, CLIENTWIDTH, CLIENTHEIGHT);
+        // 패딩(4) + 메뉴바(22) + 레벨탭(28) + 툴바(40) 높이만큼 아래로 이동
+        constexpr float TotalHeaderHeight = 94.0f;
+        TopPanel->Rect = FRect(0, TotalHeaderHeight, CLIENTWIDTH, CLIENTHEIGHT);
         TopPanel->OnUpdate(DeltaSeconds);
     }
 

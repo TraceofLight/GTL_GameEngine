@@ -160,6 +160,23 @@ bool UWorld::LoadLevelFromFile(const FWideString& Path)
 
 	SetLevel(std::move(NewLevel));
 
+	// 파일 경로에서 레벨 이름 추출 (확장자 제외)
+	FString PathStr = WideToUTF8(Path);
+	uint64 LastSlash = PathStr.find_last_of("/\\");
+	uint64 LastDot = PathStr.find_last_of('.');
+	if (LastSlash != FString::npos && LastDot != FString::npos && LastDot > LastSlash)
+	{
+		LevelName = PathStr.substr(LastSlash + 1, LastDot - LastSlash - 1);
+	}
+	else if (LastSlash != FString::npos)
+	{
+		LevelName = PathStr.substr(LastSlash + 1);
+	}
+	else
+	{
+		LevelName = PathStr;
+	}
+
 	UE_LOG("UWorld: Scene loaded successfully: %s", WideToUTF8(Path).c_str());
 	return true;
 }
@@ -364,6 +381,14 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 		}
 	}
 
+	// PIE 월드에 PCM이 없으면 새로 생성
+	if (!PIEWorld->PlayerCameraManager)
+	{
+		APlayerCameraManager* NewPCM = PIEWorld->SpawnActor<APlayerCameraManager>();
+		PIEWorld->PlayerCameraManager = NewPCM;
+		UE_LOG("[World] PlayerCameraManager created for PIE");
+	}
+
 	return PIEWorld;
 }
 
@@ -471,6 +496,9 @@ void UWorld::CreateLevel()
 {
 	if (SelectionMgr) SelectionMgr->ClearSelection();
 
+	// 레벨 이름 초기화
+	LevelName = "New Level";
+
 	// For preview worlds, create minimal level with no default actors
 	// Spawn lights without shadows for proper lighting with zero shadow memory cost
 	if (IsPreviewWorld())
@@ -481,26 +509,40 @@ void UWorld::CreateLevel()
 		ADirectionalLightActor* DirectionalLight = SpawnActor<ADirectionalLightActor>();
 		if (DirectionalLight)
 		{
+			DirectionalLight->ObjectName = FName("DirectionalLight");
 			DirectionalLight->GetLightComponent()->SetCastShadows(false);  // Disable shadows - saves ALL shadow memory
 			DirectionalLight->SetActorRotation(FQuat::FromAxisAngle(FVector(1.f, -1.f, 1.f), 30.f));
+			DirectionalLight->SetActorLocation(FVector(0.0f, 0.0f, 3.0f));
 		}
 
 		// Add ambient light for base illumination
 		AAmbientLightActor* AmbientLight = SpawnActor<AAmbientLightActor>();
 		if (AmbientLight)
 		{
+			AmbientLight->ObjectName = FName("AmbientLight");
 			AmbientLight->GetLightComponent()->SetIntensity(0.2f);
+			AmbientLight->SetActorLocation(FVector(0.0f, 0.0f, 6.0f));
 		}
 
 		// 기본 Sky Sphere 생성
-		SpawnActor<ASkySphereActor>();
+		ASkySphereActor* SkySphere = SpawnActor<ASkySphereActor>();
+		if (SkySphere)
+		{
+			SkySphere->ObjectName = FName("SkySphere");
+			SkySphere->SetActorLocation(FVector(0.0f, 0.0f, 9.0f));
+		}
 	}
 	else
 	{
 		SetLevel(ULevelService::CreateNewLevel());
 
 		// 기본 Sky Sphere 생성
-		SpawnActor<ASkySphereActor>();
+		ASkySphereActor* SkySphere = SpawnActor<ASkySphereActor>();
+		if (SkySphere)
+		{
+			SkySphere->ObjectName = FName("SkySphere");
+			SkySphere->SetActorLocation(FVector(0.0f, 0.0f, 9.0f));
+		}
 	}
 
 	// 이름 카운터 초기화: 씬을 새로 시작할 때 각 BaseName 별 suffix를 0부터 다시 시작
@@ -555,16 +597,8 @@ void UWorld::SetLevel(std::unique_ptr<ULevel> InLevel)
         }
     }
 
-	// 씬에서 PCM 검색
+	// 씬에서 PCM 검색 (저장된 씬에 포함된 경우)
 	this->PlayerCameraManager = FindActor<APlayerCameraManager>();
-
-	// 씬에서 APCM을 찾지 못했다면, 비상용으로 새로 생성
-	if (this->PlayerCameraManager == nullptr)
-	{
-		AActor* NewPlayerCameraManager = SpawnActor(APlayerCameraManager::StaticClass());
-		this->PlayerCameraManager = Cast<APlayerCameraManager>(NewPlayerCameraManager);
-		UE_LOG("[info] 씬에서 APlayerCameraManager를 찾지 못해, 비어있는 인스턴스를 새로 생성합니다.");
-	}
 
     // Clean any dangling selection references just in case
     if (SelectionMgr)

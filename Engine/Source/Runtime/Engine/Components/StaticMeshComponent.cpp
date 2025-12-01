@@ -139,6 +139,7 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
         StaticMesh->EnsureBodySetupBuilt();
 		const TArray<FGroupInfo>& GroupInfos = StaticMesh->GetMeshGroupInfo();
 		MaterialSlots.resize(GroupInfos.size());
+		MaterialSlotOverrides.resize(GroupInfos.size(), false);
 
 		for (size_t i = 0; i < GroupInfos.size(); ++i)
 		{
@@ -155,11 +156,27 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
             this->StaticMesh->EnsureBodySetupBuilt();
 
 			const TArray<FGroupInfo>& GroupInfos = LoadedMesh->GetMeshGroupInfo();
-			this->MaterialSlots.resize(GroupInfos.size());
+			const size_t NewSize = GroupInfos.size();
 
-			for (size_t i = 0; i < GroupInfos.size(); ++i)
+			// 기존 오버라이드 플래그 보존
+			TArray<bool> OldOverrides = this->MaterialSlotOverrides;
+
+			this->MaterialSlots.resize(NewSize);
+			this->MaterialSlotOverrides.resize(NewSize, false);
+
+			for (size_t i = 0; i < NewSize; ++i)
 			{
-				this->SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
+				// 사용자가 오버라이드한 슬롯은 건너뜀
+				bool bWasOverridden = (i < OldOverrides.size()) && OldOverrides[i];
+				if (!bWasOverridden)
+				{
+					this->SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
+				}
+				else
+				{
+					// 오버라이드 플래그 복원
+					this->MaterialSlotOverrides[i] = true;
+				}
 			}
 
 			this->MarkWorldPartitionDirty();

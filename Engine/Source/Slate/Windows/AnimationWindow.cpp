@@ -288,6 +288,12 @@ void SAnimationWindow::OpenNewTab(const FString& FilePath)
 		Tabs.Add(State);
 		ActiveTabIndex = (int32)Tabs.Num() - 1;
 		ActiveState = State;
+
+		// FilePath가 있으면 애니메이션 로드 시도
+		if (!FilePath.empty())
+		{
+			LoadAnimation(FilePath);
+		}
 	}
 }
 
@@ -1161,7 +1167,82 @@ void SAnimationWindow::LoadAnimation(const FString& Path)
 		return;
 	}
 
-	UAnimSequence* Anim = UResourceManager::GetInstance().Load<UAnimSequence>(Path);
+	UAnimSequence* Anim = nullptr;
+
+	// FBX 파일인 경우 직접 로드
+	if (Path.ends_with(".fbx") || Path.ends_with(".FBX"))
+	{
+		// FBX에서 스켈레톤 추출
+		FSkeleton* FbxSkeleton = UFbxLoader::GetInstance().ExtractSkeletonFromFbx(Path);
+		if (FbxSkeleton)
+		{
+			// 모든 AnimStack 로드
+			TArray<UAnimSequence*> AllAnims = UFbxLoader::GetInstance().LoadAllFbxAnimations(Path, *FbxSkeleton);
+			if (AllAnims.Num() > 0)
+			{
+				Anim = AllAnims[0];  // 첫 번째 애니메이션 사용
+
+				// PreviewActor에 스켈레탈 메시 설정 (애니메이션과 호환되는 메시 찾기)
+				if (ActiveState->PreviewActor)
+				{
+					USkeletalMeshComponent* MeshComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+					if (MeshComp && !MeshComp->GetSkeletalMesh())
+					{
+						// 호환되는 스켈레탈 메시 찾기
+						TArray<USkeletalMesh*> AllMeshes = UResourceManager::GetInstance().GetAll<USkeletalMesh>();
+						for (USkeletalMesh* Mesh : AllMeshes)
+						{
+							if (Mesh && Mesh->GetSkeleton())
+							{
+								// 스켈레톤이 호환되는지 간단히 본 개수로 체크
+								if (Mesh->GetSkeleton()->Bones.Num() == FbxSkeleton->Bones.Num())
+								{
+									MeshComp->SetSkeletalMesh(Mesh->GetPathFileName());
+									SetupFloorAndCamera(ActiveState);
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+			delete FbxSkeleton;
+		}
+	}
+	else
+	{
+		// .anim 파일 또는 다른 형식
+		Anim = UResourceManager::GetInstance().Load<UAnimSequence>(Path);
+
+		// .anim 파일에서도 호환되는 스켈레탈 메시 찾기
+		if (Anim && ActiveState->PreviewActor)
+		{
+			USkeletalMeshComponent* MeshComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+			if (MeshComp && !MeshComp->GetSkeletalMesh())
+			{
+				const FSkeleton* AnimSkeleton = Anim->GetSkeleton();
+				if (AnimSkeleton)
+				{
+					// 호환되는 스켈레탈 메시 찾기
+					TArray<USkeletalMesh*> AllMeshes = UResourceManager::GetInstance().GetAll<USkeletalMesh>();
+					for (USkeletalMesh* Mesh : AllMeshes)
+					{
+						if (Mesh && Mesh->GetSkeleton())
+						{
+							// 스켈레톤이 호환되는지 본 개수로 체크
+							if (Mesh->GetSkeleton()->Bones.Num() == AnimSkeleton->Bones.Num())
+							{
+								MeshComp->SetSkeletalMesh(Mesh->GetPathFileName());
+								SetupFloorAndCamera(ActiveState);
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if (Anim)
 	{
 		ActiveState->CurrentAnimation = Anim;

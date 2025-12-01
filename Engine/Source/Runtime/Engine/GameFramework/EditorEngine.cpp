@@ -77,15 +77,77 @@ void UEditorEngine::GetViewportSize(HWND hWnd)
 
 LRESULT CALLBACK UEditorEngine::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    // WM_NCHITTEST는 ImGui보다 먼저 처리되어야 함 (윈도우 리사이징 커서 우선)
+    if (message == WM_NCHITTEST)
+    {
+        // 클라이언트 좌표로 변환
+        POINT ScreenPoint;
+        ScreenPoint.x = static_cast<int16>(LOWORD(lParam));
+        ScreenPoint.y = static_cast<int16>(HIWORD(lParam));
+        ScreenToClient(hWnd, &ScreenPoint);
+
+        // 윈도우 크기 가져오기
+        RECT WindowRect;
+        GetClientRect(hWnd, &WindowRect);
+
+        // 리사이징 가능한 가장자리 크기 (픽셀)
+        const int BorderWidth = 8;
+
+        // 가장자리 영역 체크 (리사이징 우선순위가 가장 높음)
+        bool bOnLeft = ScreenPoint.x < BorderWidth;
+        bool bOnRight = ScreenPoint.x >= WindowRect.right - BorderWidth;
+        bool bOnTop = ScreenPoint.y < BorderWidth;
+        bool bOnBottom = ScreenPoint.y >= WindowRect.bottom - BorderWidth;
+
+        // 모서리 우선 처리
+        if (bOnTop && bOnLeft) return HTTOPLEFT;
+        if (bOnTop && bOnRight) return HTTOPRIGHT;
+        if (bOnBottom && bOnLeft) return HTBOTTOMLEFT;
+        if (bOnBottom && bOnRight) return HTBOTTOMRIGHT;
+
+        // 가장자리 처리
+        if (bOnLeft) return HTLEFT;
+        if (bOnRight) return HTRIGHT;
+        if (bOnTop) return HTTOP;
+        if (bOnBottom) return HTBOTTOM;
+
+        // 상단 메뉴바 영역이면 드래그 가능하도록 설정 (30픽셀)
+        if (ScreenPoint.y >= 0 && ScreenPoint.y <= 30)
+        {
+            if (ImGui::GetIO().WantCaptureMouse && ImGui::IsAnyItemHovered())
+            {
+                // ImGui 요소 위에 있으면 클라이언트 영역으로 처리
+                return HTCLIENT;
+            }
+            // 빈 공간이면 타이틀바처럼 동작
+            return HTCAPTION;
+        }
+
+        // 나머지는 클라이언트 영역
+        return HTCLIENT;
+    }
+
     // Input first
     INPUT.ProcessMessage(hWnd, message, wParam, lParam);
 
     // ImGui next
     if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
-        return true;
+    {
+        if (ImGui::GetIO().WantCaptureMouse)
+        {
+            return true;
+        }
+    }
 
     switch (message)
     {
+    case WM_NCCALCSIZE:
+        // non-client 영역을 완전히 제거 (borderless window)
+        if (wParam == TRUE)
+        {
+            return 0;
+        }
+        break;
     case WM_SIZE:
     {
         WPARAM SizeType = wParam;
@@ -135,9 +197,20 @@ bool UEditorEngine::CreateMainWindow(HINSTANCE hInstance)
 {
     // 윈도우 생성
     WCHAR WindowClass[] = L"JungleWindowClass";
-    WCHAR Title[] = L"Future Engine";
+    WCHAR Title[] = L"FutureEngine";
     HICON hIcon = (HICON)LoadImageW(NULL, L"Data\\Default\\Icon\\Future.ico", IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
-    WNDCLASSW wndclass = { 0, WndProc, 0, 0, 0, hIcon, 0, 0, 0, WindowClass };
+
+    WNDCLASSW wndclass = {};
+    wndclass.style = 0;
+    wndclass.lpfnWndProc = WndProc;
+    wndclass.cbClsExtra = 0;
+    wndclass.cbWndExtra = 0;
+    wndclass.hInstance = hInstance;
+    wndclass.hIcon = hIcon;
+    wndclass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    wndclass.hbrBackground = nullptr;
+    wndclass.lpszMenuName = nullptr;
+    wndclass.lpszClassName = WindowClass;
     RegisterClassW(&wndclass);
 
     // Load client area size from INI
@@ -155,22 +228,34 @@ bool UEditorEngine::CreateMainWindow(HINSTANCE hInstance)
     if (clientWidth < 800) clientWidth = 1920;
     if (clientHeight < 600) clientHeight = 1080;
 
-    // Convert client area size to window size (including title bar and borders)
-    DWORD windowStyle = WS_POPUP | WS_VISIBLE | WS_OVERLAPPEDWINDOW;
-    RECT windowRect = { 0, 0, clientWidth, clientHeight };
-    AdjustWindowRect(&windowRect, windowStyle, FALSE);
-
-    int windowWidth = windowRect.right - windowRect.left;
-    int windowHeight = windowRect.bottom - windowRect.top;
+    // Borderless window: WS_POPUP (타이틀바 제거) + WS_THICKFRAME (리사이징)
+    DWORD windowStyle = WS_POPUP | WS_VISIBLE | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
 
     HWnd = CreateWindowExW(0, WindowClass, Title, windowStyle,
-        CW_USEDEFAULT, CW_USEDEFAULT, windowWidth, windowHeight,
+        CW_USEDEFAULT, CW_USEDEFAULT, clientWidth, clientHeight,
         nullptr, nullptr, hInstance, nullptr);
 
     if (!HWnd)
+    {
         return false;
+    }
 
-    //종횡비 계산
+    // DWM을 사용하여 클라이언트 영역을 non-client 영역까지 확장 (Borderless window)
+    MARGINS Margins = {1, 1, 1, 1};
+    DwmExtendFrameIntoClientArea(HWnd, &Margins);
+
+    // 아이콘 설정
+    if (hIcon)
+    {
+        SendMessageW(HWnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(hIcon));
+        SendMessageW(HWnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(hIcon));
+    }
+
+    ShowWindow(HWnd, SW_SHOW);
+    UpdateWindow(HWnd);
+    SetWindowTextW(HWnd, Title);
+
+    // 종횡비 계산
     GetViewportSize(HWnd);
     return true;
 }

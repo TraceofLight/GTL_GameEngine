@@ -238,6 +238,12 @@ void UMeshComponent::SetMaterial(uint32 InElementIndex, UMaterialInterface* InNe
 
 	// 6. 새 머티리얼을 슬롯에 할당합니다.
 	MaterialSlots[InElementIndex] = InNewMaterial;
+
+	// 7. 사용자 오버라이드 플래그 설정 (비동기 로드 후에도 이 머티리얼 유지)
+	if (InElementIndex < static_cast<uint32>(MaterialSlotOverrides.Num()))
+	{
+		MaterialSlotOverrides[InElementIndex] = true;
+	}
 }
 
 UMaterialInstanceDynamic* UMeshComponent::CreateAndSetMaterialInstanceDynamic(uint32 ElementIndex)
