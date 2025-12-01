@@ -12,8 +12,12 @@
 #include "Source/Editor/FBXLoader.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
+#include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
+#include "Source/Runtime/Engine/SkeletalViewer/SkeletalViewerBootstrap.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
+#include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
 #include "Source/Runtime/Engine/Components/LineComponent.h"
+#include "Source/Runtime/Engine/Collision/AABB.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
 #include "Source/Runtime/Engine/Animation/AnimSingleNodeInstance.h"
@@ -243,6 +247,9 @@ FAnimationTabState* SAnimationWindow::CreateTabState(const FString& FilePath)
 		Preview->RegisterAnimNotifyDelegate();
 	}
 	State->PreviewActor = Preview;
+
+	// 바닥판 액터 생성
+	State->FloorActor = SkeletalViewerBootstrap::CreateFloorActor(State->World);
 
 	return State;
 }
@@ -1089,6 +1096,19 @@ AGizmoActor* SAnimationWindow::GetGizmoActor() const
 }
 
 // ============================================================================
+// 바닥판 및 카메라 설정
+// ============================================================================
+
+static void SetupFloorAndCamera(FAnimationTabState* State)
+{
+	if (!State)
+	{
+		return;
+	}
+	SkeletalViewerBootstrap::SetupFloorAndCamera(State->PreviewActor, State->FloorActor, State->Client);
+}
+
+// ============================================================================
 // 에셋 로드
 // ============================================================================
 
@@ -1128,6 +1148,9 @@ void SAnimationWindow::LoadSkeletalMesh(const FString& Path)
 				Mesh->AddAnimation(AnimSeq);
 			}
 		}
+
+		// 바닥판 및 카메라 설정
+		SetupFloorAndCamera(ActiveState);
 	}
 }
 

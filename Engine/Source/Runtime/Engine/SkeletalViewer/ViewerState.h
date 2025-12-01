@@ -19,6 +19,7 @@ public:
 
     // Have a pointer to the currently selected mesh to render in the viewer
     ASkeletalMeshActor* PreviewActor = nullptr;
+    AStaticMeshActor* FloorActor = nullptr;
     USkeletalMesh* CurrentMesh = nullptr;
     FString LoadedMeshPath;  // Track loaded mesh path for unloading
     int32 SelectedBoneIndex = -1;

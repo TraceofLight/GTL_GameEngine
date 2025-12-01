@@ -3,8 +3,10 @@
 #include "Source/Runtime/Engine/SkeletalViewer/ViewerState.h"
 #include "Source/Runtime/Engine/SkeletalViewer/SkeletalViewerBootstrap.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
+#include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
+#include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
 #include "Source/Runtime/Engine/Components/LineComponent.h"
 #include "Source/Runtime/Engine/Collision/Picking.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
@@ -639,6 +641,9 @@ void SSkeletalEditorWindow::LoadSkeletalMesh(const FString& Path)
 			LineComp->SetLineVisible(ActiveState->bShowBones);
 		}
 
+		// 바닥판과 카메라 위치 설정 (AABB 기반)
+		SetupFloorAndCamera(ActiveState);
+
 		UE_LOG("[SkeletalEditor] Loaded: %s", Path.c_str());
 	}
 	else
@@ -738,6 +743,9 @@ void SSkeletalEditorWindow::OpenNewTabWithMesh(USkeletalMesh* Mesh, const FStrin
 				LineComp->ClearLines();
 				LineComp->SetLineVisible(NewState->bShowBones);
 			}
+
+			// 바닥판과 카메라 위치 설정 (AABB 기반)
+			SetupFloorAndCamera(NewState);
 		}
 	}
 }
@@ -1775,4 +1783,13 @@ void SSkeletalEditorWindow::ExpandToSelectedBone(ViewerState* State, int32 BoneI
 		State->ExpandedBoneIndices.insert(CurrentIndex);
 		CurrentIndex = Skeleton->Bones[CurrentIndex].ParentIndex;
 	}
+}
+
+void SSkeletalEditorWindow::SetupFloorAndCamera(ViewerState* State)
+{
+	if (!State)
+	{
+		return;
+	}
+	SkeletalViewerBootstrap::SetupFloorAndCamera(State->PreviewActor, State->FloorActor, State->Client);
 }

@@ -32,6 +32,7 @@ struct FAnimationTabState
 
 	// === 에셋 참조 ===
 	ASkeletalMeshActor* PreviewActor = nullptr;
+	AStaticMeshActor* FloorActor = nullptr;
 	USkeletalMesh* CurrentMesh = nullptr;
 	FString LoadedMeshPath;
 

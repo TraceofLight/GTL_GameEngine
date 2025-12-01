@@ -40,6 +40,7 @@ struct FBlendSpace2DTabState
 
 	// === 에셋 참조 ===
 	ASkeletalMeshActor* PreviewActor = nullptr;
+	AStaticMeshActor* FloorActor = nullptr;  // 바닥판 액터
 	USkeletalMesh* CurrentMesh = nullptr;
 	FString LoadedMeshPath;
 	UBlendSpace2D* BlendSpace = nullptr;

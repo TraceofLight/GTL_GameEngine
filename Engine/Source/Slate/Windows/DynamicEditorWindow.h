@@ -49,6 +49,7 @@ struct FEditorTabState
 
 	// 공통 에셋 참조
 	class ASkeletalMeshActor* PreviewActor = nullptr;
+	AStaticMeshActor* FloorActor = nullptr;  // 바닥판 액터
 	USkeletalMesh* CurrentMesh = nullptr;
 	FString LoadedMeshPath;
 
@@ -253,6 +254,9 @@ private:
 	// 렌더 타겟 관리
 	void CreateRenderTarget(uint32 Width, uint32 Height);
 	void ReleaseRenderTarget();
+
+	// 프리뷰 씬 설정 헬퍼
+	void SetupFloorAndCamera(FEditorTabState* State);
 
 private:
 	// 탭 상태

@@ -86,6 +86,9 @@ private:
 	void ApplyBoneTransform(ViewerState* State);
 	void ExpandToSelectedBone(ViewerState* State, int32 BoneIndex);
 
+	// 프리뷰 씬 설정
+	void SetupFloorAndCamera(ViewerState* State);
+
 	// 탭 상태
 	ViewerState* ActiveState = nullptr;
 	TArray<ViewerState*> Tabs;

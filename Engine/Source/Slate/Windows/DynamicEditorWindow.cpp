@@ -9,12 +9,15 @@
 #include "FSkeletalViewerViewportClient.h"
 #include "Source/Editor/PlatformProcess.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
+#include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
+#include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
 #include "Source/Runtime/Engine/Components/LineComponent.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "SelectionManager.h"
 #include "USlateManager.h"
 #include "ViewerState.h"
+#include "Source/Runtime/Engine/SkeletalViewer/SkeletalViewerBootstrap.h"
 #include "Source/Runtime/Engine/Collision/Picking.h"
 #include "Source/Editor/FBXLoader.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
@@ -174,6 +177,9 @@ FEditorTabState* SDynamicEditorWindow::CreateNewTab(const char* Name, EEditorMod
 			Preview->RegisterAnimNotifyDelegate();
 		}
 		State->PreviewActor = Preview;
+
+		// 바닥판 액터 생성
+		State->FloorActor = SkeletalViewerBootstrap::CreateFloorActor(State->World);
 	}
 
 	return State;
@@ -1396,6 +1402,9 @@ void SDynamicEditorWindow::LoadSkeletalMesh(const FString& Path)
 			EmbeddedSkeletalEditor->OpenNewTabWithMesh(Mesh, Path);
 			TargetState->EmbeddedSkeletalTabIndex = EmbeddedSkeletalEditor->GetActiveTabIndex();
 		}
+
+		// 바닥판과 카메라 위치 설정 (AABB 기반)
+		SetupFloorAndCamera(TargetState);
 	}
 }
 
@@ -2566,4 +2575,13 @@ void SDynamicEditorWindow::RenderToPreviewRenderTarget()
 	{
 		OldDSV->Release();
 	}
+}
+
+void SDynamicEditorWindow::SetupFloorAndCamera(FEditorTabState* State)
+{
+	if (!State)
+	{
+		return;
+	}
+	SkeletalViewerBootstrap::SetupFloorAndCamera(State->PreviewActor, State->FloorActor, State->Client);
 }
