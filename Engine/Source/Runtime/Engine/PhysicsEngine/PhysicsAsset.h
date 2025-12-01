@@ -34,4 +34,8 @@ public:
 
     FAABB CalcAABB(const FTransform& ComponentTM, float Scale = 1.0f) const;
     FAABB CalcAABB(const TMap<FName, FTransform>& BoneWorldTMs, float Scale = 1.0f) const;
+
+    // Serialization
+    bool SaveToFile(const FString& FilePath) const;
+    bool LoadFromFile(const FString& FilePath);
 };

@@ -387,14 +387,16 @@ void SPhysicsAssetEditorWindow::LoadPhysicsAsset(const FString& Path)
         return;
     }
 
-    // TODO: Physics Asset 직렬화/역직렬화 구현 필요
-    // 현재는 Physics Asset 파일 로드가 구현되지 않음
-    // PhysicsAsset은 UResourceBase를 상속하지 않으므로 별도 로드 로직 필요
-
-    // 임시: 새 Physics Asset 생성
+    // Physics Asset 생성 및 파일에서 로드
     UPhysicsAsset* PhysAsset = NewObject<UPhysicsAsset>();
     if (!PhysAsset)
     {
+        return;
+    }
+
+    if (!PhysAsset->LoadFromFile(Path))
+    {
+        UE_LOG("[PAE] Failed to load physics asset: %s", Path.c_str());
         return;
     }
 
@@ -402,8 +404,40 @@ void SPhysicsAssetEditorWindow::LoadPhysicsAsset(const FString& Path)
     ActiveState->PhysicsAsset = PhysAsset;
     ActiveState->LoadedPhysicsAssetPath = Path;
 
+    // SourceSkeletalPath가 있으면 SkeletalMesh도 로드
+    if (!PhysAsset->SourceSkeletalPath.empty())
+    {
+        LoadSkeletalMesh(PhysAsset->SourceSkeletalPath);
+    }
+
     // 선택 상태 초기화
     ActiveState->ClearSelection();
+
+    UE_LOG("[PAE] Loaded physics asset: %s", Path.c_str());
+}
+
+void SPhysicsAssetEditorWindow::SavePhysicsAsset(const FString& Path)
+{
+    if (Path.empty() || !ActiveState || !ActiveState->PhysicsAsset)
+    {
+        return;
+    }
+
+    // SourceSkeletalPath 업데이트
+    if (ActiveState->CurrentMesh)
+    {
+        ActiveState->PhysicsAsset->SourceSkeletalPath = ActiveState->LoadedMeshPath;
+    }
+
+    if (ActiveState->PhysicsAsset->SaveToFile(Path))
+    {
+        ActiveState->LoadedPhysicsAssetPath = Path;
+        UE_LOG("[PAE] Saved physics asset: %s", Path.c_str());
+    }
+    else
+    {
+        UE_LOG("[PAE] Failed to save physics asset: %s", Path.c_str());
+    }
 }
 
 void SPhysicsAssetEditorWindow::RenderToolbar()
@@ -446,7 +480,21 @@ void SPhysicsAssetEditorWindow::RenderToolbar()
             bool bCanSave = ActiveState && ActiveState->CurrentMesh && ActiveState->PhysicsAsset;
             if (ImGui::MenuItem("Save Physics Asset", nullptr, false, bCanSave))
             {
-                // TODO: 저장 로직 구현
+                std::filesystem::path FilePath = FPlatformProcess::OpenSaveFileDialog(
+                    L"Data",
+                    L".physicsasset",
+                    L"Physics Asset Files (*.physicsasset)"
+                );
+                if (!FilePath.empty())
+                {
+                    FString PathStr = FilePath.string();
+                    // 확장자가 없으면 추가
+                    if (PathStr.find(".physicsasset") == FString::npos)
+                    {
+                        PathStr += ".physicsasset";
+                    }
+                    SavePhysicsAsset(PathStr);
+                }
             }
 
             ImGui::EndMenu();
@@ -1097,29 +1145,63 @@ void SPhysicsAssetBodyListPanel::RenderSkeletonBodyTree(PhysicsAssetViewerState*
         {
             if (bHasBody)
             {
+                UBodySetup* Setup = PhysAsset->BodySetups[BodyIndex];
                 if (ImGui::MenuItem("Add Sphere"))
                 {
-                    // TODO: Add sphere shape to body
+                    if (Setup)
+                    {
+                        FKSphereElem NewSphere;
+                        NewSphere.Radius = 5.0f;
+                        Setup->AggGeom.SphereElems.Add(NewSphere);
+                    }
                 }
                 if (ImGui::MenuItem("Add Box"))
                 {
-                    // TODO: Add box shape to body
+                    if (Setup)
+                    {
+                        FKBoxElem NewBox(5.0f, 5.0f, 5.0f);
+                        Setup->AggGeom.BoxElems.Add(NewBox);
+                    }
                 }
                 if (ImGui::MenuItem("Add Capsule"))
                 {
-                    // TODO: Add capsule shape to body
+                    if (Setup)
+                    {
+                        FKCapsuleElem NewCapsule(3.0f, 10.0f);
+                        Setup->AggGeom.SphylElems.Add(NewCapsule);
+                    }
                 }
                 ImGui::Separator();
                 if (ImGui::MenuItem("Delete Body"))
                 {
-                    // TODO: Delete body
+                    // Body 삭제
+                    if (PhysAsset->RemoveBodyByBoneName(BoneName))
+                    {
+                        // 선택 상태 초기화
+                        State->ClearSelection();
+                    }
                 }
             }
             else
             {
                 if (ImGui::MenuItem("Add Body"))
                 {
-                    // TODO: Create new body for this bone
+                    // 새 Body 생성
+                    UBodySetup* NewBody = NewObject<UBodySetup>();
+                    if (NewBody)
+                    {
+                        NewBody->BoneName = BoneName;
+                        // 기본 Capsule Shape 추가
+                        FKCapsuleElem DefaultCapsule(3.0f, 10.0f);
+                        NewBody->AggGeom.SphylElems.Add(DefaultCapsule);
+                        PhysAsset->AddBodySetup(NewBody);
+                        // 새로 생성된 Body 선택
+                        int32 NewIndex = PhysAsset->FindBodyIndexByBoneName(BoneName);
+                        if (NewIndex >= 0)
+                        {
+                            State->SelectBody(NewIndex);
+                        }
+                    }
                 }
             }
             ImGui::EndPopup();
@@ -1455,6 +1537,13 @@ void SPhysicsAssetPropertiesPanel::OnRender()
                     if (ImGui::Button("Stop", ImVec2(-1, 0)))
                     {
                         Owner->StopSimulation();
+                    }
+
+                    if (ImGui::Button("Reset", ImVec2(-1, 0)))
+                    {
+                        // 시뮬레이션을 멈추고 다시 시작
+                        Owner->StopSimulation();
+                        Owner->StartSimulation();
                     }
                 }
 

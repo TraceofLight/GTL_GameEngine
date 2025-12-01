@@ -52,9 +52,10 @@ public:
     // Viewport rendering
     void OnRenderViewport();
 
-    // Asset 로드
+    // Asset 로드/저장
     void LoadSkeletalMesh(const FString& Path);
     void LoadPhysicsAsset(const FString& Path);
+    void SavePhysicsAsset(const FString& Path);
 
     // Accessors
     FViewport* GetViewport() const;
