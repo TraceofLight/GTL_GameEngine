@@ -742,6 +742,30 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         BoneBody->CreateActor(PHYSICS.GetPhysics(), BoneWorldMatrix, true);  // Always dynamic
         BoneBody->CreateShapesFromBodySetup();
 
+        // Self-Collision 방지용 FilterData 설정
+        // word2에 이 컴포넌트의 주소를 저장하여 같은 래그돌 내 Body들끼리 충돌 무시
+        PxRigidActor* Actor = BoneBody->GetPhysicsActor();
+        if (Actor)
+        {
+            PxFilterData FilterData;
+            FilterData.word0 = 1;  // Collision group
+            FilterData.word1 = 1;  // Collision mask
+            FilterData.word2 = static_cast<PxU32>(reinterpret_cast<uintptr_t>(this) & 0xFFFFFFFF);  // Ragdoll Owner ID
+            FilterData.word3 = 0;
+
+            const PxU32 NumShapes = Actor->getNbShapes();
+            TArray<PxShape*> ShapeArray;
+            ShapeArray.SetNum(NumShapes);
+            Actor->getShapes(ShapeArray.GetData(), NumShapes);
+            for (PxShape* Shape : ShapeArray)
+            {
+                if (Shape)
+                {
+                    Shape->setSimulationFilterData(FilterData);
+                }
+            }
+        }
+
         // bSimulatePhysics가 false면 Kinematic으로 설정 (애니메이션 따라감)
         if (!bSimulatePhysics)
         {
@@ -759,13 +783,7 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         }
 
         Bodies.Add(BoneBody);
-
-        UE_LOG("[Physics] Created body for bone '%s' (index %d)",
-               BoneSetup->BoneName.ToString().c_str(), BoneIdx);
     }
-
-    UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: Created %d per-bone bodies for %s",
-           Bodies.Num(), GetName().c_str());
 
 	// Constraint 생성은 BeginPlay로 지연 (PVD가 Body들을 완전히 등록한 후 생성)
 	// Body가 2개 이상일 때만 Constraint 생성 필요
@@ -811,8 +829,6 @@ void USkeletalMeshComponent::CreateConstraints()
 
 		if (BodyIdx1 == -1 || BodyIdx2 == -1)
 		{
-			UE_LOG("[Physics] Constraint '%s' -> '%s' skipped: missing body",
-				   Setup->ConstraintBone1.ToString().c_str(), Setup->ConstraintBone2.ToString().c_str());
 			continue;
 		}
 
@@ -864,10 +880,6 @@ void USkeletalMeshComponent::CreateConstraints()
 			// Setup의 Joint 위치 업데이트 (런타임 포즈 기반)
 			Setup->ConstraintPositionInBody1 = ChildPosInAncestorLocal;
 			Setup->ConstraintPositionInBody2 = FVector(0, 0, 0);  // Child body의 원점
-
-			UE_LOG("[Physics] Constraint '%s' -> '%s': recalculated joint pos (%.2f, %.2f, %.2f)",
-				   Setup->ConstraintBone1.ToString().c_str(), Setup->ConstraintBone2.ToString().c_str(),
-				   ChildPosInAncestorLocal.X, ChildPosInAncestorLocal.Y, ChildPosInAncestorLocal.Z);
 		}
 
 		// Constraint Instance 생성
@@ -881,9 +893,6 @@ void USkeletalMeshComponent::CreateConstraints()
 			delete NewConstraint;
 		}
 	}
-
-	UE_LOG("[Physics] SkeletalMeshComponent::CreateConstraints: Created %d constraints for %s",
-		   Constraints.Num(), GetName().c_str());
 }
 
 void USkeletalMeshComponent::OnDestroyPhysicsState()
@@ -964,9 +973,6 @@ void USkeletalMeshComponent::SetAllBodiesSimulatePhysics(bool bNewSimulate)
 			}
 		}
 	}
-
-	UE_LOG("[Physics] SetAllBodiesSimulatePhysics: %s ragdoll for %s",
-		   bNewSimulate ? "Enabled" : "Disabled", GetName().c_str());
 }
 
 void USkeletalMeshComponent::SyncPhysicsToBones()
@@ -1128,28 +1134,38 @@ FBodyInstance* USkeletalMeshComponent::GetBodyInstanceByBoneName(const FName& Bo
 void USkeletalMeshComponent::SyncBonesFromPhysics()
 {
     if (Bodies.IsEmpty() || !SkeletalMesh || !SkeletalMesh->GetSkeleton())
+    {
         return;
+    }
 
     UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset();
     if (!PhysicsAsset)
+    {
         return;
+    }
 
     const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
     const TArray<FBone>& Bones = Skeleton->Bones;
+    const int32 NumBones = Bones.Num();
     FTransform CompWorldTransform = GetWorldTransform();
 
-    // 각 physics body의 transform을 해당 bone에 반영
+    // Physics Body가 있는 본 인덱스 추적
+    TSet<int32> BonesWithPhysics;
+
+    // Step 1: Physics Body가 있는 본들 업데이트
     for (int32 i = 0; i < Bodies.Num() && i < PhysicsAsset->BodySetups.Num(); ++i)
     {
         FBodyInstance* Body = Bodies[i];
         UBodySetup* Setup = PhysicsAsset->BodySetups[i];
 
         if (!Body || !Setup)
+        {
             continue;
+        }
 
         // Find bone index
         int32 BoneIdx = -1;
-        for (int32 j = 0; j < Bones.Num(); ++j)
+        for (int32 j = 0; j < NumBones; ++j)
         {
             if (FName(Bones[j].Name) == Setup->BoneName)
             {
@@ -1159,41 +1175,49 @@ void USkeletalMeshComponent::SyncBonesFromPhysics()
         }
 
         if (BoneIdx < 0 || BoneIdx >= CurrentComponentSpacePose.Num())
+        {
             continue;
+        }
+
+        BonesWithPhysics.insert(BoneIdx);
 
         // 원래 본의 scale 보존 (physics는 scale을 관리하지 않음)
         FVector OriginalScale = CurrentComponentSpacePose[BoneIdx].Scale3D;
 
-        // Get physics body's world transform (position, rotation only)
+        // Get physics body's world transform
         FTransform BodyWorldTransform = Body->GetWorldTransform();
 
-        // World position -> Component space position
-        // Component의 world position과 rotation만 고려 (scale 제외)
+        // World -> Component space 변환
         FVector WorldPos = BodyWorldTransform.Translation;
         FVector CompPos = CompWorldTransform.Rotation.Inverse().RotateVector(WorldPos - CompWorldTransform.Translation);
-
-        // World rotation -> Component space rotation
         FQuat CompRot = CompWorldTransform.Rotation.Inverse() * BodyWorldTransform.Rotation;
 
-        // 새 transform 생성 (원래 scale 유지)
-        FTransform NewCompTransform(CompPos, CompRot, OriginalScale);
+        // Component Space Pose 업데이트
+        CurrentComponentSpacePose[BoneIdx] = FTransform(CompPos, CompRot, OriginalScale);
+    }
 
-        // Update bone component space pose
-        CurrentComponentSpacePose[BoneIdx] = NewCompTransform;
+    // Step 2: Physics Body가 없는 본은 부모 따라가기 + Local Space 역계산
+    for (int32 BoneIdx = 0; BoneIdx < NumBones; ++BoneIdx)
+    {
+        const int32 ParentIdx = Bones[BoneIdx].ParentIndex;
 
-        // Also update local space pose (for consistency)
-        int32 ParentIdx = Bones[BoneIdx].ParentIndex;
-        if (ParentIdx >= 0)
+        // Physics Body가 없는 본은 부모의 변환을 따라가도록 ComponentSpace 재계산
+        if (BonesWithPhysics.find(BoneIdx) == BonesWithPhysics.end() && ParentIdx >= 0)
         {
-            const FTransform& ParentComp = CurrentComponentSpacePose[ParentIdx];
-            // Local = Inverse(Parent) * Current (position/rotation만, scale 보존)
-            FVector LocalPos = ParentComp.Rotation.Inverse().RotateVector(CompPos - ParentComp.Translation);
-            FQuat LocalRot = ParentComp.Rotation.Inverse() * CompRot;
-            CurrentLocalSpacePose[BoneIdx] = FTransform(LocalPos, LocalRot, CurrentLocalSpacePose[BoneIdx].Scale3D);
+            // 부모의 새 ComponentSpace + 자신의 LocalSpace = 새 ComponentSpace
+            CurrentComponentSpacePose[BoneIdx] = CurrentComponentSpacePose[ParentIdx].GetWorldTransform(CurrentLocalSpacePose[BoneIdx]);
+        }
+
+        // Local Space 역계산
+        if (ParentIdx < 0)
+        {
+            // 루트 본: Component Space == Local Space
+            CurrentLocalSpacePose[BoneIdx] = CurrentComponentSpacePose[BoneIdx];
         }
         else
         {
-            CurrentLocalSpacePose[BoneIdx] = FTransform(CompPos, CompRot, CurrentLocalSpacePose[BoneIdx].Scale3D);
+            // 자식 본: Local = Parent.Inverse * Component
+            CurrentLocalSpacePose[BoneIdx] = CurrentComponentSpacePose[ParentIdx].GetRelativeTransform(CurrentComponentSpacePose[BoneIdx]);
         }
     }
 

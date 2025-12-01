@@ -2,18 +2,26 @@
 #include "PhysicsManager.h"
 
 // 필터 셰이더
+// filterData.word2 = Ragdoll Owner ID (같은 래그돌 내 Body들은 동일한 ID)
 static PxFilterFlags CoreSimulationFilterShader(
 	PxFilterObjectAttributes attributes0, PxFilterData filterData0,
 	PxFilterObjectAttributes attributes1, PxFilterData filterData1,
 	PxPairFlags& pairFlags, const void* constantBlock, PxU32 constantBlockSize)
 {
+	// 같은 래그돌 내 Body들 간 Self-Collision 무시
+	// word2가 0이 아니고 같으면 = 같은 래그돌 소속
+	if (filterData0.word2 != 0 && filterData0.word2 == filterData1.word2)
+	{
+		return PxFilterFlag::eSUPPRESS;
+	}
+
 	// 기본적으로 충돌 처리
 	pairFlags = PxPairFlag::eCONTACT_DEFAULT;
 
 	// 충돌 시작/종료 이벤트 활성화
 	pairFlags |= PxPairFlag::eNOTIFY_TOUCH_FOUND;
 	pairFlags |= PxPairFlag::eNOTIFY_TOUCH_LOST;
-		
+
 	return PxFilterFlag::eDEFAULT;
 }
 

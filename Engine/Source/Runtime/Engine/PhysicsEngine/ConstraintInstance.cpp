@@ -140,9 +140,6 @@ bool FConstraintInstance::CreateJoint(PxPhysics* Physics, FBodyInstance* InBodyA
 
 	bJointCreated = true;
 
-	UE_LOG("[Physics] FConstraintInstance::CreateJoint: Created D6 joint between '%s' and '%s'",
-		   Setup->ConstraintBone1.ToString().c_str(), Setup->ConstraintBone2.ToString().c_str());
-
 	return true;
 }
 

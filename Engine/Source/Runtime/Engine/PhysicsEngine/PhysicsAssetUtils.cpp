@@ -6,6 +6,103 @@
 #include "PhysicsConstraintSetup.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 
+// 관절 제한값 구조체
+struct FJointLimitPreset
+{
+	float Swing1;
+	float Swing2;
+	float Twist;
+};
+
+// 본 이름 기반 관절 제한값 결정 (인체 해부학 기반)
+static FJointLimitPreset GetJointLimitsByBoneName(const FString& BoneName)
+{
+	FString UpperName = BoneName;
+	std::transform(UpperName.begin(), UpperName.end(), UpperName.begin(), ::tolower);
+
+	// Spine (척추) - 제한적인 움직임
+	if (UpperName.find("spine") != FString::npos)
+	{
+		return { 20.0f, 20.0f, 20.0f };
+	}
+
+	// Neck (목) - 고개 돌리기 가능
+	if (UpperName.find("neck") != FString::npos)
+	{
+		return { 30.0f, 30.0f, 45.0f };
+	}
+
+	// Head (머리) - 목과 유사
+	if (UpperName.find("head") != FString::npos)
+	{
+		return { 25.0f, 25.0f, 30.0f };
+	}
+
+	// Shoulder/Clavicle (어깨/쇄골) - 넓은 범위
+	if (UpperName.find("shoulder") != FString::npos || UpperName.find("clavicle") != FString::npos)
+	{
+		return { 30.0f, 30.0f, 15.0f };
+	}
+
+	// UpperArm/Arm (상완) - 어깨 관절, 넓은 범위
+	if (UpperName.find("upperarm") != FString::npos ||
+		(UpperName.find("arm") != FString::npos && UpperName.find("fore") == FString::npos))
+	{
+		return { 90.0f, 60.0f, 80.0f };
+	}
+
+	// ForeArm/LowerArm (전완/팔꿈치) - 한 방향만 굽힘
+	if (UpperName.find("forearm") != FString::npos || UpperName.find("lowerarm") != FString::npos ||
+		UpperName.find("elbow") != FString::npos)
+	{
+		return { 5.0f, 120.0f, 10.0f };
+	}
+
+	// Hand/Wrist (손/손목) - 회전 자유
+	if (UpperName.find("hand") != FString::npos || UpperName.find("wrist") != FString::npos)
+	{
+		return { 45.0f, 45.0f, 80.0f };
+	}
+
+	// Finger (손가락) - 한 방향 굽힘
+	if (UpperName.find("finger") != FString::npos || UpperName.find("thumb") != FString::npos ||
+		UpperName.find("index") != FString::npos || UpperName.find("middle") != FString::npos ||
+		UpperName.find("ring") != FString::npos || UpperName.find("pinky") != FString::npos)
+	{
+		return { 5.0f, 90.0f, 10.0f };
+	}
+
+	// UpLeg/Thigh (허벅지/고관절) - 다리 벌림
+	if (UpperName.find("upleg") != FString::npos || UpperName.find("thigh") != FString::npos ||
+		UpperName.find("hip") != FString::npos)
+	{
+		return { 60.0f, 45.0f, 30.0f };
+	}
+
+	// Leg/Knee (정강이/무릎) - 한 방향만 굽힘
+	if ((UpperName.find("leg") != FString::npos && UpperName.find("up") == FString::npos) ||
+		UpperName.find("knee") != FString::npos || UpperName.find("calf") != FString::npos ||
+		UpperName.find("shin") != FString::npos)
+	{
+		return { 5.0f, 120.0f, 5.0f };
+	}
+
+	// Foot/Ankle (발/발목) - 제한적
+	if (UpperName.find("foot") != FString::npos || UpperName.find("ankle") != FString::npos)
+	{
+		return { 30.0f, 30.0f, 15.0f };
+	}
+
+	// Toe (발가락) - 약간의 굽힘
+	if (UpperName.find("toe") != FString::npos)
+	{
+		return { 5.0f, 30.0f, 5.0f };
+	}
+
+	// 기본값 (알 수 없는 본)
+	return { 45.0f, 45.0f, 30.0f };
+}
+
 bool FPhysicsAssetUtils::CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, const USkeletalMesh* SkeletalMesh)
 {
     if (!PhysicsAsset)
@@ -51,17 +148,6 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, con
         BonePositions[i] = FVector(BindPose.M[3][0], BindPose.M[3][1], BindPose.M[3][2]);
     }
 
-    // ===== 디버그: Skeleton 계층구조 출력 =====
-    UE_LOG("[PhysicsAssetUtils] ===== SKELETON HIERARCHY DEBUG =====");
-    for (int32 BoneIdx = 0; BoneIdx < NumBones; ++BoneIdx)
-    {
-        const FBone& Bone = Bones[BoneIdx];
-        FString ParentName = (Bone.ParentIndex >= 0) ? Bones[Bone.ParentIndex].Name : "ROOT";
-        UE_LOG("[PhysicsAssetUtils] Bone[%d] '%s' (Parent: '%s', Children: %d)",
-               BoneIdx, Bone.Name.c_str(), ParentName.c_str(), (int)BoneChildren[BoneIdx].Num());
-    }
-    UE_LOG("[PhysicsAssetUtils] ===== END HIERARCHY =====");
-
     // Create capsule for each bone (except leaves with no children)
     for (int32 BoneIdx = 0; BoneIdx < NumBones; ++BoneIdx)
     {
@@ -71,7 +157,6 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, con
         // Skip bones with no children (leaf bones) - they have no length
         if (Children.IsEmpty())
         {
-            UE_LOG("[PhysicsAssetUtils] SKIP '%s': Leaf bone (no children)", Bone.Name.c_str());
             continue;
         }
 
@@ -93,15 +178,12 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, con
         const bool bIsHubBone = (Children.Num() >= 2);
         if (BoneLength < 0.01f && !bIsHubBone)
         {
-            UE_LOG("[PhysicsAssetUtils] SKIP '%s': Too short (length=%.4f)", Bone.Name.c_str(), BoneLength);
             continue;
         }
 
         // For very short hub bones, use a minimum length for capsule calculation
         if (BoneLength < 0.01f && bIsHubBone)
         {
-            UE_LOG("[PhysicsAssetUtils] HUB BONE '%s': Short but keeping (length=%.4f, children=%d)",
-                   Bone.Name.c_str(), BoneLength, Children.Num());
             BoneLength = 0.05f;  // Minimum length for hub bones
             BoneVec = BoneVec.GetSafeNormal() * BoneLength;
         }
@@ -145,16 +227,9 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, con
 
         NewSetup->AggGeom.SphylElems.Add(Capsule);
 
-        UE_LOG("[PhysicsAssetUtils] Bone '%s': Capsule R=%.3f, L=%.3f, Center=(%.2f,%.2f,%.2f)",
-               Bone.Name.c_str(), Radius, Capsule.Length,
-               LocalCenter.X, LocalCenter.Y, LocalCenter.Z);
-
         // Add to physics asset
         PhysicsAsset->AddBodySetup(NewSetup);
     }
-
-    UE_LOG("[PhysicsAssetUtils] Built %d body setups from skeleton with %d bones",
-           PhysicsAsset->BodySetups.Num(), NumBones);
 
     return PhysicsAsset->BodySetups.Num() > 0;
 }
@@ -211,15 +286,6 @@ bool FPhysicsAssetUtils::CreateConstraintsForRagdoll(UPhysicsAsset* PhysicsAsset
 
 	int32 ConstraintCount = 0;
 
-	// ===== 디버그: Body 목록 출력 =====
-	UE_LOG("[PhysicsAssetUtils] ===== BODY LIST DEBUG =====");
-	for (int32 i = 0; i < PhysicsAsset->BodySetups.Num(); ++i)
-	{
-		UE_LOG("[PhysicsAssetUtils] Body[%d]: '%s'",
-			   i, PhysicsAsset->BodySetups[i]->BoneName.ToString().c_str());
-	}
-	UE_LOG("[PhysicsAssetUtils] ===== END BODY LIST =====");
-
 	// 각 본에 대해 Body가 있는 가장 가까운 조상 본과 연결하는 Constraint 생성
 	for (int32 BoneIdx = 0; BoneIdx < NumBones; ++BoneIdx)
 	{
@@ -257,8 +323,6 @@ bool FPhysicsAssetUtils::CreateConstraintsForRagdoll(UPhysicsAsset* PhysicsAsset
 		// 루트까지 갔는데도 Body가 있는 조상이 없으면 스킵 (루트 본)
 		if (AncestorBodyIdx == -1)
 		{
-			UE_LOG("[PhysicsAssetUtils] CONSTRAINT SKIP: '%s' has no ancestor with body (ROOT BODY)",
-				   ChildBoneName.ToString().c_str());
 			continue;
 		}
 
@@ -298,9 +362,20 @@ bool FPhysicsAssetUtils::CreateConstraintsForRagdoll(UPhysicsAsset* PhysicsAsset
 		NewConstraint->Swing2Motion = EAngularConstraintMotion::Limited;
 		NewConstraint->TwistMotion = EAngularConstraintMotion::Limited;
 
-		NewConstraint->Swing1LimitAngle = 45.0f;
-		NewConstraint->Swing2LimitAngle = 45.0f;
-		NewConstraint->TwistLimitAngle = 30.0f;
+		// 본 이름 기반 관절 제한값 적용
+		FJointLimitPreset Limits = GetJointLimitsByBoneName(ChildBoneName.ToString());
+		NewConstraint->Swing1LimitAngle = Limits.Swing1;
+		NewConstraint->Swing2LimitAngle = Limits.Swing2;
+		NewConstraint->TwistLimitAngle = Limits.Twist;
+
+		// Soft Limit 설정 - Joint 안정성 향상
+		NewConstraint->bSoftSwingLimit = true;
+		NewConstraint->SwingStiffness = 50.0f;
+		NewConstraint->SwingDamping = 5.0f;
+
+		NewConstraint->bSoftTwistLimit = true;
+		NewConstraint->TwistStiffness = 50.0f;
+		NewConstraint->TwistDamping = 5.0f;
 
 		// Joint 위치 설정
 		// Body1 (Ancestor): Child 본 위치 (Ancestor 로컬 좌표계)
@@ -312,13 +387,7 @@ bool FPhysicsAssetUtils::CreateConstraintsForRagdoll(UPhysicsAsset* PhysicsAsset
 
 		PhysicsAsset->AddConstraintSetup(NewConstraint);
 		++ConstraintCount;
-
-		UE_LOG("[PhysicsAssetUtils] Created constraint: '%s' -> '%s' (local offset: %.2f, %.2f, %.2f)",
-			   AncestorBoneName.ToString().c_str(), ChildBoneName.ToString().c_str(),
-			   ChildPosInAncestorLocal.X, ChildPosInAncestorLocal.Y, ChildPosInAncestorLocal.Z);
 	}
-
-	UE_LOG("[PhysicsAssetUtils] CreateConstraintsForRagdoll: Created %d constraints", ConstraintCount);
 
 	return ConstraintCount > 0;
 }
