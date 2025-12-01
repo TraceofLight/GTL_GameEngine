@@ -6,7 +6,9 @@
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsAssetUtils.h"
 #include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
+#include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
+#include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
@@ -585,6 +587,89 @@ void SPhysicsAssetEditorWindow::PrepareForDelete()
     // ImGui 지연 렌더링 문제 방지: delete 전에 SRV를 먼저 해제
     // ImGui::Image에서 참조하던 SRV가 nullptr이 되어 안전하게 건너뜀
     ReleaseRenderTarget();
+}
+
+// ============================================================================
+// Physics Simulation
+// ============================================================================
+
+void SPhysicsAssetEditorWindow::StartSimulation()
+{
+    if (!ActiveState || !ActiveState->PhysicsAsset || !ActiveState->PreviewActor)
+        return;
+
+    USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+    if (!SkelComp)
+        return;
+
+    USkeletalMesh* CompMesh = SkelComp->GetSkeletalMesh();
+    if (!CompMesh)
+        return;
+
+    // PhysicsAsset 설정
+    CompMesh->SetPhysicsAsset(ActiveState->PhysicsAsset);
+
+    // bPie 활성화
+    if (!ActiveState->World)
+        return;
+
+    ActiveState->World->bPie = true;
+
+    // Floor의 Static Physics Body 생성 (bPie=true 후에 호출해야 함)
+    if (ActiveState->FloorActor)
+    {
+        UStaticMeshComponent* FloorComp = ActiveState->FloorActor->GetStaticMeshComponent();
+        if (FloorComp)
+        {
+            FloorComp->SetSimulatePhysics(false);  // Static body
+        }
+    }
+
+    // 캐릭터 시뮬레이션 시작
+    SkelComp->SetSimulatePhysics(true);
+
+    ActiveState->bSimulating = true;
+    ActiveState->bSimulationPaused = false;
+}
+
+void SPhysicsAssetEditorWindow::StopSimulation()
+{
+    if (!ActiveState)
+    {
+        return;
+    }
+
+    // 물리 시뮬레이션 비활성화
+    if (ActiveState->PreviewActor)
+    {
+        USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+        if (SkelComp)
+        {
+            SkelComp->SetSimulatePhysics(false);
+
+            // 메시를 다시 설정하여 초기 포즈로 리셋
+            if (!ActiveState->LoadedMeshPath.empty())
+            {
+                ActiveState->PreviewActor->SetSkeletalMesh(ActiveState->LoadedMeshPath);
+            }
+        }
+    }
+
+    // bPie 비활성화 (시뮬레이션 종료)
+    if (ActiveState->World)
+    {
+        ActiveState->World->bPie = false;
+    }
+
+    ActiveState->bSimulating = false;
+    ActiveState->bSimulationPaused = false;
+
+    UE_LOG("[PAE] Simulation stopped");
+}
+
+bool SPhysicsAssetEditorWindow::IsSimulating() const
+{
+    return ActiveState && ActiveState->bSimulating;
 }
 
 void SPhysicsAssetEditorWindow::UpdateViewportRenderTarget(uint32 NewWidth, uint32 NewHeight)
@@ -1329,6 +1414,54 @@ void SPhysicsAssetPropertiesPanel::OnRender()
                 if (!bHasBodies)
                 {
                     ImGui::EndDisabled();
+                }
+
+                ImGui::Separator();
+
+                // Simulation 버튼들
+                ImGui::Text("Simulation");
+                bool bCanSimulate = bHasBodies && State->CurrentMesh;
+                if (!bCanSimulate)
+                {
+                    ImGui::BeginDisabled();
+                }
+
+                if (!State->bSimulating)
+                {
+                    // Simulate 시작 버튼
+                    if (ImGui::Button("Simulate", ImVec2(-1, 0)))
+                    {
+                        Owner->StartSimulation();
+                    }
+                }
+                else
+                {
+                    // 시뮬레이션 중일 때 컨트롤
+                    if (State->bSimulationPaused)
+                    {
+                        if (ImGui::Button("Resume", ImVec2(-1, 0)))
+                        {
+                            State->bSimulationPaused = false;
+                        }
+                    }
+                    else
+                    {
+                        if (ImGui::Button("Pause", ImVec2(-1, 0)))
+                        {
+                            State->bSimulationPaused = true;
+                        }
+                    }
+
+                    if (ImGui::Button("Stop", ImVec2(-1, 0)))
+                    {
+                        Owner->StopSimulation();
+                    }
+                }
+
+                if (!bCanSimulate)
+                {
+                    ImGui::EndDisabled();
+                    ImGui::TextDisabled("Generate bodies first");
                 }
             }
 

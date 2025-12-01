@@ -126,20 +126,17 @@ void FPhysicsManager::SimulateScene(FPhysicsSceneHandle& Handle, float DeltaTime
 
 void FPhysicsManager::BeginSimulate(FPhysicsSceneHandle& Handle, float DeltaSeconds)
 {
-	// phsx scene이 없으면 패스 
 	if (!Handle.Scene)
 		return;
 
 	Handle.Accumulator += DeltaSeconds;
 
-	//아직 시뮬레이션을 돌릴 틱이 안모였으면 패스
 	if (Handle.Accumulator < Handle.StepSize)
 		return;
 
 	Handle.Accumulator -= Handle.StepSize;
 
-	// Physx를 통해서 시뮬레이션 시작
-	Handle.Scene->simulate(Handle.StepSize); 
+	Handle.Scene->simulate(Handle.StepSize);
 	Handle.bSimulationRunning = true;
 }
 
@@ -166,7 +163,7 @@ void FPhysicsManager::EndSimulate(FPhysicsSceneHandle& Handle, bool bBlock)
 	if (bBlock)
 	{
 		Handle.Scene->fetchResults(true);
-		Handle.bSimulationRunning = false; 
+		Handle.bSimulationRunning = false;
 	}
 	else
 	{
