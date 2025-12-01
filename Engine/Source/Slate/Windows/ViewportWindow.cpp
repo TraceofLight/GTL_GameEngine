@@ -16,11 +16,15 @@
 #include "StaticMeshActor.h"
 #include "StaticMeshComponent.h"
 #include "SkeletalMeshActor.h"
+#include "SkeletalMeshComponent.h"
+#include "PrimitiveComponent.h"
 #include "ParticleSystemActor.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystem.h"
 #include "ResourceManager.h"
 #include "Source/Runtime/Core/Misc/PathUtils.h"
+#include "SelectionManager.h"
+#include "AABB.h"
 #include <filesystem>
 
 extern float CLIENTWIDTH;
@@ -140,6 +144,9 @@ void SViewportWindow::OnRender()
 
 	if (Viewport)
 		Viewport->Render();
+
+	// 카메라 포커싱 애니메이션 업데이트
+	UpdateCameraAnimation(ImGui::GetIO().DeltaTime);
 
 	// 드래그 앤 드롭 타겟 영역 (뷰포트 전체)
 	HandleDropTarget();
@@ -2514,4 +2521,210 @@ void SViewportWindow::SpawnActorFromFile(const char* FilePath, const FVector& Wo
 	{
 		UE_LOG("WARNING: Unsupported file type: %s", extension.c_str());
 	}
+}
+
+void SViewportWindow::FocusOnSelectedActor()
+{
+	if (!ViewportClient || !ViewportClient->GetWorld())
+	{
+		return;
+	}
+
+	UWorld* World = ViewportClient->GetWorld();
+	USelectionManager* SelectionMgr = World->GetSelectionManager();
+	if (!SelectionMgr)
+	{
+		return;
+	}
+
+	// 에디터 카메라 가져오기
+	ACameraActor* EditorCamera = World->GetEditorCameraActor();
+	if (!EditorCamera)
+	{
+		return;
+	}
+
+	// 선택된 액터들의 바운딩 박스 계산
+	FVector BoundsMin(FLT_MAX, FLT_MAX, FLT_MAX);
+	FVector BoundsMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+	bool bHasValidBounds = false;
+
+	// 컴포넌트 모드인 경우 선택된 컴포넌트 위치로 포커싱
+	if (!SelectionMgr->IsActorMode())
+	{
+		USceneComponent* SelectedComp = SelectionMgr->GetSelectedComponent();
+		if (SelectedComp)
+		{
+			FVector CompLocation = SelectedComp->GetWorldLocation();
+
+			// 컴포넌트 바운딩 박스 계산 시도
+			if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(SelectedComp))
+			{
+				FAABB Bounds = PrimComp->GetWorldAABB();
+				// 유효한 AABB인지 확인 (Min < Max)
+				if (Bounds.Min.X < Bounds.Max.X && Bounds.Min.Y < Bounds.Max.Y && Bounds.Min.Z < Bounds.Max.Z)
+				{
+					BoundsMin = Bounds.Min;
+					BoundsMax = Bounds.Max;
+					bHasValidBounds = true;
+				}
+			}
+
+			// 바운딩 박스가 유효하지 않으면 기본 크기 사용
+			if (!bHasValidBounds)
+			{
+				constexpr float DefaultFocusExtent = 2.0f;
+				BoundsMin = CompLocation - FVector(DefaultFocusExtent, DefaultFocusExtent, DefaultFocusExtent);
+				BoundsMax = CompLocation + FVector(DefaultFocusExtent, DefaultFocusExtent, DefaultFocusExtent);
+				bHasValidBounds = true;
+			}
+		}
+	}
+
+	// 액터 모드이거나 컴포넌트 바운드 계산 실패 시 액터 기반 계산
+	if (!bHasValidBounds)
+	{
+		const TArray<AActor*>& SelectedActors = SelectionMgr->GetSelectedActors();
+		if (SelectedActors.empty())
+		{
+			return;
+		}
+
+		for (AActor* Actor : SelectedActors)
+		{
+			if (!Actor)
+			{
+				continue;
+			}
+
+			// 액터의 바운딩 박스 계산
+			FVector ActorMin, ActorMax;
+			bool bActorHasBounds = false;
+
+			// StaticMeshComponent 확인
+			if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(Actor->GetComponent(UStaticMeshComponent::StaticClass())))
+			{
+				if (SMC->GetStaticMesh())
+				{
+					FAABB Bounds = SMC->GetWorldAABB();
+					ActorMin = Bounds.Min;
+					ActorMax = Bounds.Max;
+					bActorHasBounds = true;
+				}
+			}
+			// SkeletalMeshComponent 확인
+			else if (USkeletalMeshComponent* SkMC = Cast<USkeletalMeshComponent>(Actor->GetComponent(USkeletalMeshComponent::StaticClass())))
+			{
+				if (SkMC->GetSkeletalMesh())
+				{
+					FAABB Bounds = SkMC->GetWorldAABB();
+					ActorMin = Bounds.Min;
+					ActorMax = Bounds.Max;
+					bActorHasBounds = true;
+				}
+			}
+
+			// 바운딩 박스가 없으면 빌보드/아이콘 기반 크기 또는 기본값 사용
+			if (!bActorHasBounds)
+			{
+				FVector Loc = Actor->GetActorLocation();
+
+				// 빌보드 컴포넌트가 있으면 적절한 포커싱 거리 사용
+				constexpr float DefaultFocusExtent = 2.0f;
+				ActorMin = Loc - FVector(DefaultFocusExtent, DefaultFocusExtent, DefaultFocusExtent);
+				ActorMax = Loc + FVector(DefaultFocusExtent, DefaultFocusExtent, DefaultFocusExtent);
+			}
+
+			// 전체 바운딩 박스 업데이트
+			BoundsMin.X = std::min(BoundsMin.X, ActorMin.X);
+			BoundsMin.Y = std::min(BoundsMin.Y, ActorMin.Y);
+			BoundsMin.Z = std::min(BoundsMin.Z, ActorMin.Z);
+			BoundsMax.X = std::max(BoundsMax.X, ActorMax.X);
+			BoundsMax.Y = std::max(BoundsMax.Y, ActorMax.Y);
+			BoundsMax.Z = std::max(BoundsMax.Z, ActorMax.Z);
+			bHasValidBounds = true;
+		}
+	}
+
+	if (!bHasValidBounds)
+	{
+		return;
+	}
+
+	// 바운딩 박스 중심과 크기 계산
+	FVector Center = (BoundsMin + BoundsMax) * 0.5f;
+	FVector Extent = (BoundsMax - BoundsMin) * 0.5f;
+	float BoundsRadius = Extent.Size();
+
+	// 거리 계산: min(radius * 1.2, radius + 5.0) - 작은 오브젝트도 적절한 거리, 큰 오브젝트는 과도하게 멀어지지 않게
+	float ScaledDist = BoundsRadius * 1.2f;
+	float AdditiveDist = BoundsRadius + 5.0f;
+	float FocusDistance = std::max(std::min(ScaledDist, AdditiveDist), 3.0f);
+
+	// 현재 카메라 방향 유지하면서 위치만 이동
+	FVector CamForward = EditorCamera->GetForward();
+	if (CamForward.SizeSquared() < KINDA_SMALL_NUMBER)
+	{
+		CamForward = FVector(1.0f, 0.0f, 0.0f);
+	}
+	CamForward.Normalize();
+
+	// 카메라 애니메이션 시작
+	CameraStartLocation = EditorCamera->GetActorLocation();
+	CameraTargetLocation = Center - CamForward * FocusDistance;
+	CameraAnimationTime = 0.0f;
+	bIsCameraAnimating = true;
+}
+
+void SViewportWindow::UpdateCameraAnimation(float DeltaTime)
+{
+	if (!bIsCameraAnimating)
+	{
+		return;
+	}
+
+	if (!ViewportClient || !ViewportClient->GetWorld())
+	{
+		bIsCameraAnimating = false;
+		return;
+	}
+
+	// 우클릭 드래그 시작 시 애니메이션 중단
+	if (ImGui::IsMouseDown(ImGuiMouseButton_Right))
+	{
+		bIsCameraAnimating = false;
+		return;
+	}
+
+	ACameraActor* EditorCamera = ViewportClient->GetWorld()->GetEditorCameraActor();
+	if (!EditorCamera)
+	{
+		bIsCameraAnimating = false;
+		return;
+	}
+
+	CameraAnimationTime += DeltaTime;
+	float Progress = CameraAnimationTime / CAMERA_ANIMATION_DURATION;
+
+	if (Progress >= 1.0f)
+	{
+		Progress = 1.0f;
+		bIsCameraAnimating = false;
+	}
+
+	// Ease-in-out (quartic)
+	float SmoothProgress;
+	if (Progress < 0.5f)
+	{
+		SmoothProgress = 8.0f * Progress * Progress * Progress * Progress;
+	}
+	else
+	{
+		float ProgressFromEnd = Progress - 1.0f;
+		SmoothProgress = 1.0f - 8.0f * ProgressFromEnd * ProgressFromEnd * ProgressFromEnd * ProgressFromEnd;
+	}
+
+	// 보간된 위치 계산
+	FVector CurrentLocation = FVector::Lerp(CameraStartLocation, CameraTargetLocation, SmoothProgress);
+	EditorCamera->SetActorLocation(CurrentLocation);
 }

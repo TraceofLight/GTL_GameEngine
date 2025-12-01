@@ -563,33 +563,74 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 	if (!bIsBoneTargetMode && bMouseDown && !bIsDragging && GizmoAxis > 0)
 	{
 		bIsDragging = true;
+		bDuplicatedThisDrag = false;  // 새 드래그 시작 시 복사 플래그 리셋
 		DraggingAxis = GizmoAxis;
 		DragCamera = Camera;
 
-		// Alt 키가 눌려있으면 Actor 복제
-		bool bIsAltDown = InputManager->IsKeyDown(VK_MENU);
-		if (bIsAltDown && SelectionManager->IsActorMode())
+		// Alt 키가 눌려있고 아직 이번 드래그에서 복사하지 않았으면 Actor / Component 복제
+		// GetAsyncKeyState로 OS 레벨에서 Alt 키 상태 직접 확인 (마우스 버튼과 동기화)
+		bool bIsAltDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+		if (bIsAltDown && !bDuplicatedThisDrag)
 		{
-			AActor* SelectedActor = SelectionManager->GetSelectedActor();
-			if (SelectedActor && World)
+			if (SelectionManager->IsActorMode())
 			{
-				AActor* DuplicatedActor = SelectedActor->Duplicate();
-				if (DuplicatedActor)
+				// 액터 모드: 액터 전체 복제
+				AActor* SelectedActor = SelectionManager->GetSelectedActor();
+				if (SelectedActor && World)
 				{
-					DuplicatedActor->SetActorLocation(SelectedActor->GetActorLocation());
-					DuplicatedActor->SetActorRotation(SelectedActor->GetActorRotation());
-					DuplicatedActor->SetActorScale(SelectedActor->GetActorScale());
+					AActor* DuplicatedActor = SelectedActor->Duplicate();
+					if (DuplicatedActor)
+					{
+						DuplicatedActor->SetActorLocation(SelectedActor->GetActorLocation());
+						DuplicatedActor->SetActorRotation(SelectedActor->GetActorRotation());
+						DuplicatedActor->SetActorScale(SelectedActor->GetActorScale());
 
-					FString ActorTypeName = SelectedActor->GetClass()->Name;
-					FString UniqueName = World->GenerateUniqueActorName(ActorTypeName);
-					DuplicatedActor->ObjectName = FName(UniqueName);
+						FString ActorTypeName = SelectedActor->GetClass()->Name;
+						FString UniqueName = World->GenerateUniqueActorName(ActorTypeName);
+						DuplicatedActor->ObjectName = FName(UniqueName);
 
-					World->AddActorToLevel(DuplicatedActor);
+						World->AddActorToLevel(DuplicatedActor);
 
-					SelectionManager->ClearSelection();
-					SelectionManager->SelectActor(DuplicatedActor);
+						SelectionManager->ClearSelection();
+						SelectionManager->SelectActor(DuplicatedActor);
 
-					SelectedComponent = DuplicatedActor->GetRootComponent();
+						SelectedComponent = DuplicatedActor->GetRootComponent();
+						bDuplicatedThisDrag = true;
+					}
+				}
+			}
+			else
+			{
+				// 컴포넌트 모드: 선택된 컴포넌트만 복제
+				USceneComponent* SourceComponent = Cast<USceneComponent>(SelectionManager->GetSelectedComponent());
+				AActor* OwnerActor = SelectionManager->GetSelectedActor();
+				if (SourceComponent && OwnerActor && !SourceComponent->IsNative())
+				{
+					// 컴포넌트 복제
+					USceneComponent* DuplicatedComponent = Cast<USceneComponent>(SourceComponent->Duplicate());
+					if (DuplicatedComponent)
+					{
+						// 액터에 추가
+						OwnerActor->AddOwnedComponent(DuplicatedComponent);
+
+						// 같은 부모에 붙이기
+						USceneComponent* ParentComponent = SourceComponent->GetAttachParent();
+						if (ParentComponent)
+						{
+							DuplicatedComponent->SetupAttachment(ParentComponent, EAttachmentRule::KeepRelative);
+						}
+
+						// 월드에 등록
+						if (World)
+						{
+							DuplicatedComponent->RegisterComponent(World);
+						}
+
+						// 새 컴포넌트 선택
+						SelectionManager->SelectComponent(DuplicatedComponent);
+						SelectedComponent = DuplicatedComponent;
+						bDuplicatedThisDrag = true;
+					}
 				}
 			}
 		}
@@ -834,6 +875,7 @@ void AGizmoActor::EndDrag()
 	}
 
 	bIsDragging = false;
+	bDuplicatedThisDrag = false;  // 복사 플래그 리셋
 	DraggingAxis = 0;
 	DragCamera = nullptr;
 	GizmoAxis = 0; // 하이라이트 해제

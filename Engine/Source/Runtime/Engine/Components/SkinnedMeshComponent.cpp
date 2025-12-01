@@ -256,6 +256,12 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
 
    RM.AsyncLoad<USkeletalMesh>(PathFileName, [this, PathFileName](USkeletalMesh* LoadedMesh)
    {
+      // 비동기 로드 완료 전에 컴포넌트가 파괴되었을 수 있음
+      if (!IsValidObject(this))
+      {
+         return;
+      }
+
       if (LoadedMesh && LoadedMesh->GetSkeletalMeshData())
       {
          this->SkeletalMesh = LoadedMesh;

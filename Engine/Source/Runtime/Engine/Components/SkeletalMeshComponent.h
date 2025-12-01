@@ -8,6 +8,7 @@ class UAnimInstance;
 class UAnimStateMachine;
 class UAnimSequence;
 struct FAnimNotifyEvent;
+struct FConstraintInstance;
 
 DECLARE_DELEGATE_TYPE(FOnAnimNotify, const FAnimNotifyEvent&);
 
@@ -118,6 +119,7 @@ public:
 	FSingleAnimationPlayData AnimationData;
 
 	TArray<FBodyInstance*> Bodies;
+	TArray<FConstraintInstance*> Constraints;
 
 	// Override to create per-bone physics shapes
 	void OnCreatePhysicsState() override;
@@ -126,7 +128,16 @@ public:
 	// Physics 시뮬레이션 결과를 본 트랜스폼에 반영
 	void SyncBonesFromPhysics();
 
+	// ===== Ragdoll Functions =====
+	void SetAllBodiesSimulatePhysics(bool bNewSimulate);
+	void SyncPhysicsToBones();
+	FBodyInstance* GetBodyInstance(int32 BoneIndex) const;
+	FBodyInstance* GetBodyInstanceByBoneName(const FName& BoneName) const;
+	bool IsRagdollActive() const { return bRagdollActive; }
+
 protected:
+	bool bRagdollActive = false;
+	bool bPendingConstraintCreation = false;  // Constraint 생성 대기 플래그 (PVD 동기화 후 생성)
 	TArray<FTransform> CurrentLocalSpacePose;
 	TArray<FTransform> CurrentComponentSpacePose;
 	TArray<FMatrix> TempFinalSkinningMatrices;
@@ -135,6 +146,7 @@ protected:
 	void ForceRecomputePose();
 	void UpdateComponentSpaceTransforms();
 	void UpdateFinalSkinningMatrices();
+	void CreateConstraints();  // Constraint 생성 (BeginPlay에서 호출)
 
 private:
 	UAnimInstance* AnimInstance;
