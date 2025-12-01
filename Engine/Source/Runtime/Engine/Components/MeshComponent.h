@@ -22,6 +22,9 @@ public:
     UPROPERTY(EditAnywhere, Category="Materials", Tooltip="Material slots for the mesh")
     TArray<UMaterialInterface*> MaterialSlots;
 
+    // 사용자가 SetMaterial로 오버라이드한 슬롯 추적 (비동기 로드 후에도 유지)
+    TArray<bool> MaterialSlotOverrides;
+
     UPROPERTY(EditAnywhere, Category="Rendering", Tooltip="그림자를 드리울지 여부입니다")
     bool bCastShadows = true;
     void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;

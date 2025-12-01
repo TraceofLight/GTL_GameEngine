@@ -37,16 +37,35 @@ std::unique_ptr<ULevel> ULevelService::CreateDefaultLevel()
     return NewLevel;
 }
 
-//어느 레벨이든 기본적으로 존재하는 엑터(디렉셔널 라이트) 생성
+// 어느 레벨이든 기본적으로 존재하는 Actor 생성
 void ULevel::SpawnDefaultActors()
 {
+    // 디렉셔널 라이트
     ADirectionalLightActor* DirectionalLightActor = NewObject<ADirectionalLightActor>();
     this->AddActor(DirectionalLightActor);
+    DirectionalLightActor->ObjectName = FName("DirectionalLight");
     DirectionalLightActor->SetActorRotation(FQuat::FromAxisAngle(FVector(1.f, -1.f, 1.f), 30.f));
+    DirectionalLightActor->SetActorLocation(FVector(0.0f, 0.0f, 3.0f));
+
+    // 앰비언트 라이트
     AAmbientLightActor* AmbientLightActor = NewObject<AAmbientLightActor>();
     this->AddActor(AmbientLightActor);
+    AmbientLightActor->ObjectName = FName("AmbientLight");
     AmbientLightActor->GetLightComponent()->SetIntensity(0.1f);
-   
+    AmbientLightActor->SetActorLocation(FVector(0.0f, 0.0f, 6.0f));
+
+    // 바닥 메시 (10x10 크기의 평평한 큐브)
+    AStaticMeshActor* FloorActor = NewObject<AStaticMeshActor>();
+    this->AddActor(FloorActor);
+    FloorActor->ObjectName = FName("Floor");
+
+    if (UStaticMeshComponent* FloorMesh = FloorActor->GetStaticMeshComponent())
+    {
+        FloorMesh->SetStaticMesh("Data/Model/Plane.obj");
+        FloorMesh->SetMaterial(0, nullptr);
+        FloorActor->SetActorLocation(FVector(0.0f, 0.0f, 0.2f));
+        FloorActor->SetActorScale(FVector(1.0f, 1.0f, 1.0f));
+    }
 }
 
 void ULevel::Serialize(const bool bInIsLoading, JSON& InOutHandle)

@@ -8,6 +8,7 @@
 #include "ThumbnailManager.h"
 #include "DynamicEditorWindow.h"
 #include "Source/Runtime/Engine/Animation/BlendSpace2D.h"
+#include "Source/Editor/FBXLoader.h"
 #include <algorithm>
 
 IMPLEMENT_CLASS(UContentBrowserWindow)
@@ -451,9 +452,13 @@ void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 
 	if (ext == ".fbx")
 	{
-		// SkeletalMeshViewer 열기 - DynamicEditorWindow의 LoadSkeletalMesh 사용
 		std::string pathStr = Entry.Path.string();
 		USlateManager& Slate = USlateManager::GetInstance();
+
+		// FBX 파일 콘텐츠 타입 확인
+		bool bHasMesh = false;
+		bool bHasAnimation = false;
+		UFbxLoader::GetInstance().GetFbxContentType(pathStr.c_str(), bHasMesh, bHasAnimation);
 
 		// DynamicEditorWindow가 없으면 생성
 		if (!Slate.IsDynamicEditorOpen())
@@ -461,12 +466,26 @@ void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 			Slate.OpenDynamicEditor();
 		}
 
-		// LoadSkeletalMesh로 파일 로드
-		if (Slate.GetDynamicEditorWindow())
+		// 메시가 없고 애니메이션만 있으면 Animation 뷰어로 열기
+		// 메시가 있으면 (애니메이션 유무와 관계없이) Skeletal 뷰어로 열기
+		if (!bHasMesh && bHasAnimation)
 		{
-			Slate.GetDynamicEditorWindow()->LoadSkeletalMesh(pathStr.c_str());
+			// Animation 뷰어로 열기
+			if (Slate.GetDynamicEditorWindow())
+			{
+				Slate.GetDynamicEditorWindow()->LoadAnimation(pathStr.c_str());
+			}
+			UE_LOG("Opening Animation Viewer for FBX (animation-only): %s", Entry.FileName.c_str());
 		}
-		UE_LOG("Opening SkeletalMeshViewer for: %s", Entry.FileName.c_str());
+		else
+		{
+			// SkeletalMesh 뷰어로 열기
+			if (Slate.GetDynamicEditorWindow())
+			{
+				Slate.GetDynamicEditorWindow()->LoadSkeletalMesh(pathStr.c_str());
+			}
+			UE_LOG("Opening SkeletalMesh Viewer for FBX: %s (mesh=%d, anim=%d)", Entry.FileName.c_str(), bHasMesh, bHasAnimation);
+		}
 	}
 	else if (ext == ".anim")
 	{

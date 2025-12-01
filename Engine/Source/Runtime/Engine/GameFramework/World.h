@@ -94,6 +94,10 @@ public:
     // Level ownership API
     void SetLevel(std::unique_ptr<ULevel> InLevel);
     ULevel* GetLevel() const { return Level.get(); }
+
+    // Level name
+    void SetLevelName(const FString& InName) { LevelName = InName; }
+    const FString& GetLevelName() const { return LevelName; }
     FLightManager* GetLightManager() const { return LightManager.get(); }
     FLuaManager* GetLuaManager() const { return LuaManager.get(); }
 
@@ -164,6 +168,7 @@ private:
 
     /** === 레벨 컨테이너 === */
     std::unique_ptr<ULevel> Level;
+    FString LevelName = "New Level";  // 현재 레벨 이름
     TArray<AActor*> PendingKillActors;  // 지연 삭제 예정 액터 목록
 
     /** === 라이트 매니저 ===*/

@@ -52,12 +52,19 @@ void UMainToolbarWidget::LoadToolbarIcons()
 void UMainToolbarWidget::RenderToolbar()
 {
     // 툴바 윈도우 설정
-    const float ToolbarHeight = 50.0f;
-    ImVec2 ToolbarPos(0, 0);
+    const float HeaderHeight = 54.0f;  // 상단패딩(4) + 메뉴바(22) + 레벨탭(28)
+    const float ToolbarHeight = 40.0f;
+    ImVec2 ToolbarPos(0, HeaderHeight);  // 메뉴바+레벨탭 아래에 배치
     ImVec2 ToolbarSize(ImGui::GetIO().DisplaySize.x, ToolbarHeight);
 
     ImGui::SetNextWindowPos(ToolbarPos);
     ImGui::SetNextWindowSize(ToolbarSize);
+
+    // 테마 색상 및 스타일 설정
+    const ImVec4 ToolbarBg = ImVec4(0.11f, 0.11f, 0.14f, 1.0f);  // 레벨탭 배경과 동일
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ToolbarBg);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
                              ImGuiWindowFlags_NoMove |
@@ -66,12 +73,12 @@ void UMainToolbarWidget::RenderToolbar()
                              ImGuiWindowFlags_NoScrollWithMouse |
                              ImGuiWindowFlags_NoScrollbar;
 
-    if (ImGui::Begin("##MainToolbar", nullptr, flags))
+    ImGui::Begin("##MainToolbar", nullptr, flags);
     {
         // 수직 중앙 정렬
         float cursorY = (ToolbarHeight - IconSize) / 2.0f;
         ImGui::SetCursorPosY(cursorY);
-        ImGui::SetCursorPosX(8.0f); // 왼쪽 여백
+        ImGui::SetCursorPosX(8.0f); // 왼쪽 여백 (원래대로)
 
         // Scene 관리 버튼들
         RenderSceneButtons();
@@ -112,6 +119,8 @@ void UMainToolbarWidget::RenderToolbar()
         RenderPIEButtons();
     }
     ImGui::End();
+    ImGui::PopStyleVar(2);   // WindowBorderSize, WindowPadding
+    ImGui::PopStyleColor(1); // WindowBg
 }
 
 void UMainToolbarWidget::BeginButtonGroup()

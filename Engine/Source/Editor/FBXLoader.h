@@ -20,6 +20,15 @@ public:
 
 	FSkeletalMeshData* LoadFbxMeshAsset(const FString& FilePath);
 
+	/**
+	 * @brief FBX 파일의 콘텐츠 타입 검사
+	 * @param FilePath FBX 파일 경로
+	 * @param OutHasMesh 메시 데이터 포함 여부
+	 * @param OutHasAnimation 애니메이션 데이터 포함 여부
+	 * @return 파일 로드 성공 여부
+	 */
+	bool GetFbxContentType(const FString& FilePath, bool& OutHasMesh, bool& OutHasAnimation);
+
 	// 애니메이션 임포트 (단일 AnimStack)
 	// UAnimSequence* LoadFbxAnimation(const FString& FilePath, const FSkeleton& TargetSkeleton, const FString& AnimStackName = "");
 
