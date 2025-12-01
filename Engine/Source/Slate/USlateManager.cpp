@@ -463,6 +463,18 @@ void USlateManager::SwitchPanel(SWindow* SwitchPanel)
 
 void USlateManager::Render()
 {
+    // 지연 삭제 처리 (이전 프레임에서 닫힌 윈도우를 안전하게 삭제)
+    // ImGui::Render() 이후에 삭제해야 SRV 참조 문제 방지
+    if (bPendingCloseDynamicEditor)
+    {
+        if (DynamicEditorWindow)
+        {
+            delete DynamicEditorWindow;
+            DynamicEditorWindow = nullptr;
+        }
+        bPendingCloseDynamicEditor = false;
+    }
+
     // 메인 툴바 렌더링 (항상 최상단에)
     MainToolbar->RenderWidget();
     if (TopPanel)
@@ -707,10 +719,11 @@ void USlateManager::Render()
     {
         DynamicEditorWindow->OnRender();
 
-        // 윈도우가 닫혔으면 삭제
+        // 윈도우가 닫혔으면 다음 프레임에서 삭제 예약
+        // (ImGui DrawList에 SRV가 남아있을 수 있으므로 즉시 삭제하면 안 됨)
         if (!DynamicEditorWindow->IsOpen())
         {
-            CloseDynamicEditor();
+            bPendingCloseDynamicEditor = true;
         }
     }
 

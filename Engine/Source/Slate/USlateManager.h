@@ -178,6 +178,7 @@ private:
 
     // Dynamic Editor Window (통합 에디터 - 모든 모드 지원)
     SDynamicEditorWindow* DynamicEditorWindow = nullptr;
+    bool bPendingCloseDynamicEditor = false;  // 다음 프레임에서 삭제 (ImGui SRV 문제 방지)
 
     // Particle Editor window (Cascade 스타일)
     SParticleEditorWindow* ParticleEditorWindow = nullptr;
