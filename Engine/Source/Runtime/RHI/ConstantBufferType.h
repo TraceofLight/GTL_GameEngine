@@ -114,6 +114,13 @@ enum class EDoFBlurMethod : int32
     CircularGather = 4, // 다중 링 원형 블러 (최고 품질, 느림)
 };
 
+// DoF 번짐 처리 방식 열거형 (흐릿한 물체가 선명한 영역으로 번지는 효과)
+enum class EDoFBleedingMethod : int32
+{
+    None = 0,            // 기본 Gather (선명한 픽셀은 항상 선명)
+    ScatterAsGather = 1, // 샘플의 CoC가 중심까지 도달하면 기여 (물리 기반)
+};
+
 struct alignas(16) FDepthOfFieldBufferType // b2
 {
     // 공통 파라미터 (16 bytes)
@@ -148,7 +155,7 @@ struct alignas(16) FDepthOfFieldBufferType // b2
     float PointFocusBlurScale;  // 블러 강도 스케일
     float PointFocusFalloff;    // 블러 감쇠 (1=선형, 2=제곱 등)
     int32 BlurMethod;           // 블러 방식 (EDoFBlurMethod)
-    float _Pad3;
+    int32 BleedingMethod;       // 번짐 처리 방식 (EDoFBleedingMethod): 0=None, 1=ScatterAsGather
 };
 static_assert(sizeof(FDepthOfFieldBufferType) % 16 == 0, "CB must be 16-byte aligned");
 

@@ -91,7 +91,9 @@ void FDepthOfFieldPass::Execute(const FPostProcessModifier& M, FSceneView* View,
 
     // 블러 방식
     DoFBuffer.BlurMethod = static_cast<int32>(M.Payload.Params2.W);
-    DoFBuffer._Pad3 = 0.0f;
+
+    // 번짐 처리 방식 (Params4에서 읽음)
+    DoFBuffer.BleedingMethod = static_cast<int32>(M.Payload.Params4.X);
 
     RHIDevice->SetAndUpdateConstantBuffer(DoFBuffer);
 

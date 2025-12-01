@@ -63,7 +63,7 @@ cbuffer DepthOfFieldCB : register(b2)
     float PointFocusBlurScale;  // 블러 강도 스케일
     float PointFocusFalloff;    // 블러 감쇠 (1=선형, 2=제곱 등)
     int BlurMethod;             // 블러 방식 (0:Disc12, 1:Disc24, 2:Gaussian, 3:Hexagonal, 4:CircularGather)
-    float _Pad3;
+    int BleedingMethod;         // 번짐 처리 (0:None, 1:ScatterAsGather)
 }
 
 cbuffer ViewportConstants : register(b10)
@@ -394,15 +394,58 @@ float CalculateSampleWeight(float centerCoC, float sampleCoC)
     return weight;
 }
 
+// Scatter-as-Gather용 가중치 계산
+// 샘플의 CoC가 중심까지 도달할 수 있는지 체크하여 번짐 효과 구현
+float CalculateSampleWeight_SaG(float centerCoC, float sampleCoC, float distPixels)
+{
+    float absSampleCoC = abs(sampleCoC);
+    float absCenterCoC = abs(centerCoC);
+
+    // 샘플이 중심까지 도달할 수 있는가? (Scatter 조건)
+    bool sampleReachesCenter = (distPixels <= absSampleCoC);
+    // 중심이 샘플까지 도달할 수 있는가? (기존 Gather 조건)
+    bool centerReachesSample = (distPixels <= absCenterCoC);
+
+    if (!sampleReachesCenter && !centerReachesSample)
+    {
+        return 0.0;
+    }
+
+    float weight = 1.0;
+
+    if (sampleReachesCenter)
+    {
+        // 샘플이 중심으로 번지는 경우: 거리에 따라 감쇠
+        float scatterWeight = 1.0 - (distPixels / max(absSampleCoC, 0.001));
+        weight = saturate(scatterWeight);
+    }
+
+    if (centerReachesSample)
+    {
+        // 기존 Gather 로직과 병합
+        float gatherWeight = 1.0;
+        if (centerCoC > 0.0 && sampleCoC < centerCoC)
+        {
+            gatherWeight = saturate(1.0 - (centerCoC - sampleCoC) / MaxBlurRadius);
+        }
+        weight = max(weight, gatherWeight);
+    }
+
+    return weight;
+}
+
 // Disc12 블러 (12 샘플, 빠름)
 float4 ApplyDisc12Blur(float2 texCoord, float blurRadius, float2 pixelSize, float centerCoC)
 {
     float4 accumulatedColor = float4(0, 0, 0, 0);
     float totalWeight = 0.0;
 
+    // SaG 모드일 때는 최대 블러 반경으로 검색
+    float searchRadius = (BleedingMethod == 1) ? MaxBlurRadius * BokehSize : blurRadius;
+
     for (int i = 0; i < 12; i++)
     {
-        float2 offset = Disc12Samples[i] * blurRadius * pixelSize;
+        float2 offset = Disc12Samples[i] * searchRadius * pixelSize;
         float2 sampleUV = texCoord + offset;
 
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0)
@@ -413,7 +456,17 @@ float4 ApplyDisc12Blur(float2 texCoord, float blurRadius, float2 pixelSize, floa
         float sampleViewDepth = GetLinearDepth(sampleRawDepth);
         float sampleCoC = CalculateCoC(sampleViewDepth, sampleUV, sampleRawDepth);
 
-        float sampleWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        float sampleWeight;
+        if (BleedingMethod == 1)  // ScatterAsGather
+        {
+            float distPixels = length(Disc12Samples[i] * searchRadius);
+            sampleWeight = CalculateSampleWeight_SaG(centerCoC, sampleCoC, distPixels);
+        }
+        else  // None (기존 방식)
+        {
+            sampleWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        }
+
         accumulatedColor += sampleColor * sampleWeight;
         totalWeight += sampleWeight;
     }
@@ -427,9 +480,12 @@ float4 ApplyDisc24Blur(float2 texCoord, float blurRadius, float2 pixelSize, floa
     float4 accumulatedColor = float4(0, 0, 0, 0);
     float totalWeight = 0.0;
 
+    // SaG 모드일 때는 최대 블러 반경으로 검색
+    float searchRadius = (BleedingMethod == 1) ? MaxBlurRadius * BokehSize : blurRadius;
+
     for (int i = 0; i < 24; i++)
     {
-        float2 offset = Disc24Samples[i] * blurRadius * pixelSize;
+        float2 offset = Disc24Samples[i] * searchRadius * pixelSize;
         float2 sampleUV = texCoord + offset;
 
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0)
@@ -440,7 +496,17 @@ float4 ApplyDisc24Blur(float2 texCoord, float blurRadius, float2 pixelSize, floa
         float sampleViewDepth = GetLinearDepth(sampleRawDepth);
         float sampleCoC = CalculateCoC(sampleViewDepth, sampleUV, sampleRawDepth);
 
-        float sampleWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        float sampleWeight;
+        if (BleedingMethod == 1)  // ScatterAsGather
+        {
+            float distPixels = length(Disc24Samples[i] * searchRadius);
+            sampleWeight = CalculateSampleWeight_SaG(centerCoC, sampleCoC, distPixels);
+        }
+        else  // None (기존 방식)
+        {
+            sampleWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        }
+
         accumulatedColor += sampleColor * sampleWeight;
         totalWeight += sampleWeight;
     }
@@ -454,9 +520,12 @@ float4 ApplyGaussianBlur(float2 texCoord, float blurRadius, float2 pixelSize, fl
     float4 accumulatedColor = float4(0, 0, 0, 0);
     float totalWeight = 0.0;
 
+    // SaG 모드일 때는 최대 블러 반경으로 검색
+    float searchRadius = (BleedingMethod == 1) ? MaxBlurRadius * BokehSize : blurRadius;
+
     for (int i = 0; i < 13; i++)
     {
-        float2 offset = GaussianSamples[i].xy * blurRadius * pixelSize;
+        float2 offset = GaussianSamples[i].xy * searchRadius * pixelSize;
         float gaussianWeight = GaussianSamples[i].z;  // 미리 계산된 가우시안 가중치
         float2 sampleUV = texCoord + offset;
 
@@ -468,7 +537,16 @@ float4 ApplyGaussianBlur(float2 texCoord, float blurRadius, float2 pixelSize, fl
         float sampleViewDepth = GetLinearDepth(sampleRawDepth);
         float sampleCoC = CalculateCoC(sampleViewDepth, sampleUV, sampleRawDepth);
 
-        float depthWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        float depthWeight;
+        if (BleedingMethod == 1)  // ScatterAsGather
+        {
+            float distPixels = length(GaussianSamples[i].xy * searchRadius);
+            depthWeight = CalculateSampleWeight_SaG(centerCoC, sampleCoC, distPixels);
+        }
+        else  // None (기존 방식)
+        {
+            depthWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        }
         float finalWeight = gaussianWeight * depthWeight;
 
         accumulatedColor += sampleColor * finalWeight;
@@ -484,9 +562,12 @@ float4 ApplyHexagonalBlur(float2 texCoord, float blurRadius, float2 pixelSize, f
     float4 accumulatedColor = float4(0, 0, 0, 0);
     float totalWeight = 0.0;
 
+    // SaG 모드일 때는 최대 블러 반경으로 검색
+    float searchRadius = (BleedingMethod == 1) ? MaxBlurRadius * BokehSize : blurRadius;
+
     for (int i = 0; i < 19; i++)
     {
-        float2 offset = HexagonalSamples[i] * blurRadius * pixelSize;
+        float2 offset = HexagonalSamples[i] * searchRadius * pixelSize;
         float2 sampleUV = texCoord + offset;
 
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0)
@@ -497,7 +578,17 @@ float4 ApplyHexagonalBlur(float2 texCoord, float blurRadius, float2 pixelSize, f
         float sampleViewDepth = GetLinearDepth(sampleRawDepth);
         float sampleCoC = CalculateCoC(sampleViewDepth, sampleUV, sampleRawDepth);
 
-        float sampleWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        float sampleWeight;
+        if (BleedingMethod == 1)  // ScatterAsGather
+        {
+            float distPixels = length(HexagonalSamples[i] * searchRadius);
+            sampleWeight = CalculateSampleWeight_SaG(centerCoC, sampleCoC, distPixels);
+        }
+        else  // None (기존 방식)
+        {
+            sampleWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        }
+
         accumulatedColor += sampleColor * sampleWeight;
         totalWeight += sampleWeight;
     }
@@ -511,9 +602,12 @@ float4 ApplyCircularGatherBlur(float2 texCoord, float blurRadius, float2 pixelSi
     float4 accumulatedColor = float4(0, 0, 0, 0);
     float totalWeight = 0.0;
 
+    // SaG 모드일 때는 최대 블러 반경으로 검색
+    float searchRadius = (BleedingMethod == 1) ? MaxBlurRadius * BokehSize : blurRadius;
+
     for (int i = 0; i < 48; i++)
     {
-        float2 offset = CircularGatherSamples[i] * blurRadius * pixelSize;
+        float2 offset = CircularGatherSamples[i] * searchRadius * pixelSize;
         float2 sampleUV = texCoord + offset;
 
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0)
@@ -524,7 +618,17 @@ float4 ApplyCircularGatherBlur(float2 texCoord, float blurRadius, float2 pixelSi
         float sampleViewDepth = GetLinearDepth(sampleRawDepth);
         float sampleCoC = CalculateCoC(sampleViewDepth, sampleUV, sampleRawDepth);
 
-        float sampleWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        float sampleWeight;
+        if (BleedingMethod == 1)  // ScatterAsGather
+        {
+            float distPixels = length(CircularGatherSamples[i] * searchRadius);
+            sampleWeight = CalculateSampleWeight_SaG(centerCoC, sampleCoC, distPixels);
+        }
+        else  // None (기존 방식)
+        {
+            sampleWeight = CalculateSampleWeight(centerCoC, sampleCoC);
+        }
+
         accumulatedColor += sampleColor * sampleWeight;
         totalWeight += sampleWeight;
     }
@@ -549,8 +653,8 @@ float4 mainPS(PS_INPUT input) : SV_TARGET
     float centerCoC = CalculateCoC(centerViewDepth, input.texCoord, centerRawDepth);
     float absCoC = abs(centerCoC);
 
-    // CoC가 0에 가까우면 원본 반환
-    if (absCoC < 0.5)
+    // CoC가 0에 가까우면 원본 반환 (단, SaG 모드에서는 주변 번짐을 위해 블러 처리 필요)
+    if (BleedingMethod == 0 && absCoC < 0.5)
     {
         return centerColor;
     }
@@ -559,6 +663,7 @@ float4 mainPS(PS_INPUT input) : SV_TARGET
     float2 pixelSize = ScreenSize.zw;
 
     // 블러 반경 (픽셀 단위)
+    // SaG 모드에서 centerCoC가 0이면 블러 반경도 0이지만, 블러 함수 내에서 searchRadius가 확장됨
     float blurRadius = absCoC * BokehSize;
 
     // 블러 방식에 따라 다른 함수 호출

@@ -18,6 +18,7 @@ struct FPostProcessPayload
     FVector4 Params1 = FVector4(0,0,0,0);
     FVector4 Params2 = FVector4(0,0,0,0);  // 추가 파라미터 (Physical DoF용)
     FVector4 Params3 = FVector4(0,0,0,0);  // 추가 파라미터 (PointFocus DoF용: x,y,z = FocusPoint, w = FocusRadius)
+    FVector4 Params4 = FVector4(0,0,0,0);  // 추가 파라미터 (DoF BleedingMethod 등)
     FLinearColor Color = FLinearColor(0, 0, 0, 1);
 };
 

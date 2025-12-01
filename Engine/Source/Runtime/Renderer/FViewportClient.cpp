@@ -182,6 +182,11 @@ void FViewportClient::Draw(FViewport* Viewport)
 			EditorDoFSettings.TiltShiftBlurScale,
 			EditorDoFSettings.PointFocusBlurScale
 		);
+		// Params4: BleedingMethod (번짐 처리 방식)
+		DoFModifier.Payload.Params4 = FVector4(
+			static_cast<float>(EditorDoFSettings.BleedingMethod),
+			0.0f, 0.0f, 0.0f  // 미래 확장용
+		);
 		RenderView.Modifiers.Add(DoFModifier);
 	}
 
