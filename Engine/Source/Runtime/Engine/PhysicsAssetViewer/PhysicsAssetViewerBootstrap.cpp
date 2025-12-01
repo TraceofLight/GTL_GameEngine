@@ -6,7 +6,9 @@
 #include "FSkeletalViewerViewportClient.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
+#include "Source/Runtime/Engine/GameFramework/DirectionalLightActor.h"
 #include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
+#include "Source/Runtime/Engine/Components/DirectionalLightComponent.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsManager.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
 
@@ -69,6 +71,22 @@ PhysicsAssetViewerState* PhysicsAssetViewerBootstrap::CreateViewerState(const ch
         Preview->SetTickInEditor(true);
     }
     State->PreviewActor = Preview;
+
+    // Directional Light (그림자용)
+    ADirectionalLightActor* DirLight = State->World->SpawnActor<ADirectionalLightActor>();
+    if (DirLight)
+    {
+        // 태양광 방향 설정 (위에서 비스듬하게)
+        DirLight->SetActorRotation(FVector(0.0f, -45.0f, -45.0f));  // Pitch, Yaw, Roll
+
+        UDirectionalLightComponent* LightComp = DirLight->GetLightComponent();
+        if (LightComp)
+        {
+            LightComp->SetLightColor(FLinearColor(1.0f, 0.98f, 0.95f));  // 약간 따뜻한 백색
+            LightComp->SetIntensity(3.0f);
+            LightComp->SetCastShadows(true);
+        }
+    }
 
     return State;
 }
