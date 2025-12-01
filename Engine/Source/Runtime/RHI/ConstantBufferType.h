@@ -156,6 +156,17 @@ struct alignas(16) FDepthOfFieldBufferType // b2
     float PointFocusFalloff;    // 블러 감쇠 (1=선형, 2=제곱 등)
     int32 BlurMethod;           // 블러 방식 (EDoFBlurMethod)
     int32 BleedingMethod;       // 번짐 처리 방식 (EDoFBleedingMethod): 0=None, 1=ScatterAsGather
+
+    // ScreenPointFocus 모드 파라미터 (16 bytes)
+    FVector2D ScreenFocusPoint;     // 화면 좌표 (0~1, 0.5=중앙)
+    float ScreenFocusRadius;        // 화면 상의 초점 반경 (0~1)
+    float ScreenFocusDepthRange;    // 초점 깊이 범위
+
+    // ScreenPointFocus 추가 파라미터 (16 bytes)
+    float ScreenFocusBlurScale;     // 블러 강도 스케일
+    float ScreenFocusFalloff;       // 블러 감쇠 곡선
+    float ScreenFocusAspectRatio;   // 종횡비 보정 (1.0 = 원형)
+    float _Pad4;
 };
 static_assert(sizeof(FDepthOfFieldBufferType) % 16 == 0, "CB must be 16-byte aligned");
 
