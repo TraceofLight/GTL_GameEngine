@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+struct FBoneVertInfo;
 class UPhysicsAsset;
 class USkeletalMesh;
 class UBodySetup;
@@ -21,6 +22,17 @@ namespace FPhysicsAssetUtils
      * @return true if any bodies were created
      */
     bool CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, const USkeletalMesh* SkeletalMesh);
+
+    /**
+     * Creates collision geometry (capsule) for a single bone using vertex data.
+     * Uses covariance matrix and eigenvector to determine optimal capsule orientation.
+     *
+     * @param BodySetup     The body setup to add collision to
+     * @param Info          Vertex positions/normals associated with this bone
+     * @param BoneName      Name of the bone (for logging)
+     * @return true if collision was created successfully
+     */
+    bool CreateCollisionFromBoneInternal(UBodySetup* BodySetup, const FBoneVertInfo& Info, const std::string& BoneName);
 
     /**
      * Creates a new BodySetup for a specific bone and adds it to the PhysicsAsset.
