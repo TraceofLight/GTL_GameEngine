@@ -45,6 +45,7 @@ public:
 
 
 protected:
+	void OnRegister(UWorld* InWorld) override;
 	void OnTransformUpdated() override;
 
     // Physics hookup for StaticMesh only (AABB-based)

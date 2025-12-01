@@ -978,6 +978,16 @@ void USlateManager::ProcessInput()
         CloseDynamicEditor();
     }
 
+    // F키로 선택된 액터/컴포넌트에 포커싱 (텍스트 입력 중이 아닐 때)
+    // WantCaptureKeyboard는 제외 - 아웃라이너/디테일 패널에서도 F키가 작동해야 함
+    if (ImGui::IsKeyPressed(ImGuiKey_F, false) && !ImGui::GetIO().WantTextInput)
+    {
+        if (MainViewport)
+        {
+            MainViewport->FocusOnSelectedActor();
+        }
+    }
+
     // ParticleEditorWindow가 포커스된 경우 EditorWorld 입력 차단
     bool bParticleEditorFocused = ParticleEditorWindow && ParticleEditorWindow->ShouldBlockEditorInput();
 

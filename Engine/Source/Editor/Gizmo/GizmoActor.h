@@ -66,12 +66,12 @@ public:
     void NextMode(EGizmoMode GizmoMode);
     TArray<USceneComponent*>* GetGizmoComponents();
 
-    
+
     EGizmoMode GetGizmoMode() const;
 
     void OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseDeltaX, float MouseDeltaY, const ACameraActor* Camera, FViewport* Viewport);
     void OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseDeltaX, float MouseDeltaY, const ACameraActor* Camera);
-    
+
     // Gizmo interaction methods
    // void SetTargetActor(AActor* InTargetActor) { TargetActor = InTargetActor; Tick(0.f);  }
     void SetEditorCameraActor(ACameraActor* InCameraActor) { CameraActor = InCameraActor; }
@@ -114,10 +114,11 @@ protected:
     bool bRender = false;
     bool bIsHovering = false;
     bool bIsDragging = false;
+    bool bDuplicatedThisDrag = false;  // Alt + 드래그 복사가 이번 드래그에서 이미 수행됐는지
     bool bInteractionEnabled = true;  // Set to false when tool windows (e.g., Particle Editor) are focused
     EGizmoMode CurrentMode = EGizmoMode::Translate;
     EGizmoSpace CurrentSpace = EGizmoSpace::World;
-    
+
     // Interaction state
     /*AActor* TargetActor = nullptr;
     USceneComponent* SelectedComponent = nullptr;*/
@@ -132,10 +133,10 @@ protected:
     USelectionManager* SelectionManager = nullptr;
     UInputManager* InputManager = nullptr;
     UUIManager* UIManager = nullptr;
-    
+
     uint32 GizmoAxis{};
     // Gizmo interaction methods
-   
+
     void ProcessGizmoHovering(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
     void ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
     void UpdateComponentVisibility();

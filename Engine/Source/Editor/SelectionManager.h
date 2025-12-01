@@ -20,6 +20,7 @@ public:
     /** === 선택 관리 === */
     void SelectActor(AActor* Actor);
     void SelectComponent(UActorComponent* Component);
+    void SelectActorAndComponent(AActor* Actor, UActorComponent* Component);
     void DeselectActor(AActor* Actor);
     void ClearSelection();
     
