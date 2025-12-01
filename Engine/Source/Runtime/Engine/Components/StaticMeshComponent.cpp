@@ -173,6 +173,12 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 
 	RM.AsyncLoad<UStaticMesh>(PathFileName, [this, PathFileName](UStaticMesh* LoadedMesh)
 	{
+		// 비동기 로드 완료 전에 컴포넌트가 파괴되었을 수 있음
+		if (!IsValidObject(this))
+		{
+			return;
+		}
+
         if (LoadedMesh && LoadedMesh->GetStaticMeshAsset())
         {
             this->StaticMesh = LoadedMesh;

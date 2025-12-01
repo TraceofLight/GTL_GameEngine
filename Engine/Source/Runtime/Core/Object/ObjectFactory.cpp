@@ -145,4 +145,21 @@ namespace ObjectFactory
         }
         GUObjectArray.SetNum(write);
     }
+
+    bool IsValidObject(const UObject* Obj)
+    {
+        if (!Obj)
+        {
+            return false;
+        }
+        // GUObjectArray에서 포인터 찾기
+        for (int32 i = 0; i < GUObjectArray.Num(); ++i)
+        {
+            if (GUObjectArray[i] == Obj)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 }

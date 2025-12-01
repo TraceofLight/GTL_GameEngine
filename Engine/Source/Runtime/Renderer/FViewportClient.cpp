@@ -16,6 +16,7 @@
 #include "PlayerCameraManager.h"
 #include "SceneView.h"
 #include "PostProcessing/PostProcessing.h"
+#include "ImGui/imgui.h"
 #include <ctime>
 
 FVector FViewportClient::CameraAddPosition{};
@@ -421,13 +422,28 @@ void FViewportClient::MouseButtonUp(FViewport* Viewport, int32 X, int32 Y, int32
 
 void FViewportClient::MouseWheel(float DeltaSeconds)
 {
-	if (!Camera) return;
+	if (!Camera)
+	{
+		return;
+	}
+
+	// ImGui가 마우스를 캡처하려는 경우 (콘솔, 컨텐츠 브라우저, 슬라이더, 버튼 등 UI 위) 무시
+	if (ImGui::GetIO().WantCaptureMouse)
+	{
+		return;
+	}
 
 	UCameraComponent* CameraComponent = Camera->GetCameraComponent();
-	if (!CameraComponent) return;
+	if (!CameraComponent)
+	{
+		return;
+	}
 	float WheelDelta = UInputManager::GetInstance().GetMouseWheelDelta();
 
-	if (WheelDelta == 0.0f) return;
+	if (WheelDelta == 0.0f)
+	{
+		return;
+	}
 
 	// 우클릭 드래그 중일 때: 카메라 속도 조절
 	if (bIsMouseRightButtonDown || PerspectiveCameraInput)

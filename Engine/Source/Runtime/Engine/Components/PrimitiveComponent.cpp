@@ -101,6 +101,12 @@ void UPrimitiveComponent::SetMaterialByName(uint32 InElementIndex, const FString
         InMaterialName,
         [this, InElementIndex, InMaterialName](UMaterial* LoadedMaterial)
         {
+            // 비동기 로드 완료 전에 컴포넌트가 파괴되었을 수 있음
+            if (!IsValidObject(this))
+            {
+                return;
+            }
+
             if (LoadedMaterial)
             {
                 this->SetMaterial(InElementIndex, LoadedMaterial);
