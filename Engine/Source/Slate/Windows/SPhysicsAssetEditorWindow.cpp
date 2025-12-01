@@ -782,9 +782,13 @@ void SPhysicsAssetEditorWindow::RenderToPreviewRenderTarget()
     // Physics Bodies 디버그 드로잉
     if (ActiveState->bShowBodies && ActiveState->PhysicsAsset)
     {
-        Renderer->BeginLineBatch();
-        ActiveState->DrawPhysicsBodies(Renderer);
-        Renderer->EndLineBatch(FMatrix::Identity());
+        // 반투명 솔리드 Body 렌더링 (언리얼 스타일)
+        ActiveState->DrawPhysicsBodiesSolid(Renderer);
+
+        // 와이어프레임 라인 렌더링 (비활성화)
+        // Renderer->BeginLineBatch();
+        // ActiveState->DrawPhysicsBodies(Renderer);
+        // Renderer->EndLineBatch(FMatrix::Identity());
     }
 
     // 렌더 타겟 복원

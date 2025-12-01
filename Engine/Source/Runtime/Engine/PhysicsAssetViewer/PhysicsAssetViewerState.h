@@ -94,6 +94,9 @@ public:
     // 디버그 드로잉
     void DrawPhysicsBodies(class URenderer* Renderer) const;
 
+    // 반투명 솔리드 Body 드로잉 (언리얼 스타일)
+    void DrawPhysicsBodiesSolid(class URenderer* Renderer) const;
+
 private:
     // 개별 Shape 드로잉 헬퍼
     void DrawSphere(class URenderer* Renderer, const FTransform& BoneTransform, const struct FKSphereElem& Sphere, const FVector4& Color) const;

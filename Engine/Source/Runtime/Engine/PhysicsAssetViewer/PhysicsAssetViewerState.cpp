@@ -5,6 +5,7 @@
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
+#include "Source/Runtime/Core/Misc/PrimitiveGeometry.h"
 #include "Renderer.h"
 
 UBodySetup* PhysicsAssetViewerState::GetSelectedBodySetup() const
@@ -92,9 +93,9 @@ void PhysicsAssetViewerState::DrawPhysicsBodies(URenderer* Renderer) const
 
     const FSkeleton* Skeleton = CurrentMesh ? CurrentMesh->GetSkeleton() : nullptr;
 
-    // 기본 색상
-    const FVector4 NormalColor(0.0f, 0.8f, 0.0f, 1.0f);      // 녹색 (일반 Body)
-    const FVector4 SelectedColor(1.0f, 0.5f, 0.0f, 1.0f);    // 주황색 (선택된 Body)
+    // 기본 색상 (언리얼 스타일)
+    const FVector4 NormalColor(1.0f, 1.0f, 1.0f, 1.0f);      // 흰색 (일반 Body)
+    const FVector4 SelectedColor(0.3f, 0.7f, 1.0f, 1.0f);    // 파란색 (선택된 Body)
     const FVector4 ShapeSelectedColor(1.0f, 1.0f, 0.0f, 1.0f); // 노란색 (선택된 Shape)
 
     // 모든 BodySetup 순회
@@ -371,4 +372,141 @@ void PhysicsAssetViewerState::DrawCapsule(URenderer* Renderer, const FTransform&
     AddHemisphereArcs(-1.0f); // 아래 반구
 
     Renderer->AddLines(StartPoints, EndPoints, Colors);
+}
+
+// ============================================================================
+// 반투명 솔리드 Body 드로잉 (언리얼 스타일)
+// ============================================================================
+
+void PhysicsAssetViewerState::DrawPhysicsBodiesSolid(URenderer* Renderer) const
+{
+    if (!bShowBodies || !PhysicsAsset || !Renderer)
+        return;
+
+    // SkeletalMeshComponent에서 본 위치 가져오기
+    USkeletalMeshComponent* SkelComp = nullptr;
+    if (PreviewActor)
+    {
+        SkelComp = PreviewActor->GetSkeletalMeshComponent();
+    }
+
+    const FSkeleton* Skeleton = CurrentMesh ? CurrentMesh->GetSkeleton() : nullptr;
+
+    // 프리미티브 배치 시작
+    Renderer->BeginPrimitiveBatch();
+
+    // 기본 색상 (언리얼 스타일 - 반투명)
+    const FVector4 NormalColor(1.0f, 1.0f, 1.0f, 0.15f);      // 반투명 흰색 (일반 Body)
+    const FVector4 SelectedColor(0.3f, 0.7f, 1.0f, 0.4f);     // 반투명 파란색 (선택된 Body)
+    const FVector4 ShapeSelectedColor(1.0f, 1.0f, 0.0f, 0.5f); // 반투명 노란색 (선택된 Shape)
+
+    // 모든 BodySetup 순회
+    for (int32 BodyIdx = 0; BodyIdx < PhysicsAsset->BodySetups.Num(); ++BodyIdx)
+    {
+        UBodySetup* Setup = PhysicsAsset->BodySetups[BodyIdx];
+        if (!Setup)
+            continue;
+
+        // 본의 월드 트랜스폼 가져오기
+        FTransform BoneTransform;
+        if (SkelComp && Skeleton)
+        {
+            int32 BoneIndex = -1;
+            for (int32 i = 0; i < Skeleton->Bones.size(); ++i)
+            {
+                if (Skeleton->Bones[i].Name == Setup->BoneName.ToString())
+                {
+                    BoneIndex = i;
+                    break;
+                }
+            }
+
+            if (BoneIndex >= 0)
+            {
+                BoneTransform = SkelComp->GetBoneWorldTransform(BoneIndex);
+            }
+            else
+            {
+                BoneTransform = SkelComp->GetWorldTransform();
+            }
+        }
+
+        // Body가 선택되었는지 확인
+        bool bBodySelected = (EditMode == EPhysicsAssetEditMode::Body && SelectedBodyIndex == BodyIdx);
+        bool bShapeMode = (EditMode == EPhysicsAssetEditMode::Shape && SelectedBodyIndex == BodyIdx);
+
+        // Sphere shapes 그리기
+        for (int32 i = 0; i < Setup->AggGeom.SphereElems.Num(); ++i)
+        {
+            const FKSphereElem& Sphere = Setup->AggGeom.SphereElems[i];
+
+            FVector4 Color = NormalColor;
+            if (bBodySelected)
+                Color = SelectedColor;
+            else if (bShapeMode && SelectedShapeType == EAggCollisionShape::Sphere && SelectedShapeIndex == i)
+                Color = ShapeSelectedColor;
+
+            // 메시 생성
+            FMeshData SphereMesh;
+            FPrimitiveGeometry::GenerateSphere(SphereMesh, Sphere.Radius, 12, 6, Color);
+
+            // Shape의 로컬 트랜스폼 계산
+            FTransform ShapeLocalTransform(Sphere.Center, FQuat(0, 0, 0, 1), FVector(1, 1, 1));
+            FTransform ShapeWorldTransform = BoneTransform.GetWorldTransform(ShapeLocalTransform);
+            FMatrix WorldMatrix = FMatrix::FromTRS(ShapeWorldTransform.Translation, ShapeWorldTransform.Rotation, FVector(1, 1, 1));
+
+            Renderer->AddPrimitiveData(SphereMesh, WorldMatrix);
+        }
+
+        // Box shapes 그리기
+        for (int32 i = 0; i < Setup->AggGeom.BoxElems.Num(); ++i)
+        {
+            const FKBoxElem& Box = Setup->AggGeom.BoxElems[i];
+
+            FVector4 Color = NormalColor;
+            if (bBodySelected)
+                Color = SelectedColor;
+            else if (bShapeMode && SelectedShapeType == EAggCollisionShape::Box && SelectedShapeIndex == i)
+                Color = ShapeSelectedColor;
+
+            // 메시 생성
+            FMeshData BoxMesh;
+            FPrimitiveGeometry::GenerateBox(BoxMesh, FVector(Box.X * 0.5f, Box.Y * 0.5f, Box.Z * 0.5f), Color);
+
+            // Shape의 로컬 트랜스폼 계산
+            FQuat BoxRot = FQuat::MakeFromEulerZYX(Box.Rotation * (PI / 180.0f));
+            FTransform ShapeLocalTransform(Box.Center, BoxRot, FVector(1, 1, 1));
+            FTransform ShapeWorldTransform = BoneTransform.GetWorldTransform(ShapeLocalTransform);
+            FMatrix WorldMatrix = FMatrix::FromTRS(ShapeWorldTransform.Translation, ShapeWorldTransform.Rotation, FVector(1, 1, 1));
+
+            Renderer->AddPrimitiveData(BoxMesh, WorldMatrix);
+        }
+
+        // Capsule shapes 그리기
+        for (int32 i = 0; i < Setup->AggGeom.SphylElems.Num(); ++i)
+        {
+            const FKCapsuleElem& Capsule = Setup->AggGeom.SphylElems[i];
+
+            FVector4 Color = NormalColor;
+            if (bBodySelected)
+                Color = SelectedColor;
+            else if (bShapeMode && SelectedShapeType == EAggCollisionShape::Capsule && SelectedShapeIndex == i)
+                Color = ShapeSelectedColor;
+
+            // 메시 생성
+            FMeshData CapsuleMesh;
+            FPrimitiveGeometry::GenerateCapsule(CapsuleMesh, Capsule.Radius, Capsule.Length * 0.5f, 12, 4, Color);
+
+            // Shape의 로컬 트랜스폼 계산
+            FQuat CapsuleRot = FQuat::MakeFromEulerZYX(Capsule.Rotation * (PI / 180.0f));
+            FTransform ShapeLocalTransform(Capsule.Center, CapsuleRot, FVector(1, 1, 1));
+            FTransform ShapeWorldTransform = BoneTransform.GetWorldTransform(ShapeLocalTransform);
+            FMatrix WorldMatrix = FMatrix::FromTRS(ShapeWorldTransform.Translation, ShapeWorldTransform.Rotation, FVector(1, 1, 1));
+
+            Renderer->AddPrimitiveData(CapsuleMesh, WorldMatrix);
+        }
+    }
+
+    // 프리미티브 배치 종료 및 렌더링
+    Renderer->EndPrimitiveBatch();
 }

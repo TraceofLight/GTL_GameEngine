@@ -374,6 +374,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Runtime\AssetManagement\DynamicMesh.cpp" />
     <ClCompile Include="Source\Runtime\AssetManagement\Line.cpp" />
     <ClCompile Include="Source\Runtime\AssetManagement\LineDynamicMesh.cpp" />
+    <ClCompile Include="Source\Runtime\AssetManagement\PrimitiveDynamicMesh.cpp" />
     <ClCompile Include="Source\Runtime\AssetManagement\MeshLoader.cpp" />
     <ClCompile Include="Source\Runtime\AssetManagement\Quad.cpp" />
     <ClCompile Include="Source\Runtime\AssetManagement\ResourceBase.cpp" />
