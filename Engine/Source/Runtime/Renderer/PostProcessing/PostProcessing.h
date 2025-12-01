@@ -18,8 +18,8 @@ struct FPostProcessPayload
     FVector4 Params1 = FVector4(0,0,0,0);
     FVector4 Params2 = FVector4(0,0,0,0);  // 추가 파라미터 (Physical DoF용)
     FVector4 Params3 = FVector4(0,0,0,0);  // 추가 파라미터 (PointFocus DoF용: x,y,z = FocusPoint, w = FocusRadius)
-    FVector4 Params4 = FVector4(0,0,0,0);  // 추가 파라미터 (ScreenPointFocus DoF용: x,y = ScreenFocusPoint, z = Radius, w = DepthRange)
-    FVector4 Params5 = FVector4(0,0,0,0);  // 추가 파라미터 (ScreenPointFocus DoF용: x = BlurScale, y = Falloff, z = AspectRatio)
+    FVector4 Params4 = FVector4(0,0,0,0);  // 추가 파라미터 (ScreenPointFocus: x,y = ScreenFocusPoint, z = Radius, w = DepthRange)
+    FVector4 Params5 = FVector4(0,0,0,0);  // 추가 파라미터 (ScreenPointFocus: x = BlurScale, y = Falloff, z = AspectRatio, w = BleedingMethod)
     FLinearColor Color = FLinearColor(0, 0, 0, 1);
 };
 

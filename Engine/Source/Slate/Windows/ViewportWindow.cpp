@@ -1995,6 +1995,11 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 			ImGui::Combo("블러 방식##DoF", &DoFSettings.BlurMethod, blurMethodItems, IM_ARRAYSIZE(blurMethodItems));
 			if (ImGui::IsItemHovered()) ImGui::SetTooltip("Disc 12: 12샘플, 빠른 성능\nDisc 24: 24샘플, 고품질\nGaussian: 가중치 기반, 자연스러운 블러\nHexagonal: 6각형 보케, 아나모픽 렌즈 스타일\nCircular Gather: 48샘플, 최고 품질 (느림)");
 
+			// 번짐 처리 방식 선택 (Bleeding Method)
+			const char* bleedingMethodItems[] = { "None (기본)", "Scatter-as-Gather (물리 기반)" };
+			ImGui::Combo("번짐 처리##DoF", &DoFSettings.BleedingMethod, bleedingMethodItems, IM_ARRAYSIZE(bleedingMethodItems));
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("None: 선명한 픽셀은 항상 선명 (빠름)\nScatter-as-Gather: 흐릿한 물체가 선명한 영역으로 번짐 (물리 기반, 느림)");
+
 			ImGui::PopItemWidth();
 			ImGui::Unindent(20.0f);
 		}
