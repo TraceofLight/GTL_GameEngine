@@ -397,31 +397,31 @@ void USlateManager::CloseParticleEditorWindow()
 
 void USlateManager::OpenPhysicsAssetEditorWindow()
 {
-	if (PhysicsAssetEditorWindow)
+	// DynamicEditorWindow로 리다이렉트하고 PhysicsAsset 모드로 전환
+	if (!DynamicEditorWindow)
 	{
-		return; // 이미 열려있음
+		OpenDynamicEditor();
 	}
 
-	PhysicsAssetEditorWindow = new SPhysicsAssetEditorWindow();
-
-	// 화면 중앙에 800x600 크기로 배치
-	float w = 900.0f;
-	float h = 650.0f;
-	float x = (Rect.GetWidth() - w) * 0.5f;
-	float y = (Rect.GetHeight() - h) * 0.5f;
-
-	PhysicsAssetEditorWindow->Initialize(x, y, w, h, World, Device);
+	if (DynamicEditorWindow)
+	{
+		DynamicEditorWindow->SetEditorMode(EEditorMode::PhysicsAsset);
+	}
 }
 
 void USlateManager::ClosePhysicsAssetEditorWindow()
 {
-	if (!PhysicsAssetEditorWindow)
+	// DynamicEditorWindow가 PhysicsAsset 모드일 때 닫기
+	if (DynamicEditorWindow && DynamicEditorWindow->GetEditorMode() == EEditorMode::PhysicsAsset)
 	{
-		return;
+		CloseDynamicEditor();
 	}
+}
 
-	delete PhysicsAssetEditorWindow;
-	PhysicsAssetEditorWindow = nullptr;
+bool USlateManager::IsPhysicsAssetEditorWindowOpen() const
+{
+	return DynamicEditorWindow != nullptr &&
+	       DynamicEditorWindow->GetEditorMode() == EEditorMode::PhysicsAsset;
 }
 
 void USlateManager::RequestSceneLoad(const FString& ScenePath)
@@ -726,17 +726,7 @@ void USlateManager::Render()
         }
     }
 
-    // Render Physics Asset Editor Window
-    if (PhysicsAssetEditorWindow)
-    {
-        PhysicsAssetEditorWindow->OnRender();
-
-        // 윈도우가 닫혔으면 삭제
-        if (!PhysicsAssetEditorWindow->IsOpen())
-        {
-            ClosePhysicsAssetEditorWindow();
-        }
-    }
+    // Physics Asset Editor는 DynamicEditorWindow로 통합됨 (위에서 렌더링됨)
 
     // 로딩 UI (우상단)
     auto& RM = UResourceManager::GetInstance();
@@ -855,10 +845,7 @@ void USlateManager::Update(float DeltaSeconds)
         ParticleEditorWindow->OnUpdate(DeltaSeconds);
     }
 
-    if (PhysicsAssetEditorWindow)
-    {
-        PhysicsAssetEditorWindow->OnUpdate(DeltaSeconds);
-    }
+    // Physics Asset Editor는 DynamicEditorWindow로 통합됨 (위에서 업데이트됨)
 
     // 콘솔 애니메이션 업데이트
     if (bIsConsoleAnimating)
@@ -984,7 +971,7 @@ void USlateManager::ProcessInput()
     }
 
     // ESC closes the Skeletal Mesh Viewer if open
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape) && SkeletalViewerWindow)
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape) && DynamicEditorWindow)
     {
         CloseDynamicEditor();
     }

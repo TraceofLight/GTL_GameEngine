@@ -4,29 +4,69 @@
 #include "Source/Runtime/Engine/PhysicsAssetViewer/PhysicsAssetViewerBootstrap.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
+#include "USlateManager.h"
 #include "ImGui/imgui.h"
 #include <d3d11.h>
 
+// ============================================================================
+// SPhysicsAssetEditorWindow
+// ============================================================================
+
 SPhysicsAssetEditorWindow::SPhysicsAssetEditorWindow()
 {
+    ViewportRect = FRect(0, 0, 0, 0);
 }
 
 SPhysicsAssetEditorWindow::~SPhysicsAssetEditorWindow()
 {
     ReleaseRenderTarget();
+
+    // 스플리터 정리
+    if (MainSplitter)
+    {
+        delete MainSplitter;
+        MainSplitter = nullptr;
+    }
+
     PhysicsAssetViewerBootstrap::DestroyViewerState(ActiveState);
 }
 
-bool SPhysicsAssetEditorWindow::Initialize(float StartX, float StartY, float Width, float Height, UWorld* InWorld, ID3D11Device* InDevice)
+bool SPhysicsAssetEditorWindow::Initialize(float StartX, float StartY, float Width, float Height, UWorld* InWorld, ID3D11Device* InDevice, bool bEmbedded)
 {
     if (!InDevice) return false;
 
     Device = InDevice;
+    World = InWorld;
+    bIsEmbeddedMode = bEmbedded;
     SetRect(StartX, StartY, StartX + Width, StartY + Height);
 
     // Create ViewerState
     ActiveState = PhysicsAssetViewerBootstrap::CreateViewerState("PhysicsAsset", InWorld, InDevice);
     if (!ActiveState) return false;
+
+    // 패널 생성
+    ToolbarPanel = new SPhysicsAssetToolbarPanel(this);
+    ViewportPanelWidget = new SPhysicsAssetViewportPanel(this);
+    BodyListPanel = new SPhysicsAssetBodyListPanel(this);
+    PropertiesPanelWidget = new SPhysicsAssetPropertiesPanel(this);
+
+    // 스플리터 계층 구조 생성
+    // 우측: BodyList(상) | Properties(하)
+    RightSplitter = new SSplitterV();
+    RightSplitter->SetSplitRatio(0.5f);
+    RightSplitter->SideLT = BodyListPanel;
+    RightSplitter->SideRB = PropertiesPanelWidget;
+
+    // 메인: Viewport(좌) | Right(우)
+    MainSplitter = new SSplitterH();
+    MainSplitter->SetSplitRatio(0.65f);
+    MainSplitter->SideLT = ViewportPanelWidget;
+    MainSplitter->SideRB = RightSplitter;
+
+    // 스플리터 초기 Rect 설정
+    MainSplitter->SetRect(StartX, StartY, StartX + Width, StartY + Height);
+
+    bIsOpen = true;
 
     return true;
 }
@@ -34,6 +74,9 @@ bool SPhysicsAssetEditorWindow::Initialize(float StartX, float StartY, float Wid
 void SPhysicsAssetEditorWindow::OnRender()
 {
     if (!bIsOpen) return;
+
+    // Embedded 모드에서는 OnRender가 호출되지 않음 (RenderEmbedded 사용)
+    if (bIsEmbeddedMode) return;
 
     ImGuiWindowFlags Flags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar;
 
@@ -78,6 +121,57 @@ void SPhysicsAssetEditorWindow::OnRender()
     ImGui::End();
 }
 
+// ============================================================================
+// RenderEmbedded - DynamicEditorWindow 내장 모드용 렌더링
+// ============================================================================
+
+void SPhysicsAssetEditorWindow::RenderEmbedded(const FRect& ContentRect)
+{
+    if (!ActiveState)
+    {
+        return;
+    }
+
+    // SSplitter에 영역 설정 및 렌더링 (탭 바는 DynamicEditorWindow에서 관리)
+    if (MainSplitter)
+    {
+        MainSplitter->SetRect(ContentRect.Left, ContentRect.Top, ContentRect.Right, ContentRect.Bottom);
+        MainSplitter->OnRender();
+
+        // 패널 Rect 캐시 (입력 처리용)
+        if (MainSplitter->GetLeftOrTop())
+        {
+            ViewportRect = MainSplitter->GetLeftOrTop()->GetRect();
+        }
+    }
+
+    // 패널 윈도우들을 앞으로 가져오기 (DynamicEditorWindow 뒤에 가려지는 문제 해결)
+    if (!SLATE.IsContentBrowserVisible())
+    {
+        ImGuiWindow* ViewportWin = ImGui::FindWindowByName("##PhysicsAssetViewport");
+        ImGuiWindow* BodyListWin = ImGui::FindWindowByName("Bodies##PhysicsAssetBodyList");
+        ImGuiWindow* PropertiesWin = ImGui::FindWindowByName("Properties##PhysicsAssetProperties");
+
+        if (ViewportWin) ImGui::BringWindowToDisplayFront(ViewportWin);
+        if (BodyListWin) ImGui::BringWindowToDisplayFront(BodyListWin);
+        if (PropertiesWin) ImGui::BringWindowToDisplayFront(PropertiesWin);
+    }
+
+    // 팝업들도 패널 위로 가져오기
+    ImGuiContext* g = ImGui::GetCurrentContext();
+    if (g && g->OpenPopupStack.Size > 0)
+    {
+        for (int i = 0; i < g->OpenPopupStack.Size; ++i)
+        {
+            ImGuiPopupData& PopupData = g->OpenPopupStack[i];
+            if (PopupData.Window)
+            {
+                ImGui::BringWindowToDisplayFront(PopupData.Window);
+            }
+        }
+    }
+}
+
 void SPhysicsAssetEditorWindow::OnUpdate(float DeltaSeconds)
 {
     if (!ActiveState || !ActiveState->World) return;
@@ -87,17 +181,17 @@ void SPhysicsAssetEditorWindow::OnUpdate(float DeltaSeconds)
 
 void SPhysicsAssetEditorWindow::OnMouseMove(FVector2D MousePos)
 {
-    // TODO: Forward to viewport
+    // TODO: Forward to viewport client
 }
 
 void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
-    // TODO: Forward to viewport
+    // TODO: Forward to viewport client
 }
 
 void SPhysicsAssetEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 {
-    // TODO: Forward to viewport
+    // TODO: Forward to viewport client
 }
 
 void SPhysicsAssetEditorWindow::OnRenderViewport()
@@ -113,6 +207,16 @@ FViewport* SPhysicsAssetEditorWindow::GetViewport() const
 FViewportClient* SPhysicsAssetEditorWindow::GetViewportClient() const
 {
     return ActiveState ? ActiveState->Client : nullptr;
+}
+
+void SPhysicsAssetEditorWindow::LoadSkeletalMesh(const FString& Path)
+{
+    // TODO: Load skeletal mesh and setup preview
+}
+
+void SPhysicsAssetEditorWindow::LoadPhysicsAsset(const FString& Path)
+{
+    // TODO: Load physics asset
 }
 
 void SPhysicsAssetEditorWindow::RenderToolbar()
@@ -259,4 +363,205 @@ void SPhysicsAssetEditorWindow::RenderToPreviewRenderTarget()
     if (!ActiveState || !ActiveState->Viewport || !PreviewRenderTargetView) return;
 
     // TODO: Render viewport to render target
+}
+
+// ============================================================================
+// Panel Classes Implementation
+// ============================================================================
+
+// --- SPhysicsAssetToolbarPanel ---
+SPhysicsAssetToolbarPanel::SPhysicsAssetToolbarPanel(SPhysicsAssetEditorWindow* InOwner)
+    : Owner(InOwner)
+{
+}
+
+void SPhysicsAssetToolbarPanel::OnRender()
+{
+    // 툴바는 DynamicEditorWindow에서 관리됨
+}
+
+// --- SPhysicsAssetViewportPanel ---
+SPhysicsAssetViewportPanel::SPhysicsAssetViewportPanel(SPhysicsAssetEditorWindow* InOwner)
+    : Owner(InOwner)
+{
+}
+
+void SPhysicsAssetViewportPanel::OnRender()
+{
+    if (!Owner) return;
+
+    PhysicsAssetViewerState* State = Owner->GetActiveState();
+    if (!State) return;
+
+    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+                                    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
+
+    ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
+    ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+
+    if (ImGui::Begin("##PhysicsAssetViewport", nullptr, WindowFlags))
+    {
+        ImVec2 AvailSize = ImGui::GetContentRegionAvail();
+        uint32 Width = static_cast<uint32>(AvailSize.x);
+        uint32 Height = static_cast<uint32>(AvailSize.y);
+
+        if (Width > 0 && Height > 0)
+        {
+            Owner->UpdateViewportRenderTarget(Width, Height);
+
+            ID3D11ShaderResourceView* SRV = Owner->GetPreviewShaderResourceView();
+            if (SRV)
+            {
+                ImGui::Image((void*)SRV, AvailSize);
+            }
+        }
+
+        // ContentRect 업데이트 (입력 처리용)
+        ImVec2 WindowPos = ImGui::GetWindowPos();
+        ContentRect.Left = WindowPos.x;
+        ContentRect.Top = WindowPos.y;
+        ContentRect.Right = WindowPos.x + AvailSize.x;
+        ContentRect.Bottom = WindowPos.y + AvailSize.y;
+        ContentRect.UpdateMinMax();
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+}
+
+void SPhysicsAssetViewportPanel::OnUpdate(float DeltaSeconds)
+{
+    // Viewport update handled by owner
+}
+
+// --- SPhysicsAssetBodyListPanel ---
+SPhysicsAssetBodyListPanel::SPhysicsAssetBodyListPanel(SPhysicsAssetEditorWindow* InOwner)
+    : Owner(InOwner)
+{
+}
+
+void SPhysicsAssetBodyListPanel::OnRender()
+{
+    if (!Owner) return;
+
+    PhysicsAssetViewerState* State = Owner->GetActiveState();
+
+    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+
+    ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
+    ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
+
+    if (ImGui::Begin("Bodies##PhysicsAssetBodyList", nullptr, WindowFlags))
+    {
+        // 탭 바: Bodies | Constraints
+        if (ImGui::BeginTabBar("BodyConstraintTabs"))
+        {
+            if (ImGui::BeginTabItem("Bodies"))
+            {
+                RenderBodyTree(State);
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Constraints"))
+            {
+                RenderConstraintList(State);
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
+        }
+    }
+    ImGui::End();
+}
+
+void SPhysicsAssetBodyListPanel::RenderBodyTree(PhysicsAssetViewerState* State)
+{
+    if (!State)
+    {
+        ImGui::TextDisabled("(No physics asset loaded)");
+        return;
+    }
+
+    // TODO: Render body hierarchy tree
+    ImGui::TextDisabled("(Body list will appear here)");
+}
+
+void SPhysicsAssetBodyListPanel::RenderConstraintList(PhysicsAssetViewerState* State)
+{
+    if (!State)
+    {
+        ImGui::TextDisabled("(No physics asset loaded)");
+        return;
+    }
+
+    // TODO: Render constraint list
+    ImGui::TextDisabled("(Constraint list will appear here)");
+}
+
+// --- SPhysicsAssetPropertiesPanel ---
+SPhysicsAssetPropertiesPanel::SPhysicsAssetPropertiesPanel(SPhysicsAssetEditorWindow* InOwner)
+    : Owner(InOwner)
+{
+}
+
+void SPhysicsAssetPropertiesPanel::OnRender()
+{
+    if (!Owner) return;
+
+    PhysicsAssetViewerState* State = Owner->GetActiveState();
+
+    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+
+    ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
+    ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
+
+    if (ImGui::Begin("Properties##PhysicsAssetProperties", nullptr, WindowFlags))
+    {
+        if (!State)
+        {
+            ImGui::TextDisabled("(No physics asset loaded)");
+        }
+        else
+        {
+            // View options
+            if (ImGui::CollapsingHeader("View Options", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ImGui::Checkbox("Show Bodies", &State->bShowBodies);
+                ImGui::Checkbox("Show Constraints", &State->bShowConstraints);
+                ImGui::Checkbox("Show Bone Names", &State->bShowBoneNames);
+            }
+
+            ImGui::Separator();
+
+            // Selected item properties
+            if (ImGui::CollapsingHeader("Selection", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                RenderBodyProperties(State);
+            }
+        }
+    }
+    ImGui::End();
+}
+
+void SPhysicsAssetPropertiesPanel::RenderBodyProperties(PhysicsAssetViewerState* State)
+{
+    if (!State)
+    {
+        ImGui::TextDisabled("(Select a body)");
+        return;
+    }
+
+    // TODO: Render selected body properties
+    ImGui::TextDisabled("(Select a body to view properties)");
+}
+
+void SPhysicsAssetPropertiesPanel::RenderConstraintProperties(PhysicsAssetViewerState* State)
+{
+    if (!State)
+    {
+        ImGui::TextDisabled("(Select a constraint)");
+        return;
+    }
+
+    // TODO: Render selected constraint properties
+    ImGui::TextDisabled("(Select a constraint to view properties)");
 }
