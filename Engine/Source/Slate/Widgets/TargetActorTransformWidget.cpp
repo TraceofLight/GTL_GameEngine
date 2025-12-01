@@ -121,7 +121,7 @@ namespace
 
 			ImGuiTreeNodeFlags NodeFlags =
 				ImGuiTreeNodeFlags_SpanAvailWidth |
-				ImGuiTreeNodeFlags_Leaf | 
+				ImGuiTreeNodeFlags_Leaf |
 				ImGuiTreeNodeFlags_NoTreePushOnOpen;
 
 			// 선택 하이라이트: 현재 선택된 컴포넌트와 같으면 Selected 플래그
@@ -149,7 +149,7 @@ namespace
 				}
 				ImGui::EndPopup();
 			}
-			
+
 			ImGui::PopID();
 		}
 	}
@@ -320,7 +320,7 @@ void UTargetActorTransformWidget::RenderWidget()
 	// 위 함수에서 SelectedComponent를 Delete하는데 아래 함수에서 SelectedComponent를 그대로 인자로 사용하고 있었음.
 	// 댕글링 포인터 참조를 막기 위해 다시 한번 SelectionManager에서 Component를 얻어옴
 	// 기존에는 DestroyComponent에서 DeleteObject를 호출하지도 않았음. Delete를 실제로 진행하면서 발견된 버그.
-	
+
 	// 3. 선택된 컴포넌트, 엑터의 상세 정보 렌더링 (Transform 포함)
 	if (GWorld->GetSelectionManager()->IsActorMode())
 	{
@@ -357,6 +357,9 @@ void UTargetActorTransformWidget::RenderHeader(AActor* SelectedActor, UActorComp
 	{
 		ImGui::OpenPopup("AddComponentPopup");
 	}
+
+	// 팝업 크기 제한 설정
+	ImGui::SetNextWindowSizeConstraints(ImVec2(180, 0), ImVec2(300, 250));
 
 	if (ImGui::BeginPopup("AddComponentPopup"))
 	{
@@ -435,7 +438,7 @@ void UTargetActorTransformWidget::RenderComponentHierarchy(AActor* SelectedActor
 	}
 
 	// 삭제 입력 처리 (다이나믹 뷰포트에 포커스가 없을 때만)
-	// 다이나믹 뷰포트 윈도우들 체크 (Preview, ParticleEditor, BlendSpace2D 등)
+	// 다이나믹 뷰포트 윈도우들 체크 (Preview, ParticleEditor, BlendSpace2D, DynamicEditor 등)
 	bool bDynamicViewportFocused = false;
 	ImGuiContext* Context = ImGui::GetCurrentContext();
 
@@ -450,16 +453,39 @@ void UTargetActorTransformWidget::RenderComponentHierarchy(AActor* SelectedActor
 		"BlendSpace 2D Editor###BlendSpace2D"
 	};
 
+	// 윈도우 이름 접두사로 체크할 목록 (Dynamic Editor 등)
+	const char* DynamicWindowPrefixes[] = {
+		"Dynamic Editor",
+		"Animation Editor",
+		"Skeletal Mesh Viewer",
+		"State Machine Editor"
+	};
+
 	// 현재 포커스된 윈도우 이름 가져오기
 	if (Context->NavWindow)
 	{
 		const char* FocusedName = Context->NavWindow->Name;
+
+		// 정확히 일치하는 윈도우 이름 체크
 		for (const char* WindowName : DynamicWindowNames)
 		{
 			if (FocusedName && strcmp(FocusedName, WindowName) == 0)
 			{
 				bDynamicViewportFocused = true;
 				break;
+			}
+		}
+
+		// 접두사로 시작하는 윈도우 이름 체크
+		if (!bDynamicViewportFocused && FocusedName)
+		{
+			for (const char* Prefix : DynamicWindowPrefixes)
+			{
+				if (strncmp(FocusedName, Prefix, strlen(Prefix)) == 0)
+				{
+					bDynamicViewportFocused = true;
+					break;
+				}
 			}
 		}
 	}

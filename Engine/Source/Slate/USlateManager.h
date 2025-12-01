@@ -1,12 +1,10 @@
 ﻿#pragma once
 #include "Object.h"
-#include "Windows/SWindow.h" // for FRect and SWindow types used by children
-#include "Windows/SSplitterV.h"
-#include "Windows/SSplitterH.h"
-#include "Windows/SViewportWindow.h"
-#include "Windows/PreviewWindow.h"
-#include "Windows/SkeletalEditorWindow.h"
-#include "Windows/BlendSpace2DEditorWindow.h"
+#include "Windows/Window.h" // for FRect and SWindow types used by children
+#include "Windows/SplitterV.h"
+#include "Windows/SplitterH.h"
+#include "Windows/ViewportWindow.h"
+#include "Windows/DynamicEditorWindow.h"
 #include "Windows/ParticleEditorWindow.h"
 #include "Windows/SPhysicsAssetEditorWindow.h"
 
@@ -15,7 +13,6 @@ class SDetailsWindow;
 class UMainToolbarWidget;
 class UConsoleWindow; // 오버레이 콘솔 윈도우
 class UContentBrowserWindow;
-class SAnimStateMachineWindow;
 
 // 중앙 레이아웃/입력 라우팅/뷰포트 관리 매니저 (위젯 아님)
 class USlateManager : public UObject
@@ -76,23 +73,45 @@ public:
 
     // Content Browser 관리
     void ToggleContentBrowser();
+    void OpenContentBrowser(const FString& InitialPath = "");  // Content Browser 열기 (이미 열려있으면 무시), InitialPath로 이동
     bool IsContentBrowserVisible() const;
 
-    // Temp: open/close Skeletal Mesh Viewer (detached window)
-    void OpenSkeletalMeshViewer();
-    void OpenSkeletalMeshViewerWithFile(const char* FilePath);
-    void CloseSkeletalMeshViewer();
-    bool IsSkeletalMeshViewerOpen() const { return SkeletalViewerWindow != nullptr; }
+    // Dynamic Editor Window (통합 에디터 - Skeletal, Animation, AnimGraph, BlendSpace2D)
+    void OpenDynamicEditor();
+    void OpenDynamicEditorWithFile(const char* FilePath);
+    void OpenDynamicEditorWithAnimation(const char* AnimFilePath);
+    void CloseDynamicEditor();
+    bool IsDynamicEditorOpen() const { return DynamicEditorWindow != nullptr; }
+    SDynamicEditorWindow* GetDynamicEditorWindow() const { return DynamicEditorWindow; }
 
-    // Blend Space 2D Editor 관리
+    // 레거시 API (SDynamicEditorWindow로 리다이렉트)
+    void OpenSkeletalMeshViewer() { OpenDynamicEditor(); }
+    void OpenSkeletalMeshViewerWithFile(const char* FilePath) { OpenDynamicEditorWithFile(FilePath); }
+    void CloseSkeletalMeshViewer() { CloseDynamicEditor(); }
+    bool IsSkeletalMeshViewerOpen() const
+    {
+        return DynamicEditorWindow != nullptr &&
+               DynamicEditorWindow->GetEditorMode() == EEditorMode::Skeletal;
+    }
+
+    // Blend Space 2D Editor 관리 (SDynamicEditorWindow 사용)
     void OpenBlendSpace2DEditor(UBlendSpace2D* BlendSpace = nullptr);
     void CloseBlendSpace2DEditor();
-    bool IsBlendSpace2DEditorOpen() const { return BlendSpace2DEditorWindow != nullptr; }
-	// [Animation Graph]
+    bool IsBlendSpace2DEditorOpen() const
+    {
+        return DynamicEditorWindow != nullptr &&
+               DynamicEditorWindow->GetEditorMode() == EEditorMode::BlendSpace2D;
+    }
+
+	// [Animation Graph] (SDynamicEditorWindow 사용)
 	void OpenAnimStateMachineWindow();
 	void OpenAnimStateMachineWindowWithFile(const char* FilePath);
 	void CloseAnimStateMachineWindow();
-	bool IsAnimStateMachineWindowOpen() const { return SkeletalViewerWindow != nullptr; }
+	bool IsAnimStateMachineWindowOpen() const
+	{
+	    return DynamicEditorWindow != nullptr &&
+	           DynamicEditorWindow->GetEditorMode() == EEditorMode::AnimGraph;
+	}
 
 	// Particle Editor Window 관리
 	void OpenParticleEditorWindow();
@@ -157,12 +176,8 @@ private:
     float ConsoleDragStartY = 0.0f; // 드래그 시작 Y 위치
     float ConsoleDragStartHeight = 0.0f; // 드래그 시작 시 콘솔 높이
 
-    // Detached skeletal mesh viewer window
-    SSkeletalEditorWindow* SkeletalViewerWindow = nullptr;
-    SAnimStateMachineWindow* AnimStateMachineWindow = nullptr;
-
-    // Blend Space 2D Editor window
-    SBlendSpace2DEditorWindow* BlendSpace2DEditorWindow = nullptr;
+    // Dynamic Editor Window (통합 에디터 - 모든 모드 지원)
+    SDynamicEditorWindow* DynamicEditorWindow = nullptr;
 
     // Particle Editor window (Cascade 스타일)
     SParticleEditorWindow* ParticleEditorWindow = nullptr;
@@ -174,6 +189,7 @@ private:
     UContentBrowserWindow* ContentBrowserWindow = nullptr;
     bool bIsContentBrowserVisible = false;
     bool bIsContentBrowserAnimating = false;
+    bool bRequestContentBrowserFocus = false; // 열릴 때 포커스 요청
     float ContentBrowserAnimationProgress = 0.0f; // 0.0 = 숨김, 1.0 = 완전히 표시
     const float ContentBrowserAnimationDuration = 0.25f; // 초 단위
     const float ContentBrowserHeightRatio = 0.35f; // 화면 높이의 35%

@@ -4,6 +4,8 @@
 #include "ObjManager.h"
 #include "ResourceManager.h"
 #include "FBXLoader.h"
+#include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
+#include "Source/Runtime/Engine/PhysicsEngine/BoxElem.h"
 #include <filesystem>
 
 IMPLEMENT_CLASS(UStaticMesh)
@@ -45,6 +47,72 @@ namespace
 UStaticMesh::~UStaticMesh()
 {
     ReleaseResources();
+}
+
+void UStaticMesh::EnsureBodySetupBuilt()
+{
+    if (BodySetup)
+        return;
+
+    BodySetup = NewObject<UBodySetup>();
+    if (!BodySetup)
+        return;
+
+    // If we have mesh data, prepare for convex mesh cooking (mesh-accurate collision)
+    // Actual cooking is deferred until PhysX is ready (in EnsureCooked)
+    if (StaticMeshAsset && !StaticMeshAsset->Vertices.empty() && !StaticMeshAsset->Indices.empty())
+    {
+        // Extract vertex positions for cooking
+        BodySetup->CookSourceVertices.Empty();
+        BodySetup->CookSourceVertices.Reserve(StaticMeshAsset->Vertices.size());
+        for (const FNormalVertex& V : StaticMeshAsset->Vertices)
+        {
+            BodySetup->CookSourceVertices.Add(V.pos);
+        }
+
+        // Copy indices
+        BodySetup->CookSourceIndices.Empty();
+        BodySetup->CookSourceIndices.Reserve(StaticMeshAsset->Indices.size());
+        for (uint32 Idx : StaticMeshAsset->Indices)
+        {
+            BodySetup->CookSourceIndices.Add(Idx);
+        }
+
+        // Use convex mesh for dynamic actors (approximate but works with dynamics)
+        // Change to UseSimpleAndComplex for exact triangle mesh (static only)
+        BodySetup->CollisionTraceFlag = ECollisionTraceFlag::UseComplexAsSimple;
+
+        // Also add a fallback box in case cooking fails later
+        const FAABB& LB = GetLocalBound();
+        const FVector Center = LB.GetCenter();
+        const FVector Half = LB.GetHalfExtent();
+
+        FKBoxElem Box;
+        Box.Center = Center;
+        Box.Rotation = FVector(0, 0, 0);
+        Box.X = Half.X;
+        Box.Y = Half.Y;
+        Box.Z = Half.Z;
+        BodySetup->AggGeom.BoxElems.Add(Box);
+
+        UE_LOG("[StaticMesh] Prepared collision data for mesh: %s (%zu verts, cooking deferred)",
+               GetAssetPathFileName().c_str(), BodySetup->CookSourceVertices.Num());
+    }
+    else
+    {
+        // No mesh data available, use simple box from bounds
+        const FAABB& LB = GetLocalBound();
+        const FVector Center = LB.GetCenter();
+        const FVector Half = LB.GetHalfExtent();
+
+        FKBoxElem Box;
+        Box.Center = Center;
+        Box.Rotation = FVector(0, 0, 0);
+        Box.X = Half.X;
+        Box.Y = Half.Y;
+        Box.Z = Half.Z;
+        BodySetup->AggGeom.BoxElems.Add(Box);
+    }
 }
 
 void UStaticMesh::Load(const FString& InFilePath, ID3D11Device* InDevice, EVertexLayoutType InVertexType)
@@ -94,6 +162,9 @@ void UStaticMesh::Load(const FString& InFilePath, ID3D11Device* InDevice, EVerte
         CreateLocalBound(StaticMeshAsset);
         VertexCount = static_cast<uint32>(StaticMeshAsset->Vertices.size());
         IndexCount = static_cast<uint32>(StaticMeshAsset->Indices.size());
+
+        // Build default collision once we have a bound
+        EnsureBodySetupBuilt();
     }
 }
 

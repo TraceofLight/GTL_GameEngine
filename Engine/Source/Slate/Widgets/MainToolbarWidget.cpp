@@ -283,6 +283,9 @@ void UMainToolbarWidget::RenderActorSpawnButton()
     }
 
     // Actor Spawn 팝업 렌더링
+    // 팝업 크기 제한 설정
+    ImGui::SetNextWindowSizeConstraints(ImVec2(200, 0), ImVec2(400, 300));
+
     if (ImGui::BeginPopup("ActorSpawnPopup"))
     {
         // 버튼 색상 스타일 설정 (테마에 맞게)
@@ -467,7 +470,6 @@ void UMainToolbarWidget::RenderPIEButtons()
     BeginButtonGroup();
 
 #ifdef _EDITOR
-    extern UEditorEngine GEngine;
     bool isPIE = GEngine.IsPIEActive();
 
     // Play 버튼
@@ -863,19 +865,13 @@ void UMainToolbarWidget::ProcessPendingCommands()
 
     case EToolbarCommand::StartPIE:
 #ifdef _EDITOR
-        {
-            extern UEditorEngine GEngine;
-            GEngine.StartPIE();
-        }
+        GEngine.StartPIE();
 #endif
         break;
 
     case EToolbarCommand::EndPIE:
 #ifdef _EDITOR
-        {
-            extern UEditorEngine GEngine;
-            GEngine.EndPIE();
-        }
+        GEngine.EndPIE();
 #endif
         break;
 
@@ -910,8 +906,6 @@ void UMainToolbarWidget::HandleKeyboardShortcuts()
     }
 
 #ifdef _EDITOR
-    extern UEditorEngine GEngine;
-
     // F5: Start PIE
     if (ImGui::IsKeyPressed(ImGuiKey_F5, false) && !GEngine.IsPIEActive())
     {

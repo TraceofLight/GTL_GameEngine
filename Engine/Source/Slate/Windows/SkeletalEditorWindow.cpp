@@ -3,30 +3,19 @@
 #include "Source/Runtime/Engine/SkeletalViewer/ViewerState.h"
 #include "Source/Runtime/Engine/SkeletalViewer/SkeletalViewerBootstrap.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
-#include "Source/Runtime/Engine/GameFramework/World.h"
+#include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
+#include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
 #include "Source/Runtime/Engine/Components/LineComponent.h"
 #include "Source/Runtime/Engine/Collision/Picking.h"
-#include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
-#include "Source/Runtime/RHI/D3D11RHI.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
 #include "Source/Editor/PlatformProcess.h"
 #include "SelectionManager.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
-#include "ImGui/imgui.h"
-#include "ImGui/imgui_internal.h"
-#include <filesystem>
-
-#ifdef _EDITOR
-#include "Source/Runtime/Engine/GameFramework/EditorEngine.h"
-extern UEditorEngine GEngine;
-#else
-#include "Source/Runtime/Engine/GameFramework/GameEngine.h"
-extern UGameEngine GEngine;
-#endif
+#include "USlateManager.h"
 
 // ============================================================================
 // SSkeletalEditorWindow
@@ -59,20 +48,23 @@ SSkeletalEditorWindow::~SSkeletalEditorWindow()
 	ActiveTabIndex = -1;
 }
 
-bool SSkeletalEditorWindow::Initialize(float StartX, float StartY, float Width, float Height, UWorld* InWorld, ID3D11Device* InDevice)
+bool SSkeletalEditorWindow::Initialize(float StartX, float StartY, float Width, float Height, UWorld* InWorld, ID3D11Device* InDevice, bool bEmbedded)
 {
 	Device = InDevice;
 	World = InWorld;
 	SetRect(StartX, StartY, StartX + Width, StartY + Height);
 
-	// 기본 탭 생성
-	ViewerState* State = SkeletalViewerBootstrap::CreateViewerState("Skeletal 1", InWorld, InDevice);
-	if (State)
+	// 기본 탭 생성 (Embedded 모드에서는 DynamicEditorWindow에서 탭 관리하므로 생성하지 않음)
+	if (!bEmbedded)
 	{
-		State->TabId = NextTabId++;
-		Tabs.Add(State);
-		ActiveState = State;
-		ActiveTabIndex = 0;
+		ViewerState* State = SkeletalViewerBootstrap::CreateViewerState("Skeletal 1", InWorld, InDevice);
+		if (State)
+		{
+			State->TabId = NextTabId++;
+			Tabs.Add(State);
+			ActiveState = State;
+			ActiveTabIndex = 0;
+		}
 	}
 
 	// 패널 생성
@@ -292,15 +284,19 @@ void SSkeletalEditorWindow::OnRender()
 		}
 
 		// 패널들을 항상 앞으로 가져오기 (메인 윈도우 클릭 시에도 패널 유지)
+		// Content Browser가 열려있으면 z-order 유지를 위해 front로 가져오지 않음
 		ImGuiWindow* ViewportWin = ImGui::FindWindowByName("##SkeletalViewport");
-		ImGuiWindow* AssetWin = ImGui::FindWindowByName("Asset##SkeletalAsset");
+		ImGuiWindow* DisplayWin = ImGui::FindWindowByName("Display##SkeletalDisplay");
 		ImGuiWindow* BoneTreeWin = ImGui::FindWindowByName("Skeleton##SkeletalBoneTree");
 		ImGuiWindow* DetailWin = ImGui::FindWindowByName("Details##SkeletalDetail");
 
-		if (ViewportWin) ImGui::BringWindowToDisplayFront(ViewportWin);
-		if (AssetWin) ImGui::BringWindowToDisplayFront(AssetWin);
-		if (BoneTreeWin) ImGui::BringWindowToDisplayFront(BoneTreeWin);
-		if (DetailWin) ImGui::BringWindowToDisplayFront(DetailWin);
+		if (!SLATE.IsContentBrowserVisible())
+		{
+			if (ViewportWin) ImGui::BringWindowToDisplayFront(ViewportWin);
+			if (DisplayWin) ImGui::BringWindowToDisplayFront(DisplayWin);
+			if (BoneTreeWin) ImGui::BringWindowToDisplayFront(BoneTreeWin);
+			if (DetailWin) ImGui::BringWindowToDisplayFront(DetailWin);
+		}
 
 		// 하위 패널들의 포커스도 체크 (별도의 ImGui 윈도우이므로)
 		// NavWindow는 현재 키보드/게임패드 네비게이션이 활성화된 윈도우
@@ -309,7 +305,7 @@ void SSkeletalEditorWindow::OnRender()
 		{
 			ImGuiWindow* FocusedWin = g->NavWindow;
 			if (FocusedWin == ViewportWin ||
-				FocusedWin == AssetWin ||
+				FocusedWin == DisplayWin ||
 				FocusedWin == BoneTreeWin ||
 				FocusedWin == DetailWin)
 			{
@@ -320,6 +316,73 @@ void SSkeletalEditorWindow::OnRender()
 
 	ImGui::End();
 	ImGui::PopStyleVar(2);
+}
+
+// ============================================================================
+// RenderEmbedded - DynamicEditorWindow 내장 모드용 렌더링
+// ============================================================================
+
+void SSkeletalEditorWindow::RenderEmbedded(const FRect& ContentRect)
+{
+	if (Tabs.Num() == 0)
+	{
+		return;
+	}
+
+	if (!ActiveState)
+	{
+		if (Tabs.Num() > 0)
+		{
+			ActiveState = Tabs[0];
+			ActiveTabIndex = 0;
+		}
+		else
+		{
+			return;
+		}
+	}
+
+	// SSplitter에 영역 설정 및 렌더링 (탭 바는 DynamicEditorWindow에서 관리)
+	if (ContentSplitter)
+	{
+		ContentSplitter->SetRect(ContentRect.Left, ContentRect.Top, ContentRect.Right, ContentRect.Bottom);
+		ContentSplitter->OnRender();
+
+		// ViewportRect 캐시 (입력 처리용)
+		if (CenterRightSplitter && CenterRightSplitter->GetLeftOrTop())
+		{
+			ViewportRect = CenterRightSplitter->GetLeftOrTop()->GetRect();
+		}
+	}
+
+	// 패널 윈도우들을 앞으로 가져오기 (DynamicEditorWindow 뒤에 가려지는 문제 해결)
+	// Content Browser가 열려있으면 z-order 유지를 위해 front로 가져오지 않음
+	if (!SLATE.IsContentBrowserVisible())
+	{
+		ImGuiWindow* ViewportWin = ImGui::FindWindowByName("##SkeletalViewport");
+		ImGuiWindow* DisplayWin = ImGui::FindWindowByName("Display##SkeletalDisplay");
+		ImGuiWindow* BoneTreeWin = ImGui::FindWindowByName("Skeleton##SkeletalBoneTree");
+		ImGuiWindow* DetailWin = ImGui::FindWindowByName("Details##SkeletalDetail");
+
+		if (ViewportWin) ImGui::BringWindowToDisplayFront(ViewportWin);
+		if (DisplayWin) ImGui::BringWindowToDisplayFront(DisplayWin);
+		if (BoneTreeWin) ImGui::BringWindowToDisplayFront(BoneTreeWin);
+		if (DetailWin) ImGui::BringWindowToDisplayFront(DetailWin);
+	}
+
+	// 팝업들도 패널 위로 가져오기
+	ImGuiContext* g = ImGui::GetCurrentContext();
+	if (g && g->OpenPopupStack.Size > 0)
+	{
+		for (int i = 0; i < g->OpenPopupStack.Size; ++i)
+		{
+			ImGuiPopupData& PopupData = g->OpenPopupStack[i];
+			if (PopupData.Window)
+			{
+				ImGui::BringWindowToDisplayFront(PopupData.Window);
+			}
+		}
+	}
 }
 
 void SSkeletalEditorWindow::OnUpdate(float DeltaSeconds)
@@ -578,11 +641,112 @@ void SSkeletalEditorWindow::LoadSkeletalMesh(const FString& Path)
 			LineComp->SetLineVisible(ActiveState->bShowBones);
 		}
 
+		// 바닥판과 카메라 위치 설정 (AABB 기반)
+		SetupFloorAndCamera(ActiveState);
+
 		UE_LOG("[SkeletalEditor] Loaded: %s", Path.c_str());
 	}
 	else
 	{
 		UE_LOG("[SkeletalEditor] Failed to load: %s", Path.c_str());
+	}
+}
+
+void SSkeletalEditorWindow::OpenNewTab(const FString& FilePath)
+{
+	// 파일명 추출
+	FString TabName = "Skeletal";
+	if (!FilePath.empty())
+	{
+		size_t LastSlash = FilePath.find_last_of("/\\");
+		if (LastSlash != FString::npos)
+		{
+			TabName = FilePath.substr(LastSlash + 1);
+		}
+		else
+		{
+			TabName = FilePath;
+		}
+	}
+	else
+	{
+		char label[32];
+		sprintf_s(label, "Skeletal %d", NextTabId);
+		TabName = label;
+	}
+
+	// 새 탭 생성
+	ViewerState* NewState = SkeletalViewerBootstrap::CreateViewerState(TabName.c_str(), World, Device);
+	if (NewState)
+	{
+		NewState->TabId = NextTabId++;
+		Tabs.Add(NewState);
+		ActiveTabIndex = (int32)Tabs.Num() - 1;
+		ActiveState = NewState;
+
+		// 파일이 있으면 로드
+		if (!FilePath.empty())
+		{
+			LoadSkeletalMesh(FilePath);
+		}
+	}
+}
+
+void SSkeletalEditorWindow::OpenNewTabWithMesh(USkeletalMesh* Mesh, const FString& MeshPath)
+{
+	if (!Mesh)
+	{
+		OpenNewTab("");
+		return;
+	}
+
+	// 메시 이름으로 탭 이름 설정
+	FString TabName = Mesh->GetName();
+	if (TabName.empty())
+	{
+		size_t LastSlash = MeshPath.find_last_of("/\\");
+		if (LastSlash != FString::npos)
+		{
+			TabName = MeshPath.substr(LastSlash + 1);
+		}
+		else
+		{
+			TabName = MeshPath.empty() ? "Skeletal" : MeshPath;
+		}
+	}
+
+	// 새 탭 생성
+	ViewerState* NewState = SkeletalViewerBootstrap::CreateViewerState(TabName.c_str(), World, Device);
+	if (NewState)
+	{
+		NewState->TabId = NextTabId++;
+		Tabs.Add(NewState);
+		ActiveTabIndex = (int32)Tabs.Num() - 1;
+		ActiveState = NewState;
+
+		// 메시 설정
+		if (NewState->PreviewActor)
+		{
+			NewState->PreviewActor->SetSkeletalMesh(MeshPath);
+			NewState->CurrentMesh = Mesh;
+			NewState->LoadedMeshPath = MeshPath;
+			strncpy_s(NewState->MeshPathBuffer, MeshPath.c_str(), sizeof(NewState->MeshPathBuffer) - 1);
+
+			if (USkeletalMeshComponent* SkelComp = NewState->PreviewActor->GetSkeletalMeshComponent())
+			{
+				SkelComp->SetVisibility(NewState->bShowMesh);
+			}
+
+			NewState->bBoneLinesDirty = true;
+			if (auto* LineComp = NewState->PreviewActor->GetBoneLineComponent())
+			{
+				LineComp->ClearLines();
+				LineComp->SetLineVisible(NewState->bShowBones);
+			}
+
+			// 바닥판과 카메라 위치 설정 (AABB 기반)
+			SetupFloorAndCamera(NewState);
+		}
 	}
 }
 
@@ -603,6 +767,15 @@ AGizmoActor* SSkeletalEditorWindow::GetGizmoActor() const
 		return ActiveState->World->GetGizmoActor();
 	}
 	return nullptr;
+}
+
+void SSkeletalEditorWindow::SetActiveTab(int32 TabIndex)
+{
+	if (TabIndex >= 0 && TabIndex < Tabs.Num())
+	{
+		ActiveTabIndex = TabIndex;
+		ActiveState = Tabs[TabIndex];
+	}
 }
 
 // ============================================================================
@@ -833,47 +1006,16 @@ void SSkeletalAssetPanel::OnRender()
 		ImGuiWindowFlags_NoSavedSettings |
 		ImGuiWindowFlags_NoBringToFrontOnFocus;
 
-	if (ImGui::Begin("Asset##SkeletalAsset", nullptr, flags))
+	if (ImGui::Begin("Display##SkeletalDisplay", nullptr, flags))
 	{
 		ViewerState* State = Owner->GetActiveState();
 		if (State)
 		{
-			ImGui::Text("Skeletal Mesh");
-			ImGui::Separator();
-
-			// 메시 경로 입력
-			ImGui::Text("Mesh Path:");
-			ImGui::PushItemWidth(-1.0f);
-			ImGui::InputTextWithHint("##MeshPath", "Browse for FBX...", State->MeshPathBuffer, sizeof(State->MeshPathBuffer));
-			ImGui::PopItemWidth();
-
-			ImGui::Spacing();
-
-			// 로드 버튼
-			if (ImGui::Button("Browse...", ImVec2(-1, 30)))
-			{
-				std::filesystem::path widePath = FPlatformProcess::OpenLoadFileDialog(UTF8ToWide(GDataDir), L"fbx", L"FBX Files");
-				if (!widePath.empty())
-				{
-					std::string s = widePath.string();
-					strncpy_s(State->MeshPathBuffer, s.c_str(), sizeof(State->MeshPathBuffer) - 1);
-				}
-			}
-
-			if (strlen(State->MeshPathBuffer) > 0)
-			{
-				if (ImGui::Button("Load Mesh", ImVec2(-1, 30)))
-				{
-					Owner->LoadSkeletalMesh(State->MeshPathBuffer);
-				}
-			}
-
-			ImGui::Spacing();
-			ImGui::Separator();
-			ImGui::Spacing();
-
 			// 표시 옵션
-			ImGui::Text("Display Options:");
+			ImGui::Text("Display Options");
+			ImGui::Separator();
+			ImGui::Spacing();
+
 			ImGui::Checkbox("Show Mesh", &State->bShowMesh);
 			ImGui::Checkbox("Show Bones", &State->bShowBones);
 
@@ -1641,4 +1783,13 @@ void SSkeletalEditorWindow::ExpandToSelectedBone(ViewerState* State, int32 BoneI
 		State->ExpandedBoneIndices.insert(CurrentIndex);
 		CurrentIndex = Skeleton->Bones[CurrentIndex].ParentIndex;
 	}
+}
+
+void SSkeletalEditorWindow::SetupFloorAndCamera(ViewerState* State)
+{
+	if (!State)
+	{
+		return;
+	}
+	SkeletalViewerBootstrap::SetupFloorAndCamera(State->PreviewActor, State->FloorActor, State->Client);
 }

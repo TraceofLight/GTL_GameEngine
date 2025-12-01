@@ -30,11 +30,39 @@ void USkinnedMeshComponent::TickComponent(float DeltaTime)
 
 void USkinnedMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
+   // SkeletalMeshPath를 먼저 처리 (비동기 로드 중에도 경로가 유지되도록)
+   if (bInIsLoading)
+   {
+      // 로드 시: SkeletalMeshPath 읽기
+      FJsonSerializer::ReadString(InOutHandle, "SkeletalMeshPath", SkeletalMeshPath);
+   }
+   else
+   {
+      // 저장 시: SkeletalMeshPath 저장 (메시가 로드 중이어도 경로 유지)
+      if (!SkeletalMeshPath.empty())
+      {
+         InOutHandle["SkeletalMeshPath"] = SkeletalMeshPath.c_str();
+      }
+      else if (SkeletalMesh)
+      {
+         InOutHandle["SkeletalMeshPath"] = SkeletalMesh->GetPathFileName().c_str();
+      }
+   }
+
    Super::Serialize(bInIsLoading, InOutHandle);
 
-   if (bInIsLoading && SkeletalMesh)
+   if (bInIsLoading)
    {
-      SetSkeletalMesh(SkeletalMesh->GetPathFileName());
+      // 로드 시: 저장된 경로로 메시 로드
+      if (!SkeletalMeshPath.empty())
+      {
+         SetSkeletalMesh(SkeletalMeshPath);
+      }
+      else if (SkeletalMesh)
+      {
+         // 이전 버전 호환: SkeletalMesh 프로퍼티에서 경로 가져오기
+         SetSkeletalMesh(SkeletalMesh->GetPathFileName());
+      }
    }
 }
 
@@ -219,6 +247,9 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
    }
 
    auto& RM = UResourceManager::GetInstance();
+
+   // 경로 저장 (비동기 로드 중에도 Details 패널에서 확인 가능)
+   SkeletalMeshPath = PathFileName;
 
    // 로드될 때까지 null
    SkeletalMesh = nullptr;

@@ -3,7 +3,7 @@
 #include "SceneComponent.h"
 #include "Material.h"
 #include "UPrimitiveComponent.generated.h"
-#include "FBodyInstance.h"
+#include "BodyInstance.h"
 
 // 전방 선언
 struct FSceneCompData;
@@ -33,8 +33,11 @@ public:
 
 	void UpdateWorldMatrixFromPhysics(const FMatrix& NewWorldMatrix);
 
-    // ===== Lua-Bindable Properties (Auto-moved from protected/private) =====
+	// 물리 시뮬리에션
+	UPROPERTY(EditAnywhere, Category = "Physics")
+	bool bSimulatePhysics;
 
+    // ===== Lua-Bindable Properties (Auto-moved from protected/private) =====
     UPROPERTY(EditAnywhere, Category="Shape")
     bool bGenerateOverlapEvents;
 
@@ -75,12 +78,19 @@ public:
         return bIsCulled;
     }
 
-    // ───── 충돌 관련 ──────────────────────────── 
+    // ───── 충돌 관련 ────────────────────────────
     bool IsOverlappingActor(const AActor* Other) const;
     virtual const TArray<FOverlapInfo>& GetOverlapInfos() const { static TArray<FOverlapInfo> Empty; return Empty; }
 
-    //Delegate 
-    
+	virtual void OnComponentHit(UPrimitiveComponent* Other);
+	virtual void OnComponentBeginOverlap(UPrimitiveComponent* Other);
+	virtual void OnComponentEndOverlap(UPrimitiveComponent* Other);
+
+	void InitPhysX();
+
+	void SetSimulatePhysics(bool bSimulate);
+	bool IsSimulatingPhysics() const { return bSimulatePhysics; }
+
     // ───── 복사 관련 ────────────────────────────
     void DuplicateSubObjects() override;
 
@@ -93,8 +103,13 @@ public:
 
 	FBodyInstance BodyInstance{this};
 protected:
+    // Create/replace PhysX actor and attach shapes to match current settings
+    void RecreatePhysicsBody();
     bool bIsCulled = false;
-     
-    // ───── 충돌 관련 ────────────────────────────
 
+    // bSimulatePhysics 값 변경 감지용 캐시 (ImGui에서 직접 수정 시 감지)
+    bool bSimulatePhysics_Cached = false;
+
+    // ───── 충돌 관련 ────────────────────────────
+	virtual void OnCreatePhysicsState();
 };

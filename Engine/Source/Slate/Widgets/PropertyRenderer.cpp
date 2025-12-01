@@ -369,7 +369,7 @@ void UPropertyRenderer::RenderProperties(const TArray<FProperty>& Properties, UO
 
 		for (const FProperty* Prop : Props)
 		{
-			ImGui::PushID(Prop); // 프로퍼티 포인터로 고유 ID 푸시
+			ImGui::PushID(Prop);
 			RenderProperty(*Prop, Object);
 			ImGui::PopID();
 		}
@@ -594,7 +594,10 @@ void UPropertyRenderer::ClearResourcesCache()
 bool UPropertyRenderer::RenderBoolProperty(const FProperty& Prop, void* Instance)
 {
 	bool* Value = Prop.GetValuePtr<bool>(Instance);
-	return ImGui::Checkbox(Prop.Name, Value);
+	if (!Value) return false;
+
+	bool bChanged = ImGui::Checkbox(Prop.Name, Value);
+	return bChanged;
 }
 
 bool UPropertyRenderer::RenderInt32Property(const FProperty& Prop, void* Instance)
@@ -1482,10 +1485,20 @@ bool UPropertyRenderer::RenderSkeletalMeshProperty(const FProperty& Prop, void* 
 {
 	USkeletalMesh** MeshPtr = Prop.GetValuePtr<USkeletalMesh*>(Instance);
 
+	// 현재 경로 가져오기: 메시가 로드되었으면 GetFilePath(), 아니면 컴포넌트의 저장된 경로 사용
 	FString CurrentPath;
 	if (*MeshPtr)
 	{
 		CurrentPath = (*MeshPtr)->GetFilePath();
+	}
+	else
+	{
+		// 메시가 아직 로드되지 않은 경우, 컴포넌트에서 저장된 경로 확인
+		UObject* Obj = static_cast<UObject*>(Instance);
+		if (USkinnedMeshComponent* SkinComp = Cast<USkinnedMeshComponent>(Obj))
+		{
+			CurrentPath = SkinComp->GetSkeletalMeshPath();
+		}
 	}
 
 	if (CachedSkeletalMeshPaths.empty())

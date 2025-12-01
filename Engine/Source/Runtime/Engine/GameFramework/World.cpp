@@ -7,7 +7,7 @@
 #include "ObjectFactory.h"
 #include "TextRenderComponent.h"
 #include "FViewport.h"
-#include "Windows/SViewportWindow.h"
+#include "Windows/ViewportWindow.h"
 #include "USlateManager.h"
 #include "StaticMesh.h"
 #include "ObjManager.h"
@@ -39,6 +39,7 @@
 #include "Hash.h"
 #include"Character.h"
 #include "LuaBindHelpers.h"
+#include "SkySphereActor.h"
 
 IMPLEMENT_CLASS(UWorld)
 
@@ -91,6 +92,12 @@ UWorld::~UWorld()
 		DestroyActor(Actor);
 	}
 	EditorActors.clear();
+
+	// Physics Scene 파괴
+	if (PhysicsSceneHandle.IsValid())
+	{
+		PHYSICS.DestroyScene(PhysicsSceneHandle);
+	}
 
 	GridActor = nullptr;
 	GizmoActor = nullptr;
@@ -216,9 +223,24 @@ void UWorld::Tick(float DeltaSeconds)
             ActorTimingMap.Remove(Key);
         }
 	}
-
+	
 	// 중복충돌 방지 pair clear
     FrameOverlapPairs.clear();
+
+	// PIE World에서만 물리 시뮬레이션 실행
+	if (bPie && PhysicsSceneHandle.IsValid())
+	{
+		const float Dt = GetDeltaTime(EDeltaTime::Game);
+
+		if (PHYSICS.GetPipelineMode() == EPhysicsPipelineMode::FetchBeforeRender)
+		{
+			PHYSICS.SimulateScene(PhysicsSceneHandle, Dt);
+		}
+		else
+		{
+			PHYSICS.BeginSimulate(PhysicsSceneHandle, Dt);
+		}
+	}
 
     // Skip partition update for preview worlds (no spatial partitioning needed)
     if (Partition)
@@ -274,6 +296,9 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 	//ULevel* NewLevel = ULevelService::CreateNewLevel();
 	UWorld* PIEWorld = NewObject<UWorld>(); // 레벨도 새로 생성됨
 	PIEWorld->bPie = true;
+
+	// PIE World용 Physics Scene 생성
+	PIEWorld->PhysicsSceneHandle = PHYSICS.CreateScene();
 
 	FWorldContext PIEWorldContext = FWorldContext(PIEWorld, EWorldType::Game);
 	GEngine.AddWorldContext(PIEWorldContext);
@@ -466,10 +491,16 @@ void UWorld::CreateLevel()
 		{
 			AmbientLight->GetLightComponent()->SetIntensity(0.2f);
 		}
+
+		// 기본 Sky Sphere 생성
+		SpawnActor<ASkySphereActor>();
 	}
 	else
 	{
 		SetLevel(ULevelService::CreateNewLevel());
+
+		// 기본 Sky Sphere 생성
+		SpawnActor<ASkySphereActor>();
 	}
 
 	// 이름 카운터 초기화: 씬을 새로 시작할 때 각 BaseName 별 suffix를 0부터 다시 시작

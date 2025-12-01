@@ -16,25 +16,12 @@
 #include "Source/Runtime/Engine/Particle/Rotation/ParticleModuleRotationRate.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
 #include "Source/Runtime/Engine/GameFramework/ParticleSystemActor.h"
-#include "Source/Runtime/Engine/GameFramework/World.h"
-#include "Source/Runtime/AssetManagement/ResourceManager.h"
 #include "Source/Runtime/AssetManagement/Texture.h"
-#include "Source/Runtime/RHI/D3D11RHI.h"
 #include "Source/Runtime/Core/Misc/Base64.h"
 #include "ThumbnailManager.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
-#include <map>
-#include "ImGui/imgui.h"
 #include "Source/Editor/PlatformProcess.h"
-
-#ifdef _EDITOR
-#include "Source/Runtime/Engine/GameFramework/EditorEngine.h"
-extern UEditorEngine GEngine;
-#else
-#include "Source/Runtime/Engine/GameFramework/GameEngine.h"
-extern UGameEngine GEngine;
-#endif
 
 // 파티클 모듈 헤더
 #include "Source/Runtime/Engine/Particle/Color/ParticleModuleColor.h"

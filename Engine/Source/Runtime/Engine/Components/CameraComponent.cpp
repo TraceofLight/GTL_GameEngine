@@ -18,10 +18,10 @@ extern float CLIENTHEIGHT;
 //END_PROPERTIES()
 
 UCameraComponent::UCameraComponent()
-    : FieldOfView(60.0f)
+    : FieldOfView(90.0f)
     , AspectRatio(1.0f / 1.0f)
     , NearClip(0.1f)
-    , FarClip(100.0f)
+    , FarClip(50000.0f)
     , ProjectionMode(ECameraProjectionMode::Perspective)
     , ZoomFactor(1.0f)
 

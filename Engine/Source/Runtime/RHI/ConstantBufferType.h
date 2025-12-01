@@ -291,6 +291,39 @@ struct FParticleSubUVBufferType
     int32 Padding;                // 정렬을 위한 패딩
 };
 
+// b9: Sky Sphere 상수 버퍼
+struct alignas(16) FSkyConstantBuffer
+{
+    FLinearColor ZenithColor;       // 천정(상단) 색상 (16 bytes)
+    FLinearColor HorizonColor;      // 수평선 색상 (16 bytes)
+    FLinearColor GroundColor;       // 지면(하단) 색상 (16 bytes)
+
+    FVector SunDirection;           // 태양 방향 (정규화됨, 월드 공간)
+    float SunDiskSize;              // 태양 원반 크기 (0.0 ~ 1.0) (16 bytes)
+
+    FLinearColor SunColor;          // 태양 색상 + 강도 (RGB + Intensity in A) (16 bytes)
+
+    float HorizonFalloff;           // 수평선 그라디언트 감쇠 (1.0 ~ 10.0)
+    float SunHeight;                // 태양 높이 (0.0 = 수평선, 1.0 = 천정)
+    float OverallBrightness;        // 전체 밝기 스케일
+    float CloudOpacity;             // 구름 불투명도 (미래 확장용) (16 bytes)
+
+    // 기본값 설정
+    FSkyConstantBuffer()
+        : ZenithColor(0.0343f, 0.1236f, 0.4f, 1.0f)
+        , HorizonColor(0.6471f, 0.8235f, 0.9451f, 1.0f)
+        , GroundColor(0.3f, 0.25f, 0.2f, 1.0f)
+        , SunDirection(0.0f, 0.5f, 0.866f)
+        , SunDiskSize(0.001f)
+        , SunColor(1.0f, 0.95f, 0.8f, 5.0f)
+        , HorizonFalloff(3.0f)
+        , SunHeight(0.5f)
+        , OverallBrightness(1.0f)
+        , CloudOpacity(0.0f)
+    {
+    }
+};
+
 #define CONSTANT_BUFFER_INFO(TYPE, SLOT, VS, PS) \
 constexpr uint32 TYPE##Slot = SLOT;\
 constexpr bool TYPE##IsVS = VS;\
@@ -316,7 +349,8 @@ MACRO(FLightBufferType)             \
 MACRO(FViewportConstants)           \
 MACRO(FTileCullingBufferType)       \
 MACRO(FPointLightShadowBufferType)  \
-MACRO(FParticleSubUVBufferType)
+MACRO(FParticleSubUVBufferType)     \
+MACRO(FSkyConstantBuffer)
 
 // 2. void*로만 전달해야 하는 큰 버퍼들
 #define CONSTANT_BUFFER_LIST_LARGE(MACRO) \
@@ -354,6 +388,7 @@ CONSTANT_BUFFER_INFO(FViewportConstants, 10, true, true)   // 뷰 포트 크기�
 CONSTANT_BUFFER_INFO(FTileCullingBufferType, 11, false, true)  // b11, PS only (UberLit.hlsl과 일치)
 CONSTANT_BUFFER_INFO(FPointLightShadowBufferType, 12, true, true)  // b12, VS+PS
 CONSTANT_BUFFER_INFO(FParticleSubUVBufferType, 6, false, true)  // b6, PS only (Sprite Particle SubUV 파라미터)
+CONSTANT_BUFFER_INFO(FSkyConstantBuffer, 9, false, true)  // b9, PS only (Sky Sphere 파라미터)
 
 
 

@@ -11,7 +11,7 @@ UGizmoArrowComponent::UGizmoArrowComponent()
 	SetStaticMesh(GDataDir + "/Default/Gizmo/TranslationHandle.obj");
 
 	// 기즈모 셰이더로 설정
-	SetMaterialByName(0, "Shaders/UI/Gizmo.hlsl");
+	GizmoMaterial = UResourceManager::GetInstance().Load<UMaterial>("Shaders/UI/Gizmo.hlsl");
 
 	// 기즈모는 기본적으로 게임(PIE)에서 숨김
 	bHiddenInGame = true;

@@ -10,6 +10,7 @@
 #include "Material.h"
 #include "SceneView.h"
 #include "LuaBindHelpers.h"
+#include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
 
 UStaticMeshComponent::UStaticMeshComponent() = default;
 
@@ -132,9 +133,10 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 	auto& RM = UResourceManager::GetInstance();
 
 	// Default 메쉬 즉시 표시 → 로드 완료 시 교체
-	StaticMesh = RM.GetDefaultStaticMesh();
-	if (StaticMesh && StaticMesh->GetStaticMeshAsset())
-	{
+    StaticMesh = RM.GetDefaultStaticMesh();
+    if (StaticMesh && StaticMesh->GetStaticMeshAsset())
+    {
+        StaticMesh->EnsureBodySetupBuilt();
 		const TArray<FGroupInfo>& GroupInfos = StaticMesh->GetMeshGroupInfo();
 		MaterialSlots.resize(GroupInfos.size());
 
@@ -147,9 +149,10 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 
 	RM.AsyncLoad<UStaticMesh>(PathFileName, [this, PathFileName](UStaticMesh* LoadedMesh)
 	{
-		if (LoadedMesh && LoadedMesh->GetStaticMeshAsset())
-		{
-			this->StaticMesh = LoadedMesh;
+        if (LoadedMesh && LoadedMesh->GetStaticMeshAsset())
+        {
+            this->StaticMesh = LoadedMesh;
+            this->StaticMesh->EnsureBodySetupBuilt();
 
 			const TArray<FGroupInfo>& GroupInfos = LoadedMesh->GetMeshGroupInfo();
 			this->MaterialSlots.resize(GroupInfos.size());
@@ -164,8 +167,8 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 		else
 		{
 			UE_LOG("[warning] StaticMeshComponent: Failed to load %s, keeping default cube", PathFileName.c_str());
-		}
-	}, EAssetLoadPriority::Normal);
+        }
+    }, EAssetLoadPriority::Normal);
 }
 
 FAABB UStaticMeshComponent::GetWorldAABB() const
@@ -219,12 +222,74 @@ void UStaticMeshComponent::OnTransformUpdated()
 	MarkWorldPartitionDirty();
 }
 
+void UStaticMeshComponent::OnCreatePhysicsState()
+{
+	Super::OnCreatePhysicsState();
+
+	// SMC에서 PhysX(physics) 범위를 정한다. (기본은 AABB의 정보로 Box Collider)
+
+	if (!StaticMesh)
+	{
+		return;
+	}
+	if (!PHYSICS.GetPhysics())
+	{
+		return;
+	}
+
+	// Ensure collision data is built
+	StaticMesh->EnsureBodySetupBuilt();
+
+	UBodySetup* Setup = StaticMesh->GetBodySetup();
+	if (!Setup)
+	{
+		UE_LOG("[Physics] OnCreatePhysicsState: No BodySetup available for %s", GetName().c_str());
+		return;
+	}
+
+	// Now that PhysX is ready, try to cook the mesh if we have source data
+	// This is deferred from asset loading time when PhysX wasn't initialized yet
+	if (!Setup->HasCookedData() && !Setup->CookSourceVertices.IsEmpty())
+	{
+		if (Setup->EnsureCooked())
+		{
+			// Cooking succeeded - clear the fallback box since we have real mesh collision
+			Setup->AggGeom.BoxElems.Empty();
+			UE_LOG("[Physics] Cooked mesh collision for %s", GetName().c_str());
+		}
+	}
+
+	// Assign BodySetup to BodyInstance and create shapes from it
+	BodyInstance.BodySetup = Setup;
+	BodyInstance.CreateShapesFromBodySetup();
+
+	if (Setup->HasCookedData())
+	{
+		UE_LOG("[Physics] OnCreatePhysicsState: Using cooked mesh collision for %s", GetName().c_str());
+	}
+	else
+	{
+		UE_LOG("[Physics] OnCreatePhysicsState: Using simple collision (%d shapes) for %s",
+			Setup->GetElementCount(), GetName().c_str());
+	}
+}
+
 void UStaticMeshComponent::DuplicateSubObjects()
 {
-	Super::DuplicateSubObjects();
+    Super::DuplicateSubObjects();
 }
 
 void UStaticMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
-	Super::Serialize(bInIsLoading, InOutHandle);
+    Super::Serialize(bInIsLoading, InOutHandle);
+}
+
+void UStaticMeshComponent::BeginPlay()
+{
+	Super::BeginPlay();
+}
+
+void UStaticMeshComponent::EndPlay()
+{
+    Super::EndPlay();
 }

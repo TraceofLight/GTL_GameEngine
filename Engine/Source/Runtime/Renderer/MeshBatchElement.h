@@ -78,6 +78,15 @@ struct FMeshBatchElement
 	 */
 	const TArray<FMatrix>* SkinningMatrices = nullptr;
 
+	// --- 4. Sky 렌더링 데이터 ---
+	// Sky Sphere 렌더링을 위한 특수 데이터입니다.
+
+	// Sky 배치 여부 (true면 특수 렌더링 상태 적용)
+	bool bIsSky = false;
+
+	// Sky 상수 버퍼 포인터 (b9 슬롯용)
+	const struct FSkyConstantBuffer* SkyParams = nullptr;
+
 	// --- 기본 생성자 ---
 	FMeshBatchElement() = default;
 

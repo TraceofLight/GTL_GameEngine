@@ -4,6 +4,9 @@
 #include "Source/Runtime/Engine/Animation/AnimSingleNodeInstance.h"
 #include "Source/Runtime/Engine/Animation/AnimStateMachine.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAssetUtils.h"
+#include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
 
 USkeletalMeshComponent::USkeletalMeshComponent()
     : AnimInstance(nullptr)
@@ -343,6 +346,9 @@ void USkeletalMeshComponent::SetBoneWorldTransform(int32 BoneIndex, const FTrans
     if (BoneIndex < 0 || BoneIndex >= CurrentLocalSpacePose.Num())
         return;
 
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
+        return;
+
     const int32 ParentIndex = SkeletalMesh->GetSkeleton()->Bones[BoneIndex].ParentIndex;
 
     // 부모 본의 월드 트랜스폼 계산
@@ -394,7 +400,7 @@ FTransform USkeletalMeshComponent::GetBoneWorldTransform(int32 BoneIndex)
  */
 void USkeletalMeshComponent::ForceRecomputePose()
 {
-    if (!SkeletalMesh) { return; }
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData()) { return; }
 
     // LocalSpace -> ComponentSpace 계산
     UpdateComponentSpaceTransforms();
@@ -624,4 +630,120 @@ const FTransform* USkeletalMeshComponent::GetBoneDelta(int32 BoneIndex) const
         return &It->second;
     }
     return nullptr;
+}
+
+// ===== Physics 관리 =====
+
+void USkeletalMeshComponent::EnsurePhysicsAssetBuilt()
+{
+    if (PhysicsAsset)
+        return;
+
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
+        return;
+
+    // Create physics asset and build from skeleton using utility functions
+    PhysicsAsset = NewObject<UPhysicsAsset>();
+    if (PhysicsAsset)
+    {
+        FPhysicsAssetUtils::CreateFromSkeletalMesh(PhysicsAsset, SkeletalMesh);
+        UE_LOG("[SkeletalMeshComponent] Built PhysicsAsset with %d bodies for %s",
+               PhysicsAsset->BodySetups.Num(), GetName().c_str());
+    }
+}
+
+void USkeletalMeshComponent::OnCreatePhysicsState()
+{
+    Super::OnCreatePhysicsState();
+
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
+    {
+        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: No skeletal mesh");
+        return;
+    }
+
+    if (!PHYSICS.GetPhysics())
+    {
+        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: PhysX not ready");
+        return;
+    }
+
+    // Ensure we have a physics asset with per-bone capsules
+    EnsurePhysicsAssetBuilt();
+
+    if (!PhysicsAsset || PhysicsAsset->BodySetups.IsEmpty())
+    {
+        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: No PhysicsAsset or empty");
+        return;
+    }
+
+    // Create a combined BodySetup with all bone capsules transformed to component space
+    // The PhysicsAsset stores capsules in bone-local space, we need to transform them
+    // to be relative to the component origin for the single physics actor
+
+    const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
+    const TArray<FBone>& Bones = Skeleton->Bones;
+
+    // Create a combined BodySetup with all capsules in component space (heap allocated)
+    UBodySetup* CombinedSetup = NewObject<UBodySetup>();
+    CombinedSetup->CollisionTraceFlag = ECollisionTraceFlag::UseDefault;
+
+    int32 ShapeCount = 0;
+    for (const UBodySetup* BoneSetup : PhysicsAsset->BodySetups)
+    {
+        if (!BoneSetup) continue;
+
+        // Find the bone index for this body setup
+        int32 BoneIdx = -1;
+        for (int32 i = 0; i < Bones.Num(); ++i)
+        {
+            if (FName(Bones[i].Name) == BoneSetup->BoneName)
+            {
+                BoneIdx = i;
+                break;
+            }
+        }
+
+        if (BoneIdx < 0)
+        {
+            UE_LOG("[Physics] Warning: Could not find bone '%s' for physics body",
+                   BoneSetup->BoneName.ToString().c_str());
+            continue;
+        }
+
+        // Get bone's component-space position from bind pose
+        const FMatrix& BoneBindPose = Bones[BoneIdx].BindPose;
+        FVector BonePos(BoneBindPose.M[3][0], BoneBindPose.M[3][1], BoneBindPose.M[3][2]);
+
+        // Transform each capsule from bone-local to component space
+        for (const FKCapsuleElem& BoneCapsule : BoneSetup->AggGeom.SphylElems)
+        {
+            FKCapsuleElem TransformedCapsule = BoneCapsule;
+
+            // The capsule center is relative to the bone, add bone position
+            TransformedCapsule.Center = BonePos + BoneCapsule.Center;
+
+            // Keep the same rotation (bone direction is already encoded in the capsule rotation)
+            CombinedSetup->AggGeom.SphylElems.Add(TransformedCapsule);
+            ShapeCount++;
+
+            UE_LOG("[Physics] Bone '%s': Capsule at (%.2f,%.2f,%.2f) R=%.3f L=%.3f",
+                   BoneSetup->BoneName.ToString().c_str(),
+                   TransformedCapsule.Center.X, TransformedCapsule.Center.Y, TransformedCapsule.Center.Z,
+                   TransformedCapsule.Radius, TransformedCapsule.Length);
+        }
+    }
+
+    if (ShapeCount == 0)
+    {
+        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: No shapes created for %s",
+               GetName().c_str());
+        return;
+    }
+
+    BodyInstance.BodySetup = CombinedSetup;
+    BodyInstance.CreateShapesFromBodySetup();
+
+    UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: Created %d per-bone capsule shapes for %s",
+           ShapeCount, GetName().c_str());
 }

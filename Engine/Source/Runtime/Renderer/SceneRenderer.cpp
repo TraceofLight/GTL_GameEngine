@@ -57,6 +57,8 @@
 #include "DynamicEmitterReplayDataBase.h"
 #include "ParticleEmitterInstance.h"
 #include "VertexData.h"
+#include "SkySphereActor.h"
+#include "SkySphereComponent.h"
 
 FSceneRenderer::FSceneRenderer(UWorld* InWorld, FSceneView* InView, URenderer* InOwnerRenderer)
 	: World(InWorld)
@@ -95,13 +97,6 @@ void FSceneRenderer::Render()
 	D3D11_VIEWPORT BackupViewport;
 	RHIDevice->GetDeviceContext()->RSGetViewports(&NumViewports, &BackupViewport);
 
-
-	/*static bool Loaded = false;
-	if (!Loaded)
-	{
-		FSkeletalMeshData Skeletal = UFbxLoader::GetInstance().LoadFbxMesh("C:\\Program Files\\Autodesk\\Fbx\\Fbx SDK\\2020.3.7\\build\\vc143_x64_dll\\Debug\\sadface.fbx");
-		Loaded = true;
-	}*/
     // 뷰(View) 준비: 행렬, 절두체 등 프레임에 필요한 기본 데이터 계산
     PrepareView();
     // (Background is cleared per-path when binding scene color)
@@ -252,11 +247,44 @@ void FSceneRenderer::RenderLitPath()
         RHIDevice->ClearDepthBuffer(1.0f, 0);
     }
 
+	// 배경 클리어 직후, Opaque Pass 이전에 렌더링
+	RenderSkyPass();
+
 	// Base Pass
 	RenderOpaquePass(View->RenderSettings->GetViewMode());
 	RenderGridLinesPass();
 	RenderParticlesPass();
 	RenderDecalPass();
+}
+
+void FSceneRenderer::RenderSkyPass()
+{
+	GPU_EVENT_TIMER(RHIDevice->GetDeviceContext(), "RenderSkyPass", OwnerRenderer->GetGPUTimer());
+
+	// World에서 SkySphereActor 찾기
+	ASkySphereActor* SkyActor = World->FindActor<ASkySphereActor>();
+	if (!SkyActor)
+	{
+		return;
+	}
+
+	USkySphereComponent* SkyComponent = SkyActor->GetSkySphereComponent();
+	if (!SkyComponent)
+	{
+		return;
+	}
+
+	// ViewProj 상수 버퍼 설정
+	FMatrix InvView = View->ViewMatrix.InverseAffine();
+	FMatrix InvProj = View->ProjectionMatrix.Inverse();
+	ViewProjBufferType ViewProjBuffer = ViewProjBufferType(View->ViewMatrix, View->ProjectionMatrix, InvView, InvProj);
+	RHIDevice->SetAndUpdateConstantBuffer(ViewProjBuffer);
+
+	// Sky 메시 배치 수집
+	TArray<FMeshBatchElement> SkyBatches;
+	SkyComponent->CollectMeshBatches(SkyBatches, View);
+
+	DrawMeshBatches(SkyBatches, true);
 }
 
 void FSceneRenderer::RenderWireframePath()
@@ -1899,7 +1927,21 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 			RHIDevice->SetAndUpdateConstantBuffer_Pointer_FSkinningBuffer(pMatrixData, MatrixDataSize);
 		}
 
-		// 5. 인스턴스 버퍼가 있으면 DrawIndexedInstanced 사용
+		// 5. Sky 전용 렌더링 상태 설정
+		if (Batch.bIsSky)
+		{
+			// 깊이 테스트 비활성화 (Sky는 항상 가장 뒤에 렌더링)
+			RHIDevice->OMSetDepthStencilState(EComparisonFunc::Always);
+			// Backface Culling 비활성화 (Inside-Facing Sphere)
+			RHIDevice->RSSetState(ERasterizerMode::Solid_NoCull);
+			// Sky 상수 버퍼 (b9) 설정
+			if (Batch.SkyParams)
+			{
+				RHIDevice->SetAndUpdateConstantBuffer(*Batch.SkyParams);
+			}
+		}
+
+		// 6. 인스턴스 버퍼가 있으면 DrawIndexedInstanced 사용
 		if (Batch.InstanceBuffer != nullptr && Batch.InstanceCount > 0)
 		{
 			// 인스턴스 버퍼를 슬롯 1에 바인딩 (메시 정점은 슬롯 0)
@@ -1920,6 +1962,13 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 		{
 			// 일반 드로우 콜
 			RHIDevice->GetDeviceContext()->DrawIndexed(Batch.IndexCount, Batch.StartIndex, Batch.BaseVertexIndex);
+		}
+
+		// Sky 렌더링 후 상태 복원
+		if (Batch.bIsSky)
+		{
+			RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+			RHIDevice->RSSetState(ERasterizerMode::Solid);
 		}
 	}
 

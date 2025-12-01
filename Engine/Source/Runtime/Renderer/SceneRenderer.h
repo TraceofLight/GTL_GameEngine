@@ -107,6 +107,9 @@ private:
 	/** @brief 타일 기반 라이트 컬링을 수행하고 Structured Buffer를 업데이트합니다. */
 	void PerformTileLightCulling();
 
+	/** @brief Sky Sphere를 렌더링하는 패스입니다. */
+	void RenderSkyPass();
+
 	/** @brief 불투명(Opaque) 객체들을 렌더링하는 패스입니다. */
 	void RenderOpaquePass(EViewMode InRenderViewMode);
 

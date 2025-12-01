@@ -66,10 +66,16 @@ void USkeletalMesh::ReleaseResources()
 
 void USkeletalMesh::CreateVertexBufferForComp(ID3D11Buffer** InVertexBuffer)
 {
-    if (!Data) { return; }
+    if (!Data || Data->Vertices.empty())
+    {
+        return;
+    }
     ID3D11Device* Device = GEngine.GetRHIDevice()->GetDevice();
     HRESULT hr = D3D11RHI::CreateVertexBuffer<FVertexDynamic>(Device, Data->Vertices, InVertexBuffer, false);
-    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
+    {
+        UE_LOG("SkeletalMesh: CreateVertexBufferForComp failed, hr=0x%08X", hr);
+    }
 }
 
 void USkeletalMesh::UpdateVertexBuffer(const TArray<FNormalVertex>& SkinnedVertices, ID3D11Buffer* InVertexBuffer)
