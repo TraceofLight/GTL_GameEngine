@@ -23,21 +23,27 @@ void FPhysicsManager::Initialize()
 	Foundation = PxCreateFoundation(PX_PHYSICS_VERSION, gAllocator, gErrorCallback);
 	if (!Foundation) { MessageBoxA(nullptr, "PxCreateFoundation failed!", "Error", MB_OK); return; }
 
-
-	//TOOD: Release모드에서 PVD가 안붙도록 
-	// PVD 연결 
+	// 2. PVD 설정 (PhysX Visual Debugger)
 	Pvd = PxCreatePvd(*Foundation);
+	if (Pvd)
+	{
+		Transport = PxDefaultPvdSocketTransportCreate("127.0.0.1", 5425, 10);
+		if (Transport)
+		{
+			Pvd->connect(*Transport, PxPvdInstrumentationFlag::eALL);
+		}
+	}
 
-	Transport =
-		PxDefaultPvdSocketTransportCreate("127.0.0.1", 5425, 10);
-	Pvd->connect(*Transport, PxPvdInstrumentationFlag::eALL);
-	 
+	// 3. Physics (공유 리소스)
+	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale(), true, Pvd);
 
-	// 2. Physics (공유 리소스)
-	// PVD on/off를 정할 수 있음
-	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale() , /*pvd설정*/true, Pvd);
+	// 4. Extensions 초기화 (D6 Joint 등 사용을 위해 필수)
+	if (!PxInitExtensions(*Physics, Pvd))
+	{
+		UE_LOG("[Physics] PxInitExtensions failed!");
+	}
 
-	// 3. CPU Dispatcher (공유 리소스)
+	// 5. CPU Dispatcher (공유 리소스)
 	SYSTEM_INFO SysInfo;
 	GetSystemInfo(&SysInfo);
 	int NumWorkerThreads = PxMax(1, (int)(SysInfo.dwNumberOfProcessors - 1));
@@ -53,11 +59,15 @@ void FPhysicsManager::Initialize()
 }
 
 void FPhysicsManager::Shutdown()
-{ 
+{
 	// 역순 파괴 (공유 리소스만)
 	if (DefaultMaterial) { DefaultMaterial->release(); DefaultMaterial = nullptr; }
 	if (Dispatcher) { Dispatcher->release(); Dispatcher = nullptr; }
 	if (Cooking) { Cooking->release(); Cooking = nullptr; }
+
+	// Extensions 종료 (Physics release 전에 호출)
+	PxCloseExtensions();
+
 	if (Physics) { Physics->release(); Physics = nullptr; }
 	if (Pvd) { Pvd->release();	 Pvd = nullptr; }
 	if (Transport) { Transport->release(); Transport = nullptr;  }
@@ -86,16 +96,18 @@ FPhysicsSceneHandle FPhysicsManager::CreateScene()
 	// Scene 생성
 	Handle.Scene = Physics->createScene(sceneDesc);
 
-	// PVD 연결
-	PxPvdSceneClient* pvdClient = Handle.Scene->getScenePvdClient();
-
-	if (pvdClient)
+	// PVD Scene Client 설정 (PVD가 연결된 경우에만)
+	if (Pvd && Pvd->isConnected())
 	{
-		pvdClient->setScenePvdFlags(
-			PxPvdSceneFlag::eTRANSMIT_CONSTRAINTS |
-			PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES |
-			PxPvdSceneFlag::eTRANSMIT_CONTACTS
-		);
+		PxPvdSceneClient* pvdClient = Handle.Scene->getScenePvdClient();
+		if (pvdClient)
+		{
+			pvdClient->setScenePvdFlags(
+				PxPvdSceneFlag::eTRANSMIT_CONSTRAINTS |
+				PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES |
+				PxPvdSceneFlag::eTRANSMIT_CONTACTS
+			);
+		}
 	}
 
 	return Handle;
