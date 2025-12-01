@@ -5,8 +5,8 @@
 #include "Source/Runtime/Engine/Animation/AnimStateMachine.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
-#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAssetUtils.h"
 #include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
+#include "Source/Runtime/Engine/PhysicsEngine/BodyInstance.h"
 
 USkeletalMeshComponent::USkeletalMeshComponent()
     : AnimInstance(nullptr)
@@ -22,6 +22,9 @@ USkeletalMeshComponent::USkeletalMeshComponent()
 
 USkeletalMeshComponent::~USkeletalMeshComponent()
 {
+    // Physics cleanup
+    OnDestroyPhysicsState();
+
     // AnimInstance 정리 (메모리 누수 방지)
     if (AnimInstance)
     {
@@ -634,24 +637,6 @@ const FTransform* USkeletalMeshComponent::GetBoneDelta(int32 BoneIndex) const
 
 // ===== Physics 관리 =====
 
-void USkeletalMeshComponent::EnsurePhysicsAssetBuilt()
-{
-    if (PhysicsAsset)
-        return;
-
-    if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
-        return;
-
-    // Create physics asset and build from skeleton using utility functions
-    PhysicsAsset = NewObject<UPhysicsAsset>();
-    if (PhysicsAsset)
-    {
-        FPhysicsAssetUtils::CreateFromSkeletalMesh(PhysicsAsset, SkeletalMesh);
-        UE_LOG("[SkeletalMeshComponent] Built PhysicsAsset with %d bodies for %s",
-               PhysicsAsset->BodySetups.Num(), GetName().c_str());
-    }
-}
-
 void USkeletalMeshComponent::OnCreatePhysicsState()
 {
     Super::OnCreatePhysicsState();
@@ -668,8 +653,8 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         return;
     }
 
-    // Ensure we have a physics asset with per-bone capsules
-    EnsurePhysicsAssetBuilt();
+    // Get physics asset from skeletal mesh (auto-generated if not set)
+    UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset();
 
     if (!PhysicsAsset || PhysicsAsset->BodySetups.IsEmpty())
     {
@@ -677,19 +662,14 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         return;
     }
 
-    // Create a combined BodySetup with all bone capsules transformed to component space
-    // The PhysicsAsset stores capsules in bone-local space, we need to transform them
-    // to be relative to the component origin for the single physics actor
+    // Clean up any existing bodies
+    OnDestroyPhysicsState();
 
     const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
     const TArray<FBone>& Bones = Skeleton->Bones;
 
-    // Create a combined BodySetup with all capsules in component space (heap allocated)
-    UBodySetup* CombinedSetup = NewObject<UBodySetup>();
-    CombinedSetup->CollisionTraceFlag = ECollisionTraceFlag::UseDefault;
-
-    int32 ShapeCount = 0;
-    for (const UBodySetup* BoneSetup : PhysicsAsset->BodySetups)
+    // Create one FBodyInstance per bone (UE pattern for ragdoll support)
+    for (UBodySetup* BoneSetup : PhysicsAsset->BodySetups)
     {
         if (!BoneSetup) continue;
 
@@ -711,39 +691,42 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
             continue;
         }
 
-        // Get bone's component-space position from bind pose
-        const FMatrix& BoneBindPose = Bones[BoneIdx].BindPose;
-        FVector BonePos(BoneBindPose.M[3][0], BoneBindPose.M[3][1], BoneBindPose.M[3][2]);
+        // Get bone's world transform
+        FMatrix BoneWorldMatrix = CurrentComponentSpacePose[BoneIdx].ToMatrix() * GetWorldMatrix();
 
-        // Transform each capsule from bone-local to component space
-        for (const FKCapsuleElem& BoneCapsule : BoneSetup->AggGeom.SphylElems)
+        // Create a new FBodyInstance for this bone
+        FBodyInstance* BoneBody = new FBodyInstance(this);
+        BoneBody->BodySetup = BoneSetup;
+
+        // Create the PhysX actor at the bone's world position
+        BoneBody->CreateActor(PHYSICS.GetPhysics(), BoneWorldMatrix, bSimulatePhysics);
+        BoneBody->CreateShapesFromBodySetup();
+
+        // Add to scene
+        if (GetWorld() && GetWorld()->GetPhysicsScene())
         {
-            FKCapsuleElem TransformedCapsule = BoneCapsule;
+            BoneBody->AddToScene(GetWorld()->GetPhysicsScene());
+        }
 
-            // The capsule center is relative to the bone, add bone position
-            TransformedCapsule.Center = BonePos + BoneCapsule.Center;
+        Bodies.Add(BoneBody);
 
-            // Keep the same rotation (bone direction is already encoded in the capsule rotation)
-            CombinedSetup->AggGeom.SphylElems.Add(TransformedCapsule);
-            ShapeCount++;
+        UE_LOG("[Physics] Created body for bone '%s' (index %d)",
+               BoneSetup->BoneName.ToString().c_str(), BoneIdx);
+    }
 
-            UE_LOG("[Physics] Bone '%s': Capsule at (%.2f,%.2f,%.2f) R=%.3f L=%.3f",
-                   BoneSetup->BoneName.ToString().c_str(),
-                   TransformedCapsule.Center.X, TransformedCapsule.Center.Y, TransformedCapsule.Center.Z,
-                   TransformedCapsule.Radius, TransformedCapsule.Length);
+    UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: Created %d per-bone bodies for %s",
+           Bodies.Num(), GetName().c_str());
+}
+
+void USkeletalMeshComponent::OnDestroyPhysicsState()
+{
+    for (FBodyInstance* Body : Bodies)
+    {
+        if (Body)
+        {
+            Body->TermBody();
+            delete Body;
         }
     }
-
-    if (ShapeCount == 0)
-    {
-        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: No shapes created for %s",
-               GetName().c_str());
-        return;
-    }
-
-    BodyInstance.BodySetup = CombinedSetup;
-    BodyInstance.CreateShapesFromBodySetup();
-
-    UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: Created %d per-bone capsule shapes for %s",
-           ShapeCount, GetName().c_str());
+    Bodies.Empty();
 }
