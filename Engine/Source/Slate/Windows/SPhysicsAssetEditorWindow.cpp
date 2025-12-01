@@ -9,6 +9,7 @@
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
+#include "Source/Runtime/Engine/GameFramework/CameraActor.h"
 #include "Source/Editor/PlatformProcess.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
@@ -193,17 +194,108 @@ void SPhysicsAssetEditorWindow::OnUpdate(float DeltaSeconds)
 
 void SPhysicsAssetEditorWindow::OnMouseMove(FVector2D MousePos)
 {
-    // TODO: Forward to viewport client
+    if (!ActiveState || !ActiveState->Viewport)
+    {
+        return;
+    }
+
+    // 팝업/모달이 열려있으면 뷰포트 입력 무시
+    if (ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+    {
+        return;
+    }
+
+    // 뷰포트 영역 가져오기
+    FRect VPRect = ViewportPanelWidget ? ViewportPanelWidget->ContentRect : FRect();
+
+    // 기즈모 드래그 중인지 확인
+    AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
+    bool bGizmoDragging = (Gizmo && Gizmo->GetbIsDragging());
+
+    // 기즈모 드래그 중이거나 뷰포트 영역 안에 있을 때 마우스 이벤트 전달
+    if (bGizmoDragging || VPRect.Contains(MousePos))
+    {
+        FVector2D LocalPos = MousePos - FVector2D(VPRect.Left, VPRect.Top);
+        ActiveState->Viewport->ProcessMouseMove((int32)LocalPos.X, (int32)LocalPos.Y);
+
+        // 기즈모 호버링/드래그 인터랙션 처리
+        if (Gizmo && ActiveState->Client)
+        {
+            ACameraActor* Camera = ActiveState->Client->GetCamera();
+            if (Camera)
+            {
+                Gizmo->ProcessGizmoInteraction(Camera, ActiveState->Viewport, (float)LocalPos.X, (float)LocalPos.Y);
+            }
+        }
+    }
+
+    // 스플리터에도 전달 (리사이즈용)
+    if (MainSplitter)
+    {
+        MainSplitter->OnMouseMove(MousePos);
+    }
 }
 
 void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
-    // TODO: Forward to viewport client
+    if (!ActiveState || !ActiveState->Viewport)
+    {
+        return;
+    }
+
+    // 팝업/모달이 열려있으면 뷰포트 입력 무시
+    if (ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+    {
+        return;
+    }
+
+    // 뷰포트 영역 가져오기
+    FRect VPRect = ViewportPanelWidget ? ViewportPanelWidget->ContentRect : FRect();
+    bool bInViewport = VPRect.Contains(MousePos);
+
+    if (bInViewport)
+    {
+        FVector2D LocalPos = MousePos - FVector2D(VPRect.Left, VPRect.Top);
+
+        // 뷰포트에 마우스 다운 전달
+        ActiveState->Viewport->ProcessMouseButtonDown((int32)LocalPos.X, (int32)LocalPos.Y, (int32)Button);
+
+        // 뷰포트 내 클릭은 스플리터에 전달하지 않음
+        return;
+    }
+
+    // 뷰포트 밖: 스플리터에만 전달 (리사이즈용)
+    if (MainSplitter)
+    {
+        MainSplitter->OnMouseDown(MousePos, Button);
+    }
 }
 
 void SPhysicsAssetEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 {
-    // TODO: Forward to viewport client
+    if (!ActiveState || !ActiveState->Viewport)
+    {
+        return;
+    }
+
+    // 뷰포트 영역 가져오기
+    FRect VPRect = ViewportPanelWidget ? ViewportPanelWidget->ContentRect : FRect();
+
+    // 기즈모 드래그 중이면 항상 처리
+    AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
+    bool bGizmoDragging = (Gizmo && Gizmo->GetbIsDragging());
+
+    if (bGizmoDragging || VPRect.Contains(MousePos))
+    {
+        FVector2D LocalPos = MousePos - FVector2D(VPRect.Left, VPRect.Top);
+        ActiveState->Viewport->ProcessMouseButtonUp((int32)LocalPos.X, (int32)LocalPos.Y, (int32)Button);
+    }
+
+    // 스플리터에도 전달
+    if (MainSplitter)
+    {
+        MainSplitter->OnMouseUp(MousePos, Button);
+    }
 }
 
 void SPhysicsAssetEditorWindow::OnRenderViewport()

@@ -77,7 +77,6 @@ SDynamicEditorWindow::~SDynamicEditorWindow()
 	// EmbeddedPhysicsAssetEditor 해제
 	if (EmbeddedPhysicsAssetEditor)
 	{
-		EmbeddedPhysicsAssetEditor->PrepareForDelete();
 		delete EmbeddedPhysicsAssetEditor;
 		EmbeddedPhysicsAssetEditor = nullptr;
 	}
@@ -273,7 +272,6 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 		case EEditorMode::PhysicsAsset:
 			if (EmbeddedPhysicsAssetEditor)
 			{
-				EmbeddedPhysicsAssetEditor->PrepareForDelete();
 				delete EmbeddedPhysicsAssetEditor;
 				EmbeddedPhysicsAssetEditor = nullptr;
 			}
@@ -313,7 +311,6 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 		}
 		if (EmbeddedPhysicsAssetEditor)
 		{
-			EmbeddedPhysicsAssetEditor->PrepareForDelete();
 			delete EmbeddedPhysicsAssetEditor;
 			EmbeddedPhysicsAssetEditor = nullptr;
 		}
@@ -1177,6 +1174,11 @@ void SDynamicEditorWindow::OnMouseMove(FVector2D MousePos)
 			EmbeddedSkeletalEditor->OnMouseMove(MousePos);
 			return;
 		}
+		if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->OnMouseMove(MousePos);
+			return;
+		}
 	}
 
 	if (!ActiveState || !ActiveState->Viewport)
@@ -1222,6 +1224,11 @@ void SDynamicEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 		if (ActiveState->Mode == EEditorMode::Skeletal && EmbeddedSkeletalEditor)
 		{
 			EmbeddedSkeletalEditor->OnMouseDown(MousePos, Button);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->OnMouseDown(MousePos, Button);
 			return;
 		}
 	}
@@ -1339,6 +1346,11 @@ void SDynamicEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 		if (ActiveState->Mode == EEditorMode::Skeletal && EmbeddedSkeletalEditor)
 		{
 			EmbeddedSkeletalEditor->OnMouseUp(MousePos, Button);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->OnMouseUp(MousePos, Button);
 			return;
 		}
 	}
