@@ -396,6 +396,11 @@ float CalculateSampleWeight(float centerCoC, float sampleCoC)
 
 // Scatter-as-Gather용 가중치 계산
 // 샘플의 CoC가 중심까지 도달할 수 있는지 체크하여 번짐 효과 구현
+//
+// 광학적 원리:
+// - 배경 블러는 전경 "뒤로" 번짐 (전경이 배경을 가림)
+// - 전경 블러는 배경 "위로" 번짐 (전경이 배경 위에 있음)
+// - 따라서 배경이 선명한 전경 "위로" 번지면 안 됨
 float CalculateSampleWeight_SaG(float centerCoC, float sampleCoC, float distPixels)
 {
     float absSampleCoC = abs(sampleCoC);
@@ -411,8 +416,6 @@ float CalculateSampleWeight_SaG(float centerCoC, float sampleCoC, float distPixe
         return 0.0;
     }
 
-    // 각 조건에 대해 별도로 가중치 계산 (버그 수정: 이전에는 weight=1.0 초기화로 인해
-    // scatter 조건이 false일 때 gather weight가 제대로 적용되지 않았음)
     float scatterWeight = 0.0;
     float gatherWeight = 0.0;
 
@@ -421,6 +424,22 @@ float CalculateSampleWeight_SaG(float centerCoC, float sampleCoC, float distPixe
         // 샘플이 중심으로 번지는 경우: 거리에 따라 감쇠
         scatterWeight = 1.0 - (distPixels / max(absSampleCoC, 0.001));
         scatterWeight = saturate(scatterWeight);
+
+        // 깊이 순서 기반 감쇠: 배경이 선명한 전경 위로 번지는 걸 방지
+        // sampleCoC > centerCoC: 샘플이 중심보다 뒤에 있음 (배경 → 전경 번짐)
+        // 이 경우, 중심이 선명할수록 번짐을 줄여야 함 (전경이 배경을 가리므로)
+        if (sampleCoC > centerCoC)
+        {
+            // 중심의 선명도 (0에 가까울수록 선명)
+            float centerSharpness = 1.0 - saturate(absCenterCoC / max(MaxBlurRadius, 0.001));
+            // 깊이 차이 (클수록 더 많이 감쇠)
+            float depthDiff = saturate((sampleCoC - centerCoC) / max(MaxBlurRadius, 0.001));
+            // 감쇠 적용: 중심이 선명하고 깊이 차이가 클수록 감쇠
+            // centerSharpness=1, depthDiff=1이면 scatterWeight가 5%로 감소
+            scatterWeight *= (1.0 - centerSharpness * depthDiff * 0.95);
+        }
+        // sampleCoC < centerCoC: 샘플이 중심보다 앞에 있음 (전경 → 배경 번짐)
+        // 이 경우는 번짐이 자연스러움 (전경이 배경 위에 있으니까) - 감쇠 없음
     }
 
     if (centerReachesSample)
@@ -433,17 +452,26 @@ float CalculateSampleWeight_SaG(float centerCoC, float sampleCoC, float distPixe
         }
     }
 
-    // 두 가중치 중 큰 값 사용 (scatter 또는 gather 중 하나라도 기여하면 됨)
+    // 두 가중치 중 큰 값 사용
     return max(scatterWeight, gatherWeight);
 }
 
 // Disc12 블러 (12 샘플, 빠름)
 float4 ApplyDisc12Blur(float2 texCoord, float blurRadius, float2 pixelSize, float centerCoC)
 {
-    // 중심 픽셀을 먼저 추가 (SaG에서 모든 샘플이 기여하지 못할 때를 대비)
+    // 중심 픽셀을 먼저 추가
     float4 centerColor = g_SceneColorTex.Sample(g_LinearClampSample, texCoord);
-    float4 accumulatedColor = centerColor;  // 중심 픽셀은 항상 weight 1.0
-    float totalWeight = 1.0;
+
+    // SaG 모드에서 선명한 픽셀 보호: 중심이 선명할수록 가중치 부스트
+    // 이렇게 하면 선명한 영역에서 배경 번짐의 상대적 영향이 줄어듦
+    float centerWeight = 1.0;
+    if (BleedingMethod == 1)
+    {
+        float centerSharpness = 1.0 - saturate(abs(centerCoC) / max(MaxBlurRadius, 0.001));
+        centerWeight = 1.0 + centerSharpness * 4.0;  // 선명하면 최대 5.0
+    }
+    float4 accumulatedColor = centerColor * centerWeight;
+    float totalWeight = centerWeight;
 
     // SaG 모드일 때는 최대 블러 반경으로 검색
     float searchRadius = (BleedingMethod == 1) ? MaxBlurRadius * BokehSize : blurRadius;
@@ -482,10 +510,18 @@ float4 ApplyDisc12Blur(float2 texCoord, float blurRadius, float2 pixelSize, floa
 // Disc24 블러 (24 샘플, 고품질)
 float4 ApplyDisc24Blur(float2 texCoord, float blurRadius, float2 pixelSize, float centerCoC)
 {
-    // 중심 픽셀을 먼저 추가 (SaG에서 모든 샘플이 기여하지 못할 때를 대비)
+    // 중심 픽셀을 먼저 추가
     float4 centerColor = g_SceneColorTex.Sample(g_LinearClampSample, texCoord);
-    float4 accumulatedColor = centerColor;  // 중심 픽셀은 항상 weight 1.0
-    float totalWeight = 1.0;
+
+    // SaG 모드에서 선명한 픽셀 보호
+    float centerWeight = 1.0;
+    if (BleedingMethod == 1)
+    {
+        float centerSharpness = 1.0 - saturate(abs(centerCoC) / max(MaxBlurRadius, 0.001));
+        centerWeight = 1.0 + centerSharpness * 4.0;
+    }
+    float4 accumulatedColor = centerColor * centerWeight;
+    float totalWeight = centerWeight;
 
     // SaG 모드일 때는 최대 블러 반경으로 검색
     float searchRadius = (BleedingMethod == 1) ? MaxBlurRadius * BokehSize : blurRadius;
@@ -524,10 +560,18 @@ float4 ApplyDisc24Blur(float2 texCoord, float blurRadius, float2 pixelSize, floa
 // Gaussian 블러 (13 샘플, 가중치 기반)
 float4 ApplyGaussianBlur(float2 texCoord, float blurRadius, float2 pixelSize, float centerCoC)
 {
-    // 중심 픽셀을 먼저 추가 (SaG에서 모든 샘플이 기여하지 못할 때를 대비)
+    // 중심 픽셀을 먼저 추가
     float4 centerColor = g_SceneColorTex.Sample(g_LinearClampSample, texCoord);
-    float4 accumulatedColor = centerColor;  // 중심 픽셀은 항상 weight 1.0
-    float totalWeight = 1.0;
+
+    // SaG 모드에서 선명한 픽셀 보호
+    float centerWeight = 1.0;
+    if (BleedingMethod == 1)
+    {
+        float centerSharpness = 1.0 - saturate(abs(centerCoC) / max(MaxBlurRadius, 0.001));
+        centerWeight = 1.0 + centerSharpness * 4.0;
+    }
+    float4 accumulatedColor = centerColor * centerWeight;
+    float totalWeight = centerWeight;
 
     // SaG 모드일 때는 최대 블러 반경으로 검색
     float searchRadius = (BleedingMethod == 1) ? MaxBlurRadius * BokehSize : blurRadius;
@@ -568,10 +612,18 @@ float4 ApplyGaussianBlur(float2 texCoord, float blurRadius, float2 pixelSize, fl
 // Hexagonal 블러 (19 샘플, 6각형 보케)
 float4 ApplyHexagonalBlur(float2 texCoord, float blurRadius, float2 pixelSize, float centerCoC)
 {
-    // 중심 픽셀을 먼저 추가 (SaG에서 모든 샘플이 기여하지 못할 때를 대비)
+    // 중심 픽셀을 먼저 추가
     float4 centerColor = g_SceneColorTex.Sample(g_LinearClampSample, texCoord);
-    float4 accumulatedColor = centerColor;  // 중심 픽셀은 항상 weight 1.0
-    float totalWeight = 1.0;
+
+    // SaG 모드에서 선명한 픽셀 보호
+    float centerWeight = 1.0;
+    if (BleedingMethod == 1)
+    {
+        float centerSharpness = 1.0 - saturate(abs(centerCoC) / max(MaxBlurRadius, 0.001));
+        centerWeight = 1.0 + centerSharpness * 4.0;
+    }
+    float4 accumulatedColor = centerColor * centerWeight;
+    float totalWeight = centerWeight;
 
     // SaG 모드일 때는 최대 블러 반경으로 검색
     float searchRadius = (BleedingMethod == 1) ? MaxBlurRadius * BokehSize : blurRadius;
@@ -610,10 +662,18 @@ float4 ApplyHexagonalBlur(float2 texCoord, float blurRadius, float2 pixelSize, f
 // CircularGather 블러 (48 샘플, 최고 품질)
 float4 ApplyCircularGatherBlur(float2 texCoord, float blurRadius, float2 pixelSize, float centerCoC)
 {
-    // 중심 픽셀을 먼저 추가 (SaG에서 모든 샘플이 기여하지 못할 때를 대비)
+    // 중심 픽셀을 먼저 추가
     float4 centerColor = g_SceneColorTex.Sample(g_LinearClampSample, texCoord);
-    float4 accumulatedColor = centerColor;  // 중심 픽셀은 항상 weight 1.0
-    float totalWeight = 1.0;
+
+    // SaG 모드에서 선명한 픽셀 보호
+    float centerWeight = 1.0;
+    if (BleedingMethod == 1)
+    {
+        float centerSharpness = 1.0 - saturate(abs(centerCoC) / max(MaxBlurRadius, 0.001));
+        centerWeight = 1.0 + centerSharpness * 4.0;
+    }
+    float4 accumulatedColor = centerColor * centerWeight;
+    float totalWeight = centerWeight;
 
     // SaG 모드일 때는 최대 블러 반경으로 검색
     float searchRadius = (BleedingMethod == 1) ? MaxBlurRadius * BokehSize : blurRadius;
