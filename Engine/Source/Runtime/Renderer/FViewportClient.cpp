@@ -182,19 +182,10 @@ void FViewportClient::Draw(FViewport* Viewport)
 			EditorDoFSettings.TiltShiftBlurScale,
 			EditorDoFSettings.PointFocusBlurScale
 		);
-		// Params4: ScreenFocusPoint.X, ScreenFocusPoint.Y, ScreenFocusRadius, ScreenFocusDepthRange (ScreenPointFocus용)
+		// Params4: BleedingMethod (번짐 처리 방식)
 		DoFModifier.Payload.Params4 = FVector4(
-			EditorDoFSettings.ScreenFocusPoint.X,
-			EditorDoFSettings.ScreenFocusPoint.Y,
-			EditorDoFSettings.ScreenFocusRadius,
-			EditorDoFSettings.ScreenFocusDepthRange
-		);
-		// Params5: ScreenFocusBlurScale, ScreenFocusFalloff, ScreenFocusAspectRatio, (unused)
-		DoFModifier.Payload.Params5 = FVector4(
-			EditorDoFSettings.ScreenFocusBlurScale,
-			EditorDoFSettings.ScreenFocusFalloff,
-			EditorDoFSettings.ScreenFocusAspectRatio,
-			0.0f
+			static_cast<float>(EditorDoFSettings.BleedingMethod),
+			0.0f, 0.0f, 0.0f  // 미래 확장용
 		);
 		RenderView.Modifiers.Add(DoFModifier);
 	}

@@ -1139,8 +1139,7 @@ void UResourceManager::CreateDefaultStaticMesh()
 			if (LoadedMesh)
 			{
 				DefaultStaticMeshInstance = LoadedMesh;
-				LoadedMesh->SetFilePath("__DefaultCube__");
-				Add<UStaticMesh>("__DefaultCube__", LoadedMesh);
+				// AsyncLoader가 이미 원본 경로로 Add했으므로 중복 Add하지 않음
 				UE_LOG("ResourceManager: Created Default StaticMesh (Cube)");
 			}
 			else

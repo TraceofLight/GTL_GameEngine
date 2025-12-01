@@ -359,4 +359,7 @@ private:
 
 	// PhysicsAsset 모드용 내장 에디터 (SSplitter 기반 레이아웃)
 	SPhysicsAssetEditorWindow* EmbeddedPhysicsAssetEditor = nullptr;
+
+	// 지연 로드용 경로 (에디터 생성 전 LoadAnimation 호출 시 사용)
+	FString PendingAnimationPath;
 };

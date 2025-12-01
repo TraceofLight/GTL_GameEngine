@@ -125,6 +125,11 @@ public:
 
         // 블러 방식 (0: Disc12, 1: Disc24, 2: Gaussian, 3: Hexagonal, 4: CircularGather)
         int32 BlurMethod = 0;
+
+        // 번짐 처리 방식 (0: None, 1: ScatterAsGather)
+        // None: 선명한 픽셀은 항상 선명 (기존 방식)
+        // ScatterAsGather: 흐릿한 물체가 선명한 영역으로 번짐 (물리 기반)
+        int32 BleedingMethod = 0;
     } EditorDoFSettings;
 
     FEditorDoFSettings& GetEditorDoFSettings() { return EditorDoFSettings; }

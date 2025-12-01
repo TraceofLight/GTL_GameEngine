@@ -2801,3 +2801,91 @@ void UFbxLoader::SaveAllAnimSequencesToAnimFiles()
 	UE_LOG("FbxLoader: SaveAllAnimSequencesToAnimFiles: Completed, saved %d .anim files", SavedCount);
 }
 
+// 재귀적으로 노드 트리에서 메시 존재 여부 검사
+static bool HasMeshNodeRecursive(FbxNode* Node)
+{
+	if (!Node)
+	{
+		return false;
+	}
+
+	// 현재 노드에서 메시 어트리뷰트 확인
+	FbxNodeAttribute* Attribute = Node->GetNodeAttribute();
+	if (Attribute && Attribute->GetAttributeType() == FbxNodeAttribute::eMesh)
+	{
+		FbxMesh* Mesh = static_cast<FbxMesh*>(Attribute);
+		// 실제 버텍스가 있는 메시인지 확인
+		if (Mesh && Mesh->GetControlPointsCount() > 0)
+		{
+			return true;
+		}
+	}
+
+	// 자식 노드 재귀 검사
+	for (int32 i = 0; i < Node->GetChildCount(); ++i)
+	{
+		if (HasMeshNodeRecursive(Node->GetChild(i)))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool UFbxLoader::GetFbxContentType(const FString& FilePath, bool& OutHasMesh, bool& OutHasAnimation)
+{
+	OutHasMesh = false;
+	OutHasAnimation = false;
+
+	if (FilePath.empty())
+	{
+		return false;
+	}
+
+	// 경로 정규화
+	FString NormalizedPath = NormalizePath(FilePath);
+	FWideString WNormalizedPath = UTF8ToWide(NormalizedPath);
+	FString FbxPathAcp = UTF8ToACP(NormalizedPath);
+
+	// FBX SDK 스레드 안전성
+	extern std::mutex GFbxSdkMutex;
+	std::lock_guard<std::mutex> FbxLock(GFbxSdkMutex);
+
+	// FBX Importer 생성
+	FbxImporter* Importer = FbxImporter::Create(SdkManager, "ContentTypeChecker");
+	if (!Importer->Initialize(FbxPathAcp.c_str(), -1, SdkManager->GetIOSettings()))
+	{
+		UE_LOG("UFbxLoader::GetFbxContentType: Failed to initialize FBX importer for %s", FilePath.c_str());
+		Importer->Destroy();
+		return false;
+	}
+
+	// 씬 생성 및 임포트
+	FbxScene* Scene = FbxScene::Create(SdkManager, "ContentTypeScene");
+	if (!Importer->Import(Scene))
+	{
+		UE_LOG("UFbxLoader::GetFbxContentType: Failed to import FBX scene from %s", FilePath.c_str());
+		Scene->Destroy();
+		Importer->Destroy();
+		return false;
+	}
+	Importer->Destroy();
+
+	// 애니메이션 존재 여부 확인
+	int32 AnimStackCount = Scene->GetSrcObjectCount<FbxAnimStack>();
+	OutHasAnimation = (AnimStackCount > 0);
+
+	// 메시 존재 여부 확인 (재귀적으로 모든 노드 검사)
+	FbxNode* RootNode = Scene->GetRootNode();
+	if (RootNode)
+	{
+		OutHasMesh = HasMeshNodeRecursive(RootNode);
+	}
+
+	// 정리
+	Scene->Destroy();
+
+	return true;
+}
+
