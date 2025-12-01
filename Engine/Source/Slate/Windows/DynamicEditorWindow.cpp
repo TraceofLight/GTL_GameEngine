@@ -77,7 +77,6 @@ SDynamicEditorWindow::~SDynamicEditorWindow()
 	// EmbeddedPhysicsAssetEditor 해제
 	if (EmbeddedPhysicsAssetEditor)
 	{
-		EmbeddedPhysicsAssetEditor->PrepareForDelete();
 		delete EmbeddedPhysicsAssetEditor;
 		EmbeddedPhysicsAssetEditor = nullptr;
 	}
@@ -273,7 +272,6 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 		case EEditorMode::PhysicsAsset:
 			if (EmbeddedPhysicsAssetEditor)
 			{
-				EmbeddedPhysicsAssetEditor->PrepareForDelete();
 				delete EmbeddedPhysicsAssetEditor;
 				EmbeddedPhysicsAssetEditor = nullptr;
 			}
@@ -313,7 +311,6 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 		}
 		if (EmbeddedPhysicsAssetEditor)
 		{
-			EmbeddedPhysicsAssetEditor->PrepareForDelete();
 			delete EmbeddedPhysicsAssetEditor;
 			EmbeddedPhysicsAssetEditor = nullptr;
 		}
@@ -330,7 +327,27 @@ void SDynamicEditorWindow::CloseTab(int32 Index)
 
 void SDynamicEditorWindow::SetEditorMode(EEditorMode NewMode)
 {
-	if (ActiveState && ActiveState->Mode != NewMode)
+	// 탭이 없으면 해당 모드로 새 탭 생성
+	if (!ActiveState)
+	{
+		const char* TabName = "New Tab";
+		switch (NewMode)
+		{
+		case EEditorMode::Skeletal: TabName = "Skeletal"; break;
+		case EEditorMode::Animation: TabName = "Animation"; break;
+		case EEditorMode::AnimGraph: TabName = "AnimGraph"; break;
+		case EEditorMode::BlendSpace2D: TabName = "BlendSpace2D"; break;
+		case EEditorMode::PhysicsAsset: TabName = "PhysicsAsset"; break;
+		}
+		ActiveState = CreateNewTab(TabName, NewMode);
+		if (ActiveState)
+		{
+			ActiveTabIndex = (int32)Tabs.Num() - 1;
+		}
+		return;
+	}
+
+	if (ActiveState->Mode != NewMode)
 	{
 		ActiveState->Mode = NewMode;
 	}
@@ -1189,6 +1206,11 @@ void SDynamicEditorWindow::OnMouseMove(FVector2D MousePos)
 			EmbeddedSkeletalEditor->OnMouseMove(MousePos);
 			return;
 		}
+		if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->OnMouseMove(MousePos);
+			return;
+		}
 	}
 
 	if (!ActiveState || !ActiveState->Viewport)
@@ -1234,6 +1256,11 @@ void SDynamicEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 		if (ActiveState->Mode == EEditorMode::Skeletal && EmbeddedSkeletalEditor)
 		{
 			EmbeddedSkeletalEditor->OnMouseDown(MousePos, Button);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->OnMouseDown(MousePos, Button);
 			return;
 		}
 	}
@@ -1351,6 +1378,11 @@ void SDynamicEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 		if (ActiveState->Mode == EEditorMode::Skeletal && EmbeddedSkeletalEditor)
 		{
 			EmbeddedSkeletalEditor->OnMouseUp(MousePos, Button);
+			return;
+		}
+		if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->OnMouseUp(MousePos, Button);
 			return;
 		}
 	}
@@ -2538,6 +2570,10 @@ void SDynamicEditorWindow::OpenFileInCurrentMode(const FString& FilePath)
 		{
 			LoadSkeletalMesh(FilePath);
 		}
+		else if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->LoadSkeletalMesh(FilePath);
+		}
 	}
 	else if (LowerPath.ends_with(".anim"))
 	{
@@ -2561,6 +2597,14 @@ void SDynamicEditorWindow::OpenFileInCurrentMode(const FString& FilePath)
 		if (ActiveState->Mode == EEditorMode::BlendSpace2D && EmbeddedBlendSpace2DEditor)
 		{
 			EmbeddedBlendSpace2DEditor->LoadBlendSpaceFile(FilePath.c_str());
+		}
+	}
+	else if (LowerPath.ends_with(".physicsasset"))
+	{
+		// Physics Asset
+		if (ActiveState->Mode == EEditorMode::PhysicsAsset && EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->LoadPhysicsAsset(FilePath);
 		}
 	}
 }

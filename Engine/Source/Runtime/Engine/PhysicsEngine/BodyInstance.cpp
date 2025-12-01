@@ -79,10 +79,12 @@ void FBodyInstance::SetBodyTransform(const FMatrix& NewMatrix)
 
 void FBodyInstance::CreateShapesFromBodySetup()
 {
-    if (!PhysicsActor || !BodySetup) return;
+    if (!PhysicsActor || !BodySetup)
+        return;
 
     PxMaterial* Mat = MaterialOverride ? MaterialOverride : PHYSICS.GetDefaultMaterial();
-    if (!Mat) return;
+    if (!Mat)
+        return;
 
     PxPhysics* Physics = PHYSICS.GetPhysics();
     if (!Physics) return;
@@ -143,11 +145,9 @@ void FBodyInstance::CreateShapesFromBodySetup()
         Shapes.Add(Shape);
     }
 
-    // Cooked convex mesh (works for both static and dynamic actors)
+    // Cooked convex mesh
     if (BodySetup->ConvexMesh)
     {
-        // Apply uniform scale to convex mesh
-        const float UniformScale = (AbsS.X + AbsS.Y + AbsS.Z) / 3.0f;
         PxMeshScale MeshScale(PxVec3(AbsS.X, AbsS.Y, AbsS.Z), PxQuat(PxIdentity));
         PxConvexMeshGeometry Geom(BodySetup->ConvexMesh, MeshScale);
         PxShape* Shape = Physics->createShape(Geom, *Mat, true);
@@ -155,40 +155,29 @@ void FBodyInstance::CreateShapesFromBodySetup()
         {
             PhysicsActor->attachShape(*Shape);
             Shapes.Add(Shape);
-            UE_LOG("[Physics] Attached convex mesh shape");
         }
     }
 
-    // Cooked triangle mesh (static actors only - PhysX limitation!)
-    if (BodySetup->TriMesh)
+    // Cooked triangle mesh (static actors only)
+    if (BodySetup->TriMesh && PhysicsActor->is<PxRigidStatic>())
     {
-        // Triangle meshes can only be attached to static actors
-        if (PhysicsActor->is<PxRigidStatic>())
+        PxMeshScale MeshScale(PxVec3(AbsS.X, AbsS.Y, AbsS.Z), PxQuat(PxIdentity));
+        PxTriangleMeshGeometry Geom(BodySetup->TriMesh, MeshScale);
+        PxShape* Shape = Physics->createShape(Geom, *Mat, true);
+        if (Shape)
         {
-            PxMeshScale MeshScale(PxVec3(AbsS.X, AbsS.Y, AbsS.Z), PxQuat(PxIdentity));
-            PxTriangleMeshGeometry Geom(BodySetup->TriMesh, MeshScale);
-            PxShape* Shape = Physics->createShape(Geom, *Mat, true);
-            if (Shape)
-            {
-                PhysicsActor->attachShape(*Shape);
-                Shapes.Add(Shape);
-                UE_LOG("[Physics] Attached triangle mesh shape");
-            }
-        }
-        else
-        {
-            UE_LOG("[Physics] WARNING: Triangle mesh collision requested but actor is dynamic! "
-                   "Triangle meshes only work with static actors. Use convex mesh instead.");
+            PhysicsActor->attachShape(*Shape);
+            Shapes.Add(Shape);
         }
     }
 
-	// If dynamic, compute mass/inertia now that shapes are attached
-	if (PhysicsActor && PhysicsActor->is<PxRigidDynamic>())
-	{
-		PxRigidDynamic* Dyn = PhysicsActor->is<PxRigidDynamic>();
-		PxRigidBodyExt::updateMassAndInertia(*Dyn, 1000.0f);
-		Dyn->wakeUp();
-	}
+    // If dynamic, compute mass/inertia
+    if (PhysicsActor && PhysicsActor->is<PxRigidDynamic>())
+    {
+        PxRigidDynamic* Dyn = PhysicsActor->is<PxRigidDynamic>();
+        PxRigidBodyExt::updateMassAndInertia(*Dyn, 1000.0f);
+        Dyn->wakeUp();
+    }
 }
 
 void FBodyInstance::AddSimpleShape(const FShape& S)
@@ -252,6 +241,21 @@ void FBodyInstance::AddSimpleShape(const FShape& S)
 bool FBodyInstance::IsDynamic() const
 {
     return PhysicsActor && PhysicsActor->is<PxRigidDynamic>();
+}
+
+FTransform FBodyInstance::GetWorldTransform() const
+{
+    if (!PhysicsActor)
+    {
+        return FTransform();
+    }
+
+    PxTransform T = PhysicsActor->getGlobalPose();
+    return FTransform(
+        FVector(T.p.x, T.p.y, T.p.z),
+        FQuat(T.q.x, T.q.y, T.q.z, T.q.w),
+        FVector(1.0f, 1.0f, 1.0f)  // Scale은 physics에서 관리 안 함
+    );
 }
 
 void FBodyInstance::TermBody()

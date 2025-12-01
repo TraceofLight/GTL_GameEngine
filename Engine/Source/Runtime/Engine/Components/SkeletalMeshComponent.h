@@ -123,6 +123,9 @@ public:
 	void OnCreatePhysicsState() override;
 	void OnDestroyPhysicsState();
 
+	// Physics 시뮬레이션 결과를 본 트랜스폼에 반영
+	void SyncBonesFromPhysics();
+
 protected:
 	TArray<FTransform> CurrentLocalSpacePose;
 	TArray<FTransform> CurrentComponentSpacePose;

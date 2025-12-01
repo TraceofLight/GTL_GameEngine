@@ -148,6 +148,18 @@ void USkeletalMeshComponent::TriggerAnimNotify(const FString& NotifyName, float 
 
 void USkeletalMeshComponent::TickComponent(float DeltaTime)
 {
+    // Per-bone physics를 사용할 때는 base BodyInstance sync를 건너뛰어야 함
+    // (PrimitiveComponent::TickComponent가 빈 BodyInstance를 sync하면 안 됨)
+    if (bSimulatePhysics && !Bodies.IsEmpty())
+    {
+        // Super::TickComponent를 호출하지 않고 필요한 것만 직접 처리
+        USceneComponent::TickComponent(DeltaTime);  // SceneComponent의 tick만 호출
+
+        // Per-bone physics sync
+        SyncBonesFromPhysics();
+        return;  // 물리 시뮬레이션 중에는 애니메이션 업데이트 스킵
+    }
+
     Super::TickComponent(DeltaTime);
 
     // Animation 인스턴스 업데이트
@@ -641,39 +653,27 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
 {
     Super::OnCreatePhysicsState();
 
-    if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
-    {
-        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: No skeletal mesh");
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeleton() || !PHYSICS.GetPhysics())
         return;
-    }
 
-    if (!PHYSICS.GetPhysics())
-    {
-        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: PhysX not ready");
-        return;
-    }
-
-    // Get physics asset from skeletal mesh (auto-generated if not set)
     UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset();
-
     if (!PhysicsAsset || PhysicsAsset->BodySetups.IsEmpty())
-    {
-        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: No PhysicsAsset or empty");
         return;
-    }
 
-    // Clean up any existing bodies
+    UWorld* CompWorld = GetWorld();
+    PxScene* CompScene = CompWorld ? CompWorld->GetPhysicsScene() : nullptr;
+    if (!CompScene)
+        return;
+
     OnDestroyPhysicsState();
 
     const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
     const TArray<FBone>& Bones = Skeleton->Bones;
 
-    // Create one FBodyInstance per bone (UE pattern for ragdoll support)
     for (UBodySetup* BoneSetup : PhysicsAsset->BodySetups)
     {
         if (!BoneSetup) continue;
 
-        // Find the bone index for this body setup
         int32 BoneIdx = -1;
         for (int32 i = 0; i < Bones.Num(); ++i)
         {
@@ -685,37 +685,17 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         }
 
         if (BoneIdx < 0)
-        {
-            UE_LOG("[Physics] Warning: Could not find bone '%s' for physics body",
-                   BoneSetup->BoneName.ToString().c_str());
             continue;
-        }
 
-        // Get bone's world transform
         FMatrix BoneWorldMatrix = CurrentComponentSpacePose[BoneIdx].ToMatrix() * GetWorldMatrix();
 
-        // Create a new FBodyInstance for this bone
         FBodyInstance* BoneBody = new FBodyInstance(this);
         BoneBody->BodySetup = BoneSetup;
-
-        // Create the PhysX actor at the bone's world position
         BoneBody->CreateActor(PHYSICS.GetPhysics(), BoneWorldMatrix, bSimulatePhysics);
         BoneBody->CreateShapesFromBodySetup();
-
-        // Add to scene
-        if (GetWorld() && GetWorld()->GetPhysicsScene())
-        {
-            BoneBody->AddToScene(GetWorld()->GetPhysicsScene());
-        }
-
+        BoneBody->AddToScene(CompScene);
         Bodies.Add(BoneBody);
-
-        UE_LOG("[Physics] Created body for bone '%s' (index %d)",
-               BoneSetup->BoneName.ToString().c_str(), BoneIdx);
     }
-
-    UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: Created %d per-bone bodies for %s",
-           Bodies.Num(), GetName().c_str());
 }
 
 void USkeletalMeshComponent::OnDestroyPhysicsState()
@@ -729,4 +709,81 @@ void USkeletalMeshComponent::OnDestroyPhysicsState()
         }
     }
     Bodies.Empty();
+}
+
+void USkeletalMeshComponent::SyncBonesFromPhysics()
+{
+    if (Bodies.IsEmpty() || !SkeletalMesh || !SkeletalMesh->GetSkeleton())
+        return;
+
+    UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset();
+    if (!PhysicsAsset)
+        return;
+
+    const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
+    const TArray<FBone>& Bones = Skeleton->Bones;
+    FTransform CompWorldTransform = GetWorldTransform();
+
+    // 각 physics body의 transform을 해당 bone에 반영
+    for (int32 i = 0; i < Bodies.Num() && i < PhysicsAsset->BodySetups.Num(); ++i)
+    {
+        FBodyInstance* Body = Bodies[i];
+        UBodySetup* Setup = PhysicsAsset->BodySetups[i];
+
+        if (!Body || !Setup)
+            continue;
+
+        // Find bone index
+        int32 BoneIdx = -1;
+        for (int32 j = 0; j < Bones.Num(); ++j)
+        {
+            if (FName(Bones[j].Name) == Setup->BoneName)
+            {
+                BoneIdx = j;
+                break;
+            }
+        }
+
+        if (BoneIdx < 0 || BoneIdx >= CurrentComponentSpacePose.Num())
+            continue;
+
+        // 원래 본의 scale 보존 (physics는 scale을 관리하지 않음)
+        FVector OriginalScale = CurrentComponentSpacePose[BoneIdx].Scale3D;
+
+        // Get physics body's world transform (position, rotation only)
+        FTransform BodyWorldTransform = Body->GetWorldTransform();
+
+        // World position -> Component space position
+        // Component의 world position과 rotation만 고려 (scale 제외)
+        FVector WorldPos = BodyWorldTransform.Translation;
+        FVector CompPos = CompWorldTransform.Rotation.Inverse().RotateVector(WorldPos - CompWorldTransform.Translation);
+
+        // World rotation -> Component space rotation
+        FQuat CompRot = CompWorldTransform.Rotation.Inverse() * BodyWorldTransform.Rotation;
+
+        // 새 transform 생성 (원래 scale 유지)
+        FTransform NewCompTransform(CompPos, CompRot, OriginalScale);
+
+        // Update bone component space pose
+        CurrentComponentSpacePose[BoneIdx] = NewCompTransform;
+
+        // Also update local space pose (for consistency)
+        int32 ParentIdx = Bones[BoneIdx].ParentIndex;
+        if (ParentIdx >= 0)
+        {
+            const FTransform& ParentComp = CurrentComponentSpacePose[ParentIdx];
+            // Local = Inverse(Parent) * Current (position/rotation만, scale 보존)
+            FVector LocalPos = ParentComp.Rotation.Inverse().RotateVector(CompPos - ParentComp.Translation);
+            FQuat LocalRot = ParentComp.Rotation.Inverse() * CompRot;
+            CurrentLocalSpacePose[BoneIdx] = FTransform(LocalPos, LocalRot, CurrentLocalSpacePose[BoneIdx].Scale3D);
+        }
+        else
+        {
+            CurrentLocalSpacePose[BoneIdx] = FTransform(CompPos, CompRot, CurrentLocalSpacePose[BoneIdx].Scale3D);
+        }
+    }
+
+    // Skinning matrices 업데이트
+    UpdateFinalSkinningMatrices();
+    UpdateSkinningMatrices(TempFinalSkinningMatrices, TempFinalSkinningNormalMatrices);
 }

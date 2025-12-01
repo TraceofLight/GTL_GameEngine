@@ -6,9 +6,12 @@
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsAssetUtils.h"
 #include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
+#include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
+#include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
+#include "Source/Runtime/Engine/GameFramework/CameraActor.h"
 #include "Source/Editor/PlatformProcess.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
@@ -186,24 +189,138 @@ void SPhysicsAssetEditorWindow::RenderEmbedded(const FRect& ContentRect)
 
 void SPhysicsAssetEditorWindow::OnUpdate(float DeltaSeconds)
 {
-    if (!ActiveState || !ActiveState->World) return;
+    if (!ActiveState) return;
 
-    ActiveState->World->Tick(DeltaSeconds);
+    // ViewportClient Tick (카메라 입력 처리 - WASD, 마우스 드래그 등)
+    if (ActiveState->Client)
+    {
+        ActiveState->Client->Tick(DeltaSeconds);
+    }
+
+    // World Tick (기즈모 등 액터 업데이트)
+    if (ActiveState->World)
+    {
+        ActiveState->World->Tick(DeltaSeconds);
+    }
 }
 
 void SPhysicsAssetEditorWindow::OnMouseMove(FVector2D MousePos)
 {
-    // TODO: Forward to viewport client
+    if (!ActiveState || !ActiveState->Viewport)
+    {
+        return;
+    }
+
+    // 팝업/모달이 열려있으면 뷰포트 입력 무시
+    if (ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+    {
+        return;
+    }
+
+    // 뷰포트 영역 가져오기 (ViewportRect는 RenderEmbedded에서 설정됨)
+    FRect VPRect = ViewportRect;
+    // ContentRect가 있으면 더 정확한 영역 사용
+    if (ViewportPanelWidget && ViewportPanelWidget->ContentRect.GetWidth() > 0)
+    {
+        VPRect = ViewportPanelWidget->ContentRect;
+    }
+
+    // 기즈모 드래그 중인지 확인
+    AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
+    bool bGizmoDragging = (Gizmo && Gizmo->GetbIsDragging());
+
+    // 기즈모 드래그 중이거나 뷰포트 영역 안에 있을 때 마우스 이벤트 전달
+    if (bGizmoDragging || VPRect.Contains(MousePos))
+    {
+        FVector2D LocalPos = MousePos - FVector2D(VPRect.Left, VPRect.Top);
+        ActiveState->Viewport->ProcessMouseMove((int32)LocalPos.X, (int32)LocalPos.Y);
+
+        // 기즈모 호버링/드래그 인터랙션 처리
+        if (Gizmo && ActiveState->Client)
+        {
+            ACameraActor* Camera = ActiveState->Client->GetCamera();
+            if (Camera)
+            {
+                Gizmo->ProcessGizmoInteraction(Camera, ActiveState->Viewport, (float)LocalPos.X, (float)LocalPos.Y);
+            }
+        }
+    }
+
+    // 스플리터에도 전달 (리사이즈용)
+    if (MainSplitter)
+    {
+        MainSplitter->OnMouseMove(MousePos);
+    }
 }
 
 void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
-    // TODO: Forward to viewport client
+    if (!ActiveState || !ActiveState->Viewport)
+    {
+        return;
+    }
+
+    // 팝업/모달이 열려있으면 뷰포트 입력 무시
+    if (ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+    {
+        return;
+    }
+
+    // 뷰포트 영역 가져오기 (ViewportRect는 RenderEmbedded에서 설정됨)
+    FRect VPRect = ViewportRect;
+    if (ViewportPanelWidget && ViewportPanelWidget->ContentRect.GetWidth() > 0)
+    {
+        VPRect = ViewportPanelWidget->ContentRect;
+    }
+    bool bInViewport = VPRect.Contains(MousePos);
+
+    if (bInViewport)
+    {
+        FVector2D LocalPos = MousePos - FVector2D(VPRect.Left, VPRect.Top);
+
+        // 뷰포트에 마우스 다운 전달
+        ActiveState->Viewport->ProcessMouseButtonDown((int32)LocalPos.X, (int32)LocalPos.Y, (int32)Button);
+
+        // 뷰포트 내 클릭은 스플리터에 전달하지 않음
+        return;
+    }
+
+    // 뷰포트 밖: 스플리터에만 전달 (리사이즈용)
+    if (MainSplitter)
+    {
+        MainSplitter->OnMouseDown(MousePos, Button);
+    }
 }
 
 void SPhysicsAssetEditorWindow::OnMouseUp(FVector2D MousePos, uint32 Button)
 {
-    // TODO: Forward to viewport client
+    if (!ActiveState || !ActiveState->Viewport)
+    {
+        return;
+    }
+
+    // 뷰포트 영역 가져오기 (ViewportRect는 RenderEmbedded에서 설정됨)
+    FRect VPRect = ViewportRect;
+    if (ViewportPanelWidget && ViewportPanelWidget->ContentRect.GetWidth() > 0)
+    {
+        VPRect = ViewportPanelWidget->ContentRect;
+    }
+
+    // 기즈모 드래그 중이면 항상 처리
+    AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
+    bool bGizmoDragging = (Gizmo && Gizmo->GetbIsDragging());
+
+    if (bGizmoDragging || VPRect.Contains(MousePos))
+    {
+        FVector2D LocalPos = MousePos - FVector2D(VPRect.Left, VPRect.Top);
+        ActiveState->Viewport->ProcessMouseButtonUp((int32)LocalPos.X, (int32)LocalPos.Y, (int32)Button);
+    }
+
+    // 스플리터에도 전달
+    if (MainSplitter)
+    {
+        MainSplitter->OnMouseUp(MousePos, Button);
+    }
 }
 
 void SPhysicsAssetEditorWindow::OnRenderViewport()
@@ -470,6 +587,89 @@ void SPhysicsAssetEditorWindow::PrepareForDelete()
     // ImGui 지연 렌더링 문제 방지: delete 전에 SRV를 먼저 해제
     // ImGui::Image에서 참조하던 SRV가 nullptr이 되어 안전하게 건너뜀
     ReleaseRenderTarget();
+}
+
+// ============================================================================
+// Physics Simulation
+// ============================================================================
+
+void SPhysicsAssetEditorWindow::StartSimulation()
+{
+    if (!ActiveState || !ActiveState->PhysicsAsset || !ActiveState->PreviewActor)
+        return;
+
+    USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+    if (!SkelComp)
+        return;
+
+    USkeletalMesh* CompMesh = SkelComp->GetSkeletalMesh();
+    if (!CompMesh)
+        return;
+
+    // PhysicsAsset 설정
+    CompMesh->SetPhysicsAsset(ActiveState->PhysicsAsset);
+
+    // bPie 활성화
+    if (!ActiveState->World)
+        return;
+
+    ActiveState->World->bPie = true;
+
+    // Floor의 Static Physics Body 생성 (bPie=true 후에 호출해야 함)
+    if (ActiveState->FloorActor)
+    {
+        UStaticMeshComponent* FloorComp = ActiveState->FloorActor->GetStaticMeshComponent();
+        if (FloorComp)
+        {
+            FloorComp->SetSimulatePhysics(false);  // Static body
+        }
+    }
+
+    // 캐릭터 시뮬레이션 시작
+    SkelComp->SetSimulatePhysics(true);
+
+    ActiveState->bSimulating = true;
+    ActiveState->bSimulationPaused = false;
+}
+
+void SPhysicsAssetEditorWindow::StopSimulation()
+{
+    if (!ActiveState)
+    {
+        return;
+    }
+
+    // 물리 시뮬레이션 비활성화
+    if (ActiveState->PreviewActor)
+    {
+        USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
+        if (SkelComp)
+        {
+            SkelComp->SetSimulatePhysics(false);
+
+            // 메시를 다시 설정하여 초기 포즈로 리셋
+            if (!ActiveState->LoadedMeshPath.empty())
+            {
+                ActiveState->PreviewActor->SetSkeletalMesh(ActiveState->LoadedMeshPath);
+            }
+        }
+    }
+
+    // bPie 비활성화 (시뮬레이션 종료)
+    if (ActiveState->World)
+    {
+        ActiveState->World->bPie = false;
+    }
+
+    ActiveState->bSimulating = false;
+    ActiveState->bSimulationPaused = false;
+
+    UE_LOG("[PAE] Simulation stopped");
+}
+
+bool SPhysicsAssetEditorWindow::IsSimulating() const
+{
+    return ActiveState && ActiveState->bSimulating;
 }
 
 void SPhysicsAssetEditorWindow::UpdateViewportRenderTarget(uint32 NewWidth, uint32 NewHeight)
@@ -1214,6 +1414,54 @@ void SPhysicsAssetPropertiesPanel::OnRender()
                 if (!bHasBodies)
                 {
                     ImGui::EndDisabled();
+                }
+
+                ImGui::Separator();
+
+                // Simulation 버튼들
+                ImGui::Text("Simulation");
+                bool bCanSimulate = bHasBodies && State->CurrentMesh;
+                if (!bCanSimulate)
+                {
+                    ImGui::BeginDisabled();
+                }
+
+                if (!State->bSimulating)
+                {
+                    // Simulate 시작 버튼
+                    if (ImGui::Button("Simulate", ImVec2(-1, 0)))
+                    {
+                        Owner->StartSimulation();
+                    }
+                }
+                else
+                {
+                    // 시뮬레이션 중일 때 컨트롤
+                    if (State->bSimulationPaused)
+                    {
+                        if (ImGui::Button("Resume", ImVec2(-1, 0)))
+                        {
+                            State->bSimulationPaused = false;
+                        }
+                    }
+                    else
+                    {
+                        if (ImGui::Button("Pause", ImVec2(-1, 0)))
+                        {
+                            State->bSimulationPaused = true;
+                        }
+                    }
+
+                    if (ImGui::Button("Stop", ImVec2(-1, 0)))
+                    {
+                        Owner->StopSimulation();
+                    }
+                }
+
+                if (!bCanSimulate)
+                {
+                    ImGui::EndDisabled();
+                    ImGui::TextDisabled("Generate bodies first");
                 }
             }
 

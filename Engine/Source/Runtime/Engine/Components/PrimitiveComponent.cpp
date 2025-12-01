@@ -192,24 +192,16 @@ void UPrimitiveComponent::SetSimulatePhysics(bool bSimulate)
 
 void UPrimitiveComponent::RecreatePhysicsBody()
 {
-	// PIE World에서만 물리 body 생성 (Editor World에서는 생성하지 않음)
 	UWorld* World = GetWorld();
 	if (!World || !World->bPie)
-	{
 		return;
-	}
 
-	// World별 Physics Scene 사용
 	PxScene* WorldScene = World->GetPhysicsScene();
 	if (!PHYSICS.GetPhysics() || !WorldScene)
-	{
 		return;
-	}
 
 	if (BodyInstance.IsValid())
-	{
 		BodyInstance.TermBody();
-	}
 
 	const bool bIsDynamic = bSimulatePhysics;
 	BodyInstance.CreateActor(PHYSICS.GetPhysics(), GetWorldTransform().ToMatrix(), bIsDynamic);
