@@ -27,6 +27,7 @@ UBodySetup* PhysicsAssetViewerState::GetSelectedBodySetup() const
 void PhysicsAssetViewerState::ClearSelection()
 {
     SelectedBodyIndex = -1;
+    GraphFilterRootBodyIndex = -1;  // 필터 해제 (전체 그래프 표시)
     SelectedConstraintIndex = -1;
     SelectedShapeIndex = -1;
     SelectedShapeType = EAggCollisionShape::Unknown;
@@ -37,6 +38,7 @@ void PhysicsAssetViewerState::SelectBody(int32 BodyIndex)
 {
     ClearSelection();
     SelectedBodyIndex = BodyIndex;
+    GraphFilterRootBodyIndex = BodyIndex;  // Skeleton Tree 클릭 시 그래프 필터링 루트도 변경
 
     if (PhysicsAsset && BodyIndex >= 0 && BodyIndex < PhysicsAsset->BodySetups.Num())
     {

@@ -2495,8 +2495,9 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
 
     UPhysicsAsset* PhysAsset = State->PhysicsAsset;
 
-    // 선택된 Body가 없으면 전체 그래프 표시 (노드 선택 가능하도록)
-    bool bShowFilteredGraph = (State->SelectedBodyIndex >= 0 && State->EditMode == EPhysicsAssetEditMode::Body);
+    // GraphFilterRootBodyIndex가 설정되어 있으면 필터링된 그래프 표시
+    // (Skeleton Tree 클릭 시만 설정됨, 그래프 노드 클릭 시에는 유지)
+    bool bShowFilteredGraph = (State->GraphFilterRootBodyIndex >= 0 && State->EditMode == EPhysicsAssetEditMode::Body);
 
     if (!bShowFilteredGraph)
     {
@@ -2535,19 +2536,19 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
         // 필터링된 그래프 표시 (선택된 Body + 연결된 Constraint + 자식 Body)
         // ========================================================================
 
-        // 선택된 Body 찾기
-        FPAEBodyNode* SelectedBodyNode = nullptr;
+        // 그래프 필터링 기준 Body 찾기 (GraphFilterRootBodyIndex 사용)
+        FPAEBodyNode* FilterRootBodyNode = nullptr;
         for (auto& Node : GraphState->BodyNodes)
         {
-            if (Node.BodyIndex == State->SelectedBodyIndex)
+            if (Node.BodyIndex == State->GraphFilterRootBodyIndex)
             {
-                SelectedBodyNode = &Node;
+                FilterRootBodyNode = &Node;
                 break;
             }
         }
 
-        // 선택된 Body를 찾지 못하면 전체 그래프 표시로 폴백
-        if (!SelectedBodyNode)
+        // 필터 루트 Body를 찾지 못하면 전체 그래프 표시로 폴백
+        if (!FilterRootBodyNode)
         {
             // 전체 그래프 표시
             ed::PushStyleVar(ed::StyleVar_NodeRounding, 8.0f);
@@ -2575,19 +2576,19 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
         }
         else
         {
-            // 선택된 Body에 연결된 Constraint 노드들 찾기
+            // 필터 루트 Body에 연결된 Constraint 노드들 찾기
             TArray<FPAEConstraintNode*> ConnectedConstraints;
             TArray<int32> ConnectedBodyIndices;
-            ConnectedBodyIndices.Add(SelectedBodyNode->BodyIndex); // 선택된 Body도 포함
+            ConnectedBodyIndices.Add(FilterRootBodyNode->BodyIndex); // 필터 루트 Body도 포함
 
-            UBodySetup* SelectedBody = PhysAsset->BodySetups[SelectedBodyNode->BodyIndex];
-            FString SelectedBoneName = SelectedBody->BoneName.ToString();
+            UBodySetup* FilterRootBody = PhysAsset->BodySetups[FilterRootBodyNode->BodyIndex];
+            FString FilterRootBoneName = FilterRootBody->BoneName.ToString();
 
     for (auto& ConstraintNode : GraphState->ConstraintNodes)
     {
-        // 선택된 Body가 부모(Bone1)인 Constraint만 추가 (자식 방향만 표시)
+        // 필터 루트 Body가 부모(Bone1)인 Constraint만 추가 (자식 방향만 표시)
         // Constraint 구조: Bone1(부모) -> Bone2(자식)
-        if (ConstraintNode.Bone1Name == SelectedBoneName)
+        if (ConstraintNode.Bone1Name == FilterRootBoneName)
         {
             ConnectedConstraints.Add(&ConstraintNode);
 
@@ -2606,30 +2607,30 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
     }
 
     // ============================================================================
-    // 필터링된 노드들을 깔끔한 트리 레이아웃으로 재배치 (선택이 바뀔 때만)
-    // 구조: [Selected Body] → [Constraint1] → [Child Body1]
-    //                         [Constraint2] → [Child Body2]
-    //                         [Constraint3] → [Child Body3]
+    // 필터링된 노드들을 깔끔한 트리 레이아웃으로 재배치 (필터 루트가 바뀔 때만)
+    // 구조: [Filter Root Body] → [Constraint1] → [Child Body1]
+    //                             [Constraint2] → [Child Body2]
+    //                             [Constraint3] → [Child Body3]
     // ============================================================================
     {
-        // 선택이 바뀔 때만 레이아웃 재계산 (매 프레임마다 하면 드래그 불가능)
-        static ed::NodeId lastSelectedNodeID = ed::NodeId::Invalid;
-        if (lastSelectedNodeID != SelectedBodyNode->ID)
+        // 필터 루트가 바뀔 때만 레이아웃 재계산 (매 프레임마다 하면 드래그 불가능)
+        static ed::NodeId lastFilterRootNodeID = ed::NodeId::Invalid;
+        if (lastFilterRootNodeID != FilterRootBodyNode->ID)
         {
-            lastSelectedNodeID = SelectedBodyNode->ID;
+            lastFilterRootNodeID = FilterRootBodyNode->ID;
 
             const float COLUMN_SPACING = 150.0f;        // 열 간 거리 (좌→우)
             const float ROW_SPACING = 60.0f;            // 행 간 거리 (위→아래)
 
             int32 NumConstraints = ConnectedConstraints.Num();
 
-            // 1. 선택된 Body를 왼쪽(Column 0)에 배치
+            // 1. 필터 루트 Body를 왼쪽(Column 0)에 배치
             //    여러 Constraint가 있을 경우 중앙에 오도록 Y 위치 계산
             float totalHeight = (NumConstraints - 1) * ROW_SPACING;
-            float selectedBodyY = -totalHeight * 0.5f;  // 세로 중앙 정렬
+            float filterRootBodyY = -totalHeight * 0.5f;  // 세로 중앙 정렬
 
-            ImVec2 selectedBodyPos = ImVec2(0.0f, selectedBodyY);
-            ed::SetNodePosition(SelectedBodyNode->ID, selectedBodyPos);
+            ImVec2 filterRootBodyPos = ImVec2(0.0f, filterRootBodyY);
+            ed::SetNodePosition(FilterRootBodyNode->ID, filterRootBodyPos);
 
             // 2. 연결된 Constraint들을 중간(Column 1)에 위→아래로 배치
             float startY = -totalHeight * 0.5f;
@@ -2852,7 +2853,22 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
             FPAEBodyNode* SelectedBody = Owner->FindBodyNode(selectedNodeId);
             if (SelectedBody && SelectedBody->BodyIndex >= 0)
             {
-                State->SelectBody(SelectedBody->BodyIndex);
+                // 그래프에서 노드 클릭 시: SelectedBodyIndex만 변경 (GraphFilterRootBodyIndex 유지)
+                State->SelectedBodyIndex = SelectedBody->BodyIndex;
+                State->EditMode = EPhysicsAssetEditMode::Body;
+                State->SelectedConstraintIndex = -1;
+                State->SelectedShapeIndex = -1;
+                State->SelectedShapeType = EAggCollisionShape::Unknown;
+
+                // BoneName 업데이트
+                if (State->PhysicsAsset && SelectedBody->BodyIndex < State->PhysicsAsset->BodySetups.Num())
+                {
+                    UBodySetup* Setup = State->PhysicsAsset->BodySetups[SelectedBody->BodyIndex];
+                    if (Setup)
+                    {
+                        State->SelectedBoneName = Setup->BoneName;
+                    }
+                }
             }
             else
             {

@@ -46,7 +46,8 @@ public:
     FString LoadedPhysicsAssetPath;
 
     // Selection
-    int32 SelectedBodyIndex = -1;
+    int32 SelectedBodyIndex = -1;              // 현재 선택된 Body (Details 패널 표시용)
+    int32 GraphFilterRootBodyIndex = -1;       // 그래프 필터링 기준 Body (Skeleton Tree 클릭 시만 변경)
     int32 SelectedConstraintIndex = -1;
     int32 SelectedShapeIndex = -1;          // Body 내의 Shape 인덱스
     EAggCollisionShape::Type SelectedShapeType = EAggCollisionShape::Unknown;
