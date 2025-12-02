@@ -5,8 +5,67 @@
 #include "NvCloth/Fabric.h"
 #include "NvCloth/Cloth.h"
 #include "NvCloth/Solver.h"
+#include "NvCloth/Callbacks.h"
 #include "NvClothExt/ClothFabricCooker.h"
+#include "foundation/PxAllocatorCallback.h"
+#include "foundation/PxErrorCallback.h"
 #include "UClothComponent.generated.h"
+
+/**
+ * @brief NvCloth용 간단한 Allocator
+ */
+class NvClothAllocator : public physx::PxAllocatorCallback
+{
+public:
+	void* allocate(size_t size, const char* typeName, const char* filename, int line) override
+	{
+		return _aligned_malloc(size, 16);
+	}
+
+	void deallocate(void* ptr) override
+	{
+		_aligned_free(ptr);
+	}
+};
+
+/**
+ * @brief NvCloth용 간단한 ErrorCallback
+ */
+class NvClothErrorCallback : public physx::PxErrorCallback
+{
+public:
+	void reportError(physx::PxErrorCode::Enum code, const char* message, const char* file, int line) override
+	{
+		// 에러 로그 출력 (필요에 따라 엔진의 로깅 시스템 사용)
+		const char* errorCodeStr = "Unknown";
+		switch (code)
+		{
+		case physx::PxErrorCode::eNO_ERROR:          errorCodeStr = "NoError"; break;
+		case physx::PxErrorCode::eDEBUG_INFO:        errorCodeStr = "Info"; break;
+		case physx::PxErrorCode::eDEBUG_WARNING:     errorCodeStr = "Warning"; break;
+		case physx::PxErrorCode::eINVALID_PARAMETER: errorCodeStr = "InvalidParam"; break;
+		case physx::PxErrorCode::eINVALID_OPERATION: errorCodeStr = "InvalidOp"; break;
+		case physx::PxErrorCode::eOUT_OF_MEMORY:     errorCodeStr = "OutOfMemory"; break;
+		case physx::PxErrorCode::eINTERNAL_ERROR:    errorCodeStr = "InternalError"; break;
+		case physx::PxErrorCode::eABORT:             errorCodeStr = "Abort"; break;
+		case physx::PxErrorCode::ePERF_WARNING:      errorCodeStr = "PerfWarning"; break;
+		}
+		printf("[NvCloth %s] %s (%s:%d)\n", errorCodeStr, message, file, line);
+	}
+};
+
+/**
+ * @brief NvCloth용 간단한 AssertHandler
+ */
+class NvClothAssertHandler : public nv::cloth::PxAssertHandler
+{
+public:
+	void operator()(const char* exp, const char* file, int line, bool& ignore) override
+	{
+		printf("[NvCloth Assert] %s (%s:%d)\n", exp, file, line);
+	}
+};
+
 /**
  * @brief Cloth 시뮬레이션 설정
  */
@@ -103,6 +162,7 @@ public:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime) override;
 	virtual void OnCreatePhysicsState() override;
+	virtual void CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) override;
 	//virtual void OnDestroyPhysicsState() override;
 
 	// Cloth setup
@@ -198,6 +258,7 @@ private:
 
 	void SimulateCloth(float DeltaSeconds);
 	void RetrievingSimulateResult();
+	void RecalculateNormals();
 
 	void ApplyClothProperties();
 	void ApplyTetherConstraint();

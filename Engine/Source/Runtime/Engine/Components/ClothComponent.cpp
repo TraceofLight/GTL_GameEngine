@@ -18,6 +18,12 @@
 
 using namespace physx;
 using namespace nv::cloth;
+
+// NvCloth 전역 초기화
+static NvClothAllocator g_ClothAllocator;
+static NvClothErrorCallback g_ClothErrorCallback;
+static NvClothAssertHandler g_ClothAssertHandler;
+static bool g_bNvClothInitialized = false;
  
 
 UClothComponent::UClothComponent()
@@ -36,15 +42,30 @@ void UClothComponent::InitializeComponent()
 {
     Super::InitializeComponent();
 
+    // VertexBuffer 생성
+    if (SkeletalMesh && !VertexBuffer)
+    {
+        SkeletalMesh->CreateVertexBufferForComp(&VertexBuffer);
+    }
+
     if (bClothEnabled && !bClothInitialized)
     {
         SetupClothFromMesh();
     }
+
+    // Cloth 시뮬레이션을 사용하므로 기본 스키닝 비활성화
+    bSkinningMatricesDirty = false;
 }
 
 void UClothComponent::BeginPlay()
 {
     Super::BeginPlay();
+
+    // 초기 정점 상태를 VertexBuffer에 설정
+    if (bClothInitialized && VertexBuffer && SkeletalMesh)
+    {
+        UpdateVerticesFromCloth();
+    }
 }
 
 void UClothComponent::TickComponent(float DeltaTime)
@@ -67,6 +88,20 @@ void UClothComponent::OnCreatePhysicsState()
     {
         SetupClothFromMesh();
     }
+}
+
+void UClothComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
+{
+    if (!bClothEnabled || !bClothInitialized)
+    {
+        // Cloth가 비활성화되어 있으면 기본 스키닝 사용
+        Super::CollectMeshBatches(OutMeshBatchElements, View);
+        return;
+    }
+
+    // Cloth 시뮬레이션 사용 시 CPU 모드만 지원
+    // VertexBuffer는 이미 UpdateVerticesFromCloth()에서 업데이트됨
+    Super::CollectMeshBatches(OutMeshBatchElements, View);
 }
 
 void UClothComponent::SetupClothFromMesh()
@@ -256,11 +291,17 @@ void UClothComponent::ClearCollisionShapes()
 
 void UClothComponent::InitializeNvCloth()
 {
+	// NvCloth 라이브러리 초기화 (한 번만 수행)
+	if (!g_bNvClothInitialized)
+	{
+		nv::cloth::InitializeNvCloth(&g_ClothAllocator, &g_ClothErrorCallback, &g_ClothAssertHandler, nullptr);
+		g_bNvClothInitialized = true;
+	}
+
 	factory = NvClothCreateFactoryCPU();
 	if (factory == nullptr)
 	{
-		//error
-		//UE_LOG(LogTemp, Error, TEXT("Failed to create NvCloth factory!"));
+		printf("[ClothComponent] Failed to create NvCloth factory!\n");
 	}
 }  
 void UClothComponent::CreateClothFabric()
@@ -645,17 +686,92 @@ void UClothComponent::UpdateClothSimulation(float DeltaTime)
 void UClothComponent::UpdateVerticesFromCloth()
 {
 	// 시뮬레이션 결과를 메시 정점에 반영
-	// 실제 렌더링 메시 업데이트 로직은 프로젝트 구조에 따라 다름
-	
-	if (!SkeletalMesh || PreviousParticles.Num() == 0)
+	if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData() || PreviousParticles.Num() == 0)
 		return;
 
-	// TODO: Dynamic mesh update implementation
-	// 예: GetSkeletalMeshData()->Vertices 업데이트
+	const auto& originalVertices = SkeletalMesh->GetSkeletalMeshData()->Vertices;
+	if (PreviousParticles.Num() != originalVertices.Num())
+		return;
+
+	// SkinnedVertices 배열 초기화
+	SkinnedVertices.SetNum(PreviousParticles.Num());
+
+	// 1. Cloth 시뮬레이션 결과를 SkinnedVertices에 복사
+	for (int32 i = 0; i < PreviousParticles.Num(); ++i)
+	{
+		const physx::PxVec4& particle = PreviousParticles[i];
+		const auto& originalVertex = originalVertices[i];
+
+		SkinnedVertices[i].pos = FVector(particle.x, particle.y, particle.z);
+		SkinnedVertices[i].tex = originalVertex.UV;
+		SkinnedVertices[i].color = FVector4(1, 1, 1, 1);
+		SkinnedVertices[i].Tangent = FVector4(originalVertex.Tangent.X, originalVertex.Tangent.Y, originalVertex.Tangent.Z, originalVertex.Tangent.W);
+
+		// 노멀은 나중에 재계산
+		SkinnedVertices[i].normal = FVector(0, 0, 1);
+	}
+
+	// 2. 노멀 재계산 (삼각형 기반)
+	RecalculateNormals();
+
+	// 3. VertexBuffer 업데이트
+	if (VertexBuffer)
+	{
+		SkeletalMesh->UpdateVertexBuffer(SkinnedVertices, VertexBuffer);
+	}
+}
+
+void UClothComponent::RecalculateNormals()
+{
+	if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
+		return;
+
+	const auto& indices = SkeletalMesh->GetSkeletalMeshData()->Indices;
+	if (indices.Num() == 0 || indices.Num() % 3 != 0)
+		return;
+
+	// 모든 노멀을 0으로 초기화
+	for (auto& vertex : SkinnedVertices)
+	{
+		vertex.normal = FVector::Zero();
+	}
+
+	// 각 삼각형의 노멀을 계산하고 정점에 누적
+	for (int32 i = 0; i < indices.Num(); i += 3)
+	{
+		uint32 idx0 = indices[i];
+		uint32 idx1 = indices[i + 1];
+		uint32 idx2 = indices[i + 2];
+
+		if (idx0 >= SkinnedVertices.Num() || idx1 >= SkinnedVertices.Num() || idx2 >= SkinnedVertices.Num())
+			continue;
+
+		const FVector& v0 = SkinnedVertices[idx0].pos;
+		const FVector& v1 = SkinnedVertices[idx1].pos;
+		const FVector& v2 = SkinnedVertices[idx2].pos;
+
+		// 삼각형의 두 변
+		FVector edge1 = v1 - v0;
+		FVector edge2 = v2 - v0;
+
+		// 외적으로 노멀 계산 (면적 가중치 포함)
+		FVector faceNormal = FVector::Cross(edge1, edge2);
+
+		// 각 정점에 노멀 누적
+		SkinnedVertices[idx0].normal += faceNormal;
+		SkinnedVertices[idx1].normal += faceNormal;
+		SkinnedVertices[idx2].normal += faceNormal;
+	}
+
+	// 누적된 노멀을 정규화
+	for (auto& vertex : SkinnedVertices)
+	{
+		vertex.normal.Normalize();
+	}
 }
 
 void UClothComponent::BuildClothMesh()
-{ 
+{
 	if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
 		return;
 

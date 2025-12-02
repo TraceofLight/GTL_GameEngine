@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "MeshComponent.h"
 #include "SkeletalMesh.h"
 #include "USkinnedMeshComponent.generated.h"
@@ -66,6 +66,11 @@ protected:
      */
     TArray<FNormalVertex> NormalSkinnedVertices;
 
+	/**
+	 * @brief CPU 스키닝에서 진행하기 때문에, Component별로 VertexBuffer를 가지고 스키닝 업데이트를 진행해야함
+	*/
+	ID3D11Buffer* VertexBuffer = nullptr;
+	bool bSkinningMatricesDirty = true;
 private:
     void PerformSkinning();
     FVector SkinVertexPosition(const FSkinnedVertex& InVertex) const;
@@ -77,10 +82,5 @@ private:
     */
     TArray<FMatrix> FinalSkinningMatrices;
     TArray<FMatrix> FinalSkinningNormalMatrices;
-    bool bSkinningMatricesDirty = true;
 
-    /**
-     * @brief CPU 스키닝에서 진행하기 때문에, Component별로 VertexBuffer를 가지고 스키닝 업데이트를 진행해야함
-    */
-    ID3D11Buffer* VertexBuffer = nullptr;
 };
