@@ -97,6 +97,14 @@ public:
     // 반투명 솔리드 Body 드로잉 (언리얼 스타일)
     void DrawPhysicsBodiesSolid(class URenderer* Renderer) const;
 
+    // Body/Shape 피킹 (뷰포트에서 마우스 클릭 시)
+    // 반환값: true이면 피킹 성공, OutBodyIndex/OutShapeType/OutShapeIndex에 결과 저장
+    bool PickBodyOrShape(const struct FRay& Ray,
+                         int32& OutBodyIndex,
+                         EAggCollisionShape::Type& OutShapeType,
+                         int32& OutShapeIndex,
+                         float& OutDistance) const;
+
 private:
     // 개별 Shape 드로잉 헬퍼
     void DrawSphere(class URenderer* Renderer, const FTransform& BoneTransform, const struct FKSphereElem& Sphere, const FVector4& Color) const;

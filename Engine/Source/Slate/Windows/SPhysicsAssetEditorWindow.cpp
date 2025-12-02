@@ -12,6 +12,7 @@
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
+#include "Source/Runtime/Engine/Collision/Picking.h"
 #include "Source/Editor/PlatformProcess.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
@@ -314,6 +315,61 @@ void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
     if (bInViewport)
     {
         FVector2D LocalPos = MousePos - FVector2D(VPRect.Left, VPRect.Top);
+
+        // 왼쪽 마우스 버튼 클릭 시 Body/Shape 피킹
+        if (Button == 0 && ActiveState->Client && !ActiveState->bSimulating)
+        {
+            ACameraActor* Camera = ActiveState->Client->GetCamera();
+            if (Camera)
+            {
+                // 기즈모가 드래그 중이 아닐 때만 피킹
+                AGizmoActor* Gizmo = ActiveState->GizmoActor;
+                bool bGizmoDragging = Gizmo && Gizmo->GetbIsDragging();
+
+                if (!bGizmoDragging)
+                {
+                    FVector CameraPos = Camera->GetActorLocation();
+                    FVector CameraRight = Camera->GetRight();
+                    FVector CameraUp = Camera->GetUp();
+                    FVector CameraForward = Camera->GetForward();
+
+                    FVector2D ViewportMousePos(LocalPos.X, LocalPos.Y);
+                    FVector2D ViewportSize(VPRect.GetWidth(), VPRect.GetHeight());
+
+                    FRay Ray = MakeRayFromViewport(
+                        Camera->GetViewMatrix(),
+                        Camera->GetProjectionMatrix(VPRect.GetWidth() / VPRect.GetHeight(), ActiveState->Viewport),
+                        CameraPos, CameraRight, CameraUp, CameraForward,
+                        ViewportMousePos, ViewportSize
+                    );
+
+                    int32 HitBodyIndex = -1;
+                    EAggCollisionShape::Type HitShapeType = EAggCollisionShape::Unknown;
+                    int32 HitShapeIndex = -1;
+                    float HitDistance = 0.0f;
+
+                    if (ActiveState->PickBodyOrShape(Ray, HitBodyIndex, HitShapeType, HitShapeIndex, HitDistance))
+                    {
+                        // 피킹 성공 - 편집 모드에 따라 선택
+                        if (ActiveState->EditMode == EPhysicsAssetEditMode::Shape)
+                        {
+                            // Shape 모드: 개별 Shape 선택
+                            ActiveState->SelectShape(HitBodyIndex, HitShapeType, HitShapeIndex);
+                        }
+                        else
+                        {
+                            // Body 모드: Body 전체 선택
+                            ActiveState->SelectBody(HitBodyIndex);
+                        }
+                    }
+                    else
+                    {
+                        // 빈 공간 클릭 - 선택 해제
+                        ActiveState->ClearSelection();
+                    }
+                }
+            }
+        }
 
         // 뷰포트에 마우스 다운 전달
         ActiveState->Viewport->ProcessMouseButtonDown((int32)LocalPos.X, (int32)LocalPos.Y, (int32)Button);
@@ -1882,6 +1938,130 @@ void SPhysicsAssetGraphPanel::OnRender()
     ImGui::End();
 }
 
+// 노드 그리기 헬퍼 함수
+static void DrawBodyNode(FPAEBodyNode& BodyNode, PhysicsAssetViewerState* State, bool bIsSelected, bool bIsCenter)
+{
+    // 노드 색상 (선택된 것은 파란색, 중앙 노드는 녹색)
+    ImU32 HeaderColor;
+    if (bIsCenter)
+        HeaderColor = IM_COL32(60, 120, 80, 255);  // 녹색 (선택된 메인 Body)
+    else if (bIsSelected)
+        HeaderColor = IM_COL32(70, 130, 180, 255); // 파란색
+    else
+        HeaderColor = IM_COL32(60, 60, 70, 255);   // 회색
+
+    ed::BeginNode(BodyNode.ID);
+
+    ImGui::PushID(static_cast<int>(BodyNode.ID.Get()));
+
+    // 헤더
+    ImGui::BeginGroup();
+    {
+        ImGui::Dummy(ImVec2(0, 2));
+        ImGui::Indent(4.0f);
+
+        // Body 이름 (Bone 이름)
+        ImGui::TextColored(ImVec4(1, 1, 1, 1), "%s", BodyNode.BoneName.c_str());
+
+        // Shape 수 표시
+        if (BodyNode.BodyIndex >= 0 && BodyNode.BodyIndex < State->PhysicsAsset->BodySetups.Num())
+        {
+            UBodySetup* Setup = State->PhysicsAsset->BodySetups[BodyNode.BodyIndex];
+            if (Setup)
+            {
+                int32 ShapeCount = Setup->GetElementCount();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                ImGui::Text("%d shapes", ShapeCount);
+                ImGui::PopStyleColor();
+            }
+        }
+
+        ImGui::Unindent(4.0f);
+        ImGui::Dummy(ImVec2(0, 2));
+    }
+    ImGui::EndGroup();
+
+    // 헤더 크기
+    ImRect HeaderRect;
+    HeaderRect.Min = ImGui::GetItemRectMin();
+    HeaderRect.Max = ImGui::GetItemRectMax();
+
+    // 최소 너비 보장
+    float minWidth = 120.0f;
+    if (HeaderRect.GetWidth() < minWidth)
+    {
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(minWidth - HeaderRect.GetWidth(), 0));
+    }
+
+    ImGui::Dummy(ImVec2(0, 4));
+
+    // 핀 영역
+    ImGui::BeginGroup();
+    {
+        // 입력 핀 (왼쪽)
+        if (!BodyNode.InputPins.empty())
+        {
+            ed::BeginPin(BodyNode.InputPins[0], ed::PinKind::Input);
+            ImGui::TextDisabled(">");
+            ed::EndPin();
+        }
+
+        // 공간 확보
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(60, 0));
+        ImGui::SameLine();
+
+        // 출력 핀 (오른쪽)
+        if (!BodyNode.OutputPins.empty())
+        {
+            ed::BeginPin(BodyNode.OutputPins[0], ed::PinKind::Output);
+            ImGui::TextDisabled(">");
+            ed::EndPin();
+        }
+    }
+    ImGui::EndGroup();
+
+    ImGui::Dummy(ImVec2(0, 2));
+    ImGui::PopID();
+
+    ed::EndNode();
+
+    // 배경 그리기
+    if (ImGui::IsItemVisible())
+    {
+        ImDrawList* drawList = ed::GetNodeBackgroundDrawList(BodyNode.ID);
+
+        ImVec2 nodeMin = ed::GetNodePosition(BodyNode.ID);
+        ImVec2 nodeSize = ed::GetNodeSize(BodyNode.ID);
+        ImVec2 nodeMax = ImVec2(nodeMin.x + nodeSize.x, nodeMin.y + nodeSize.y);
+
+        float headerHeight = HeaderRect.GetHeight() + 4;
+        ImVec2 headerMax = ImVec2(nodeMax.x, nodeMin.y + headerHeight);
+
+        // 헤더 배경
+        drawList->AddRectFilled(nodeMin, headerMax, HeaderColor,
+            ed::GetStyle().NodeRounding, ImDrawFlags_RoundCornersTop);
+
+        // 바디 배경
+        drawList->AddRectFilled(ImVec2(nodeMin.x, headerMax.y), nodeMax,
+            IM_COL32(30, 30, 35, 230),
+            ed::GetStyle().NodeRounding, ImDrawFlags_RoundCornersBottom);
+
+        // 테두리 (중앙 노드는 녹색 테두리)
+        if (bIsCenter)
+        {
+            drawList->AddRect(nodeMin, nodeMax, IM_COL32(100, 200, 120, 255),
+                ed::GetStyle().NodeRounding, 0, 2.5f);
+        }
+        else if (bIsSelected)
+        {
+            drawList->AddRect(nodeMin, nodeMax, IM_COL32(100, 180, 255, 255),
+                ed::GetStyle().NodeRounding, 0, 2.0f);
+        }
+    }
+}
+
 void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FPAEGraphState* GraphState)
 {
     if (!State || !GraphState || !State->PhysicsAsset) return;
@@ -1895,134 +2075,134 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
     ed::SetCurrentEditor(GraphState->Context);
     ed::Begin("PhysicsAssetGraph", ImVec2(0.0f, 0.0f));
 
+    // 선택된 Body가 없으면 빈 화면
+    if (State->SelectedBodyIndex < 0 || State->EditMode != EPhysicsAssetEditMode::Body)
+    {
+        // 빈 화면에 안내 텍스트
+        ImVec2 canvasSize = ed::GetScreenSize();
+        ImVec2 textPos = ImVec2(canvasSize.x * 0.5f - 100, canvasSize.y * 0.5f);
+        ImGui::SetCursorScreenPos(textPos);
+        ImGui::TextDisabled("Select a body from the tree");
+
+        ed::End();
+        ed::SetCurrentEditor(nullptr);
+        return;
+    }
+
+    // 스켈레톤 정보 가져오기
+    const FSkeleton* Skeleton = State->CurrentMesh ? State->CurrentMesh->GetSkeleton() : nullptr;
+    if (!Skeleton)
+    {
+        ed::End();
+        ed::SetCurrentEditor(nullptr);
+        return;
+    }
+
+    UPhysicsAsset* PhysAsset = State->PhysicsAsset;
+
+    // 선택된 Body 찾기
+    FPAEBodyNode* CenterNode = nullptr;
+    for (auto& Node : GraphState->BodyNodes)
+    {
+        if (Node.BodyIndex == State->SelectedBodyIndex)
+        {
+            CenterNode = &Node;
+            break;
+        }
+    }
+
+    if (!CenterNode)
+    {
+        ed::End();
+        ed::SetCurrentEditor(nullptr);
+        return;
+    }
+
+    // 선택된 Body의 뼈 인덱스 찾기
+    int32 CenterBoneIndex = -1;
+    for (int32 i = 0; i < Skeleton->Bones.Num(); ++i)
+    {
+        if (Skeleton->Bones[i].Name == CenterNode->BoneName)
+        {
+            CenterBoneIndex = i;
+            break;
+        }
+    }
+
+    // 자식 뼈들 중 Body가 있는 것들 찾기
+    TArray<FPAEBodyNode*> ChildNodes;
+    TArray<int32> ChildBoneIndices;
+
+    if (CenterBoneIndex >= 0)
+    {
+        for (int32 i = 0; i < Skeleton->Bones.Num(); ++i)
+        {
+            // 이 뼈의 부모가 선택된 뼈인지 확인
+            if (Skeleton->Bones[i].ParentIndex == CenterBoneIndex)
+            {
+                // 이 자식 뼈에 Body가 있는지 확인
+                FString ChildBoneName = Skeleton->Bones[i].Name;
+                for (auto& Node : GraphState->BodyNodes)
+                {
+                    if (Node.BoneName == ChildBoneName)
+                    {
+                        ChildNodes.Add(&Node);
+                        ChildBoneIndices.Add(i);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     // 스타일 설정
     ed::PushStyleVar(ed::StyleVar_NodeRounding, 8.0f);
     ed::PushStyleVar(ed::StyleVar_NodePadding, ImVec4(8, 4, 8, 8));
 
-    // Body 노드 그리기
-    for (auto& BodyNode : GraphState->BodyNodes)
+    // 노드 위치 계산 (동적으로)
+    float centerX = 50.0f;
+    float centerY = 100.0f + (ChildNodes.Num() * 40.0f);  // 자식 수에 따라 중앙 조정
+    float childX = 350.0f;  // 자식들은 오른쪽에
+    float childSpacing = 100.0f;
+
+    // 중앙 노드 위치 설정
+    ed::SetNodePosition(CenterNode->ID, ImVec2(centerX, centerY));
+
+    // 중앙 Body 노드 그리기
+    DrawBodyNode(*CenterNode, State, true, true);
+
+    // 자식 Body 노드들 그리기
+    for (int32 i = 0; i < ChildNodes.Num(); ++i)
     {
-        // 선택 상태 확인
-        bool bSelected = (State->EditMode == EPhysicsAssetEditMode::Body &&
-                          State->SelectedBodyIndex == BodyNode.BodyIndex);
+        FPAEBodyNode* ChildNode = ChildNodes[i];
+        float childY = 50.0f + i * childSpacing;
 
-        // 노드 색상
-        ImU32 HeaderColor = bSelected ? IM_COL32(70, 130, 180, 255) : IM_COL32(60, 60, 70, 255);
-
-        ed::BeginNode(BodyNode.ID);
-
-        ImGui::PushID(static_cast<int>(BodyNode.ID.Get()));
-
-        // 헤더
-        ImGui::BeginGroup();
-        {
-            ImGui::Dummy(ImVec2(0, 2));
-            ImGui::Indent(4.0f);
-
-            // Body 이름 (Bone 이름)
-            ImGui::TextColored(ImVec4(1, 1, 1, 1), "%s", BodyNode.BoneName.c_str());
-
-            // Shape 수 표시
-            if (BodyNode.BodyIndex >= 0 && BodyNode.BodyIndex < State->PhysicsAsset->BodySetups.Num())
-            {
-                UBodySetup* Setup = State->PhysicsAsset->BodySetups[BodyNode.BodyIndex];
-                if (Setup)
-                {
-                    int32 ShapeCount = Setup->GetElementCount();
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-                    ImGui::Text("%d shapes", ShapeCount);
-                    ImGui::PopStyleColor();
-                }
-            }
-
-            ImGui::Unindent(4.0f);
-            ImGui::Dummy(ImVec2(0, 2));
-        }
-        ImGui::EndGroup();
-
-        // 헤더 크기
-        ImRect HeaderRect;
-        HeaderRect.Min = ImGui::GetItemRectMin();
-        HeaderRect.Max = ImGui::GetItemRectMax();
-
-        // 최소 너비 보장
-        float minWidth = 120.0f;
-        if (HeaderRect.GetWidth() < minWidth)
-        {
-            ImGui::SameLine();
-            ImGui::Dummy(ImVec2(minWidth - HeaderRect.GetWidth(), 0));
-        }
-
-        ImGui::Dummy(ImVec2(0, 4));
-
-        // 핀 영역
-        ImGui::BeginGroup();
-        {
-            // 입력 핀 (왼쪽)
-            if (!BodyNode.InputPins.empty())
-            {
-                ed::BeginPin(BodyNode.InputPins[0], ed::PinKind::Input);
-                ImGui::TextDisabled(">");
-                ed::EndPin();
-            }
-
-            // 공간 확보
-            ImGui::SameLine();
-            ImGui::Dummy(ImVec2(60, 0));
-            ImGui::SameLine();
-
-            // 출력 핀 (오른쪽)
-            if (!BodyNode.OutputPins.empty())
-            {
-                ed::BeginPin(BodyNode.OutputPins[0], ed::PinKind::Output);
-                ImGui::TextDisabled(">");
-                ed::EndPin();
-            }
-        }
-        ImGui::EndGroup();
-
-        ImGui::Dummy(ImVec2(0, 2));
-        ImGui::PopID();
-
-        ed::EndNode();
-
-        // 배경 그리기
-        if (ImGui::IsItemVisible())
-        {
-            ImDrawList* drawList = ed::GetNodeBackgroundDrawList(BodyNode.ID);
-
-            ImVec2 nodeMin = ed::GetNodePosition(BodyNode.ID);
-            ImVec2 nodeSize = ed::GetNodeSize(BodyNode.ID);
-            ImVec2 nodeMax = ImVec2(nodeMin.x + nodeSize.x, nodeMin.y + nodeSize.y);
-
-            float headerHeight = HeaderRect.GetHeight() + 4;
-            ImVec2 headerMax = ImVec2(nodeMax.x, nodeMin.y + headerHeight);
-
-            // 헤더 배경
-            drawList->AddRectFilled(nodeMin, headerMax, HeaderColor,
-                ed::GetStyle().NodeRounding, ImDrawFlags_RoundCornersTop);
-
-            // 바디 배경
-            drawList->AddRectFilled(ImVec2(nodeMin.x, headerMax.y), nodeMax,
-                IM_COL32(30, 30, 35, 230),
-                ed::GetStyle().NodeRounding, ImDrawFlags_RoundCornersBottom);
-
-            // 테두리
-            if (bSelected)
-            {
-                drawList->AddRect(nodeMin, nodeMax, IM_COL32(100, 180, 255, 255),
-                    ed::GetStyle().NodeRounding, 0, 2.0f);
-            }
-        }
+        ed::SetNodePosition(ChildNode->ID, ImVec2(childX, childY));
+        DrawBodyNode(*ChildNode, State, false, false);
     }
 
     ed::PopStyleVar(2);
 
-    // Constraint 링크 그리기 (TODO: Constraint 구현 후 추가)
-    for (auto& Link : GraphState->ConstraintLinks)
+    // Constraint 링크 그리기 (중앙 -> 자식)
+    // 직선 스타일로 설정
+    ed::PushStyleVar(ed::StyleVar_LinkStrength, 0.0f);
+
+    for (int32 i = 0; i < ChildNodes.Num(); ++i)
     {
-        ed::Link(Link.ID, Link.StartPinID, Link.EndPinID, ImColor(200, 200, 200, 255), 2.0f);
+        FPAEBodyNode* ChildNode = ChildNodes[i];
+
+        // 임시 링크 ID 생성 (중앙 노드 ID와 자식 노드 ID 조합)
+        ed::LinkId LinkID = ed::LinkId(1000000 + CenterNode->BodyIndex * 1000 + ChildNode->BodyIndex);
+
+        // 중앙 노드의 출력 핀 -> 자식 노드의 입력 핀
+        if (!CenterNode->OutputPins.empty() && !ChildNode->InputPins.empty())
+        {
+            ed::Link(LinkID, CenterNode->OutputPins[0], ChildNode->InputPins[0],
+                ImColor(180, 180, 180, 255), 2.0f);
+        }
     }
+
+    ed::PopStyleVar();
 
     // 노드 선택 처리
     if (ed::GetSelectedObjectCount() > 0)
@@ -2038,15 +2218,6 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
             if (SelectedBody && SelectedBody->BodyIndex >= 0)
             {
                 State->SelectBody(SelectedBody->BodyIndex);
-            }
-        }
-        else
-        {
-            ed::LinkId selectedLinkId;
-            if (ed::GetSelectedLinks(&selectedLinkId, 1) > 0)
-            {
-                GraphState->SelectedLinkID = selectedLinkId;
-                GraphState->SelectedNodeID = ed::NodeId::Invalid;
             }
         }
     }

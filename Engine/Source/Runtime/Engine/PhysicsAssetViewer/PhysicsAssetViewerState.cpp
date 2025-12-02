@@ -6,6 +6,7 @@
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Runtime/Core/Misc/PrimitiveGeometry.h"
+#include "Source/Runtime/Engine/Collision/Picking.h"
 #include "Renderer.h"
 
 UBodySetup* PhysicsAssetViewerState::GetSelectedBodySetup() const
@@ -509,4 +510,259 @@ void PhysicsAssetViewerState::DrawPhysicsBodiesSolid(URenderer* Renderer) const
 
     // 프리미티브 배치 종료 및 렌더링
     Renderer->EndPrimitiveBatch();
+}
+
+// Ray-Sphere 교차 검사 헬퍼
+static bool RaySphereIntersect(const FRay& Ray, const FVector& Center, float Radius, float& OutT)
+{
+    FVector OC = Ray.Origin - Center;
+    float A = FVector::Dot(Ray.Direction, Ray.Direction);
+    float B = 2.0f * FVector::Dot(OC, Ray.Direction);
+    float C = FVector::Dot(OC, OC) - Radius * Radius;
+    float Discriminant = B * B - 4 * A * C;
+
+    if (Discriminant < 0) return false;
+
+    float T = (-B - sqrtf(Discriminant)) / (2.0f * A);
+    if (T < 0)
+    {
+        T = (-B + sqrtf(Discriminant)) / (2.0f * A);
+        if (T < 0) return false;
+    }
+    OutT = T;
+    return true;
+}
+
+// Ray-Box 교차 검사 헬퍼 (OBB)
+static bool RayBoxIntersect(const FRay& Ray, const FVector& Center, const FVector& HalfExtent, const FQuat& Rotation, float& OutT)
+{
+    // Ray를 Box의 로컬 공간으로 변환
+    FQuat InvRot = Rotation.Conjugate();
+    FVector LocalOrigin = InvRot.RotateVector(Ray.Origin - Center);
+    FVector LocalDir = InvRot.RotateVector(Ray.Direction);
+
+    // AABB 교차 검사
+    float TMin = -FLT_MAX;
+    float TMax = FLT_MAX;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        float O = (i == 0) ? LocalOrigin.X : ((i == 1) ? LocalOrigin.Y : LocalOrigin.Z);
+        float D = (i == 0) ? LocalDir.X : ((i == 1) ? LocalDir.Y : LocalDir.Z);
+        float E = (i == 0) ? HalfExtent.X : ((i == 1) ? HalfExtent.Y : HalfExtent.Z);
+
+        if (fabsf(D) < 0.0001f)
+        {
+            if (O < -E || O > E) return false;
+        }
+        else
+        {
+            float T1 = (-E - O) / D;
+            float T2 = (E - O) / D;
+            if (T1 > T2) std::swap(T1, T2);
+            TMin = std::max(TMin, T1);
+            TMax = std::min(TMax, T2);
+            if (TMin > TMax) return false;
+        }
+    }
+
+    OutT = TMin >= 0 ? TMin : TMax;
+    return OutT >= 0;
+}
+
+// Ray-Capsule 교차 검사 헬퍼
+static bool RayCapsuleIntersect(const FRay& Ray, const FVector& Center, float Radius, float HalfLength, const FQuat& Rotation, float& OutT)
+{
+    // Capsule은 Z축 방향으로 정렬된 것으로 가정
+    // Ray를 Capsule 로컬 공간으로 변환
+    FQuat InvRot = Rotation.Conjugate();
+    FVector LocalOrigin = InvRot.RotateVector(Ray.Origin - Center);
+    FVector LocalDir = InvRot.RotateVector(Ray.Direction);
+
+    // 먼저 무한 실린더와 교차 검사
+    float A = LocalDir.X * LocalDir.X + LocalDir.Y * LocalDir.Y;
+    float B = 2.0f * (LocalOrigin.X * LocalDir.X + LocalOrigin.Y * LocalDir.Y);
+    float C = LocalOrigin.X * LocalOrigin.X + LocalOrigin.Y * LocalOrigin.Y - Radius * Radius;
+
+    float Discriminant = B * B - 4 * A * C;
+    float ClosestT = FLT_MAX;
+    bool bHit = false;
+
+    if (A > 0.0001f && Discriminant >= 0)
+    {
+        float T1 = (-B - sqrtf(Discriminant)) / (2.0f * A);
+        float T2 = (-B + sqrtf(Discriminant)) / (2.0f * A);
+
+        // 실린더 본체 부분 검사
+        for (float T : {T1, T2})
+        {
+            if (T >= 0)
+            {
+                float Z = LocalOrigin.Z + T * LocalDir.Z;
+                if (Z >= -HalfLength && Z <= HalfLength)
+                {
+                    if (T < ClosestT) { ClosestT = T; bHit = true; }
+                }
+            }
+        }
+    }
+
+    // 반구 캡 검사
+    float SphereT;
+    FVector TopCenter(0, 0, HalfLength);
+    FVector BotCenter(0, 0, -HalfLength);
+
+    FVector TopOrigin = LocalOrigin - TopCenter;
+    float TopA = FVector::Dot(LocalDir, LocalDir);
+    float TopB = 2.0f * FVector::Dot(TopOrigin, LocalDir);
+    float TopC = FVector::Dot(TopOrigin, TopOrigin) - Radius * Radius;
+    float TopDisc = TopB * TopB - 4 * TopA * TopC;
+
+    if (TopDisc >= 0)
+    {
+        SphereT = (-TopB - sqrtf(TopDisc)) / (2.0f * TopA);
+        if (SphereT >= 0)
+        {
+            FVector HitPoint = LocalOrigin + LocalDir * SphereT;
+            if (HitPoint.Z >= HalfLength && SphereT < ClosestT) { ClosestT = SphereT; bHit = true; }
+        }
+    }
+
+    FVector BotOrigin = LocalOrigin - BotCenter;
+    float BotA = FVector::Dot(LocalDir, LocalDir);
+    float BotB = 2.0f * FVector::Dot(BotOrigin, LocalDir);
+    float BotC = FVector::Dot(BotOrigin, BotOrigin) - Radius * Radius;
+    float BotDisc = BotB * BotB - 4 * BotA * BotC;
+
+    if (BotDisc >= 0)
+    {
+        SphereT = (-BotB - sqrtf(BotDisc)) / (2.0f * BotA);
+        if (SphereT >= 0)
+        {
+            FVector HitPoint = LocalOrigin + LocalDir * SphereT;
+            if (HitPoint.Z <= -HalfLength && SphereT < ClosestT) { ClosestT = SphereT; bHit = true; }
+        }
+    }
+
+    OutT = ClosestT;
+    return bHit;
+}
+
+bool PhysicsAssetViewerState::PickBodyOrShape(const FRay& Ray,
+                                               int32& OutBodyIndex,
+                                               EAggCollisionShape::Type& OutShapeType,
+                                               int32& OutShapeIndex,
+                                               float& OutDistance) const
+{
+    if (!PhysicsAsset || !PreviewActor) return false;
+
+    USkeletalMeshComponent* SkelComp = PreviewActor->GetSkeletalMeshComponent();
+    const FSkeleton* Skeleton = CurrentMesh ? CurrentMesh->GetSkeleton() : nullptr;
+    if (!SkelComp || !Skeleton) return false;
+
+    float ClosestDist = FLT_MAX;
+    bool bHit = false;
+    int32 HitBodyIndex = -1;
+    EAggCollisionShape::Type HitShapeType = EAggCollisionShape::Unknown;
+    int32 HitShapeIndex = -1;
+
+    // 모든 BodySetup 순회
+    for (int32 BodyIdx = 0; BodyIdx < PhysicsAsset->BodySetups.Num(); ++BodyIdx)
+    {
+        UBodySetup* Setup = PhysicsAsset->BodySetups[BodyIdx];
+        if (!Setup) continue;
+
+        // 본의 월드 트랜스폼 가져오기
+        FTransform BoneTransform;
+        int32 BoneIndex = -1;
+        for (int32 i = 0; i < Skeleton->Bones.size(); ++i)
+        {
+            if (Skeleton->Bones[i].Name == Setup->BoneName.ToString())
+            {
+                BoneIndex = i;
+                break;
+            }
+        }
+
+        if (BoneIndex >= 0)
+            BoneTransform = SkelComp->GetBoneWorldTransform(BoneIndex);
+        else
+            BoneTransform = SkelComp->GetWorldTransform();
+
+        // Sphere 검사
+        for (int32 i = 0; i < Setup->AggGeom.SphereElems.Num(); ++i)
+        {
+            const FKSphereElem& Sphere = Setup->AggGeom.SphereElems[i];
+            FTransform ShapeLocal(Sphere.Center, FQuat(0, 0, 0, 1), FVector(1, 1, 1));
+            FTransform ShapeWorld = BoneTransform.GetWorldTransform(ShapeLocal);
+
+            float T;
+            if (RaySphereIntersect(Ray, ShapeWorld.Translation, Sphere.Radius, T))
+            {
+                if (T < ClosestDist)
+                {
+                    ClosestDist = T;
+                    HitBodyIndex = BodyIdx;
+                    HitShapeType = EAggCollisionShape::Sphere;
+                    HitShapeIndex = i;
+                    bHit = true;
+                }
+            }
+        }
+
+        // Box 검사
+        for (int32 i = 0; i < Setup->AggGeom.BoxElems.Num(); ++i)
+        {
+            const FKBoxElem& Box = Setup->AggGeom.BoxElems[i];
+            FQuat BoxRot = FQuat::MakeFromEulerZYX(Box.Rotation * (PI / 180.0f));
+            FTransform ShapeLocal(Box.Center, BoxRot, FVector(1, 1, 1));
+            FTransform ShapeWorld = BoneTransform.GetWorldTransform(ShapeLocal);
+
+            float T;
+            FVector HalfExtent(Box.X * 0.5f, Box.Y * 0.5f, Box.Z * 0.5f);
+            if (RayBoxIntersect(Ray, ShapeWorld.Translation, HalfExtent, ShapeWorld.Rotation, T))
+            {
+                if (T < ClosestDist)
+                {
+                    ClosestDist = T;
+                    HitBodyIndex = BodyIdx;
+                    HitShapeType = EAggCollisionShape::Box;
+                    HitShapeIndex = i;
+                    bHit = true;
+                }
+            }
+        }
+
+        // Capsule 검사
+        for (int32 i = 0; i < Setup->AggGeom.SphylElems.Num(); ++i)
+        {
+            const FKCapsuleElem& Capsule = Setup->AggGeom.SphylElems[i];
+            FQuat CapsuleRot = FQuat::MakeFromEulerZYX(Capsule.Rotation * (PI / 180.0f));
+            FTransform ShapeLocal(Capsule.Center, CapsuleRot, FVector(1, 1, 1));
+            FTransform ShapeWorld = BoneTransform.GetWorldTransform(ShapeLocal);
+
+            float T;
+            if (RayCapsuleIntersect(Ray, ShapeWorld.Translation, Capsule.Radius, Capsule.Length * 0.5f, ShapeWorld.Rotation, T))
+            {
+                if (T < ClosestDist)
+                {
+                    ClosestDist = T;
+                    HitBodyIndex = BodyIdx;
+                    HitShapeType = EAggCollisionShape::Capsule;
+                    HitShapeIndex = i;
+                    bHit = true;
+                }
+            }
+        }
+    }
+
+    if (bHit)
+    {
+        OutBodyIndex = HitBodyIndex;
+        OutShapeType = HitShapeType;
+        OutShapeIndex = HitShapeIndex;
+        OutDistance = ClosestDist;
+    }
+
+    return bHit;
 }
