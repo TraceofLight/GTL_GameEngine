@@ -6,6 +6,22 @@ class UBodySetup;
 struct FName;
 
 /**
+ * Parameters for physics asset creation.
+ * Similar to UE's FPhysAssetCreateParams.
+ */
+struct FPhysAssetCreateParams
+{
+    /** Minimum bone size to create a body for. Bones smaller than this will be merged into parent. */
+    float MinBoneSize = 0.1f;
+
+    /** Minimum bone size to even consider for welding. Bones smaller than this are ignored entirely. */
+    float MinWeldSize = 0.01f;
+
+    /** If true, create a body for every bone regardless of size. */
+    bool bBodyForAll = false;
+};
+
+/**
  * Static utility functions for building and manipulating PhysicsAssets.
  * Follows UE pattern where UPhysicsAsset is a pure data container
  * and utilities handle the creation/modification logic.
@@ -15,12 +31,14 @@ namespace FPhysicsAssetUtils
     /**
      * Creates physics bodies from a skeletal mesh's bone hierarchy.
      * Generates capsules for each non-leaf bone based on bone length and heuristic radius.
+     * Small bones are merged into their parents based on MinBoneSize parameter.
      *
      * @param PhysicsAsset  The physics asset to populate (will be cleared first)
      * @param SkeletalMesh  The skeletal mesh to generate bodies from
+     * @param Params        Creation parameters (MinBoneSize, MinWeldSize, etc.)
      * @return true if any bodies were created
      */
-    bool CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, const USkeletalMesh* SkeletalMesh);
+    bool CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, const USkeletalMesh* SkeletalMesh, const FPhysAssetCreateParams& Params = FPhysAssetCreateParams());
 
     /**
      * Creates a new BodySetup for a specific bone and adds it to the PhysicsAsset.
