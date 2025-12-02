@@ -128,51 +128,67 @@ void PhysicsAssetViewerState::DrawPhysicsBodies(URenderer* Renderer) const
                 // 본을 찾지 못하면 컴포넌트의 월드 트랜스폼 사용
                 BoneTransform = SkelComp->GetWorldTransform();
             }
+
+            // Body가 선택되었는지 확인
+            bool bBodySelected = (EditMode == EPhysicsAssetEditMode::Body && SelectedBodyIndex == BodyIdx);
+            bool bShapeMode = (EditMode == EPhysicsAssetEditMode::Shape && SelectedBodyIndex == BodyIdx);
+
+            // Sphere shapes 그리기
+            for (int32 i = 0; i < Setup->AggGeom.SphereElems.Num(); ++i)
+            {
+                FVector4 Color = NormalColor;
+                if (bBodySelected)
+                    Color = SelectedColor;
+                else if (bShapeMode && SelectedShapeType == EAggCollisionShape::Sphere && SelectedShapeIndex == i)
+                    Color = ShapeSelectedColor;
+
+                DrawSphere(Renderer, BoneTransform, Setup->AggGeom.SphereElems[i], Color);
+            }
+
+            // Box shapes 그리기
+            for (int32 i = 0; i < Setup->AggGeom.BoxElems.Num(); ++i)
+            {
+                FVector4 Color = NormalColor;
+                if (bBodySelected)
+                    Color = SelectedColor;
+                else if (bShapeMode && SelectedShapeType == EAggCollisionShape::Box && SelectedShapeIndex == i)
+                    Color = ShapeSelectedColor;
+
+                DrawBox(Renderer, BoneTransform, Setup->AggGeom.BoxElems[i], Color);
+            }
+
+            // Capsule shapes 그리기
+            for (int32 i = 0; i < Setup->AggGeom.SphylElems.Num(); ++i)
+            {
+                FVector4 Color = NormalColor;
+                if (bBodySelected)
+                    Color = SelectedColor;
+                else if (bShapeMode && SelectedShapeType == EAggCollisionShape::Capsule && SelectedShapeIndex == i)
+                    Color = ShapeSelectedColor;
+
+                DrawCapsule(Renderer, BoneTransform, Setup->AggGeom.SphylElems[i], Color);
+            }
         }
         else
         {
             // SkeletalMeshComponent가 없으면 원점 사용
             BoneTransform = FTransform();
-        }
 
-        // Body가 선택되었는지 확인
-        bool bBodySelected = (EditMode == EPhysicsAssetEditMode::Body && SelectedBodyIndex == BodyIdx);
-        bool bShapeMode = (EditMode == EPhysicsAssetEditMode::Shape && SelectedBodyIndex == BodyIdx);
+            // Body가 선택되었는지 확인
+            bool bBodySelected = (EditMode == EPhysicsAssetEditMode::Body && SelectedBodyIndex == BodyIdx);
+            bool bShapeMode = (EditMode == EPhysicsAssetEditMode::Shape && SelectedBodyIndex == BodyIdx);
 
-        // Sphere shapes 그리기
-        for (int32 i = 0; i < Setup->AggGeom.SphereElems.Num(); ++i)
-        {
-            FVector4 Color = NormalColor;
-            if (bBodySelected)
-                Color = SelectedColor;
-            else if (bShapeMode && SelectedShapeType == EAggCollisionShape::Sphere && SelectedShapeIndex == i)
-                Color = ShapeSelectedColor;
+            // Capsule shapes 그리기 (no InverseBindPose available)
+            for (int32 i = 0; i < Setup->AggGeom.SphylElems.Num(); ++i)
+            {
+                FVector4 Color = NormalColor;
+                if (bBodySelected)
+                    Color = SelectedColor;
+                else if (bShapeMode && SelectedShapeType == EAggCollisionShape::Capsule && SelectedShapeIndex == i)
+                    Color = ShapeSelectedColor;
 
-            DrawSphere(Renderer, BoneTransform, Setup->AggGeom.SphereElems[i], Color);
-        }
-
-        // Box shapes 그리기
-        for (int32 i = 0; i < Setup->AggGeom.BoxElems.Num(); ++i)
-        {
-            FVector4 Color = NormalColor;
-            if (bBodySelected)
-                Color = SelectedColor;
-            else if (bShapeMode && SelectedShapeType == EAggCollisionShape::Box && SelectedShapeIndex == i)
-                Color = ShapeSelectedColor;
-
-            DrawBox(Renderer, BoneTransform, Setup->AggGeom.BoxElems[i], Color);
-        }
-
-        // Capsule shapes 그리기
-        for (int32 i = 0; i < Setup->AggGeom.SphylElems.Num(); ++i)
-        {
-            FVector4 Color = NormalColor;
-            if (bBodySelected)
-                Color = SelectedColor;
-            else if (bShapeMode && SelectedShapeType == EAggCollisionShape::Capsule && SelectedShapeIndex == i)
-                Color = ShapeSelectedColor;
-
-            DrawCapsule(Renderer, BoneTransform, Setup->AggGeom.SphylElems[i], Color);
+                DrawCapsule(Renderer, BoneTransform, Setup->AggGeom.SphylElems[i], Color);
+            }
         }
     }
 }
@@ -282,14 +298,17 @@ void PhysicsAssetViewerState::DrawBox(URenderer* Renderer, const FTransform& Bon
 
 void PhysicsAssetViewerState::DrawCapsule(URenderer* Renderer, const FTransform& BoneTransform, const FKCapsuleElem& Capsule, const FVector4& Color) const
 {
-    // Capsule의 로컬 트랜스폼 (Center + Rotation)
-    // MakeFromEulerZYX expects DEGREES (it converts to radians internally)
+    // Capsule rotation (stored in degrees, MakeFromEulerZYX converts internally)
     FQuat CapsuleRot = FQuat::MakeFromEulerZYX(Capsule.Rotation);
-    FTransform CapsuleLocalTransform(Capsule.Center, CapsuleRot, FVector(1, 1, 1));
 
-    // 본 트랜스폼과 결합 -> 월드 트랜스폼 (회전만 포함, 스케일 1)
-    FTransform CapsuleWorldTransform = BoneTransform.GetWorldTransform(CapsuleLocalTransform);
-    FMatrix WorldMatrix = FMatrix::FromTRS(CapsuleWorldTransform.Translation, CapsuleWorldTransform.Rotation, FVector(1, 1, 1));
+    // Transform center from bone-local to world space
+    // Just use the bone transform directly on the capsule center
+    FVector WorldCenter = BoneTransform.Translation + BoneTransform.Rotation.RotateVector(Capsule.Center);
+
+    // Combine rotations: bone world rotation * capsule local rotation
+    FQuat WorldRot = BoneTransform.Rotation * CapsuleRot;
+
+    FMatrix WorldMatrix = FMatrix::FromTRS(WorldCenter, WorldRot, FVector(1, 1, 1));
 
     float Radius = Capsule.Radius;
     float HalfLength = Capsule.Length * 0.5f;
