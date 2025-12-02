@@ -85,6 +85,16 @@ cbuffer ParticleSubUVBuffer : register(b6)
     int SubUV_Padding;          // 정렬을 위한 패딩
 };
 
+cbuffer ClothCB : register(b6)
+{
+	uint ClothEnabled;
+	uint ClothMode;
+	uint BaseVertexIndex;
+	uint ClothPadding;
+};
+
+StructuredBuffer<float3> gClothPosition: register(t8);
+
 // --- Material.SpecularColor 지원 매크로 ---
 // LightingCommon.hlsl의 CalculateSpecular에서 Material.SpecularColor를 사용하도록 설정
 // 금속 재질의 컬러 Specular 지원
@@ -197,7 +207,7 @@ struct PS_OUTPUT
 //================================================================================================
 // 버텍스 셰이더 (Vertex Shader)
 //================================================================================================
-PS_INPUT mainVS(VS_INPUT Input)
+PS_INPUT mainVS(VS_INPUT Input, uint VertexId : SV_VertexID)
 {
 
     PS_INPUT Out;
@@ -333,6 +343,14 @@ PS_INPUT mainVS(VS_INPUT Input)
 	Input.Tangent.xyz = normalize(BlendTangent);
 #endif
     // 위치를 월드 공간으로 먼저 변환
+    // Cloth absolute override (component space)
+    if (ClothEnabled == 1 && ClothMode == 0)
+    {
+        uint vid = VertexId + BaseVertexIndex;
+        float3 posComp = gClothPosition[vid];
+        Input.Position = posComp;
+    }
+
     float4 worldPos = mul(float4(Input.Position, 1.0f), WorldMatrix);
     Out.WorldPos = worldPos.xyz;
 

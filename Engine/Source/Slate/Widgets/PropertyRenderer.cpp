@@ -1603,7 +1603,8 @@ bool UPropertyRenderer::RenderSkeletalMeshProperty(const FProperty& Prop, void* 
 	}
 
 	// AnimInstance Section
-	if (!SkeletalMeshComponent->GetAnimInstance()) { return false; }
+	// ClothComponent는 SkeletalMeshComponent가 아니므로 AnimInstance가 없음
+	if (!SkeletalMeshComponent || !SkeletalMeshComponent->GetAnimInstance()) { return false; }
 
 	// State Machine 할당
 	ImGui::Spacing();

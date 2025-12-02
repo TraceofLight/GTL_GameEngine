@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "pch.h"
 
 // 전방 선언
@@ -54,6 +54,11 @@ struct FMeshBatchElement
 	// 인스턴스 버퍼의 스트라이드
 	uint32 InstanceStride = 0;
 
+	//Cloth GPU Skinning을 위한 데이터
+	bool bClothEnabled = false;
+	uint32 ClothMode = 0;
+	uint32 ClothBaseVertexIndex = 0;
+	ID3D11ShaderResourceView* ClothSRV = nullptr;	 //t8
 
 	// --- 3. 인스턴스 데이터 (Instance Data) ---
 	// 드로우 콜마다 고유하게 설정되는 데이터입니다. (정렬 키가 아님)

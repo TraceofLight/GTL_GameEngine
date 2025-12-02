@@ -30,15 +30,15 @@ void USkinnedMeshComponent::TickComponent(float DeltaTime)
 
 void USkinnedMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
-   // SkeletalMeshPath를 먼저 처리 (비동기 로드 중에도 경로가 유지되도록)
+   // SkeletalMeshPath???誘る닔? 嶺뚳퐣瑗??(???х뙴?꾨Ь??β돦裕녻キ?繞벿살탳????롪퍔?δ빳?귥쾸? ?????濡レ┣??
    if (bInIsLoading)
    {
-      // 로드 시: SkeletalMeshPath 읽기
+      // ?β돦裕녻キ??? SkeletalMeshPath ??袁ⓥ뵛
       FJsonSerializer::ReadString(InOutHandle, "SkeletalMeshPath", SkeletalMeshPath);
    }
    else
    {
-      // 저장 시: SkeletalMeshPath 저장 (메시가 로드 중이어도 경로 유지)
+      // ?????? SkeletalMeshPath ????(嶺뚮∥???띠쾸? ?β돦裕녻キ?繞벿살탳???????롪퍔?δ빳????)
       if (!SkeletalMeshPath.empty())
       {
          InOutHandle["SkeletalMeshPath"] = SkeletalMeshPath.c_str();
@@ -53,14 +53,14 @@ void USkinnedMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandle
 
    if (bInIsLoading)
    {
-      // 로드 시: 저장된 경로로 메시 로드
+      // ?β돦裕녻キ??? ???縕ワ쭕??롪퍔?δ빳?껋뿉?嶺뚮∥????β돦裕녻キ?
       if (!SkeletalMeshPath.empty())
       {
          SetSkeletalMesh(SkeletalMeshPath);
       }
       else if (SkeletalMesh)
       {
-         // 이전 버전 호환: SkeletalMesh 프로퍼티에서 경로 가져오기
+         // ??怨몄쓧 ?뺢퀗????筌뤿굞?? SkeletalMesh ?熬곣뫁夷???몃폃??????롪퍔?δ빳??띠럾??筌뤾쑴沅롧뼨?
          SetSkeletalMesh(SkeletalMesh->GetPathFileName());
       }
    }
@@ -102,7 +102,7 @@ void USkinnedMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMes
        }
        else
        {
-          // UE_LOG("USkinnedMeshComponent: 머티리얼이 없거나 셰이더가 없어서 기본 머티리얼 사용 section %u.", SectionIndex);
+          // UE_LOG("USkinnedMeshComponent: ?誘⑹구??⑸뎨???????섑깴????⑥щ턄??? ??怨룹꽑???リ옇????誘⑹구??⑸뎨???????section %u.", SectionIndex);
           Material = UResourceManager::GetInstance().GetDefaultMaterial();
           if (Material)
           {
@@ -110,7 +110,7 @@ void USkinnedMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMes
           }
           if (!Material || !Shader)
           {
-             UE_LOG("USkinnedMeshComponent: 기본 머티리얼이 없습니다.");
+             UE_LOG("USkinnedMeshComponent: ?リ옇????誘⑹구??⑸뎨??????怨룸????덈펲.");
              return { nullptr, nullptr };
           }
        }
@@ -199,15 +199,15 @@ FAABB USkinnedMeshComponent::GetWorldAABB() const
    //    return FAABB(Origin, Origin);
    // }
    //
-   // const FAABB LocalBound = SkeletalMesh->GetLocalBound(); // <-- 이 함수 구현 필요
+   // const FAABB LocalBound = SkeletalMesh->GetLocalBound(); // <-- ????貫????뚮뿭寃??熬곣뫗??
    // const FVector LocalMin = LocalBound.Min;
    // const FVector LocalMax = LocalBound.Max;
    //
-   // // ... (이하 AABB 계산 로직은 UStaticMeshComponent와 동일) ...
+   // // ... (??袁⑤┃ AABB ??ｌ뫒亦??β돦裕뉐퐲?? UStaticMeshComponent?? ???됰뎄) ...
    // const FVector LocalCorners[8] = {
    //    FVector(LocalMin.X, LocalMin.Y, LocalMin.Z),
    //    FVector(LocalMax.X, LocalMin.Y, LocalMin.Z),
-   //    // ... (나머지 6개 코너) ...
+   //    // ... (??濡?룫嶺뚯솘? 6???袁⑤??? ...
    //    FVector(LocalMax.X, LocalMax.Y, LocalMax.Z)
    // };
    //
@@ -248,14 +248,20 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
 
    auto& RM = UResourceManager::GetInstance();
 
-   // 경로 저장 (비동기 로드 중에도 Details 패널에서 확인 가능)
+   // ?롪퍔?δ빳?????(???х뙴?꾨Ь??β돦裕녻キ?繞벿살탳???Details ???븐꽢??????筌먦끉逾??띠럾???
    SkeletalMeshPath = PathFileName;
 
-   // 로드될 때까지 null
+   // ?β돦裕녻キ??????긺춯?뼿 null
    SkeletalMesh = nullptr;
 
    RM.AsyncLoad<USkeletalMesh>(PathFileName, [this, PathFileName](USkeletalMesh* LoadedMesh)
    {
+      // ???х뙴?꾨Ь??β돦裕녻キ??熬곣뫁???熬곣뫖?????샑???怨뺣콦?띠럾? ??????琉????????깅쾳
+      if (!IsValidObject(this))
+      {
+         return;
+      }
+
       if (LoadedMesh && LoadedMesh->GetSkeletalMeshData())
       {
          this->SkeletalMesh = LoadedMesh;

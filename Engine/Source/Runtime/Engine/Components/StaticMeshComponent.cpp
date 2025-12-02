@@ -16,6 +16,29 @@ UStaticMeshComponent::UStaticMeshComponent() = default;
 
 UStaticMeshComponent::~UStaticMeshComponent() = default;
 
+void UStaticMeshComponent::OnRegister(UWorld* InWorld)
+{
+	Super::OnRegister(InWorld);
+
+	// 에디터에서 컴포넌트를 추가했을 때 기본 Cube 메시 설정
+	if (!StaticMesh)
+	{
+		StaticMesh = UResourceManager::GetInstance().GetDefaultStaticMesh();
+		if (StaticMesh && StaticMesh->GetStaticMeshAsset())
+		{
+			StaticMesh->EnsureBodySetupBuilt();
+			const TArray<FGroupInfo>& GroupInfos = StaticMesh->GetMeshGroupInfo();
+			MaterialSlots.resize(GroupInfos.size());
+			MaterialSlotOverrides.resize(GroupInfos.size(), false);
+
+			for (size_t i = 0; i < GroupInfos.size(); ++i)
+			{
+				SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
+			}
+		}
+	}
+}
+
 void UStaticMeshComponent::OnStaticMeshReleased(UStaticMesh* ReleasedMesh)
 {
 	// TODO : 왜 this가 없는지 추적 필요!
@@ -150,6 +173,12 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 
 	RM.AsyncLoad<UStaticMesh>(PathFileName, [this, PathFileName](UStaticMesh* LoadedMesh)
 	{
+		// 비동기 로드 완료 전에 컴포넌트가 파괴되었을 수 있음
+		if (!IsValidObject(this))
+		{
+			return;
+		}
+
         if (LoadedMesh && LoadedMesh->GetStaticMeshAsset())
         {
             this->StaticMesh = LoadedMesh;

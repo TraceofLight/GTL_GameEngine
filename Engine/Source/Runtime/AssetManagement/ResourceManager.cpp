@@ -649,7 +649,7 @@ void UResourceManager::InitTexToShaderMap()
 void UResourceManager::CreateTextBillboardTexture()
 {
     UTexture* TextBillboardTexture = NewObject<UTexture>();
-    TextBillboardTexture->Load("Data/Default/Textures/TextBillboard.dds",Device);
+    TextBillboardTexture->Load("Data/Default/Texture/TextBillboard.dds",Device);
     Add<UTexture>("TextBillboard.dds", TextBillboardTexture);
 }
 

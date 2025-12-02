@@ -1,4 +1,6 @@
-﻿#include "pch.h"
+#include "pch.h"
+#include <cmath>
+#include <algorithm>
 #include "USlateManager.h"
 
 #include "CameraActor.h"
@@ -40,38 +42,84 @@ SViewportWindow* USlateManager::ActiveViewport;
 
 void USlateManager::SaveSplitterConfig()
 {
-    if (!TopPanel) return;
-
+    if (!TopPanel)
+    {
+        return;
+    }
     EditorINI["TopPanel"] = std::to_string(TopPanel->SplitRatio);
     EditorINI["LeftTop"] = std::to_string(LeftTop->SplitRatio);
     EditorINI["LeftBottom"] = std::to_string(LeftBottom->SplitRatio);
     EditorINI["LeftPanel"] = std::to_string(LeftPanel->SplitRatio);
     EditorINI["RightPanel"] = std::to_string(RightPanel->SplitRatio);
+    EditorINI["SavedHRatio"] = std::to_string(SavedHRatio);
+    EditorINI["SavedVRatioTop"] = std::to_string(SavedVRatioTop);
+    EditorINI["SavedVRatioBottom"] = std::to_string(SavedVRatioBottom);
     EditorINI["ConsoleHeight"] = std::to_string(ConsoleHeight);
 }
 
 void USlateManager::LoadSplitterConfig()
 {
-    if (!TopPanel) return;
-
+    if (!TopPanel)
+    {
+        return;
+    }
     if (EditorINI.Contains("TopPanel"))
+    {
         TopPanel->SplitRatio = std::stof(EditorINI["TopPanel"]);
+    }
     if (EditorINI.Contains("LeftTop"))
+    {
         LeftTop->SplitRatio = std::stof(EditorINI["LeftTop"]);
+    }
     if (EditorINI.Contains("LeftBottom"))
+    {
         LeftBottom->SplitRatio = std::stof(EditorINI["LeftBottom"]);
+    }
     if (EditorINI.Contains("LeftPanel"))
+    {
         LeftPanel->SplitRatio = std::stof(EditorINI["LeftPanel"]);
+    }
     if (EditorINI.Contains("RightPanel"))
+    {
         RightPanel->SplitRatio = std::stof(EditorINI["RightPanel"]);
+    }
     if (EditorINI.Contains("ConsoleHeight"))
+    {
         ConsoleHeight = std::stof(EditorINI["ConsoleHeight"]);
+    }
+    if (EditorINI.Contains("SavedHRatio"))
+    {
+        SavedHRatio = std::stof(EditorINI["SavedHRatio"]);
+    }
+    if (EditorINI.Contains("SavedVRatioTop"))
+    {
+        SavedVRatioTop = std::stof(EditorINI["SavedVRatioTop"]);
+    }
+    if (EditorINI.Contains("SavedVRatioBottom"))
+    {
+        SavedVRatioBottom = std::stof(EditorINI["SavedVRatioBottom"]);
+    }
+// Fallback: if no saved ratios, use current splitter values
+    if (!EditorINI.Contains("SavedHRatio") && LeftPanel)
+    {
+        SavedHRatio = LeftPanel->SplitRatio;
+    }
+    if (!EditorINI.Contains("SavedVRatioTop") && LeftTop)
+    {
+        SavedVRatioTop = LeftTop->SplitRatio;
+    }
+    if (!EditorINI.Contains("SavedVRatioBottom") && LeftBottom)
+    {
+        SavedVRatioBottom = LeftBottom->SplitRatio;
+    }
 }
 
 USlateManager::USlateManager()
 {
     for (auto& Viewport : Viewports)
+    {
         Viewport = nullptr;
+    }
 }
 
 USlateManager::~USlateManager()
@@ -146,7 +194,9 @@ void USlateManager::Initialize(ID3D11Device* InDevice, UWorld* InWorld, const FR
     LeftBottom->SideLT = Viewports[2];
     LeftBottom->SideRB = Viewports[3];
 
-    SwitchLayout(EViewportLayoutMode::SingleMain);
+    // 초기화 시에는 애니메이션 없이 직접 전환
+    TopPanel->SideLT = MainViewport;
+    CurrentMode = EViewportLayoutMode::SingleMain;
 
     LoadSplitterConfig();
 
@@ -437,29 +487,59 @@ void USlateManager::RequestSceneLoad(const FString& ScenePath)
 
 void USlateManager::SwitchLayout(EViewportLayoutMode NewMode)
 {
-    if (NewMode == CurrentMode) return;
-
+    if (NewMode == CurrentMode)
+    {
+        return;
+    }
+    if (ViewportAnimation.bIsAnimating)
+    {
+        return;
+    }
     if (NewMode == EViewportLayoutMode::FourSplit)
     {
-        TopPanel->SideLT = LeftPanel;
+        StartLayoutAnimation(true, CurrentPromotedViewportIndex);
     }
     else if (NewMode == EViewportLayoutMode::SingleMain)
     {
-        TopPanel->SideLT = MainViewport;
+        StartLayoutAnimation(false, 0);
     }
-
-    CurrentMode = NewMode;
 }
 
-void USlateManager::SwitchPanel(SWindow* SwitchPanel)
+void USlateManager::SwitchPanel(SWindow* InPanel)
 {
-    if (TopPanel->SideLT != SwitchPanel) {
-        TopPanel->SideLT = SwitchPanel;
-        CurrentMode = EViewportLayoutMode::SingleMain;
+    if (ViewportAnimation.bIsAnimating)
+    {
+        return;
     }
-    else {
-        TopPanel->SideLT = LeftPanel;
-        CurrentMode = EViewportLayoutMode::FourSplit;
+    // Determine viewport index from panel pointer
+    int32 ViewportIndex = -1;
+    for (int32 i = 0; i < 4; ++i)
+    {
+        if (Viewports[i] == InPanel)
+        {
+            ViewportIndex = i;
+            break;
+        }
+    }
+
+    if (TopPanel->SideLT != InPanel)
+    {
+        // FourSplit -> Single (shrink to single viewport)
+        if (ViewportIndex >= 0)
+        {
+            StartLayoutAnimation(false, ViewportIndex);
+        }
+        else
+        {
+            // Non-viewport panel, direct switch without animation
+            TopPanel->SideLT = InPanel;
+            CurrentMode = EViewportLayoutMode::SingleMain;
+        }
+    }
+    else
+    {
+        // Single -> FourSplit (restore quad layout)
+        StartLayoutAnimation(true, ViewportIndex >= 0 ? ViewportIndex : 0);
     }
 }
 
@@ -842,6 +922,10 @@ void USlateManager::Update(float DeltaSeconds)
     // MainToolbar 업데이트
     MainToolbar->Update();
 
+
+    // Viewport layout animation update
+    UpdateViewportAnimation(DeltaSeconds);
+
     if (TopPanel)
     {
         // 패딩(4) + 메뉴바(22) + 레벨탭(28) + 툴바(40) 높이만큼 아래로 이동
@@ -980,7 +1064,9 @@ void USlateManager::ProcessInput()
     if (ImGui::IsKeyPressed(ImGuiKey_P) && ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift)
     {
         if (IsPhysicsAssetEditorWindowOpen())
+        {
             ClosePhysicsAssetEditorWindow();
+        }
         else
             OpenPhysicsAssetEditorWindow();
     }
@@ -989,6 +1075,16 @@ void USlateManager::ProcessInput()
     if (ImGui::IsKeyPressed(ImGuiKey_Escape) && DynamicEditorWindow)
     {
         CloseDynamicEditor();
+    }
+
+    // F키로 선택된 액터/컴포넌트에 포커싱 (텍스트 입력 중이 아닐 때)
+    // WantCaptureKeyboard는 제외 - 아웃라이너/디테일 패널에서도 F키가 작동해야 함
+    if (ImGui::IsKeyPressed(ImGuiKey_F, false) && !ImGui::GetIO().WantTextInput)
+    {
+        if (MainViewport)
+        {
+            MainViewport->FocusOnSelectedActor();
+        }
     }
 
     // ParticleEditorWindow가 포커스된 경우 EditorWorld 입력 차단
@@ -1028,6 +1124,63 @@ void USlateManager::ProcessInput()
 
 void USlateManager::OnMouseMove(FVector2D MousePos)
 {
+    // Handle unified splitter dragging first
+    if (bIsDraggingCenterCross && LeftPanel && LeftTop && LeftBottom)
+    {
+        // Center cross drag - update both horizontal and vertical ratios
+        float deltaX = MousePos.X - SplitterDragStartPos.X;
+        float deltaY = MousePos.Y - SplitterDragStartPos.Y;
+
+        // Calculate new horizontal ratio (LeftPanel)
+        float hWidth = LeftPanel->GetWidth();
+        if (hWidth > 0)
+        {
+            float newHRatio = SplitterDragStartHRatio + deltaX / hWidth;
+            LeftPanel->SetSplitRatio(newHRatio);
+        }
+
+        // Calculate new vertical ratio (both LeftTop and LeftBottom synced)
+        float vHeight = LeftTop->GetHeight();
+        if (vHeight > 0)
+        {
+            float newVRatio = SplitterDragStartVRatio + deltaY / vHeight;
+            LeftTop->SetSplitRatio(newVRatio);
+            LeftBottom->SetSplitRatio(newVRatio);  // Sync
+        }
+
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+        return;
+    }
+
+    if (bIsDraggingVerticalLine && LeftTop && LeftBottom)
+    {
+        // Vertical line drag - update both LeftTop and LeftBottom synced
+        float deltaY = MousePos.Y - SplitterDragStartPos.Y;
+        float vHeight = LeftTop->GetHeight();
+        if (vHeight > 0)
+        {
+            float newVRatio = SplitterDragStartVRatio + deltaY / vHeight;
+            LeftTop->SetSplitRatio(newVRatio);
+            LeftBottom->SetSplitRatio(newVRatio);  // Sync
+        }
+
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+        return;
+    }
+
+    // Cursor change for hover (only in FourSplit mode)
+    if (CurrentMode == EViewportLayoutMode::FourSplit)
+    {
+        if (IsMouseOnCenterCross(MousePos))
+        {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+        }
+        else if (IsMouseOnVerticalLine(MousePos))
+        {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+        }
+    }
+
     // Route to Dynamic Editor if hovered or gizmo is being dragged
     if (DynamicEditorWindow)
     {
@@ -1059,7 +1212,30 @@ void USlateManager::OnMouseMove(FVector2D MousePos)
 
 void USlateManager::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
-    // 플로팅 윈도우가 열려있고 마우스가 그 영역 안에 있으면 해당 윈도우에 이벤트 전달
+    // Check for unified splitter control first (only left click, only in FourSplit mode)
+    if (Button == 0 && CurrentMode == EViewportLayoutMode::FourSplit)
+    {
+        if (IsMouseOnCenterCross(MousePos))
+        {
+            bIsDraggingCenterCross = true;
+            SplitterDragStartPos = MousePos;
+            SplitterDragStartHRatio = LeftPanel ? LeftPanel->GetSplitRatio() : 0.5f;
+            SplitterDragStartVRatio = LeftTop ? LeftTop->GetSplitRatio() : 0.5f;
+            return;
+        }
+        else if (IsMouseOnVerticalLine(MousePos))
+        {
+            bIsDraggingVerticalLine = true;
+            SplitterDragStartPos = MousePos;
+            SplitterDragStartVRatio = LeftTop ? LeftTop->GetSplitRatio() : 0.5f;
+
+            // Sync the splitters to start from the same ratio
+            SyncVerticalSplitters();
+            return;
+        }
+    }
+
+    // Floating windows check
     if (DynamicEditorWindow && DynamicEditorWindow->IsOpen() && DynamicEditorWindow->Rect.Contains(MousePos))
     {
         DynamicEditorWindow->OnMouseDown(MousePos, Button);
@@ -1079,14 +1255,14 @@ void USlateManager::OnMouseDown(FVector2D MousePos, uint32 Button)
     {
         TopPanel->OnMouseDown(MousePos, Button);
 
-        // 어떤 뷰포트 안에서 눌렸는지 확인
+        // Check which viewport was clicked
         for (auto* VP : Viewports)
         {
             if (VP && VP->Rect.Contains(MousePos))
             {
-                ActiveViewport = VP; // 고정
+                ActiveViewport = VP;
 
-                // 우클릭인 경우 커서 숨김 및 잠금
+                // Hide and lock cursor on right click
                 if (Button == 1)
                 {
                     INPUT.SetCursorVisible(false);
@@ -1100,7 +1276,28 @@ void USlateManager::OnMouseDown(FVector2D MousePos, uint32 Button)
 
 void USlateManager::OnMouseUp(FVector2D MousePos, uint32 Button)
 {
-    // 우클릭 해제 시 커서 복원 (ActiveViewport와 무관하게 처리)
+    // End unified splitter drag
+    if (bIsDraggingCenterCross || bIsDraggingVerticalLine)
+    {
+        bIsDraggingCenterCross = false;
+        bIsDraggingVerticalLine = false;
+
+        // Save the current ratios for animation restore
+        if (LeftPanel)
+        {
+            SavedHRatio = LeftPanel->GetSplitRatio();
+        }
+        if (LeftTop)
+        {
+            SavedVRatioTop = LeftTop->GetSplitRatio();
+        }
+        if (LeftBottom)
+        {
+            SavedVRatioBottom = LeftBottom->GetSplitRatio();
+        }
+    }
+
+    // Restore cursor on right click release
     if (Button == 1 && INPUT.IsCursorLocked())
     {
         INPUT.SetCursorVisible(true);
@@ -1110,27 +1307,24 @@ void USlateManager::OnMouseUp(FVector2D MousePos, uint32 Button)
     if (DynamicEditorWindow && DynamicEditorWindow->Rect.Contains(MousePos))
     {
         DynamicEditorWindow->OnMouseUp(MousePos, Button);
-        // do not return; still allow panels to finish mouse up
     }
 
     if (ParticleEditorWindow && ParticleEditorWindow->Rect.Contains(MousePos))
     {
         ParticleEditorWindow->OnMouseUp(MousePos, Button);
-        // do not return; still allow panels to finish mouse up
     }
 
     if (ActiveViewport)
     {
         ActiveViewport->OnMouseUp(MousePos, Button);
-        ActiveViewport = nullptr; // 드래그 끝나면 해제
+        ActiveViewport = nullptr;
     }
-    // NOTE: ActiveViewport가 있더라도 Up 이벤트는 항상 보내주어 드래그 관련 버그를 제거
+
     if (TopPanel)
     {
         TopPanel->OnMouseUp(MousePos, Button);
     }
 }
-
 void USlateManager::OnShutdown()
 {
     SaveSplitterConfig();
@@ -1140,6 +1334,10 @@ void USlateManager::Shutdown()
 {
     if (bIsShutdown) { return; }
     bIsShutdown = true;
+
+    // ThumbnailManager 먼저 정리 (ResourceManager 텍스처 참조 해제)
+    FThumbnailManager::GetInstance().Shutdown();
+
     // 레이아웃/설정 저장
     SaveSplitterConfig();
 
@@ -1254,4 +1452,331 @@ void USlateManager::OpenContentBrowser(const FString& InitialPath)
 bool USlateManager::IsContentBrowserVisible() const
 {
     return bIsContentBrowserVisible;
+}
+
+// ============================================================================
+// Viewport Layout Animation
+// ============================================================================
+
+float USlateManager::EaseInOutCubic(float InT)
+{
+    InT = std::clamp(InT, 0.0f, 1.0f);
+    return (InT < 0.5f) ? (4.0f * InT * InT * InT) : (1.0f - std::pow(-2.0f * InT + 2.0f, 3.0f) / 2.0f);
+}
+
+void USlateManager::StartLayoutAnimation(bool bSingleToQuad, int32 ViewportIndex)
+{
+    ViewportAnimation.bSingleToQuad = bSingleToQuad;
+    UE_LOG("SlateManager: StartLayoutAnimation - bSingleToQuad=%d, ViewportIndex=%d", bSingleToQuad, ViewportIndex);
+    ViewportAnimation.bIsAnimating = true;
+    ViewportAnimation.AnimationTime = 0.0f;
+    ViewportAnimation.PromotedViewportIndex = (ViewportIndex >= 0) ? ViewportIndex : 0;
+
+    // MinChildSize backup and set to 0 (to allow pushing to extremes)
+    if (LeftPanel)
+    {
+        ViewportAnimation.SavedMinChildSizeH = LeftPanel->MinChildSize;
+        LeftPanel->MinChildSize = 0;
+    }
+    if (LeftTop)
+    {
+        ViewportAnimation.SavedMinChildSizeVTop = LeftTop->MinChildSize;
+        LeftTop->MinChildSize = 0;
+    }
+    if (LeftBottom)
+    {
+        ViewportAnimation.SavedMinChildSizeVBottom = LeftBottom->MinChildSize;
+        LeftBottom->MinChildSize = 0;
+    }
+
+    if (!bSingleToQuad)
+    {
+        // Quad -> Single
+        ViewportAnimation.StartHRatio = LeftPanel ? LeftPanel->GetEffectiveRatio() : 0.5f;
+        ViewportAnimation.StartVRatioTop = LeftTop ? LeftTop->GetEffectiveRatio() : 0.5f;
+        ViewportAnimation.StartVRatioBottom = LeftBottom ? LeftBottom->GetEffectiveRatio() : 0.5f;
+
+        switch (ViewportAnimation.PromotedViewportIndex)
+        {
+        case 0: ViewportAnimation.TargetHRatio = 1.0f; ViewportAnimation.TargetVRatioTop = 1.0f; ViewportAnimation.TargetVRatioBottom = 0.5f; break;
+        case 1: ViewportAnimation.TargetHRatio = 1.0f; ViewportAnimation.TargetVRatioTop = 0.0f; ViewportAnimation.TargetVRatioBottom = 0.5f; break;
+        case 2: ViewportAnimation.TargetHRatio = 0.0f; ViewportAnimation.TargetVRatioTop = 0.5f; ViewportAnimation.TargetVRatioBottom = 1.0f; break;
+        case 3: ViewportAnimation.TargetHRatio = 0.0f; ViewportAnimation.TargetVRatioTop = 0.5f; ViewportAnimation.TargetVRatioBottom = 0.0f; break;
+        default: break;
+        }
+
+        // Save the promoted viewport index for later use
+        CurrentPromotedViewportIndex = ViewportAnimation.PromotedViewportIndex;
+    }
+    else
+    {
+        // Single -> Quad
+        switch (ViewportAnimation.PromotedViewportIndex)
+        {
+        case 0: ViewportAnimation.StartHRatio = 1.0f; ViewportAnimation.StartVRatioTop = 1.0f; ViewportAnimation.StartVRatioBottom = 0.5f; break;
+        case 1: ViewportAnimation.StartHRatio = 1.0f; ViewportAnimation.StartVRatioTop = 0.0f; ViewportAnimation.StartVRatioBottom = 0.5f; break;
+        case 2: ViewportAnimation.StartHRatio = 0.0f; ViewportAnimation.StartVRatioTop = 0.5f; ViewportAnimation.StartVRatioBottom = 1.0f; break;
+        case 3: ViewportAnimation.StartHRatio = 0.0f; ViewportAnimation.StartVRatioTop = 0.5f; ViewportAnimation.StartVRatioBottom = 0.0f; break;
+        default: break;
+        }
+
+        ViewportAnimation.TargetHRatio = SavedHRatio;
+        ViewportAnimation.TargetVRatioTop = SavedVRatioTop;
+        ViewportAnimation.TargetVRatioBottom = SavedVRatioBottom;
+
+        // Switch to Quad layout before animation starts
+        TopPanel->SideLT = LeftPanel;
+        CurrentMode = EViewportLayoutMode::FourSplit;
+
+        if (LeftPanel)
+
+        {
+
+            LeftPanel->SetEffectiveRatio(ViewportAnimation.StartHRatio);
+
+        }
+        if (LeftTop)
+        {
+            LeftTop->SetEffectiveRatio(ViewportAnimation.StartVRatioTop);
+        }
+        if (LeftBottom)
+        {
+            LeftBottom->SetEffectiveRatio(ViewportAnimation.StartVRatioBottom);
+        }
+    }
+}
+
+void USlateManager::UpdateViewportAnimation(float DeltaSeconds)
+{
+    if (!ViewportAnimation.bIsAnimating)
+    {
+        return;
+    }
+    ViewportAnimation.AnimationTime += DeltaSeconds;
+    static int32 LogCounter = 0;
+    if (++LogCounter % 30 == 0)
+        UE_LOG("SlateManager: UpdateViewportAnimation - Time=%.3f/%.3f, HRatio=%.2f, VTop=%.2f, VBottom=%.2f",
+            ViewportAnimation.AnimationTime, ViewportAnimation.AnimationDuration,
+            LeftPanel ? LeftPanel->SplitRatio : -1.0f,
+            LeftTop ? LeftTop->SplitRatio : -1.0f,
+            LeftBottom ? LeftBottom->SplitRatio : -1.0f);
+
+    float t = ViewportAnimation.AnimationTime / ViewportAnimation.AnimationDuration;
+    float k = EaseInOutCubic(std::clamp(t, 0.0f, 1.0f));
+
+    // Lerp
+    auto Lerp = [](float A, float B, float Alpha) { return A + Alpha * (B - A); };
+
+    float CurrentH = Lerp(ViewportAnimation.StartHRatio, ViewportAnimation.TargetHRatio, k);
+    float CurrentVTop = Lerp(ViewportAnimation.StartVRatioTop, ViewportAnimation.TargetVRatioTop, k);
+    float CurrentVBottom = Lerp(ViewportAnimation.StartVRatioBottom, ViewportAnimation.TargetVRatioBottom, k);
+
+    if (LeftPanel)
+
+    {
+
+        LeftPanel->SetEffectiveRatio(CurrentH);
+
+    }
+    if (LeftTop)
+    {
+        LeftTop->SetEffectiveRatio(CurrentVTop);
+    }
+    if (LeftBottom)
+    {
+        LeftBottom->SetEffectiveRatio(CurrentVBottom);
+    }
+    SyncRectsToViewports();
+
+    if (t >= 1.0f)
+    {
+        if (ViewportAnimation.bSingleToQuad)
+        {
+            FinalizeFourSplitLayoutFromAnimation();
+        }
+        else
+            FinalizeSingleLayoutFromAnimation();
+    }
+}
+
+void USlateManager::FinalizeSingleLayoutFromAnimation()
+{
+    UE_LOG("SlateManager: FinalizeSingleLayoutFromAnimation completed");
+    ViewportAnimation.bIsAnimating = false;
+
+    // MinChildSize 복원
+    if (LeftPanel)
+    {
+        LeftPanel->MinChildSize = ViewportAnimation.SavedMinChildSizeH;
+    }
+    if (LeftTop)
+    {
+        LeftTop->MinChildSize = ViewportAnimation.SavedMinChildSizeVTop;
+    }
+    if (LeftBottom)
+    {
+        LeftBottom->MinChildSize = ViewportAnimation.SavedMinChildSizeVBottom;
+    }
+    // 현재 비율 저장 (나중에 복원용)
+    if (LeftPanel)
+    {
+        SavedHRatio = ViewportAnimation.StartHRatio;
+    }
+    if (LeftTop)
+    {
+        SavedVRatioTop = ViewportAnimation.StartVRatioTop;
+    }
+    if (LeftBottom)
+    {
+        SavedVRatioBottom = ViewportAnimation.StartVRatioBottom;
+    }
+    // Single 레이아웃으로 전환
+    TopPanel->SideLT = Viewports[CurrentPromotedViewportIndex];
+    CurrentMode = EViewportLayoutMode::SingleMain;
+
+    // QuadRoot 비율 복원
+    if (LeftPanel)
+    {
+        LeftPanel->SetEffectiveRatio(SavedHRatio);
+    }
+    if (LeftTop)
+    {
+        LeftTop->SetEffectiveRatio(SavedVRatioTop);
+    }
+    if (LeftBottom)
+    {
+        LeftBottom->SetEffectiveRatio(SavedVRatioBottom);
+    }
+    SyncRectsToViewports();
+}
+
+void USlateManager::FinalizeFourSplitLayoutFromAnimation()
+{
+    ViewportAnimation.bIsAnimating = false;
+    UE_LOG("SlateManager: FinalizeFourSplitLayoutFromAnimation completed");
+
+    // MinChildSize 복원
+    if (LeftPanel)
+    {
+        LeftPanel->MinChildSize = ViewportAnimation.SavedMinChildSizeH;
+    }
+    if (LeftTop)
+    {
+        LeftTop->MinChildSize = ViewportAnimation.SavedMinChildSizeVTop;
+    }
+    if (LeftBottom)
+    {
+        LeftBottom->MinChildSize = ViewportAnimation.SavedMinChildSizeVBottom;
+    }
+    // 최종 비율 적용
+    if (LeftPanel)
+    {
+        LeftPanel->SetEffectiveRatio(ViewportAnimation.TargetHRatio);
+    }
+    if (LeftTop)
+    {
+        LeftTop->SetEffectiveRatio(ViewportAnimation.TargetVRatioTop);
+    }
+    if (LeftBottom)
+    {
+        LeftBottom->SetEffectiveRatio(ViewportAnimation.TargetVRatioBottom);
+    }
+    // 저장
+    SavedHRatio = ViewportAnimation.TargetHRatio;
+    SavedVRatioTop = ViewportAnimation.TargetVRatioTop;
+    SavedVRatioBottom = ViewportAnimation.TargetVRatioBottom;
+
+    SyncRectsToViewports();
+}
+
+void USlateManager::SyncRectsToViewports() const
+{
+    // 뷰포트 Rect 동기화 (OnUpdate에서 처리되므로 여기서는 특별한 작업 불필요)
+}
+
+// ============================================================================
+// Unified Splitter Control (Unreal-style)
+// ============================================================================
+
+FRect USlateManager::GetCenterCrossRect() const
+{
+    if (!LeftPanel || !LeftTop || !LeftBottom)
+    {
+        return FRect();
+    }
+    if (CurrentMode != EViewportLayoutMode::FourSplit)
+    {
+        return FRect();
+    }
+    // Get the intersection point of splitters
+    // LeftPanel (SSplitterH) has a VERTICAL bar -> get X position from it
+    // LeftTop (SSplitterV) has a HORIZONTAL bar -> get Y position from it
+    FRect verticalBarRect = LeftPanel->GetSplitterRect();    // Vertical bar (divides left/right)
+    FRect horizontalBarRect = LeftTop->GetSplitterRect();    // Horizontal bar (divides top/bottom)
+
+    // Center cross is where vertical bar meets horizontal bar
+    float crossCenterX = (verticalBarRect.Min.X + verticalBarRect.Max.X) * 0.5f;
+    float crossCenterY = (horizontalBarRect.Min.Y + horizontalBarRect.Max.Y) * 0.5f;
+
+    // Make a square region around the center
+    float halfSize = 8.0f;  // Detection radius
+    return {
+        crossCenterX - halfSize, crossCenterY - halfSize,
+        crossCenterX + halfSize, crossCenterY + halfSize
+    };
+}
+
+FRect USlateManager::GetVerticalLineRect() const
+{
+    if (!LeftPanel || !LeftTop || !LeftBottom)
+    {
+        return FRect();
+    }
+    if (CurrentMode != EViewportLayoutMode::FourSplit)
+    {
+        return FRect();
+    }
+    // Vertical line spans across both LeftTop and LeftBottom splitter bars
+    FRect vRectTop = LeftTop->GetSplitterRect();
+    FRect vRectBottom = LeftBottom->GetSplitterRect();
+
+    // Combined vertical line rect (excluding center cross area)
+    return FRect(
+        vRectTop.Min.X, vRectTop.Min.Y,
+        vRectTop.Max.X, vRectBottom.Max.Y
+    );
+}
+
+bool USlateManager::IsMouseOnCenterCross(FVector2D MousePos) const
+{
+    FRect crossRect = GetCenterCrossRect();
+    return MousePos.X >= crossRect.Min.X && MousePos.X <= crossRect.Max.X &&
+           MousePos.Y >= crossRect.Min.Y && MousePos.Y <= crossRect.Max.Y;
+}
+
+bool USlateManager::IsMouseOnVerticalLine(FVector2D MousePos) const
+{
+    if (!LeftTop || !LeftBottom)
+    {
+        return false;
+    }
+    // Check if mouse is on either vertical splitter (but not on center cross)
+    if (IsMouseOnCenterCross(MousePos))
+    {
+        return false;
+    }
+
+    return LeftTop->IsMouseOnSplitter(MousePos) || LeftBottom->IsMouseOnSplitter(MousePos);
+}
+
+void USlateManager::SyncVerticalSplitters()
+{
+    if (!LeftTop || !LeftBottom)
+    {
+        return;
+    }
+    // Sync LeftTop and LeftBottom to have the same ratio
+    // Use LeftTop's ratio as the master
+    float masterRatio = LeftTop->GetSplitRatio();
+    LeftBottom->SetSplitRatio(masterRatio);
 }

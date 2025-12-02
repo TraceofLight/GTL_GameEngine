@@ -10,6 +10,18 @@ enum class EPhysicsPipelineMode
 	FetchAfterRender,
 };
 
+struct FilterGroup
+{
+	enum Enum
+	{
+		eSUBMARINE		= (1 << 0),
+		eMINE_HEAD		= (1 << 1),
+		eMINE_LINK		= (1 << 2),
+		eCRAB			= (1 << 3),
+		eHEIGHTFILED	= (1 << 4),
+	};
+};
+
 // Scene 생성에 필요한 정보를 담은 구조체
 struct FPhysicsSceneHandle
 {

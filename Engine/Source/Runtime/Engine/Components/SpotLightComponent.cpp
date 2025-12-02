@@ -157,7 +157,7 @@ void USpotLightComponent::OnRegister(UWorld* InWorld)
 	
 	if (SpriteComponent)
 	{
-		SpriteComponent->SetTexture(GDataDir + "/Default/UI/Icons/SpotLight_64x.png");
+		SpriteComponent->SetTexture(GDataDir + "/Default/Icon/SpotLight_64x.png");
 	}
 
 	// Create Direction Gizmo if not already created

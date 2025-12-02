@@ -45,6 +45,7 @@ public:
     void TermBody();
 
 	bool IsValid() const { return PhysicsActor != nullptr; }
+	PxRigidActor* GetPhysicsActor() const { return PhysicsActor; }
 
     // Extended API
     void CreateShapesFromBodySetup();

@@ -1355,6 +1355,12 @@ struct FTransform
 			Scale3D == Other.Scale3D;
 	}
 	bool operator!=(const FTransform& Other) const { return !(*this == Other); }
+
+	/** Translation 반환 */
+	FVector GetLocation() const
+	{
+		return Translation;
+	}
 };
 
 // ─────────────────────────────

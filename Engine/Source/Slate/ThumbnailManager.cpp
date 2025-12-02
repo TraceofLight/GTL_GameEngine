@@ -35,16 +35,19 @@ void FThumbnailManager::Shutdown()
 	}
 	ThumbnailCache.clear();
 
-	// 기본 아이콘 해제 (항상 Manager가 소유)
+	// 기본 아이콘 해제 (Manager가 소유한 것만)
 	for (auto& Pair : DefaultIconCache)
 	{
-		if (Pair.second.SRV)
+		if (Pair.second.bOwnedByManager)
 		{
-			Pair.second.SRV->Release();
-		}
-		if (Pair.second.Texture)
-		{
-			Pair.second.Texture->Release();
+			if (Pair.second.SRV)
+			{
+				Pair.second.SRV->Release();
+			}
+			if (Pair.second.Texture)
+			{
+				Pair.second.Texture->Release();
+			}
 		}
 	}
 	DefaultIconCache.clear();
@@ -106,6 +109,26 @@ ID3D11ShaderResourceView* FThumbnailManager::GetThumbnail(const std::string& Fil
 	else if (Extension == ".scene")
 	{
 		ThumbnailData = CreateSceneThumbnail(FilePath);
+	}
+	else if (Extension == ".blend2d")
+	{
+		ThumbnailData = CreateBlendSpace2DThumbnail(FilePath);
+	}
+	else if (Extension == ".wav" || Extension == ".mp3" || Extension == ".ogg")
+	{
+		ThumbnailData = CreateSoundThumbnail(FilePath);
+	}
+	else if (Extension == ".lua")
+	{
+		ThumbnailData = CreateLuaThumbnail(FilePath);
+	}
+	else if (Extension == ".statemachine")
+	{
+		ThumbnailData = CreateStateMachineThumbnail(FilePath);
+	}
+	else if (Extension == ".anim")
+	{
+		ThumbnailData = CreateAnimThumbnail(FilePath);
 	}
 	else
 	{
@@ -170,15 +193,14 @@ void FThumbnailManager::InvalidateThumbnail(const std::string& Key)
 
 FThumbnailData* FThumbnailManager::CreateFBXThumbnail(const std::string& FilePath)
 {
-	// TODO: 실제 FBX 메시를 렌더타겟에 렌더링하여 썸네일 생성
-	// 현재는 기본 아이콘 반환 (로그는 첫 번째 호출에서만 출력)
-	static bool bLoggedOnce = false;
-	if (!bLoggedOnce)
+	if (!Device)
 	{
-		UE_LOG("ThumbnailManager: FBX thumbnail generation not yet implemented (using default icon)");
-		bLoggedOnce = true;
+		return nullptr;
 	}
-	return CreateDefaultThumbnail(".fbx");
+
+	// .fbx 파일은 FBXFile.dds 아이콘 사용
+	std::string IconPath = GDataDir + "/Default/Icon/FBXFile.dds";
+	return CreateImageThumbnail(IconPath);
 }
 
 FThumbnailData* FThumbnailManager::CreateImageThumbnail(const std::string& FilePath)
@@ -422,5 +444,84 @@ FThumbnailData* FThumbnailManager::CreateSceneThumbnail(const std::string& FileP
 
 	// .scene 파일은 Level.dds 아이콘 사용
 	std::string IconPath = GDataDir + "/Default/Icon/Level.dds";
+	return CreateImageThumbnail(IconPath);
+}
+
+ID3D11ShaderResourceView* FThumbnailManager::GetFolderThumbnail()
+{
+	static const std::string FolderCacheKey = "__folder__";
+
+	// 캐시에 있으면 반환
+	auto It = DefaultIconCache.find(FolderCacheKey);
+	if (It != DefaultIconCache.end())
+	{
+		return It->second.SRV;
+	}
+
+	// FolderLargeVirtual.dds 아이콘 로드
+	std::string IconPath = GDataDir + "/Default/Icon/FolderLargeVirtual.dds";
+	FThumbnailData* Data = CreateImageThumbnail(IconPath);
+	if (Data && Data->SRV)
+	{
+		// DefaultIconCache에 복사 (ThumbnailCache에서 DefaultIconCache로 이동)
+		DefaultIconCache[FolderCacheKey] = *Data;
+		return Data->SRV;
+	}
+
+	return nullptr;
+}
+
+FThumbnailData* FThumbnailManager::CreateBlendSpace2DThumbnail(const std::string& FilePath)
+{
+	if (!Device)
+	{
+		return nullptr;
+	}
+
+	std::string IconPath = GDataDir + "/Default/Icon/BlendSpace_64.dds";
+	return CreateImageThumbnail(IconPath);
+}
+
+FThumbnailData* FThumbnailManager::CreateSoundThumbnail(const std::string& FilePath)
+{
+	if (!Device)
+	{
+		return nullptr;
+	}
+
+	std::string IconPath = GDataDir + "/Default/Icon/SoundAttenuation_64.dds";
+	return CreateImageThumbnail(IconPath);
+}
+
+FThumbnailData* FThumbnailManager::CreateLuaThumbnail(const std::string& FilePath)
+{
+	if (!Device)
+	{
+		return nullptr;
+	}
+
+	std::string IconPath = GDataDir + "/Default/Icon/LuaLogo.dds";
+	return CreateImageThumbnail(IconPath);
+}
+
+FThumbnailData* FThumbnailManager::CreateStateMachineThumbnail(const std::string& FilePath)
+{
+	if (!Device)
+	{
+		return nullptr;
+	}
+
+	std::string IconPath = GDataDir + "/Default/Icon/StateMachine.dds";
+	return CreateImageThumbnail(IconPath);
+}
+
+FThumbnailData* FThumbnailManager::CreateAnimThumbnail(const std::string& FilePath)
+{
+	if (!Device)
+	{
+		return nullptr;
+	}
+
+	std::string IconPath = GDataDir + "/Default/Icon/AnimSequence_64.dds";
 	return CreateImageThumbnail(IconPath);
 }

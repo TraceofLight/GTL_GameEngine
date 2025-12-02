@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "PhysicsAsset.h"
+#include "PhysicsConstraintSetup.h"
+#include "Source/Runtime/Core/Misc/JsonSerializer.h"
 
 IMPLEMENT_CLASS(UPhysicsAsset)
 
@@ -129,4 +131,123 @@ FAABB UPhysicsAsset::CalcAABB(const TMap<FName, FTransform>& BoneWorldTMs, float
         return FAABB(FVector(0, 0, 0), FVector(0, 0, 0));
     }
     return FAABB(GlobalMin, GlobalMax);
+}
+
+// ===== Constraint 관리 =====
+
+int32 UPhysicsAsset::FindConstraintIndexByBoneNames(FName Bone1, FName Bone2) const
+{
+	for (int32 i = 0; i < ConstraintSetups.Num(); ++i)
+	{
+		if (ConstraintSetups[i] &&
+			ConstraintSetups[i]->ConstraintBone1 == Bone1 &&
+			ConstraintSetups[i]->ConstraintBone2 == Bone2)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+UPhysicsConstraintSetup* UPhysicsAsset::FindConstraintByBoneNames(FName Bone1, FName Bone2)
+{
+	const int32 Idx = FindConstraintIndexByBoneNames(Bone1, Bone2);
+	return (Idx != -1) ? ConstraintSetups[Idx] : nullptr;
+}
+
+int32 UPhysicsAsset::AddConstraintSetup(UPhysicsConstraintSetup* NewSetup)
+{
+	if (!NewSetup)
+	{
+		return -1;
+	}
+
+	const int32 Idx = ConstraintSetups.Num();
+	ConstraintSetups.Add(NewSetup);
+	return Idx;
+}
+
+// ===== Serialization =====
+
+void UPhysicsAsset::Serialize(bool bIsLoading, JSON& Json)
+{
+	if (bIsLoading)
+	{
+		// Source Skeletal Path
+		FJsonSerializer::ReadString(Json, "SourceSkeletalPath", SourceSkeletalPath, "");
+
+		// BodySetups
+		BodySetups.Empty();
+		BoneNameToBodyIndex.clear();
+
+		if (Json.hasKey("BodySetups") && Json["BodySetups"].JSONType() == JSON::Class::Array)
+		{
+			for (JSON& BodyJson : Json["BodySetups"].ArrayRange())
+			{
+				UBodySetup* NewSetup = NewObject<UBodySetup>();
+				NewSetup->Serialize(true, BodyJson);
+				AddBodySetup(NewSetup);
+			}
+		}
+
+		// ConstraintSetups
+		for (UPhysicsConstraintSetup* Constraint : ConstraintSetups)
+		{
+			if (Constraint)
+			{
+				ObjectFactory::DeleteObject(Constraint);
+			}
+		}
+		ConstraintSetups.Empty();
+
+		if (Json.hasKey("ConstraintSetups") && Json["ConstraintSetups"].JSONType() == JSON::Class::Array)
+		{
+			for (JSON& ConstraintJson : Json["ConstraintSetups"].ArrayRange())
+			{
+				UPhysicsConstraintSetup* NewConstraint = NewObject<UPhysicsConstraintSetup>();
+				NewConstraint->Serialize(true, ConstraintJson);
+
+				// BodyIndex 재설정 (BoneName 기반)
+				NewConstraint->BodyIndex1 = FindBodyIndexByBoneName(NewConstraint->ConstraintBone1);
+				NewConstraint->BodyIndex2 = FindBodyIndexByBoneName(NewConstraint->ConstraintBone2);
+
+				AddConstraintSetup(NewConstraint);
+			}
+		}
+
+		UE_LOG("[PhysicsAsset] Loaded: %d bodies, %d constraints from '%s'",
+			   BodySetups.Num(), ConstraintSetups.Num(), SourceSkeletalPath.c_str());
+	}
+	else
+	{
+		// Source Skeletal Path
+		Json["SourceSkeletalPath"] = SourceSkeletalPath;
+
+		// BodySetups
+		Json["BodySetups"] = JSON::Make(JSON::Class::Array);
+		for (UBodySetup* Setup : BodySetups)
+		{
+			if (Setup)
+			{
+				JSON BodyJson;
+				Setup->Serialize(false, BodyJson);
+				Json["BodySetups"].append(BodyJson);
+			}
+		}
+
+		// ConstraintSetups
+		Json["ConstraintSetups"] = JSON::Make(JSON::Class::Array);
+		for (UPhysicsConstraintSetup* Constraint : ConstraintSetups)
+		{
+			if (Constraint)
+			{
+				JSON ConstraintJson;
+				Constraint->Serialize(false, ConstraintJson);
+				Json["ConstraintSetups"].append(ConstraintJson);
+			}
+		}
+
+		UE_LOG("[PhysicsAsset] Saved: %d bodies, %d constraints",
+			   BodySetups.Num(), ConstraintSetups.Num());
+	}
 }
