@@ -52,14 +52,19 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, con
         return false;
     }
 
-    const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
-    const TArray<FBone>& Bones = Skeleton->Bones;
-    const int32 NumBones = Bones.Num();
-
     // Clear existing data
     PhysicsAsset->BodySetups.Empty();
     PhysicsAsset->BoneNameToBodyIndex.clear();
     PhysicsAsset->SourceSkeletalPath = SkeletalMesh->GetPathFileName();
+
+    return CreateFromSkeletalMeshInternal(PhysicsAsset, SkeletalMesh, Params);
+}
+
+bool FPhysicsAssetUtils::CreateFromSkeletalMeshInternal(UPhysicsAsset* PhysicsAsset, const USkeletalMesh* SkeletalMesh, const FPhysAssetCreateParams& Params)
+{
+    const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
+    const TArray<FBone>& Bones = Skeleton->Bones;
+    const int32 NumBones = Bones.Num();
 
     // Build children list for each bone
     TArray<TArray<int32>> BoneChildren;

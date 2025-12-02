@@ -32,6 +32,7 @@ namespace FPhysicsAssetUtils
      * Creates physics bodies from a skeletal mesh's bone hierarchy.
      * Generates capsules for each non-leaf bone based on bone length and heuristic radius.
      * Small bones are merged into their parents based on MinBoneSize parameter.
+     * This is the public entry point that handles validation and setup.
      *
      * @param PhysicsAsset  The physics asset to populate (will be cleared first)
      * @param SkeletalMesh  The skeletal mesh to generate bodies from
@@ -39,6 +40,17 @@ namespace FPhysicsAssetUtils
      * @return true if any bodies were created
      */
     bool CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, const USkeletalMesh* SkeletalMesh, const FPhysAssetCreateParams& Params = FPhysAssetCreateParams());
+
+    /**
+     * Internal implementation of physics asset creation.
+     * Called by CreateFromSkeletalMesh after validation.
+     *
+     * @param PhysicsAsset  The physics asset to populate
+     * @param SkeletalMesh  The skeletal mesh to generate bodies from
+     * @param Params        Creation parameters (MinBoneSize, MinWeldSize, etc.)
+     * @return true if any bodies were created
+     */
+    bool CreateFromSkeletalMeshInternal(UPhysicsAsset* PhysicsAsset, const USkeletalMesh* SkeletalMesh, const FPhysAssetCreateParams& Params);
 
     /**
      * Creates a new BodySetup for a specific bone and adds it to the PhysicsAsset.
