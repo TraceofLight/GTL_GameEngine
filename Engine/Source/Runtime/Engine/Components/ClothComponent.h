@@ -14,6 +14,7 @@
 /**
  * @brief Cloth 시뮬레이션 설정
  */
+
 struct FClothSimulationSettings
 {
 	// Physics properties
@@ -22,7 +23,6 @@ struct FClothSimulationSettings
 	float LinearDrag = 0.2f;                    // 선형 저항
 	float AngularDrag = 0.2f;                   // 각속도 저항
 	float Friction = 0.5f;                      // 마찰
-
 	// Stretch constraints (Horizontal/Vertical)
 	float StretchStiffness = 0.5f;              // 신축 강성 (0-1)
 	float StretchStiffnessMultiplier = 0.5f;    // 강성 배율
@@ -49,7 +49,7 @@ struct FClothSimulationSettings
 	float SelfCollisionStiffness = 1.0f;        // 자체 충돌 강성
 
 	// Solver
-	int32 SolverFrequency = 300;                // Solver 주파수 (Hz)
+	int32 SolverFrequency = 120;                // Solver 주파수 (Hz)
 	int32 StiffnessFrequency = 10;              // 강성 업데이트 주파수
 
 	// Gravity
@@ -57,7 +57,7 @@ struct FClothSimulationSettings
 	FVector GravityOverride = FVector(0, 0, -980.0f); // 중력 오버라이드 (cm/s^2)
 
 	// Wind
-	FVector WindVelocity = FVector(100, 0, 0);  // 바람 속도 (cm/s)
+	FVector WindVelocity = FVector(0.01, 0, 0);  // 바람 속도 (cm/s)
 	float WindDrag = 0.5f;                      // 바람 저항 (0-1)
 	float WindLift = 0.3f;                      // 바람 양력 (0-1)
 
@@ -135,7 +135,7 @@ public:
 	//void SetClothEnabled(bool bEnabled);
 	//bool IsClothEnabled() const { return bClothEnabled; }
 
-	//// Settings
+	// Settings
 	//void SetClothSettings(const FClothSimulationSettings& NewSettings);
 	const FClothSimulationSettings& GetClothSettings() const { return ClothSettings; }
 
@@ -241,4 +241,8 @@ private:
 	nv::cloth::Solver* solver;
 	nv::cloth::PhaseConfig* phases;
 	 
+	void CreateOrResizeClothGPUBuffer(uint32 Float3Count);
+	void UpdateClothGPUBufferFromParticles();         // PreviousParticles -> GPU
+	void ReleaseClothGPUBuffer(); 
 };
+

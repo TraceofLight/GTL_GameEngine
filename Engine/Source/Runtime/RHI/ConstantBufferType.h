@@ -330,10 +330,29 @@ struct alignas(16) FSkyConstantBuffer
     }
 };
 
+struct ClothBufferType
+{
+	uint32 ClothEnabled;
+	uint32 ClothMode;			// 0: Absolute , 1: Delta
+	uint32 BaseVertexIndex;
+	uint32 Padding;
+
+	// 기본값 설정
+	ClothBufferType(uint32 Enabled = 0, uint32 Mode = 0, uint32 Base = 0)
+		: ClothEnabled(Enabled), ClothMode(Mode), BaseVertexIndex(Base), Padding(0) {
+	}
+};
+
+
 #define CONSTANT_BUFFER_INFO(TYPE, SLOT, VS, PS) \
 constexpr uint32 TYPE##Slot = SLOT;\
 constexpr bool TYPE##IsVS = VS;\
 constexpr bool TYPE##IsPS = PS;
+
+// Cloth buffer binding mapping (VS b6)
+constexpr uint32 ClothBufferTypeSlot = 6;
+constexpr bool ClothBufferTypeIsVS = true;
+constexpr bool ClothBufferTypeIsPS = false;
 
 //매크로를 인자로 받고 그 매크로 함수에 버퍼 전달
 #define CONSTANT_BUFFER_LIST_SMALL(MACRO) \
@@ -356,7 +375,8 @@ MACRO(FViewportConstants)           \
 MACRO(FTileCullingBufferType)       \
 MACRO(FPointLightShadowBufferType)  \
 MACRO(FParticleSubUVBufferType)     \
-MACRO(FSkyConstantBuffer)
+MACRO(FSkyConstantBuffer)           \
+MACRO(ClothBufferType)
 
 // 2. void*로만 전달해야 하는 큰 버퍼들
 #define CONSTANT_BUFFER_LIST_LARGE(MACRO) \

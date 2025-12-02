@@ -71,6 +71,15 @@ protected:
 	*/
 	ID3D11Buffer* VertexBuffer = nullptr;
 	bool bSkinningMatricesDirty = true;
+
+
+
+	// GPU Cloth Buffer
+	ID3D11Buffer* ClothGPUBuffer = nullptr;				// StructuredBuffer<float3>
+	ID3D11ShaderResourceView* ClothGPUSRV = nullptr;	// SRV for t8
+	uint32 ClothGPUBufferSize = 0;						// float3 개수
+
+
 private:
     void PerformSkinning();
     FVector SkinVertexPosition(const FSkinnedVertex& InVertex) const;
