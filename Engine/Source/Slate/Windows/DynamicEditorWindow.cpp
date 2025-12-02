@@ -30,6 +30,9 @@
 #include "Source/Runtime/Engine/Animation/AnimStateMachine.h"
 #include "Source/Runtime/Core/Misc/Archive.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
+#include "Source/Runtime/Engine/PhysicsAssetViewer/PhysicsAssetViewerState.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAssetUtils.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
 
 // ============================================================================
 // SDynamicEditorWindow 구현
@@ -718,6 +721,7 @@ void SDynamicEditorWindow::OnRender()
 			ImGui::Spacing();
 			ImGui::Separator();
 			ImGui::Spacing();
+
 
 			// Toolbar 영역 만큼 높이 빼기
 			contentAvail = ImGui::GetContentRegionAvail();
@@ -2520,6 +2524,34 @@ void SDynamicEditorWindow::OnSaveClicked()
 		if (EmbeddedBlendSpace2DEditor)
 		{
 			EmbeddedBlendSpace2DEditor->SaveCurrentBlendSpace();
+		}
+		break;
+
+	case EEditorMode::PhysicsAsset:
+		if (EmbeddedPhysicsAssetEditor)
+		{
+			PhysicsAssetViewerState* PAEState = EmbeddedPhysicsAssetEditor->GetActiveState();
+			if (PAEState && PAEState->PhysicsAsset)
+			{
+				// 저장 경로 결정
+				FString SavePath = PAEState->LoadedPhysicsAssetPath;
+				if (SavePath.empty())
+				{
+					// 기본 경로 생성
+					if (!PAEState->LoadedMeshPath.empty())
+					{
+						size_t DotPos = PAEState->LoadedMeshPath.find_last_of('.');
+						SavePath = (DotPos != FString::npos) ?
+							PAEState->LoadedMeshPath.substr(0, DotPos) + ".physicsasset" :
+							PAEState->LoadedMeshPath + ".physicsasset";
+					}
+					else
+					{
+						SavePath = "Data/PhysicsAsset/NewPhysicsAsset.physicsasset";
+					}
+				}
+				EmbeddedPhysicsAssetEditor->SavePhysicsAsset(SavePath);
+			}
 		}
 		break;
 	}

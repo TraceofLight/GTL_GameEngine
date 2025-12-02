@@ -8,7 +8,7 @@ static inline FVector AbsVec(const FVector& V)
 
 int32 FKAggregateGeom::GetElementCount() const
 {
-    return static_cast<int32>(SphereElems.Num() + BoxElems.Num());
+    return static_cast<int32>(SphereElems.Num() + BoxElems.Num() + SphylElems.Num());
 }
 
 int32 FKAggregateGeom::GetElementCount(EAggCollisionShape::Type InType) const
@@ -19,6 +19,8 @@ int32 FKAggregateGeom::GetElementCount(EAggCollisionShape::Type InType) const
     	return static_cast<int32>(SphereElems.Num());
     case EAggCollisionShape::Box:
     	return static_cast<int32>(BoxElems.Num());
+    case EAggCollisionShape::Capsule:
+    	return static_cast<int32>(SphylElems.Num());
     default:
     	return 0;
     }
@@ -35,6 +37,10 @@ FKShapeElem* FKAggregateGeom::GetElement(EAggCollisionShape::Type InType, int32 
     case EAggCollisionShape::Box:
         if (0 <= Index && Index < BoxElems.Num())
         	return &BoxElems[Index];
+        break;
+    case EAggCollisionShape::Capsule:
+        if (0 <= Index && Index < SphylElems.Num())
+        	return &SphylElems[Index];
         break;
     default:
         break;
@@ -54,6 +60,10 @@ const FKShapeElem* FKAggregateGeom::GetElement(EAggCollisionShape::Type InType, 
         if (0 <= Index && Index < BoxElems.Num())
         	return &BoxElems[Index];
         break;
+    case EAggCollisionShape::Capsule:
+        if (0 <= Index && Index < SphylElems.Num())
+        	return &SphylElems[Index];
+        break;
     default:
         break;
     }
@@ -70,6 +80,10 @@ FKShapeElem* FKAggregateGeom::GetElementByName(const FName& InName)
     {
 	    if (E.GetName() == InName) return &E;
     }
+    for (auto& E : SphylElems)
+    {
+	    if (E.GetName() == InName) return &E;
+    }
     return nullptr;
 }
 
@@ -80,6 +94,10 @@ const FKShapeElem* FKAggregateGeom::GetElementByName(const FName& InName) const
 	    if (E.GetName() == InName) return &E;
     }
     for (auto& E : BoxElems)
+    {
+	    if (E.GetName() == InName) return &E;
+    }
+    for (auto& E : SphylElems)
     {
 	    if (E.GetName() == InName) return &E;
     }

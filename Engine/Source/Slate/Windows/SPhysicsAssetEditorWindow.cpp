@@ -1496,8 +1496,48 @@ void SPhysicsAssetBodyListPanel::RenderConstraintList(PhysicsAssetViewerState* S
         return;
     }
 
-    // TODO: Render constraint list
-    ImGui::TextDisabled("(Constraint list will appear here)");
+    // PhysicsAsset이 없거나 Constraint가 없으면 안내 메시지
+    if (!State->PhysicsAsset || State->PhysicsAsset->ConstraintSetups.IsEmpty())
+    {
+        ImGui::TextDisabled("No constraints");
+        ImGui::TextDisabled("Use 'Generate Ragdoll' to create");
+        return;
+    }
+
+    // Constraint 목록 렌더링
+    UPhysicsAsset* PhysAsset = State->PhysicsAsset;
+    for (int32 i = 0; i < PhysAsset->ConstraintSetups.Num(); ++i)
+    {
+        UPhysicsConstraintSetup* Setup = PhysAsset->ConstraintSetups[i];
+        if (!Setup) continue;
+
+        char label[256];
+        sprintf_s(label, "[C%d] %s <-> %s",
+            i,
+            Setup->ConstraintBone1.ToString().c_str(),
+            Setup->ConstraintBone2.ToString().c_str());
+
+        bool bSelected = (State->SelectedConstraintIndex == i);
+        if (ImGui::Selectable(label, bSelected))
+        {
+            State->SelectedConstraintIndex = i;
+            State->EditMode = EPhysicsAssetEditMode::Constraint;
+        }
+
+        // 툴팁
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::BeginTooltip();
+            ImGui::Text("Constraint %d", i);
+            ImGui::Text("Body1: %s (idx %d)", Setup->ConstraintBone1.ToString().c_str(), Setup->BodyIndex1);
+            ImGui::Text("Body2: %s (idx %d)", Setup->ConstraintBone2.ToString().c_str(), Setup->BodyIndex2);
+            ImGui::Separator();
+            ImGui::Text("Swing1: %.1f deg", Setup->Swing1LimitAngle);
+            ImGui::Text("Swing2: %.1f deg", Setup->Swing2LimitAngle);
+            ImGui::Text("Twist: %.1f deg", Setup->TwistLimitAngle);
+            ImGui::EndTooltip();
+        }
+    }
 }
 
 // --- SPhysicsAssetPropertiesPanel ---
@@ -1540,6 +1580,14 @@ void SPhysicsAssetPropertiesPanel::OnRender()
                     ImGui::BeginDisabled();
                 }
 
+                // Constraint 자동 생성 체크박스 옵션
+                static bool bAlsoGenerateConstraints = true;
+                ImGui::Checkbox("Also Generate Constraints", &bAlsoGenerateConstraints);
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("When enabled, ragdoll constraints will be\nautomatically generated along with bodies");
+                }
+
                 if (ImGui::Button("Auto-Generate Bodies", ImVec2(-1, 0)))
                 {
                     if (State->CurrentMesh)
@@ -1561,7 +1609,26 @@ void SPhysicsAssetPropertiesPanel::OnRender()
 
                         if (bProceed)
                         {
+                            // Bodies 생성
                             FPhysicsAssetUtils::CreateFromSkeletalMesh(State->PhysicsAsset, State->CurrentMesh);
+                            UE_LOG("[PAE] Generated %d bodies", State->PhysicsAsset->BodySetups.Num());
+
+                            // 체크박스가 켜져 있으면 Constraints도 함께 생성
+                            UE_LOG("[PAE] bAlsoGenerateConstraints = %s", bAlsoGenerateConstraints ? "true" : "false");
+                            if (bAlsoGenerateConstraints)
+                            {
+                                State->PhysicsAsset->ConstraintSetups.Empty();
+                                FPhysicsAssetUtils::CreateConstraintsForRagdoll(State->PhysicsAsset, State->CurrentMesh);
+                                UE_LOG("[PAE] Auto-generated %d constraints (checkbox ON)", State->PhysicsAsset->ConstraintSetups.Num());
+                            }
+                            else
+                            {
+                                UE_LOG("[PAE] Skipping constraint generation (checkbox OFF)");
+                            }
+
+                            // Graph 동기화
+                            Owner->SyncGraphFromPhysicsAsset();
+
                             State->ClearSelection();
                         }
                     }
@@ -1591,6 +1658,38 @@ void SPhysicsAssetPropertiesPanel::OnRender()
                 }
 
                 if (!bHasBodies)
+                {
+                    ImGui::EndDisabled();
+                }
+
+                // Generate Ragdoll 버튼
+                bool bCanGenerateRagdoll = bHasBodies && State->CurrentMesh;
+                if (!bCanGenerateRagdoll)
+                {
+                    ImGui::BeginDisabled();
+                }
+
+                if (ImGui::Button("Generate Ragdoll", ImVec2(-1, 0)))
+                {
+                    if (State->PhysicsAsset && State->CurrentMesh)
+                    {
+                        // 기존 Constraints 지우고 새로 생성
+                        State->PhysicsAsset->ConstraintSetups.Empty();
+                        FPhysicsAssetUtils::CreateConstraintsForRagdoll(State->PhysicsAsset, State->CurrentMesh);
+                        UE_LOG("[PAE] Generated %d ragdoll constraints", State->PhysicsAsset->ConstraintSetups.Num());
+
+                        // Graph 동기화
+                        Owner->SyncGraphFromPhysicsAsset();
+
+                        State->ClearSelection();
+                    }
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("Generate ragdoll constraints between bodies");
+                }
+
+                if (!bCanGenerateRagdoll)
                 {
                     ImGui::EndDisabled();
                 }
@@ -2267,7 +2366,35 @@ void SPhysicsAssetEditorWindow::SyncGraphFromPhysicsAsset()
         ed::SetNodePosition(Node.ID, ImVec2(50.0f + col * 180.0f, 50.0f + row * 120.0f));
     }
 
-    // TODO: Constraint 링크 생성 (Constraint 구현 후)
+    // Constraint 링크 생성
+    for (int32 i = 0; i < PhysAsset->ConstraintSetups.Num(); ++i)
+    {
+        UPhysicsConstraintSetup* Constraint = PhysAsset->ConstraintSetups[i];
+        if (!Constraint) continue;
+
+        // Bone 이름으로 Body 노드 찾기
+        FPAEBodyNode* Node1 = nullptr;
+        FPAEBodyNode* Node2 = nullptr;
+
+        for (auto& Node : GraphState->BodyNodes)
+        {
+            if (Node.BoneName == Constraint->ConstraintBone1.ToString())
+                Node1 = &Node;
+            if (Node.BoneName == Constraint->ConstraintBone2.ToString())
+                Node2 = &Node;
+        }
+
+        if (Node1 && Node2 && !Node1->OutputPins.empty() && !Node2->InputPins.empty())
+        {
+            FPAEConstraintLink Link;
+            Link.ID = ed::LinkId(GraphState->NextLinkID++);
+            Link.StartPinID = Node1->OutputPins[0];
+            Link.EndPinID = Node2->InputPins[0];
+            Link.ConstraintIndex = i;
+
+            GraphState->ConstraintLinks.Add(Link);
+        }
+    }
 
     ed::SetCurrentEditor(nullptr);
 }
