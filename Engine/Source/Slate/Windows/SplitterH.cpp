@@ -1,27 +1,20 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "SplitterH.h"
 
 SSplitterH::~SSplitterH()
 {
-    //// 자식 윈도우 재귀 해제
-    //delete SideLT;
-    //delete SideRB;
-    //SideLT = nullptr;
-    //SideRB = nullptr;
 }
+
 void SSplitterH::UpdateDrag(FVector2D MousePos)
 {
     if (!bIsDragging) return;
 
-    // 마우스 X 좌표를 비율로 변환
     float NewSplitX = MousePos.X;
     float MinX = Rect.Min.X + SplitterThickness;
     float MaxX = Rect.Max.X - SplitterThickness;
 
-    // 경계 제한
     NewSplitX = FMath::Clamp(NewSplitX, MinX, MaxX);
 
-    // 새 비율 계산
     float NewRatio = (NewSplitX - Rect.Min.X) / GetWidth();
     SetSplitRatio(NewRatio);
 }
@@ -30,15 +23,33 @@ void SSplitterH::UpdateChildRects()
 {
     if (!SideLT || !SideRB) return;
 
-    float SplitX = Rect.Min.X + (GetWidth() * SplitRatio);
+    float TotalWidth = GetWidth();
+    float SplitX = Rect.Min.X + (TotalWidth * SplitRatio);
 
-    // Left 영역
+    // MinChildSize enforcement for animation
+    float LeftWidth = SplitX - Rect.Min.X - SplitterThickness / 2;
+    float RightWidth = Rect.Max.X - SplitX - SplitterThickness / 2;
+
+    // Clamp to ensure minimum size (0 allowed during animation)
+    if (MinChildSize > 0)
+    {
+        if (LeftWidth < MinChildSize)
+        {
+            SplitX = Rect.Min.X + MinChildSize + SplitterThickness / 2;
+        }
+        if (RightWidth < MinChildSize)
+        {
+            SplitX = Rect.Max.X - MinChildSize - SplitterThickness / 2;
+        }
+    }
+
+    // Left area
     SideLT->SetRect(
         Rect.Min.X, Rect.Min.Y,
         SplitX - SplitterThickness / 2, Rect.Max.Y
     );
 
-    // Right 영역
+    // Right area
     SideRB->SetRect(
         SplitX + SplitterThickness / 2, Rect.Min.Y,
         Rect.Max.X, Rect.Max.Y

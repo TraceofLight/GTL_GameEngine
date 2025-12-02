@@ -1,6 +1,6 @@
-﻿#pragma once
+#pragma once
 #include "Object.h"
-#include "Windows/Window.h" // for FRect and SWindow types used by children
+#include "Windows/Window.h"
 #include "Windows/SplitterV.h"
 #include "Windows/SplitterH.h"
 #include "Windows/ViewportWindow.h"
@@ -8,22 +8,19 @@
 #include "Windows/ParticleEditorWindow.h"
 #include "Windows/SPhysicsAssetEditorWindow.h"
 
-class SSceneIOWindow; // 새로 추가할 UI
+class SSceneIOWindow;
 class SDetailsWindow;
 class UMainToolbarWidget;
-class UConsoleWindow; // 오버레이 콘솔 윈도우
+class UConsoleWindow;
 class UContentBrowserWindow;
 
-// 중앙 레이아웃/입력 라우팅/뷰포트 관리 매니저 (위젯 아님)
 class USlateManager : public UObject
 {
 public:
     DECLARE_CLASS(USlateManager, UObject)
 
-    // 싱글톤 접근자
     static USlateManager& GetInstance();
 
-    // 구성 저장/로드
     void SaveSplitterConfig();
     void LoadSplitterConfig();
 
@@ -39,7 +36,6 @@ public:
 
     void SwitchPanel(SWindow* SwitchPanel);
 
-    // 렌더/업데이트/입력 전달
     void Render();
     void RenderAfterUI();
     void Update(float deltaSecond);
@@ -52,31 +48,22 @@ public:
     void OnShutdown();
     void Shutdown();
 
-    // 상태
-    static SViewportWindow* ActiveViewport; // 현재 드래그 중인 뷰포트
+    static SViewportWindow* ActiveViewport;
 
-    // 매니저 자체 위치/크기 (상위 윈도우 크기 기준)
     void SetRect(const FRect& InRect) { Rect = InRect; }
     const FRect& GetRect() const { return Rect; }
 
-    void SetWorld(UWorld* InWorld)
-    {
-        World = InWorld;
-    }
-
+    void SetWorld(UWorld* InWorld) { World = InWorld; }
     void SetPIEWorld(UWorld* InWorld);
 
-    // 콘솔 관리
     void ToggleConsole();
     bool IsConsoleVisible() const { return bIsConsoleVisible; }
     void ForceOpenConsole();
 
-    // Content Browser 관리
     void ToggleContentBrowser();
-    void OpenContentBrowser(const FString& InitialPath = "");  // Content Browser 열기 (이미 열려있으면 무시), InitialPath로 이동
+    void OpenContentBrowser(const FString& InitialPath = "");
     bool IsContentBrowserVisible() const;
 
-    // Dynamic Editor Window (통합 에디터 - Skeletal, Animation, AnimGraph, BlendSpace2D)
     void OpenDynamicEditor();
     void OpenDynamicEditorWithFile(const char* FilePath);
     void OpenDynamicEditorWithAnimation(const char* AnimFilePath);
@@ -84,7 +71,6 @@ public:
     bool IsDynamicEditorOpen() const { return DynamicEditorWindow != nullptr; }
     SDynamicEditorWindow* GetDynamicEditorWindow() const { return DynamicEditorWindow; }
 
-    // 레거시 API (SDynamicEditorWindow로 리다이렉트)
     void OpenSkeletalMeshViewer() { OpenDynamicEditor(); }
     void OpenSkeletalMeshViewerWithFile(const char* FilePath) { OpenDynamicEditorWithFile(FilePath); }
     void CloseSkeletalMeshViewer() { CloseDynamicEditor(); }
@@ -94,7 +80,6 @@ public:
                DynamicEditorWindow->GetEditorMode() == EEditorMode::Skeletal;
     }
 
-    // Blend Space 2D Editor 관리 (SDynamicEditorWindow 사용)
     void OpenBlendSpace2DEditor(UBlendSpace2D* BlendSpace = nullptr);
     void CloseBlendSpace2DEditor();
     bool IsBlendSpace2DEditorOpen() const
@@ -103,105 +88,136 @@ public:
                DynamicEditorWindow->GetEditorMode() == EEditorMode::BlendSpace2D;
     }
 
-	// [Animation Graph] (SDynamicEditorWindow 사용)
-	void OpenAnimStateMachineWindow();
-	void OpenAnimStateMachineWindowWithFile(const char* FilePath);
-	void CloseAnimStateMachineWindow();
-	bool IsAnimStateMachineWindowOpen() const
-	{
-	    return DynamicEditorWindow != nullptr &&
-	           DynamicEditorWindow->GetEditorMode() == EEditorMode::AnimGraph;
-	}
+    void OpenAnimStateMachineWindow();
+    void OpenAnimStateMachineWindowWithFile(const char* FilePath);
+    void CloseAnimStateMachineWindow();
+    bool IsAnimStateMachineWindowOpen() const
+    {
+        return DynamicEditorWindow != nullptr &&
+               DynamicEditorWindow->GetEditorMode() == EEditorMode::AnimGraph;
+    }
 
-	// Particle Editor Window 관리
-	void OpenParticleEditorWindow();
-	void OpenParticleEditorWindowWithSystem(class UParticleSystem* System);
-	void OpenParticleEditorWindowWithFile(const char* FilePath);
-	void CloseParticleEditorWindow();
-	bool IsParticleEditorWindowOpen() const { return ParticleEditorWindow != nullptr; }
+    void OpenParticleEditorWindow();
+    void OpenParticleEditorWindowWithSystem(class UParticleSystem* System);
+    void OpenParticleEditorWindowWithFile(const char* FilePath);
+    void CloseParticleEditorWindow();
+    bool IsParticleEditorWindowOpen() const { return ParticleEditorWindow != nullptr; }
 
-	// Physics Asset Editor Window 관리 (DynamicEditorWindow로 리다이렉트)
-	void OpenPhysicsAssetEditorWindow();
-	void ClosePhysicsAssetEditorWindow();
-	bool IsPhysicsAssetEditorWindowOpen() const;
+    void OpenPhysicsAssetEditorWindow();
+    void ClosePhysicsAssetEditorWindow();
+    bool IsPhysicsAssetEditorWindowOpen() const;
 
-	// Scene 로드 요청
-	void RequestSceneLoad(const FString& ScenePath);
+    void RequestSceneLoad(const FString& ScenePath);
+
+    // Viewport layout animation
+    void StartLayoutAnimation(bool bSingleToQuad, int32 ViewportIndex = -1);
+    bool IsLayoutAnimating() const { return ViewportAnimation.bIsAnimating; }
 
 private:
-    FRect Rect; // 이전엔 SWindow로부터 상속받던 영역 정보
+    FRect Rect;
 
     UWorld* World = nullptr;
     ID3D11Device* Device = nullptr;
 
-    // 두 가지 레이아웃을 미리 생성해둠
     SSplitter* FourSplitLayout = nullptr;
     SSplitter* SingleLayout = nullptr;
 
-    // 뷰포트
     SViewportWindow* Viewports[4];
     SViewportWindow* MainViewport;
 
     SSplitterV* LeftTop;
     SSplitterV* LeftBottom;
 
-    // UI 패널들
     SWindow* ControlPanel = nullptr;
     SWindow* DetailPanel = nullptr;
 
-    // 레이아웃 구조: TopPanel(좌우) -> Left: LeftPanel(뷰포트), Right: RightPanel(상하)
-    SSplitterH* TopPanel = nullptr;       // 전체 화면 좌우 분할
-    SSplitterH* LeftPanel = nullptr;      // 왼쪽 뷰포트 영역 (좌우 4분할)
-    SSplitterV* RightPanel = nullptr;     // 오른쪽 UI 영역 (상하: Control + Details)
+    SSplitterH* TopPanel = nullptr;
+    SSplitterH* LeftPanel = nullptr;
+    SSplitterV* RightPanel = nullptr;
 
-    // 현재 모드
     EViewportLayoutMode CurrentMode = EViewportLayoutMode::FourSplit;
 
-    // 메인 툴바 관련
     UMainToolbarWidget* MainToolbar;
 
-    // 콘솔 오버레이
     UConsoleWindow* ConsoleWindow = nullptr;
     bool bIsConsoleVisible = false;
     bool bIsConsoleAnimating = false;
-    bool bConsoleShouldFocus = false; // 콘솔 열렸을 때 포커싱
-    float ConsoleAnimationProgress = 0.0f; // 0.0 = 숨김, 1.0 = 완전히 표시
-    const float ConsoleAnimationDuration = 0.25f; // 초 단위
-    float ConsoleHeight = 300.0f; // 콘솔 높이 (픽셀, 메모라이즈됨)
-    const float ConsoleMinHeight = 150.0f; // 최소 높이
-    const float ConsoleMaxHeightRatio = 0.8f; // 최대 높이 (화면의 80%)
-    const float ConsoleHorizontalMargin = 10.0f; // 좌/우 여백 (픽셀 단위)
-    const float ConsoleStatusBarHeight = 6.0f; // 상단 드래그 바 높이
-    bool bIsConsoleDragging = false; // 콘솔 높이 드래그 중
-    float ConsoleDragStartY = 0.0f; // 드래그 시작 Y 위치
-    float ConsoleDragStartHeight = 0.0f; // 드래그 시작 시 콘솔 높이
+    bool bConsoleShouldFocus = false;
+    float ConsoleAnimationProgress = 0.0f;
+    const float ConsoleAnimationDuration = 0.25f;
+    float ConsoleHeight = 300.0f;
+    const float ConsoleMinHeight = 150.0f;
+    const float ConsoleMaxHeightRatio = 0.8f;
+    const float ConsoleHorizontalMargin = 10.0f;
+    const float ConsoleStatusBarHeight = 6.0f;
+    bool bIsConsoleDragging = false;
+    float ConsoleDragStartY = 0.0f;
+    float ConsoleDragStartHeight = 0.0f;
 
-    // Dynamic Editor Window (통합 에디터 - 모든 모드 지원)
     SDynamicEditorWindow* DynamicEditorWindow = nullptr;
-    bool bPendingCloseDynamicEditor = false;  // 다음 프레임에서 삭제 (ImGui SRV 문제 방지)
+    bool bPendingCloseDynamicEditor = false;
 
-    // Particle Editor window (Cascade 스타일)
     SParticleEditorWindow* ParticleEditorWindow = nullptr;
 
-    // Physics Asset Editor window (DynamicEditorWindow로 통합됨 - 더 이상 사용하지 않음)
-    // SPhysicsAssetEditorWindow* PhysicsAssetEditorWindow = nullptr;
-
-    // Content Browser (Bottom panel overlay with animation)
     UContentBrowserWindow* ContentBrowserWindow = nullptr;
     bool bIsContentBrowserVisible = false;
     bool bIsContentBrowserAnimating = false;
-    bool bRequestContentBrowserFocus = false; // 열릴 때 포커스 요청
-    float ContentBrowserAnimationProgress = 0.0f; // 0.0 = 숨김, 1.0 = 완전히 표시
-    const float ContentBrowserAnimationDuration = 0.25f; // 초 단위
-    const float ContentBrowserHeightRatio = 0.35f; // 화면 높이의 35%
-    const float ContentBrowserHorizontalMargin = 10.0f; // 좌/우 여백
+    bool bRequestContentBrowserFocus = false;
+    float ContentBrowserAnimationProgress = 0.0f;
+    const float ContentBrowserAnimationDuration = 0.25f;
+    const float ContentBrowserHeightRatio = 0.35f;
+    const float ContentBrowserHorizontalMargin = 10.0f;
 
-    // Shutdown 관련
     bool bIsShutdown = false;
-
-    // 비동기 로딩 세션 추적 (로딩 완료 시 카운터 리셋용)
     bool bWasLoadingLastFrame = false;
 
-	// Helper to create AnimStateMachineWindow without opening a tab
-	void CreateAnimStateMachineWindowIfNeeded();
+    void CreateAnimStateMachineWindowIfNeeded();
+
+    // Layout transition animation helpers
+    void UpdateViewportAnimation(float DeltaSeconds);
+    static float EaseInOutCubic(float InT);
+    void FinalizeSingleLayoutFromAnimation();
+    void FinalizeFourSplitLayoutFromAnimation();
+    void SyncRectsToViewports() const;
+
+    // Viewport animation state
+    struct FViewportAnimation
+    {
+        bool bIsAnimating = false;
+        float AnimationTime = 0.0f;
+        float AnimationDuration = 0.2f;
+        bool bSingleToQuad = true;
+        int32 PromotedViewportIndex = 0;
+
+        float StartHRatio = 0.5f;
+        float TargetHRatio = 0.5f;
+        float StartVRatioTop = 0.5f;
+        float TargetVRatioTop = 0.5f;
+        float StartVRatioBottom = 0.5f;
+        float TargetVRatioBottom = 0.5f;
+
+        int32 SavedMinChildSizeH = 4;
+        int32 SavedMinChildSizeVTop = 4;
+        int32 SavedMinChildSizeVBottom = 4;
+    };
+    FViewportAnimation ViewportAnimation;
+
+    float SavedHRatio = 0.5f;
+    float SavedVRatioTop = 0.5f;
+    float SavedVRatioBottom = 0.5f;
+    // Currently promoted viewport index (for Single mode)
+    int32 CurrentPromotedViewportIndex = 0;
+    // Unified splitter control (Unreal-style)
+    bool bIsDraggingCenterCross = false;     // Center cross drag state
+    bool bIsDraggingVerticalLine = false;    // Vertical line drag (synced LeftTop+LeftBottom)
+    FVector2D SplitterDragStartPos;          // Drag start position
+    float SplitterDragStartHRatio = 0.5f;    // LeftPanel ratio at drag start
+    float SplitterDragStartVRatio = 0.5f;    // Vertical ratio at drag start
+
+    // Splitter helper functions
+    FRect GetCenterCrossRect() const;
+    FRect GetVerticalLineRect() const;
+    bool IsMouseOnCenterCross(FVector2D MousePos) const;
+    bool IsMouseOnVerticalLine(FVector2D MousePos) const;
+    void SyncVerticalSplitters();            // Sync LeftTop and LeftBottom ratios
 };

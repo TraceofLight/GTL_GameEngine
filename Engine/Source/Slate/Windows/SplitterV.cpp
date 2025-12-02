@@ -1,26 +1,20 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "SplitterV.h"
 
 SSplitterV::~SSplitterV()
 {
-  /*  delete SideLT;
-    delete SideRB;
-    SideLT = nullptr;
-    SideRB = nullptr;*/
 }
+
 void SSplitterV::UpdateDrag(FVector2D MousePos)
 {
     if (!bIsDragging) return;
 
-    // 마우스 Y 좌표를 비율로 변환
     float NewSplitY = MousePos.Y;
     float MinY = Rect.Min.Y + SplitterThickness;
     float MaxY = Rect.Max.Y - SplitterThickness;
 
-    // 경계 제한
     NewSplitY = FMath::Clamp(NewSplitY, MinY, MaxY);
 
-    // 새 비율 계산
     float NewRatio = (NewSplitY - Rect.Min.Y) / GetHeight();
     SetSplitRatio(NewRatio);
 }
@@ -29,15 +23,33 @@ void SSplitterV::UpdateChildRects()
 {
     if (!SideLT || !SideRB) return;
 
-    float SplitY = Rect.Min.Y + (GetHeight() * SplitRatio);
+    float TotalHeight = GetHeight();
+    float SplitY = Rect.Min.Y + (TotalHeight * SplitRatio);
 
-    // Top 영역
+    // MinChildSize enforcement for animation
+    float TopHeight = SplitY - Rect.Min.Y - SplitterThickness / 2;
+    float BottomHeight = Rect.Max.Y - SplitY - SplitterThickness / 2;
+
+    // Clamp to ensure minimum size (0 allowed during animation)
+    if (MinChildSize > 0)
+    {
+        if (TopHeight < MinChildSize)
+        {
+            SplitY = Rect.Min.Y + MinChildSize + SplitterThickness / 2;
+        }
+        if (BottomHeight < MinChildSize)
+        {
+            SplitY = Rect.Max.Y - MinChildSize - SplitterThickness / 2;
+        }
+    }
+
+    // Top area
     SideLT->SetRect(
         Rect.Min.X, Rect.Min.Y,
         Rect.Max.X, SplitY - SplitterThickness / 2
     );
 
-    // Bottom 영역
+    // Bottom area
     SideRB->SetRect(
         Rect.Min.X, SplitY + SplitterThickness / 2,
         Rect.Max.X, Rect.Max.Y
