@@ -36,13 +36,25 @@ struct FPAEBodyNode
     FPAEBodyNode() : ID(0) {}
 };
 
-// Constraint Link (두 Body를 연결하는 Constraint)
+// Constraint Node (Physics Constraint를 나타내는 노드)
+struct FPAEConstraintNode
+{
+    ed::NodeId ID;
+    int32 ConstraintIndex = -1;     // PhysicsAsset의 Constraint 인덱스
+    ed::PinId InputPin;             // 입력 핀 (Parent Body에서 옴)
+    ed::PinId OutputPin;            // 출력 핀 (Child Body로 감)
+    FString Bone1Name;              // 첫 번째 Bone 이름
+    FString Bone2Name;              // 두 번째 Bone 이름
+
+    FPAEConstraintNode() : ID(0), InputPin(0), OutputPin(0) {}
+};
+
+// Constraint Link (두 Body를 연결하는 Constraint) - 이제는 Body <-> Constraint <-> Body 연결용
 struct FPAEConstraintLink
 {
     ed::LinkId ID;
-    ed::PinId StartPinID;           // 시작 Body의 출력 핀
-    ed::PinId EndPinID;             // 끝 Body의 입력 핀
-    int32 ConstraintIndex = -1;     // PhysicsAsset의 Constraint 인덱스
+    ed::PinId StartPinID;           // 시작 핀
+    ed::PinId EndPinID;             // 끝 핀
 
     FPAEConstraintLink() : ID(0), StartPinID(0), EndPinID(0) {}
 };
@@ -53,7 +65,8 @@ struct FPAEGraphState
     ed::EditorContext* Context = nullptr;
 
     TArray<FPAEBodyNode> BodyNodes;
-    TArray<FPAEConstraintLink> ConstraintLinks;
+    TArray<FPAEConstraintNode> ConstraintNodes;
+    TArray<FPAEConstraintLink> Links;
 
     ed::NodeId SelectedNodeID;
     ed::LinkId SelectedLinkID;
@@ -87,7 +100,8 @@ struct FPAEGraphState
     void Clear()
     {
         BodyNodes.Empty();
-        ConstraintLinks.Empty();
+        ConstraintNodes.Empty();
+        Links.Empty();
         SelectedNodeID = ed::NodeId::Invalid;
         SelectedLinkID = ed::LinkId::Invalid;
     }
@@ -169,6 +183,8 @@ public:
     void SyncGraphFromPhysicsAsset();
     FPAEBodyNode* FindBodyNode(ed::NodeId NodeID);
     FPAEBodyNode* FindBodyNodeByPin(ed::PinId PinID);
+    FPAEConstraintNode* FindConstraintNode(ed::NodeId NodeID);
+    FPAEConstraintNode* FindConstraintNodeByPin(ed::PinId PinID);
     FPAEConstraintLink* FindConstraintLink(ed::LinkId LinkID);
 
     // Node Graph State (패널에서 접근 필요)

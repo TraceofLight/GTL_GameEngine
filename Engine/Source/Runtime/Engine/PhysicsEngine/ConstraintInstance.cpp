@@ -237,14 +237,32 @@ void FConstraintInstance::SetAngularLimits(const UPhysicsConstraintSetup* Setup)
 		return;
 	}
 
-	// Swing1 (Y축 회전)
-	SetSwing1Limit(Setup->Swing1Motion, Setup->Swing1LimitAngle);
+	// Motion 설정
+	JointHandle->setMotion(PxD6Axis::eSWING1, ConvertAngularMotion(Setup->Swing1Motion));
+	JointHandle->setMotion(PxD6Axis::eSWING2, ConvertAngularMotion(Setup->Swing2Motion));
+	JointHandle->setMotion(PxD6Axis::eTWIST, ConvertAngularMotion(Setup->TwistMotion));
 
-	// Swing2 (Z축 회전)
-	SetSwing2Limit(Setup->Swing2Motion, Setup->Swing2LimitAngle);
+	// Swing Limit (Swing1과 Swing2를 함께 설정)
+	bool bSwing1Limited = (Setup->Swing1Motion == EAngularConstraintMotion::Limited);
+	bool bSwing2Limited = (Setup->Swing2Motion == EAngularConstraintMotion::Limited);
 
-	// Twist (X축 회전)
-	SetTwistLimit(Setup->TwistMotion, Setup->TwistLimitAngle);
+	if (bSwing1Limited || bSwing2Limited)
+	{
+		float Swing1Rad = bSwing1Limited ? DegreesToRadians(Setup->Swing1LimitAngle) : PxPi;
+		float Swing2Rad = bSwing2Limited ? DegreesToRadians(Setup->Swing2LimitAngle) : PxPi;
+
+		// PxJointLimitCone(swing1, swing2, spring)
+		PxJointLimitCone SwingLimit(Swing1Rad, Swing2Rad, PxSpring(0.0f, 0.0f));
+		JointHandle->setSwingLimit(SwingLimit);
+	}
+
+	// Twist Limit
+	if (Setup->TwistMotion == EAngularConstraintMotion::Limited)
+	{
+		float TwistRad = DegreesToRadians(Setup->TwistLimitAngle);
+		PxJointAngularLimitPair TwistLimit(-TwistRad, TwistRad, PxSpring(0.0f, 0.0f));
+		JointHandle->setTwistLimit(TwistLimit);
+	}
 }
 
 void FConstraintInstance::SetSwing1Limit(EAngularConstraintMotion Motion, float LimitAngle)
@@ -299,15 +317,20 @@ void FConstraintInstance::SetTwistLimit(EAngularConstraintMotion Motion, float L
 
 void FConstraintInstance::SetSoftSwingLimit(bool bEnable, float Stiffness, float Damping)
 {
-	if (!JointHandle)
+	if (!JointHandle || !ConstraintSetup)
 	{
 		return;
 	}
 
-	if (bEnable && ConstraintSetup)
+	if (bEnable)
 	{
-		float Swing1Rad = DegreesToRadians(ConstraintSetup->Swing1LimitAngle);
-		float Swing2Rad = DegreesToRadians(ConstraintSetup->Swing2LimitAngle);
+		// Swing1과 Swing2 각도를 함께 설정 (Soft Spring 포함)
+		bool bSwing1Limited = (ConstraintSetup->Swing1Motion == EAngularConstraintMotion::Limited);
+		bool bSwing2Limited = (ConstraintSetup->Swing2Motion == EAngularConstraintMotion::Limited);
+
+		float Swing1Rad = bSwing1Limited ? DegreesToRadians(ConstraintSetup->Swing1LimitAngle) : PxPi;
+		float Swing2Rad = bSwing2Limited ? DegreesToRadians(ConstraintSetup->Swing2LimitAngle) : PxPi;
+
 		PxJointLimitCone SwingLimit(Swing1Rad, Swing2Rad, PxSpring(Stiffness, Damping));
 		JointHandle->setSwingLimit(SwingLimit);
 	}
