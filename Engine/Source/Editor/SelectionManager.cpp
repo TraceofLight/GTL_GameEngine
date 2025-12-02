@@ -20,43 +20,60 @@ void USelectionManager::SelectActor(AActor* Actor)
 
 void USelectionManager::SelectComponent(UActorComponent* Component)
 {
-
     if (!Component)
     {
         SelectedComponent = nullptr;
         bIsActorMode = false;
         return;
     }
-    AActor* SelectedActor = Component->GetOwner();
-    //이미 엑터가 피킹되어 있는 상황
-    if (IsActorSelected(SelectedActor) )
+
+    AActor* OwnerActor = Component->GetOwner();
+    if (!OwnerActor)
     {
-        //에딧이 안되는 컴포넌트의 경우, 부모가 있으면 부모, 없으면 루트컴포넌트 피킹
-        if (!Component->IsEditable())
+        return;
+    }
+
+    // 에디터블하지 않은 컴포넌트는 부모 또는 루트로 대체
+    UActorComponent* ComponentToSelect = Component;
+    if (!Component->IsEditable())
+    {
+        if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
         {
-            if (USceneComponent* SelectedSceneComponent = Cast<USceneComponent>(SelectedComponent))
+            if (USceneComponent* Parent = SceneComp->GetAttachParent())
             {
-                if (!(SelectedComponent = SelectedSceneComponent->GetAttachParent()))
-                {
-                    SelectedComponent = SelectedActor->GetRootComponent();
-                }
+                ComponentToSelect = Parent;
+            }
+            else
+            {
+                ComponentToSelect = OwnerActor->GetRootComponent();
             }
         }
         else
         {
-            SelectedComponent = Component;
+            ComponentToSelect = OwnerActor->GetRootComponent();
         }
-        bIsActorMode = false;
     }
-    //오너 엑터가 선택 안돼있는 상태, 루트 컴포넌트 피킹
-    else
+
+    SelectedComponent = ComponentToSelect;
+    bIsActorMode = false;
+}
+
+void USelectionManager::SelectActorAndComponent(AActor* Actor, UActorComponent* Component)
+{
+    if (!Actor || !Component)
     {
-        bIsActorMode = true;
-        ClearSelection();
-        SelectedActors.Add(SelectedActor);
-        SelectedComponent = SelectedActor->GetRootComponent();
+        return;
     }
-    
+
+    // 액터가 선택되어 있지 않으면 먼저 선택
+    if (!IsActorSelected(Actor))
+    {
+        ClearSelection();
+        SelectedActors.Add(Actor);
+    }
+
+    // 컴포넌트 선택 (컴포넌트 모드)
+    SelectComponent(Component);
 }
 
 void USelectionManager::DeselectActor(AActor* Actor)

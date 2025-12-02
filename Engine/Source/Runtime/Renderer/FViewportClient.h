@@ -82,6 +82,13 @@ protected:
     // 피킹 활성화 여부 (플로팅 윈도우에서는 false로 설정)
     bool bPickingEnabled = true;
 
+    // 더블 클릭 감지용
+    double LastClickTime = 0.0;
+    int32 LastClickX = 0;
+    int32 LastClickY = 0;
+    static constexpr double DoubleClickTime = 0.3;  // 더블 클릭 임계 시간 (초)
+    static constexpr int32 DoubleClickDistance = 5;  // 더블 클릭 임계 거리 (픽셀)
+
 public:
     // 에디터 DoF 설정 (에디터 뷰포트에서 사용)
     struct FEditorDoFSettings

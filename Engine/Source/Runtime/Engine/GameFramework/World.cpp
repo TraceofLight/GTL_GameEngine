@@ -240,7 +240,7 @@ void UWorld::Tick(float DeltaSeconds)
             ActorTimingMap.Remove(Key);
         }
 	}
-	
+
 	// 중복충돌 방지 pair clear
     FrameOverlapPairs.clear();
 
@@ -460,14 +460,14 @@ bool UWorld::DestroyActor(AActor* Actor)
 	Actor->DestroyAllComponents();
 
 	// 레벨에서 제거 시도
-	if (Level && Level->RemoveActor(Actor))
+	if (Level)
 	{
-		// 메모리 해제
-		ObjectFactory::DeleteObject(Actor);
-		return true; // 성공적으로 삭제
+		Level->RemoveActor(Actor);
 	}
 
-	return false; // 레벨에 없는 액터
+	// 메모리 해제
+	ObjectFactory::DeleteObject(Actor);
+	return true;
 }
 
 inline FString RemoveObjExtension(const FString& FileName)

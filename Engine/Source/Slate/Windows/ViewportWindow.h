@@ -28,6 +28,10 @@ public:
     FViewportClient* GetViewportClient() const { return ViewportClient; }
     void SetVClientWorld(UWorld* InWorld);
 
+    // 선택된 액터에 카메라 포커싱
+    void FocusOnSelectedActor();
+    void UpdateCameraAnimation(float DeltaTime);
+
     // Scene 로드 모달 요청
     void RequestSceneLoad(const FString& ScenePath)
     {
@@ -121,4 +125,11 @@ private:
     // Scene 로드 확인 모달
     bool bShowSceneLoadModal = false;
     FString PendingScenePath;
+
+    // 카메라 포커싱 애니메이션
+    bool bIsCameraAnimating = false;
+    float CameraAnimationTime = 0.0f;
+    FVector CameraStartLocation;
+    FVector CameraTargetLocation;
+    static constexpr float CAMERA_ANIMATION_DURATION = 0.35f;
 };

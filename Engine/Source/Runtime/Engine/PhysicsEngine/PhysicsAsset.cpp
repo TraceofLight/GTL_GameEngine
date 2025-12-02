@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "PhysicsAsset.h"
+#include "PhysicsConstraintSetup.h"
 #include "Source/Runtime/Core/Misc/JsonSerializer.h"
-#include <fstream>
 
 IMPLEMENT_CLASS(UPhysicsAsset)
 
@@ -133,157 +133,121 @@ FAABB UPhysicsAsset::CalcAABB(const TMap<FName, FTransform>& BoneWorldTMs, float
     return FAABB(GlobalMin, GlobalMax);
 }
 
-bool UPhysicsAsset::SaveToFile(const FString& FilePath) const
+// ===== Constraint 관리 =====
+
+int32 UPhysicsAsset::FindConstraintIndexByBoneNames(FName Bone1, FName Bone2) const
 {
-    JSON Root = JSON::Make(JSON::Class::Object);
-
-    // Source skeletal mesh path
-    Root["SourceSkeletalPath"] = SourceSkeletalPath;
-
-    // Bodies array
-    JSON BodiesArray = JSON::Make(JSON::Class::Array);
-    for (const UBodySetup* Body : BodySetups)
-    {
-        if (!Body) continue;
-
-        JSON BodyJson = JSON::Make(JSON::Class::Object);
-        BodyJson["BoneName"] = Body->BoneName.ToString();
-
-        // Spheres
-        JSON SpheresArray = JSON::Make(JSON::Class::Array);
-        for (const FKSphereElem& Sphere : Body->AggGeom.SphereElems)
-        {
-            JSON SphereJson = JSON::Make(JSON::Class::Object);
-            SphereJson["Center"] = FJsonSerializer::VectorToJson(Sphere.Center);
-            SphereJson["Radius"] = Sphere.Radius;
-            SpheresArray.append(SphereJson);
-        }
-        BodyJson["Spheres"] = SpheresArray;
-
-        // Boxes
-        JSON BoxesArray = JSON::Make(JSON::Class::Array);
-        for (const FKBoxElem& Box : Body->AggGeom.BoxElems)
-        {
-            JSON BoxJson = JSON::Make(JSON::Class::Object);
-            BoxJson["Center"] = FJsonSerializer::VectorToJson(Box.Center);
-            BoxJson["Rotation"] = FJsonSerializer::VectorToJson(Box.Rotation);
-            BoxJson["X"] = Box.X;
-            BoxJson["Y"] = Box.Y;
-            BoxJson["Z"] = Box.Z;
-            BoxesArray.append(BoxJson);
-        }
-        BodyJson["Boxes"] = BoxesArray;
-
-        // Capsules
-        JSON CapsulesArray = JSON::Make(JSON::Class::Array);
-        for (const FKCapsuleElem& Capsule : Body->AggGeom.SphylElems)
-        {
-            JSON CapsuleJson = JSON::Make(JSON::Class::Object);
-            CapsuleJson["Center"] = FJsonSerializer::VectorToJson(Capsule.Center);
-            CapsuleJson["Rotation"] = FJsonSerializer::VectorToJson(Capsule.Rotation);
-            CapsuleJson["Radius"] = Capsule.Radius;
-            CapsuleJson["Length"] = Capsule.Length;
-            CapsulesArray.append(CapsuleJson);
-        }
-        BodyJson["Capsules"] = CapsulesArray;
-
-        BodiesArray.append(BodyJson);
-    }
-    Root["Bodies"] = BodiesArray;
-
-    // Constraints (placeholder for future)
-    JSON ConstraintsArray = JSON::Make(JSON::Class::Array);
-    Root["Constraints"] = ConstraintsArray;
-
-    // Convert to wide string for file path
-    FWideString WidePath(FilePath.begin(), FilePath.end());
-    return FJsonSerializer::SaveJsonToFile(Root, WidePath);
+	for (int32 i = 0; i < ConstraintSetups.Num(); ++i)
+	{
+		if (ConstraintSetups[i] &&
+			ConstraintSetups[i]->ConstraintBone1 == Bone1 &&
+			ConstraintSetups[i]->ConstraintBone2 == Bone2)
+		{
+			return i;
+		}
+	}
+	return -1;
 }
 
-bool UPhysicsAsset::LoadFromFile(const FString& FilePath)
+UPhysicsConstraintSetup* UPhysicsAsset::FindConstraintByBoneNames(FName Bone1, FName Bone2)
 {
-    FWideString WidePath(FilePath.begin(), FilePath.end());
-    JSON Root;
-    if (!FJsonSerializer::LoadJsonFromFile(Root, WidePath))
-    {
-        UE_LOG("[PhysicsAsset] Failed to load file: %s", FilePath.c_str());
-        return false;
-    }
+	const int32 Idx = FindConstraintIndexByBoneNames(Bone1, Bone2);
+	return (Idx != -1) ? ConstraintSetups[Idx] : nullptr;
+}
 
-    // Clear existing data
-    BodySetups.clear();
-    BoneNameToBodyIndex.clear();
+int32 UPhysicsAsset::AddConstraintSetup(UPhysicsConstraintSetup* NewSetup)
+{
+	if (!NewSetup)
+	{
+		return -1;
+	}
 
-    // Source skeletal path
-    FJsonSerializer::ReadString(Root, "SourceSkeletalPath", SourceSkeletalPath, "", false);
+	const int32 Idx = ConstraintSetups.Num();
+	ConstraintSetups.Add(NewSetup);
+	return Idx;
+}
 
-    // Bodies
-    JSON BodiesArray;
-    if (FJsonSerializer::ReadArray(Root, "Bodies", BodiesArray, nullptr, false))
-    {
-        for (int i = 0; i < BodiesArray.size(); ++i)
-        {
-            const JSON& BodyJson = BodiesArray.at(i);
+// ===== Serialization =====
 
-            UBodySetup* Body = NewObject<UBodySetup>();
-            if (!Body) continue;
+void UPhysicsAsset::Serialize(bool bIsLoading, JSON& Json)
+{
+	if (bIsLoading)
+	{
+		// Source Skeletal Path
+		FJsonSerializer::ReadString(Json, "SourceSkeletalPath", SourceSkeletalPath, "");
 
-            // BoneName
-            FString BoneNameStr;
-            FJsonSerializer::ReadString(BodyJson, "BoneName", BoneNameStr, "", false);
-            Body->BoneName = FName(BoneNameStr);
+		// BodySetups
+		BodySetups.Empty();
+		BoneNameToBodyIndex.clear();
 
-            // Spheres
-            JSON SpheresArray;
-            if (FJsonSerializer::ReadArray(BodyJson, "Spheres", SpheresArray, nullptr, false))
-            {
-                for (int j = 0; j < SpheresArray.size(); ++j)
-                {
-                    const JSON& SphereJson = SpheresArray.at(j);
-                    FKSphereElem Sphere;
-                    FJsonSerializer::ReadVector(SphereJson, "Center", Sphere.Center, FVector::Zero(), false);
-                    FJsonSerializer::ReadFloat(SphereJson, "Radius", Sphere.Radius, 1.0f, false);
-                    Body->AggGeom.SphereElems.Add(Sphere);
-                }
-            }
+		if (Json.hasKey("BodySetups") && Json["BodySetups"].JSONType() == JSON::Class::Array)
+		{
+			for (JSON& BodyJson : Json["BodySetups"].ArrayRange())
+			{
+				UBodySetup* NewSetup = NewObject<UBodySetup>();
+				NewSetup->Serialize(true, BodyJson);
+				AddBodySetup(NewSetup);
+			}
+		}
 
-            // Boxes
-            JSON BoxesArray;
-            if (FJsonSerializer::ReadArray(BodyJson, "Boxes", BoxesArray, nullptr, false))
-            {
-                for (int j = 0; j < BoxesArray.size(); ++j)
-                {
-                    const JSON& BoxJson = BoxesArray.at(j);
-                    FKBoxElem Box;
-                    FJsonSerializer::ReadVector(BoxJson, "Center", Box.Center, FVector::Zero(), false);
-                    FJsonSerializer::ReadVector(BoxJson, "Rotation", Box.Rotation, FVector::Zero(), false);
-                    FJsonSerializer::ReadFloat(BoxJson, "X", Box.X, 1.0f, false);
-                    FJsonSerializer::ReadFloat(BoxJson, "Y", Box.Y, 1.0f, false);
-                    FJsonSerializer::ReadFloat(BoxJson, "Z", Box.Z, 1.0f, false);
-                    Body->AggGeom.BoxElems.Add(Box);
-                }
-            }
+		// ConstraintSetups
+		for (UPhysicsConstraintSetup* Constraint : ConstraintSetups)
+		{
+			if (Constraint)
+			{
+				ObjectFactory::DeleteObject(Constraint);
+			}
+		}
+		ConstraintSetups.Empty();
 
-            // Capsules
-            JSON CapsulesArray;
-            if (FJsonSerializer::ReadArray(BodyJson, "Capsules", CapsulesArray, nullptr, false))
-            {
-                for (int j = 0; j < CapsulesArray.size(); ++j)
-                {
-                    const JSON& CapsuleJson = CapsulesArray.at(j);
-                    FKCapsuleElem Capsule;
-                    FJsonSerializer::ReadVector(CapsuleJson, "Center", Capsule.Center, FVector::Zero(), false);
-                    FJsonSerializer::ReadVector(CapsuleJson, "Rotation", Capsule.Rotation, FVector::Zero(), false);
-                    FJsonSerializer::ReadFloat(CapsuleJson, "Radius", Capsule.Radius, 1.0f, false);
-                    FJsonSerializer::ReadFloat(CapsuleJson, "Length", Capsule.Length, 1.0f, false);
-                    Body->AggGeom.SphylElems.Add(Capsule);
-                }
-            }
+		if (Json.hasKey("ConstraintSetups") && Json["ConstraintSetups"].JSONType() == JSON::Class::Array)
+		{
+			for (JSON& ConstraintJson : Json["ConstraintSetups"].ArrayRange())
+			{
+				UPhysicsConstraintSetup* NewConstraint = NewObject<UPhysicsConstraintSetup>();
+				NewConstraint->Serialize(true, ConstraintJson);
 
-            AddBodySetup(Body);
-        }
-    }
+				// BodyIndex 재설정 (BoneName 기반)
+				NewConstraint->BodyIndex1 = FindBodyIndexByBoneName(NewConstraint->ConstraintBone1);
+				NewConstraint->BodyIndex2 = FindBodyIndexByBoneName(NewConstraint->ConstraintBone2);
 
-    UE_LOG("[PhysicsAsset] Loaded %d bodies from: %s", BodySetups.Num(), FilePath.c_str());
-    return true;
+				AddConstraintSetup(NewConstraint);
+			}
+		}
+
+		UE_LOG("[PhysicsAsset] Loaded: %d bodies, %d constraints from '%s'",
+			   BodySetups.Num(), ConstraintSetups.Num(), SourceSkeletalPath.c_str());
+	}
+	else
+	{
+		// Source Skeletal Path
+		Json["SourceSkeletalPath"] = SourceSkeletalPath;
+
+		// BodySetups
+		Json["BodySetups"] = JSON::Make(JSON::Class::Array);
+		for (UBodySetup* Setup : BodySetups)
+		{
+			if (Setup)
+			{
+				JSON BodyJson;
+				Setup->Serialize(false, BodyJson);
+				Json["BodySetups"].append(BodyJson);
+			}
+		}
+
+		// ConstraintSetups
+		Json["ConstraintSetups"] = JSON::Make(JSON::Class::Array);
+		for (UPhysicsConstraintSetup* Constraint : ConstraintSetups)
+		{
+			if (Constraint)
+			{
+				JSON ConstraintJson;
+				Constraint->Serialize(false, ConstraintJson);
+				Json["ConstraintSetups"].append(ConstraintJson);
+			}
+		}
+
+		UE_LOG("[PhysicsAsset] Saved: %d bodies, %d constraints",
+			   BodySetups.Num(), ConstraintSetups.Num());
+	}
 }

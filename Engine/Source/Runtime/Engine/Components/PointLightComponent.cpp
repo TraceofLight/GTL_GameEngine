@@ -100,7 +100,7 @@ void UPointLightComponent::OnRegister(UWorld* InWorld)
 	Super::OnRegister(InWorld);
 	if (SpriteComponent)
 	{
-		SpriteComponent->SetTexture(GDataDir + "/Default/UI/Icons/PointLight_64x.png");
+		SpriteComponent->SetTexture(GDataDir + "/Default/Icon/PointLight_64x.png");
 	}
     InWorld->GetLightManager()->RegisterLight(this);
 }

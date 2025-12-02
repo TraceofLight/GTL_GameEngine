@@ -123,7 +123,25 @@ void UContentBrowserWindow::RefreshCurrentDirectory()
 
 	try
 	{
-		// 오른쪽 패널에는 파일만 표시 (폴더는 왼쪽 트리에 표시됨)
+		// 폴더 먼저 추가 (폴더가 파일보다 위에 표시됨)
+		if (bShowFolders)
+		{
+			for (const auto& entry : std::filesystem::directory_iterator(CurrentPath))
+			{
+				if (entry.is_directory())
+				{
+					FFileEntry FileEntry;
+					FileEntry.Path = entry.path();
+					FileEntry.FileName = FString(entry.path().filename().string().c_str());
+					FileEntry.Extension = "";
+					FileEntry.bIsDirectory = true;
+					FileEntry.FileSize = 0;
+					DisplayedFiles.push_back(FileEntry);
+				}
+			}
+		}
+
+		// 파일 추가
 		if (bShowFiles)
 		{
 			for (const auto& entry : std::filesystem::directory_iterator(CurrentPath))
@@ -276,13 +294,10 @@ void UContentBrowserWindow::RenderFolderTreeNode(const std::filesystem::path& Fo
 
 void UContentBrowserWindow::RenderPathBar()
 {
-	ImGui::Text("Path: ");
-	ImGui::SameLine();
-
 	// 뒤로 가기 버튼
 	if (CurrentPath != RootPath)
 	{
-		if (ImGui::Button("<- Back"))
+		if (ImGui::Button("Back"))
 		{
 			NavigateToPath(CurrentPath.parent_path());
 		}
@@ -290,7 +305,9 @@ void UContentBrowserWindow::RenderPathBar()
 	}
 
 	// 현재 경로 표시
-	FString PathStr = FString(CurrentPath.string().c_str());
+	ImGui::Text("Path:");
+	ImGui::SameLine();
+	FString PathStr = FString(CurrentPath.string());
 	ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "%s", PathStr.c_str());
 
 	// 새로고침 버튼
@@ -361,8 +378,18 @@ void UContentBrowserWindow::RenderFileItem(FFileEntry& Entry, int Index, bool bU
 	if (bUseThumbnails)
 	{
 		// 썸네일 가져오기
-		std::string pathStr = Entry.Path.string();
-		ID3D11ShaderResourceView* thumbnailSRV = FThumbnailManager::GetInstance().GetThumbnail(pathStr);
+		ID3D11ShaderResourceView* thumbnailSRV = nullptr;
+		if (Entry.bIsDirectory)
+		{
+			// 폴더는 폴더 아이콘 사용
+			thumbnailSRV = FThumbnailManager::GetInstance().GetFolderThumbnail();
+		}
+		else
+		{
+			// 파일은 파일 경로 기반 썸네일
+			std::string pathStr = Entry.Path.string();
+			thumbnailSRV = FThumbnailManager::GetInstance().GetThumbnail(pathStr);
+		}
 
 		if (thumbnailSRV)
 		{
@@ -443,6 +470,14 @@ void UContentBrowserWindow::HandleDragSource(FFileEntry& Entry)
 
 void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 {
+	// 폴더인 경우 해당 폴더로 이동
+	if (Entry.bIsDirectory)
+	{
+		UE_LOG("ContentBrowserWindow: Navigating to folder: %s", Entry.FileName.c_str());
+		NavigateToPath(Entry.Path);
+		return;
+	}
+
 	// 파일인 경우 뷰어 열기
 	UE_LOG("ContentBrowserWindow: Double-clicked file: %s", Entry.FileName.c_str());
 

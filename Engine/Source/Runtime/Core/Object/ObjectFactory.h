@@ -48,6 +48,10 @@ namespace ObjectFactory
     void DeleteAll(bool bCallBeginDestroy = true);
     // Null 슬롯 압축하여 배열 크기 축소
     void CompactNullSlots();
+
+    // 객체가 아직 유효한지 확인
+    // 비동기 콜백에서 dangling pointer 방지용
+    bool IsValidObject(const UObject* Obj);
 }
 
 // ── 등록 매크로 ─────────────────────────────────────────────

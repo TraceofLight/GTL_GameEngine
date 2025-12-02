@@ -179,7 +179,7 @@ void UDirectionalLightComponent::OnRegister(UWorld* InWorld)
 
 	if (SpriteComponent)
 	{
-		SpriteComponent->SetTexture(GDataDir + "/Default/UI/Icons/S_LightDirectional.dds");
+		SpriteComponent->SetTexture(GDataDir + "/Default/Icon/S_LightDirectional.dds");
 	}
 
 	// Create Direction Gizmo if not already created

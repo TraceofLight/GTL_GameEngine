@@ -171,11 +171,33 @@ void FBodyInstance::CreateShapesFromBodySetup()
         }
     }
 
-    // If dynamic, compute mass/inertia
+    // If dynamic, compute mass/inertia and set damping for stability
     if (PhysicsActor && PhysicsActor->is<PxRigidDynamic>())
     {
         PxRigidDynamic* Dyn = PhysicsActor->is<PxRigidDynamic>();
-        PxRigidBodyExt::updateMassAndInertia(*Dyn, 1000.0f);
+
+        // 밀도 기반 질량 계산
+        PxRigidBodyExt::updateMassAndInertia(*Dyn, 10.0f);
+
+        // 최소 질량 보장 (작은 스케일 모델에서도 적절한 물리 동작을 위해)
+        constexpr float MinMass = 1.0f;  // kg
+        float CurrentMass = Dyn->getMass();
+        if (CurrentMass < MinMass)
+        {
+            // 질량을 최소값으로 설정하고 관성도 비례하여 스케일
+            float MassScale = MinMass / std::max(CurrentMass, 0.0001f);
+            PxVec3 CurrentInertia = Dyn->getMassSpaceInertiaTensor();
+            Dyn->setMass(MinMass);
+            Dyn->setMassSpaceInertiaTensor(CurrentInertia * MassScale);
+        }
+
+        // Damping 설정 - 흔들림 감소
+        Dyn->setLinearDamping(0.5f);
+        Dyn->setAngularDamping(0.5f);
+
+        // Solver Iteration 증가 - Joint 안정성 향상
+        Dyn->setSolverIterationCounts(8, 4);  // positionIters, velocityIters
+
         Dyn->wakeUp();
     }
 }
@@ -233,7 +255,22 @@ void FBodyInstance::AddSimpleShape(const FShape& S)
 	if (PhysicsActor && PhysicsActor->is<PxRigidDynamic>())
 	{
 		PxRigidDynamic* Dyn = PhysicsActor->is<PxRigidDynamic>();
-		PxRigidBodyExt::updateMassAndInertia(*Dyn, 1000.0f);
+		PxRigidBodyExt::updateMassAndInertia(*Dyn, 10.0f);
+
+		// 최소 질량 보장
+		constexpr float MinMass = 1.0f;
+		float CurrentMass = Dyn->getMass();
+		if (CurrentMass < MinMass)
+		{
+			float MassScale = MinMass / std::max(CurrentMass, 0.0001f);
+			PxVec3 CurrentInertia = Dyn->getMassSpaceInertiaTensor();
+			Dyn->setMass(MinMass);
+			Dyn->setMassSpaceInertiaTensor(CurrentInertia * MassScale);
+		}
+
+		Dyn->setLinearDamping(0.5f);
+		Dyn->setAngularDamping(0.5f);
+		Dyn->setSolverIterationCounts(8, 4);
 		Dyn->wakeUp();
 	}
 }
@@ -311,7 +348,22 @@ void FBodyInstance::AttachBoxShape(PxPhysics* Physics, PxMaterial* Material, con
 
     if (auto* dyn = PhysicsActor->is<PxRigidDynamic>())
     {
-        PxRigidBodyExt::updateMassAndInertia(*dyn, 1.0f);
+        PxRigidBodyExt::updateMassAndInertia(*dyn, 10.0f);
+
+        // 최소 질량 보장
+        constexpr float MinMass = 1.0f;
+        float CurrentMass = dyn->getMass();
+        if (CurrentMass < MinMass)
+        {
+            float MassScale = MinMass / std::max(CurrentMass, 0.0001f);
+            PxVec3 CurrentInertia = dyn->getMassSpaceInertiaTensor();
+            dyn->setMass(MinMass);
+            dyn->setMassSpaceInertiaTensor(CurrentInertia * MassScale);
+        }
+
+        dyn->setLinearDamping(0.5f);
+        dyn->setAngularDamping(0.5f);
+        dyn->setSolverIterationCounts(8, 4);
         dyn->wakeUp();
     }
 }
