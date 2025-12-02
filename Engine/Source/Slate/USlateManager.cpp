@@ -1032,6 +1032,13 @@ void USlateManager::ProcessInput()
             OnMouseDown(MousePosition, 1);
         }
     }
+	if (INPUT.IsMouseButtonPressed(MiddleButton))
+	{
+		const FVector2D MousePosition = INPUT.GetMousePosition();
+		{
+			OnMouseDown(MousePosition, 2);
+		}
+	}
     if (INPUT.IsMouseButtonReleased(LeftButton))
     {
         const FVector2D MousePosition = INPUT.GetMousePosition();
@@ -1212,6 +1219,23 @@ void USlateManager::OnMouseMove(FVector2D MousePos)
 
 void USlateManager::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
+    // PIE 모드에서 입력이 해제된 상태에서 뷰포트 클릭 시 입력 재캡처
+    // 좌클릭, 우클릭, 휠클릭 모두 지원
+#ifdef _EDITOR
+    if (GEngine.IsPIEActive() && !GEngine.IsPIEInputCaptured())
+    {
+        // 뷰포트 영역 클릭인지 확인
+        for (auto* VP : Viewports)
+        {
+            if (VP && VP->Rect.Contains(MousePos))
+            {
+                GEngine.SetPIEInputCaptured(true);
+                return;  // 입력 재캡처 후 다른 처리 스킵
+            }
+        }
+    }
+#endif
+
     // Check for unified splitter control first (only left click, only in FourSplit mode)
     if (Button == 0 && CurrentMode == EViewportLayoutMode::FourSplit)
     {
@@ -1297,8 +1321,13 @@ void USlateManager::OnMouseUp(FVector2D MousePos, uint32 Button)
         }
     }
 
-    // Restore cursor on right click release
+    // Restore cursor on right click release (PIE 입력 캡처 중에는 스킵)
+#ifdef _EDITOR
+    bool bShouldRestoreCursor = !(GEngine.IsPIEActive() && GEngine.IsPIEInputCaptured());
+    if (Button == 1 && INPUT.IsCursorLocked() && bShouldRestoreCursor)
+#else
     if (Button == 1 && INPUT.IsCursorLocked())
+#endif
     {
         INPUT.SetCursorVisible(true);
         INPUT.ReleaseCursor();

@@ -41,12 +41,12 @@ UInputManager& UInputManager::GetInstance()
 void UInputManager::Initialize(HWND hWindow)
 {
     WindowHandle = hWindow;
-    
+
     // 현재 마우스 위치 가져오기
     POINT CursorPos;
     GetCursorPos(&CursorPos);
     ScreenToClient(WindowHandle, &CursorPos);
-    
+
     MousePosition.X = static_cast<float>(CursorPos.x);
     MousePosition.Y = static_cast<float>(CursorPos.y);
     PreviousMousePosition = MousePosition;
@@ -117,14 +117,14 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
 {
     bool IsUIHover = false;
     bool IsKeyBoardCapture = false;
-    
+
     if (ImGui::GetCurrentContext() != nullptr)
     {
         // ImGui가 입력을 사용 중인지 확인
         ImGuiIO& io = ImGui::GetIO();
         static bool once = false;
         if (!once) { io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; once = true; }
-        
+
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         bool bAnyItemHovered = ImGui::IsAnyItemHovered();
         IsUIHover = bAnyItemHovered;
@@ -147,12 +147,12 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
                 }
             }
         }
-        
+
         // 디버그 출력 (마우스 클릭 시만)
         if (bEnableDebugLogging && message == WM_LBUTTONDOWN)
         {
             char debugMsg[128];
-            sprintf_s(debugMsg, "ImGui State - WantMouse: %d, WantKeyboard: %d\n", 
+            sprintf_s(debugMsg, "ImGui State - WantMouse: %d, WantKeyboard: %d\n",
                       IsUIHover, IsKeyBoardCapture);
             UE_LOG(debugMsg);
         }
@@ -188,7 +188,7 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
             ScreenSize.Y = static_cast<float>(h);
         }
         break;
-        
+
     case WM_LBUTTONDOWN:
         if (!IsUIHover)  // ImGui가 마우스를 사용하지 않을 때만
         {
@@ -196,7 +196,7 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
             if (bEnableDebugLogging) UE_LOG("InputManager: Left Mouse Down\n");
         }
         break;
-        
+
     case WM_LBUTTONUP:
         if (!IsUIHover)  // ImGui가 마우스를 사용하지 않을 때만
         {
@@ -204,7 +204,7 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
             if (bEnableDebugLogging) UE_LOG("InputManager: Left Mouse UP\n");
         }
         break;
-        
+
     case WM_RBUTTONDOWN:
         if (!IsUIHover)
         {
@@ -216,7 +216,7 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
             if (bEnableDebugLogging) UE_LOG("InputManager: Right Mouse DOWN blocked by ImGui");
         }
         break;
-        
+
     case WM_RBUTTONUP:
         if (!IsUIHover)
         {
@@ -228,21 +228,21 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
             if (bEnableDebugLogging) UE_LOG("InputManager: Right Mouse UP blocked by ImGui");
         }
         break;
-        
+
     case WM_MBUTTONDOWN:
         if (!IsUIHover)
         {
             UpdateMouseButton(MiddleButton, true);
         }
         break;
-        
+
     case WM_MBUTTONUP:
         if (!IsUIHover)
         {
             UpdateMouseButton(MiddleButton, false);
         }
         break;
-        
+
     case WM_XBUTTONDOWN:
         if (!IsUIHover)
         {
@@ -254,7 +254,7 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
                 UpdateMouseButton(XButton2, true);
         }
         break;
-        
+
     case WM_XBUTTONUP:
         if (!IsUIHover)
         {
@@ -290,7 +290,7 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
             // Virtual Key Code 추출
             int KeyCode = static_cast<int>(wParam);
             UpdateKeyState(KeyCode, true);
-            
+
             // 디버그 출력
             if (bEnableDebugLogging)
             {
@@ -300,7 +300,7 @@ void UInputManager::ProcessMessage(HWND hWnd, UINT message, WPARAM wParam, LPARA
             }
         }
         break;
-        
+
     case WM_KEYUP:
     case WM_SYSKEYUP:
         // 키 릴리즈는 항상 처리 (키가 눌린 상태로 고정되는 것을 방지)
@@ -332,20 +332,20 @@ bool UInputManager::IsMouseButtonDown(EMouseButton Button) const
 bool UInputManager::IsMouseButtonPressed(EMouseButton Button) const
 {
     if (Button >= MaxMouseButtons) return false;
-    
+
     bool currentState = MouseButtons[Button];
     bool previousState = PreviousMouseButtons[Button];
     bool isPressed = currentState && !previousState;
-    
+
     // 디버그 출력 추가
     if (bEnableDebugLogging && Button == LeftButton && (currentState || previousState))
     {
         char debugMsg[128];
-        sprintf_s(debugMsg, "IsPressed: Current=%d, Previous=%d, Result=%d\n", 
+        sprintf_s(debugMsg, "IsPressed: Current=%d, Previous=%d, Result=%d\n",
                   currentState, previousState, isPressed);
         UE_LOG(debugMsg);
     }
-    
+
     return isPressed;
 }
 
@@ -357,20 +357,59 @@ bool UInputManager::IsMouseButtonReleased(EMouseButton Button) const
 
 bool UInputManager::IsKeyDown(int KeyCode) const
 {
-    if (KeyCode < 0 || KeyCode >= 256) return false; 
+    if (!bGameInputEnabled)
+    {
+	    return false;
+    }
+    if (KeyCode < 0 || KeyCode >= 256)
+    {
+	    return false;
+    }
     return KeyStates[KeyCode];
 }
 
 bool UInputManager::IsKeyPressed(int KeyCode) const
 {
-    if (KeyCode < 0 || KeyCode >= 256) return false;
+    if (!bGameInputEnabled)
+    {
+	    return false;
+    }
+    if (KeyCode < 0 || KeyCode >= 256)
+    {
+	    return false;
+    }
     return KeyStates[KeyCode] && !PreviousKeyStates[KeyCode];
 }
 
 bool UInputManager::IsKeyReleased(int KeyCode) const
 {
-    if (KeyCode < 0 || KeyCode >= 256) return false;
+    if (!bGameInputEnabled)
+    {
+	    return false;
+    }
+    if (KeyCode < 0 || KeyCode >= 256)
+    {
+	    return false;
+    }
     return !KeyStates[KeyCode] && PreviousKeyStates[KeyCode];
+}
+
+bool UInputManager::IsKeyDownRaw(int KeyCode) const
+{
+    if (KeyCode < 0 || KeyCode >= 256)
+    {
+	    return false;
+    }
+    return KeyStates[KeyCode];
+}
+
+bool UInputManager::IsKeyPressedRaw(int KeyCode) const
+{
+    if (KeyCode < 0 || KeyCode >= 256)
+    {
+	    return false;
+    }
+    return KeyStates[KeyCode] && !PreviousKeyStates[KeyCode];
 }
 
 void UInputManager::UpdateMousePosition(int X, int Y)
@@ -442,13 +481,27 @@ void UInputManager::LockCursor()
 {
     if (!WindowHandle) return;
 
-    // 현재 커서 위치를 기준점으로 저장
+    // 잠금 전 원래 커서 위치 저장 (복원용)
     POINT currentCursor;
     if (GetCursorPos(&currentCursor))
     {
         ScreenToClient(WindowHandle, &currentCursor);
-        LockedCursorPosition = FVector2D(static_cast<float>(currentCursor.x), static_cast<float>(currentCursor.y));
+        PreLockCursorPosition = FVector2D(static_cast<float>(currentCursor.x), static_cast<float>(currentCursor.y));
     }
+
+    // 윈도우 중앙 좌표 계산
+    RECT clientRect;
+    if (GetClientRect(WindowHandle, &clientRect))
+    {
+        float centerX = static_cast<float>(clientRect.right - clientRect.left) * 0.5f;
+        float centerY = static_cast<float>(clientRect.bottom - clientRect.top) * 0.5f;
+        LockedCursorPosition = FVector2D(centerX, centerY);
+    }
+
+    // 커서를 중앙으로 이동
+    POINT centerPoint = { static_cast<int>(LockedCursorPosition.X), static_cast<int>(LockedCursorPosition.Y) };
+    ClientToScreen(WindowHandle, &centerPoint);
+    SetCursorPos(centerPoint.x, centerPoint.y);
 
     // 잠금 상태 설정
     bIsCursorLocked = true;
@@ -465,12 +518,12 @@ void UInputManager::ReleaseCursor()
     // 잠금 해제
     bIsCursorLocked = false;
 
-    // 원래 커서 위치로 복원
-    POINT lockedPoint = { static_cast<int>(LockedCursorPosition.X), static_cast<int>(LockedCursorPosition.Y) };
-    ClientToScreen(WindowHandle, &lockedPoint);
-    SetCursorPos(lockedPoint.x, lockedPoint.y);
+    // 잠금 전 원래 커서 위치로 복원
+    POINT restorePoint = { static_cast<int>(PreLockCursorPosition.X), static_cast<int>(PreLockCursorPosition.Y) };
+    ClientToScreen(WindowHandle, &restorePoint);
+    SetCursorPos(restorePoint.x, restorePoint.y);
 
     // 마우스 위치 동기화
-    MousePosition = LockedCursorPosition;
-    PreviousMousePosition = LockedCursorPosition;
+    MousePosition = PreLockCursorPosition;
+    PreviousMousePosition = PreLockCursorPosition;
 }
