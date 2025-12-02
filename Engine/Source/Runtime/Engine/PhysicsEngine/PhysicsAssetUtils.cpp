@@ -286,13 +286,23 @@ bool FPhysicsAssetUtils::CreateCollisionFromBoneInternal(UBodySetup* BodySetup, 
     FQuat ModelSpaceRotation = EigenQuat * AdditionalRotation;
     ModelSpaceRotation.Normalize();
 
-    // Transform the box center back to model space, then to bone-local space
+    // Transform the box center back to model space
     FVector ModelSpaceCenter = ElementTransform.TransformPosition(BoxCenter);
-    FVector LocalCenter = InverseBindPose.TransformPosition(ModelSpaceCenter);
+
+    // Transform to bone-local space
+    // We need to use TransformVector (rotation only) for the offset from bone origin,
+    // not TransformPosition which would add the inverse bind pose translation
+    FTransform InvBindTransform(InverseBindPose);
+
+    // Get bone position in model space (from the bind pose, which is the inverse of InverseBindPose)
+    FMatrix BindPose = InverseBindPose.Inverse();
+    FVector BoneModelPos(BindPose.M[3][0], BindPose.M[3][1], BindPose.M[3][2]);
+
+    // Calculate offset from bone in model space, then rotate to bone-local space
+    FVector OffsetFromBone = ModelSpaceCenter - BoneModelPos;
+    FVector LocalCenter = InvBindTransform.Rotation.RotateVector(OffsetFromBone);
 
     // Transform rotation from model-space to bone-local space
-    // Extract the rotation part of InverseBindPose and apply it to the capsule rotation
-    FTransform InvBindTransform(InverseBindPose);
     FQuat FinalRotation = InvBindTransform.Rotation * ModelSpaceRotation;
     FinalRotation.Normalize();
 
