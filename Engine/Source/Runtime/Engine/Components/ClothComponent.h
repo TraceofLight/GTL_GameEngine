@@ -54,17 +54,20 @@ struct FClothSimulationSettings
 
 	// Gravity
 	bool bUseGravity = true;                    // 중력 사용
-	FVector GravityOverride = FVector(0, 0, -9.8f); // 중력 오버라이드 (cm/s^2)
+	FVector GravityOverride = FVector(0, 0, -980.0f); // 중력 오버라이드 (cm/s^2)
 
 	// Wind
-	FVector WindVelocity = FVector(3, 0, 0);    // 바람 속도
-	float WindDrag = 0.0f;                      // 바람 저항
-	float WindLift = 0.0f;                      // 바람 양력
+	FVector WindVelocity = FVector(100, 0, 0);  // 바람 속도 (cm/s)
+	float WindDrag = 0.5f;                      // 바람 저항 (0-1)
+	float WindLift = 0.3f;                      // 바람 양력 (0-1)
 
 	// Tether constraints (거리 제약)
 	bool bUseTethers = true;                    // Tether 사용
 	float TetherStiffness = 0.5f;               // Tether 강성
 	float TetherScale = 1.2f;                   // Tether 스케일
+
+	// Fixed vertices (고정 정점)
+	float FixedVertexRatio = 0.1f;              // 상단에서 고정할 정점 비율 (0-1)
 
 	// Inertia
 	float LinearInertiaScale = 1.0f;            // 선형 관성 스케일

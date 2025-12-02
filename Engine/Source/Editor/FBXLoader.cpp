@@ -1223,8 +1223,35 @@ FbxString UFbxLoader::GetAttributeTypeName(FbxNodeAttribute* InAttribute)
 
 void UFbxLoader::EnsureSingleRootBone(FSkeletalMeshData& MeshData)
 {
+	// 본이 없는 경우 더미 본 생성 (Cloth 시뮬레이션용)
 	if (MeshData.Skeleton.Bones.IsEmpty())
+	{
+		UE_LOG("UFbxLoader: No skeleton found, creating dummy root bone for cloth simulation");
+
+		FBone DummyRoot;
+		DummyRoot.Name = "Root";
+		DummyRoot.ParentIndex = -1;
+		DummyRoot.BindPose = FMatrix::Identity();
+		DummyRoot.InverseBindPose = FMatrix::Identity();
+
+		MeshData.Skeleton.Bones.Add(DummyRoot);
+
+		// 모든 정점을 더미 본에 바인딩
+		for (auto& Vertex : MeshData.Vertices)
+		{
+			Vertex.BoneIndices[0] = 0;  // 첫 번째 본(더미 본)
+			Vertex.BoneWeights[0] = 1.0f;  // 100% 가중치
+
+			// 나머지는 0으로 초기화
+			for (int32 i = 1; i < 4; ++i)
+			{
+				Vertex.BoneIndices[i] = 0;
+				Vertex.BoneWeights[i] = 0.0f;
+			}
+		}
+
 		return;
+	}
 
 	// 루트 본 개수 세기
 	TArray<int32> RootBoneIndices;
