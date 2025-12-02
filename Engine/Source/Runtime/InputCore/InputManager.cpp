@@ -489,13 +489,13 @@ void UInputManager::LockCursor()
         PreLockCursorPosition = FVector2D(static_cast<float>(currentCursor.x), static_cast<float>(currentCursor.y));
     }
 
-    // 윈도우 중앙 좌표 계산
+    // 윈도우 중앙 좌표 계산 (정수로 정렬하여 float / int 변환 오차 방지)
     RECT clientRect;
     if (GetClientRect(WindowHandle, &clientRect))
     {
-        float centerX = static_cast<float>(clientRect.right - clientRect.left) * 0.5f;
-        float centerY = static_cast<float>(clientRect.bottom - clientRect.top) * 0.5f;
-        LockedCursorPosition = FVector2D(centerX, centerY);
+        int32 centerX = (clientRect.right - clientRect.left) / 2;
+        int32 centerY = (clientRect.bottom - clientRect.top) / 2;
+        LockedCursorPosition = FVector2D(static_cast<float>(centerX), static_cast<float>(centerY));
     }
 
     // 커서를 중앙으로 이동

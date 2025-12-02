@@ -24,7 +24,7 @@ UCameraComponent::UCameraComponent()
     , FarClip(50000.0f)
     , ProjectionMode(ECameraProjectionMode::Perspective)
     , ZoomFactor(1.0f)
-
+    , OrthoZoom(0.1f)
 {
 }
 
@@ -104,18 +104,12 @@ FMatrix UCameraComponent::GetProjectionMatrix(float ViewportAspectRatio) const
     }
     else
     {
-        float orthoHeight = 2.0f * tanf((FieldOfView * PI / 180.0f) * 0.5f) * 10.0f;
-        float orthoWidth = orthoHeight * ViewportAspectRatio;
-
-        // 줌 계산
-        orthoWidth = orthoWidth * ZoomFactor;
-        orthoHeight = orthoWidth / ViewportAspectRatio;
-
+        // Viewport 없이는 기본 크기 사용
+        float orthoWidth = 100.0f * OrthoZoom;
+        float orthoHeight = orthoWidth / ViewportAspectRatio;
 
         return FMatrix::OrthoLH(orthoWidth, orthoHeight,
             NearClip, FarClip);
-        /*return FMatrix::OrthoLH_XForward(orthoWidth, orthoHeight,
-            NearClip, FarClip);*/
     }
 }
 FMatrix UCameraComponent::GetProjectionMatrix(float ViewportAspectRatio, FViewport* Viewport) const
@@ -129,19 +123,15 @@ FMatrix UCameraComponent::GetProjectionMatrix(float ViewportAspectRatio, FViewpo
     }
     else
     {
-        // 1 world unit = 100 pixels (예시)
-        const float pixelsPerWorldUnit = 10.0f;
-
-        // 뷰포트 크기를 월드 단위로 변환
-        float orthoWidth = (Viewport->GetSizeX() / pixelsPerWorldUnit) * ZoomFactor;
-        float orthoHeight = (Viewport->GetSizeY() / pixelsPerWorldUnit) * ZoomFactor;
+        // 뷰포트 크기 기반 Orthographic (언리얼 방식)
+        // OrthoZoom = 픽셀당 월드 유닛 (값이 클수록 줌아웃)
+        float orthoWidth = Viewport->GetSizeX() * OrthoZoom;
+        float orthoHeight = Viewport->GetSizeY() * OrthoZoom;
 
         return FMatrix::OrthoLH(
             orthoWidth,
             orthoHeight,
             NearClip, FarClip);
-        /*return FMatrix::OrthoLH_XForward(orthoWidth, orthoHeight,
-            NearClip, FarClip);*/
     }
 }
 

@@ -37,7 +37,7 @@ namespace
 		return CascadedSliceDepth;
 	}
 
-	TArray<FVector> GetFrustumVertices(ECameraProjectionMode ProjectionMode, FViewportRect ViewRect, float FieldOfView, float AspectRatio, float Near, float Far, float ZoomFactor)
+	TArray<FVector> GetFrustumVertices(ECameraProjectionMode ProjectionMode, FViewportRect ViewRect, float FieldOfView, float AspectRatio, float Near, float Far, float OrthoZoom)
 	{
 		TArray<FVector> Vertices;
 		Vertices.reserve(8);
@@ -52,10 +52,11 @@ namespace
 		}
 		else
 		{
-			const float pixelsPerWorldUnit = 10.0f;
-
-			NearHalfHeight = (ViewRect.MinY / pixelsPerWorldUnit) * ZoomFactor;
-			NearHalfWidth = (ViewRect.MinX / pixelsPerWorldUnit) * ZoomFactor;
+			// 뷰포트 크기 기반 Orthographic (OrthoZoom = 픽셀당 월드 유닛)
+			float OrthoWidth = ViewRect.Width() * OrthoZoom;
+			float OrthoHeight = ViewRect.Height() * OrthoZoom;
+			NearHalfWidth = OrthoWidth * 0.5f;
+			NearHalfHeight = OrthoHeight * 0.5f;
 			FarHalfHeight = NearHalfHeight;
 			FarHalfWidth = NearHalfWidth;
 		}
@@ -88,7 +89,7 @@ void UDirectionalLightComponent::GetShadowRenderRequests(FSceneView* View, TArra
 	FMatrix ViewInv = View->ViewMatrix.InverseAffine();
 	if (bCascaded == false)
 	{
-		TArray<FVector> CameraFrustum = GetFrustumVertices(View->ProjectionMode, View->ViewRect, View->FieldOfView, View->AspectRatio, View->NearClip, View->FarClip, View->ZoomFactor);
+		TArray<FVector> CameraFrustum = GetFrustumVertices(View->ProjectionMode, View->ViewRect, View->FieldOfView, View->AspectRatio, View->NearClip, View->FarClip, View->OrthoZoom);
 		float Near = View->NearClip;
 		float Far = View->FarClip;
 		float CenterDepth = (Far + Near) / 2;
@@ -121,7 +122,7 @@ void UDirectionalLightComponent::GetShadowRenderRequests(FSceneView* View, TArra
 			float Far = CascadedSliceDepth[i + 1];
 			//Near -= Near * CascadedOverlapValue;
 			Far += Far * CascadedOverlapValue;
-			TArray<FVector> CameraFrustum = GetFrustumVertices(View->ProjectionMode, View->ViewRect, View->FieldOfView, View->AspectRatio, Near, Far, View->ZoomFactor);
+			TArray<FVector> CameraFrustum = GetFrustumVertices(View->ProjectionMode, View->ViewRect, View->FieldOfView, View->AspectRatio, Near, Far, View->OrthoZoom);
 			float CenterDepth = (Far + Near) / 2;
 			FVector Center = FVector(0, 0, CenterDepth);
 			float MaxDis = FVector::Distance(Center, CameraFrustum[7]) * 2;

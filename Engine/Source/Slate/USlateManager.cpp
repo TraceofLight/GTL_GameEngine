@@ -168,11 +168,11 @@ void USlateManager::Initialize(ID3D11Device* InDevice, UWorld* InWorld, const FR
     Viewports[1] = new SViewportWindow();
     Viewports[2] = new SViewportWindow();
     Viewports[3] = new SViewportWindow();
-    MainViewport = Viewports[0];
+    MainViewport = Viewports[2];
 
     Viewports[0]->Initialize(0, 0,
         Rect.GetWidth() / 2, Rect.GetHeight() / 2,
-        World, Device, EViewportType::Perspective);
+        World, Device, EViewportType::Orthographic_Top);
 
     Viewports[1]->Initialize(Rect.GetWidth() / 2, 0,
         Rect.GetWidth(), Rect.GetHeight() / 2,
@@ -180,11 +180,11 @@ void USlateManager::Initialize(ID3D11Device* InDevice, UWorld* InWorld, const FR
 
     Viewports[2]->Initialize(0, Rect.GetHeight() / 2,
         Rect.GetWidth() / 2, Rect.GetHeight(),
-        World, Device, EViewportType::Orthographic_Left);
+        World, Device, EViewportType::Perspective);
 
     Viewports[3]->Initialize(Rect.GetWidth() / 2, Rect.GetHeight() / 2,
         Rect.GetWidth(), Rect.GetHeight(),
-        World, Device, EViewportType::Orthographic_Top);
+        World, Device, EViewportType::Orthographic_Right);
 
     World->SetEditorCameraActor(MainViewport->GetViewportClient()->GetCamera());
 
@@ -1131,6 +1131,16 @@ void USlateManager::ProcessInput()
 
 void USlateManager::OnMouseMove(FVector2D MousePos)
 {
+    // 각 뷰포트의 호버링 상태 업데이트 (휠 줌 처리용)
+    for (auto* VP : Viewports)
+    {
+        if (VP && VP->GetViewportClient())
+        {
+            bool bHovered = VP->Rect.Contains(MousePos);
+            VP->GetViewportClient()->SetHovered(bHovered);
+        }
+    }
+
     // Handle unified splitter dragging first
     if (bIsDraggingCenterCross && LeftPanel && LeftTop && LeftBottom)
     {

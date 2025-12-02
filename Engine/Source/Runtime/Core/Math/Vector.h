@@ -1146,7 +1146,7 @@ struct alignas(16) FMatrix
 		float ViewHeight,
 		float NearClip,
 		float FarClip,
-		float ZoomFactor,
+		float OrthoZoom,
 		enum class ECameraProjectionMode ProjectionMode);
 
 	// 직렬화 연산자
