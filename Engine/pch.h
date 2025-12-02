@@ -7,6 +7,9 @@
 
 #define IMGUI_DEFINE_MATH_OPERATORS	// Imgui에서 곡선 표시를 위한 전용 벡터 연산자 활성화
 
+// Constants
+#define INDEX_NONE -1
+
 // Standard Library (MUST come before UEContainer.h)
 #include <vector>
 #include <map>
@@ -153,6 +156,7 @@ extern UWorld* GWorld;
 #pragma comment(lib, "PhysXFoundation_static_64.lib")
 #pragma comment(lib, "PhysXPvdSDK_static_64.lib")
 #pragma comment(lib, "PhysXCooking_static_64.lib")
+#pragma comment(lib, "NvCloth_x64.lib") 
 #else
 #pragma comment(lib, "PhysXExtensions_static_64.lib")
 #pragma comment(lib, "PhysX_static_64.lib")
@@ -160,4 +164,5 @@ extern UWorld* GWorld;
 #pragma comment(lib, "PhysXFoundation_static_64.lib")
 #pragma comment(lib, "PhysXPvdSDK_static_64.lib")
 #pragma comment(lib, "PhysXCooking_static_64.lib")
+#pragma comment(lib, "NvCloth_x64.lib")
 #endif

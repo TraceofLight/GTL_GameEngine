@@ -1,27 +1,41 @@
 #include "pch.h"
 #include "PhysicsManager.h"
 
+// 둘중 1개라도 Trigger면 Trigger 기본 동작 수행
+// 그 외는 Default Contact
+// Filter 설정을 통해서 Touch Found 콜백 호출
 // 필터 셰이더
 static PxFilterFlags CoreSimulationFilterShader(
 	PxFilterObjectAttributes attributes0, PxFilterData filterData0,
 	PxFilterObjectAttributes attributes1, PxFilterData filterData1,
 	PxPairFlags& pairFlags, const void* constantBlock, PxU32 constantBlockSize)
 {
-	// 기본적으로 충돌 처리
+	// triggers 처리
+	if (PxFilterObjectIsTrigger(attributes0) || PxFilterObjectIsTrigger(attributes1))
+	{
+		pairFlags = PxPairFlag::eTRIGGER_DEFAULT;
+		return PxFilterFlag::eDEFAULT;
+	}
+
 	pairFlags = PxPairFlag::eCONTACT_DEFAULT;
 
-	// 충돌 시작/종료 이벤트 활성화
-	pairFlags |= PxPairFlag::eNOTIFY_TOUCH_FOUND;
-	pairFlags |= PxPairFlag::eNOTIFY_TOUCH_LOST;
-		
+	if ((filterData0.word0 & filterData1.word1) &&
+		(filterData1.word0 & filterData0.word1))
+	{
+		pairFlags |= PxPairFlag::eNOTIFY_TOUCH_FOUND;
+	}
+
 	return PxFilterFlag::eDEFAULT;
 }
+
+//TODO: setupFiltering https://nvidiagameworks.github.io/PhysX/4.1/documentation/physxguide/Manual/RigidBodyCollision.html
 
 void FPhysicsManager::Initialize()
 {
 	// 1. Foundation (공유 리소스)
 	Foundation = PxCreateFoundation(PX_PHYSICS_VERSION, gAllocator, gErrorCallback);
 	if (!Foundation) { MessageBoxA(nullptr, "PxCreateFoundation failed!", "Error", MB_OK); return; }
+
 
 
 	//TOOD: Release모드에서 PVD가 안붙도록 

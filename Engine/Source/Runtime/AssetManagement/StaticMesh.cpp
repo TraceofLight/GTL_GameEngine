@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "StaticMesh.h"
 #include "StaticMeshComponent.h"
 #include "ObjManager.h"
