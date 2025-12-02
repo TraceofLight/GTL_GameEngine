@@ -497,6 +497,12 @@ struct FVertexWeight
     float Weight; // 가중치
 };
 
+struct FBoneVertInfo
+{
+	TArray<FVector> Positions;
+	TArray<FVector> Normals;
+};
+
 struct FSkeletalMeshData
 {
     FString PathFileName;
