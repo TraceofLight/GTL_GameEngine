@@ -79,6 +79,11 @@ public:
     // delete 전 호출하여 리소스 안전하게 해제 (ImGui 지연 렌더링 문제 방지)
     void PrepareForDelete();
 
+    // Physics Simulation
+    void StartSimulation();
+    void StopSimulation();
+    bool IsSimulating() const;
+
 private:
     // UI Panels (Legacy - 독립 윈도우 모드용)
     void RenderToolbar();

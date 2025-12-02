@@ -425,6 +425,9 @@ void UEditorEngine::MainLoop()
 
 void UEditorEngine::Shutdown()
 {
+    // 비동기 로더를 먼저 종료해야 워커 스레드가 리소스 접근 중 크래시 방지
+    UResourceManager::GetInstance().Clear();
+
     // 월드부터 삭제해야 DeleteAll 때 문제가 없음
     for (FWorldContext WorldContext : WorldContexts)
     {

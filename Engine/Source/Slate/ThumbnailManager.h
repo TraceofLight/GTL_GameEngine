@@ -58,6 +58,12 @@ public:
 	ID3D11ShaderResourceView* GetThumbnailFromBase64(const std::string& Base64Data, const std::string& CacheKey);
 
 	/**
+	 * @brief 폴더 썸네일 가져오기
+	 * @return 폴더 아이콘 ShaderResourceView
+	 */
+	ID3D11ShaderResourceView* GetFolderThumbnail();
+
+	/**
 	 * @brief 캐시 초기화
 	 */
 	void ClearCache();
@@ -100,6 +106,31 @@ private:
 	 * @brief .scene 파일용 썸네일 생성 (Level.dds 아이콘 사용)
 	 */
 	FThumbnailData* CreateSceneThumbnail(const std::string& FilePath);
+
+	/**
+	 * @brief .blend2d 파일용 썸네일 생성 (BlendSpace_64.dds 아이콘 사용)
+	 */
+	FThumbnailData* CreateBlendSpace2DThumbnail(const std::string& FilePath);
+
+	/**
+	 * @brief 사운드 파일용 썸네일 생성 (SoundAttenuation_64.dds 아이콘 사용)
+	 */
+	FThumbnailData* CreateSoundThumbnail(const std::string& FilePath);
+
+	/**
+	 * @brief .lua 파일용 썸네일 생성 (LuaLogo.png 아이콘 사용)
+	 */
+	FThumbnailData* CreateLuaThumbnail(const std::string& FilePath);
+
+	/**
+	 * @brief .statemachine 파일용 썸네일 생성 (StateMachine.dds 아이콘 사용)
+	 */
+	FThumbnailData* CreateStateMachineThumbnail(const std::string& FilePath);
+
+	/**
+	 * @brief .anim 파일용 썸네일 생성 (AnimSequence_64.dds 아이콘 사용)
+	 */
+	FThumbnailData* CreateAnimThumbnail(const std::string& FilePath);
 
 private:
 	ID3D11Device* Device = nullptr;

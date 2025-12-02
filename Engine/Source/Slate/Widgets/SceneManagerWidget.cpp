@@ -8,10 +8,14 @@
 #include "CameraComponent.h"
 #include "Actor.h"
 #include "StaticMeshActor.h"
+#include "StaticMeshComponent.h"
+#include "SkeletalMeshActor.h"
+#include "SkeletalMeshComponent.h"
 #include "SelectionManager.h"
 #include "Gizmo/GizmoActor.h"
 #include "ResourceManager.h"
 #include "Texture.h"
+#include "AABB.h"
 #include <algorithm>
 #include <string>
 #include <EditorEngine.h>
@@ -315,21 +319,6 @@ void USceneManagerWidget::RenderActorNode(FActorTreeNode* Node, int32 Depth)
 	{
 		HandleActorSelection(Actor);
 	}
-	if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && ImGui::IsItemHovered())
-	{
-		if (GEngine.GetDefaultWorld() && GEngine.GetDefaultWorld()->GetEditorCameraActor())
-		{
-			ACameraActor* Cam = GEngine.GetDefaultWorld()->GetEditorCameraActor();
-			FVector Center = Actor->GetActorLocation();
-			float kDist = 8.0f;
-			FVector Dir = Cam->GetForward();
-			if (Dir.SizeSquared() < KINDA_SMALL_NUMBER) Dir = FVector(1, 0, 0);
-			FVector Pos = Center - Dir * kDist;
-			Cam->SetActorLocation(Pos);
-		}
-		ImGui::ClearActiveID();
-	}
-
 	// BeginPopupContextItem 는 우클릭했을 때 감지됨
 	if (ImGui::BeginPopupContextItem("ActorContextMenu"))
 	{
@@ -406,6 +395,80 @@ void USceneManagerWidget::HandleActorSelection(AActor* Actor)
 	UE_LOG("SceneManager: Selected actor %s", Actor->GetName().c_str());
 }
 
+void USceneManagerWidget::FocusOnActor(AActor* Actor)
+{
+	if (!Actor)
+	{
+		return;
+	}
+
+	if (!GEngine.GetDefaultWorld() || !GEngine.GetDefaultWorld()->GetEditorCameraActor())
+	{
+		return;
+	}
+
+	ACameraActor* Cam = GEngine.GetDefaultWorld()->GetEditorCameraActor();
+
+	// 바운딩 박스 계산
+	FVector BoundsMin, BoundsMax;
+	bool bHasBounds = false;
+
+	// StaticMeshComponent 확인
+	if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(Actor->GetComponent(UStaticMeshComponent::StaticClass())))
+	{
+		if (SMC->GetStaticMesh())
+		{
+			FAABB Bounds = SMC->GetWorldAABB();
+			BoundsMin = Bounds.Min;
+			BoundsMax = Bounds.Max;
+			bHasBounds = true;
+		}
+	}
+	// SkeletalMeshComponent 확인
+	else if (USkeletalMeshComponent* SkMC = Cast<USkeletalMeshComponent>(Actor->GetComponent(USkeletalMeshComponent::StaticClass())))
+	{
+		if (SkMC->GetSkeletalMesh())
+		{
+			FAABB Bounds = SkMC->GetWorldAABB();
+			BoundsMin = Bounds.Min;
+			BoundsMax = Bounds.Max;
+			bHasBounds = true;
+		}
+	}
+
+	FVector Center;
+	float FocusDistance;
+
+	if (bHasBounds)
+	{
+		Center = (BoundsMin + BoundsMax) * 0.5f;
+		FVector Extent = (BoundsMax - BoundsMin) * 0.5f;
+		float BoundsRadius = Extent.Size();
+
+		// 거리 계산: min(radius * 1.2, radius + 5.0) - 작은 오브젝트도 적절한 거리, 큰 오브젝트는 과도하게 멀어지지 않게
+		float ScaledDist = BoundsRadius * 1.2f;
+		float AdditiveDist = BoundsRadius + 5.0f;
+		FocusDistance = std::max(std::min(ScaledDist, AdditiveDist), 3.0f);
+	}
+	else
+	{
+		// 바운딩 박스가 없으면 액터 위치만 사용
+		Center = Actor->GetActorLocation();
+		FocusDistance = 5.0f;
+	}
+
+	// 카메라 방향 유지하면서 위치만 이동
+	FVector CamForward = Cam->GetForward();
+	if (CamForward.SizeSquared() < KINDA_SMALL_NUMBER)
+	{
+		CamForward = FVector(1.0f, 0.0f, 0.0f);
+	}
+	CamForward.Normalize();
+
+	FVector NewCamPos = Center - CamForward * FocusDistance;
+	Cam->SetActorLocation(NewCamPos);
+}
+
 void USceneManagerWidget::HandleActorVisibilityToggle(AActor* Actor)
 {
 	if (!Actor)
@@ -461,6 +524,7 @@ void USceneManagerWidget::RenderContextMenu(AActor* TargetActor)
 	if (ImGui::MenuItem("Focus in Viewport"))
 	{
 		HandleActorSelection(TargetActor);
+		FocusOnActor(TargetActor);
 	}
 
 	ImGui::Separator();

@@ -93,6 +93,7 @@ private:
     void HandleActorRename(AActor* Actor);
     void HandleActorDelete(AActor* Actor);
     void HandleActorDuplicate(AActor* Actor);
+    void FocusOnActor(AActor* Actor);
 
     // Icon loading
     void LoadIcons();

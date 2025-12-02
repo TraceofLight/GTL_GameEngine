@@ -37,6 +37,7 @@ public:
     void SyncPhysicsToComponent();
     void SetBodyTransform(const FMatrix& NewMatrix);
     bool IsDynamic() const;
+    FTransform GetWorldTransform() const;
 
     // Attach a simple box shape to the body (AABB-based). Half extents in meters.
     void AttachBoxShape(PxPhysics* Physics, PxMaterial* Material, const PxVec3& halfExtents, const PxVec3& localOffset = PxVec3(0,0,0));
@@ -44,6 +45,7 @@ public:
     void TermBody();
 
 	bool IsValid() const { return PhysicsActor != nullptr; }
+	PxRigidActor* GetPhysicsActor() const { return PhysicsActor; }
 
     // Extended API
     void CreateShapesFromBodySetup();

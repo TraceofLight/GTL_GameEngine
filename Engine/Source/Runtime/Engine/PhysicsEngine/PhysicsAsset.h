@@ -34,4 +34,12 @@ public:
 
     FAABB CalcAABB(const FTransform& ComponentTM, float Scale = 1.0f) const;
     FAABB CalcAABB(const TMap<FName, FTransform>& BoneWorldTMs, float Scale = 1.0f) const;
+
+	// ===== Constraint 관리 =====
+	int32 FindConstraintIndexByBoneNames(FName Bone1, FName Bone2) const;
+	UPhysicsConstraintSetup* FindConstraintByBoneNames(FName Bone1, FName Bone2);
+	int32 AddConstraintSetup(UPhysicsConstraintSetup* NewSetup);
+
+	// ===== Serialization =====
+	void Serialize(bool bIsLoading, JSON& Json);
 };

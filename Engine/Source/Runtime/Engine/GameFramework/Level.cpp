@@ -61,10 +61,10 @@ void ULevel::SpawnDefaultActors()
 
     if (UStaticMeshComponent* FloorMesh = FloorActor->GetStaticMeshComponent())
     {
-        FloorMesh->SetStaticMesh("Data/Model/Plane.obj");
+        FloorMesh->SetStaticMesh("Data/Default/StaticMesh/Cube.obj");
         FloorMesh->SetMaterial(0, nullptr);
-        FloorActor->SetActorLocation(FVector(0.0f, 0.0f, 0.2f));
-        FloorActor->SetActorScale(FVector(1.0f, 1.0f, 1.0f));
+        FloorActor->SetActorLocation(FVector(0.0f, 0.0f, 0.1f));
+        FloorActor->SetActorScale(FVector(20.0f, 20.0f, 0.2f));
     }
 }
 

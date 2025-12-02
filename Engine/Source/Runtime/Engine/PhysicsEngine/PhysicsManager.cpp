@@ -1,34 +1,29 @@
 #include "pch.h"
 #include "PhysicsManager.h"
 
-// 둘중 1개라도 Trigger면 Trigger 기본 동작 수행
-// 그 외는 Default Contact
-// Filter 설정을 통해서 Touch Found 콜백 호출
 // 필터 셰이더
+// filterData.word2 = Ragdoll Owner ID (같은 래그돌 내 Body들은 동일한 ID)
 static PxFilterFlags CoreSimulationFilterShader(
 	PxFilterObjectAttributes attributes0, PxFilterData filterData0,
 	PxFilterObjectAttributes attributes1, PxFilterData filterData1,
 	PxPairFlags& pairFlags, const void* constantBlock, PxU32 constantBlockSize)
 {
-	// triggers 처리
-	if (PxFilterObjectIsTrigger(attributes0) || PxFilterObjectIsTrigger(attributes1))
+	// 같은 래그돌 내 Body들 간 Self-Collision 무시
+	// word2가 0이 아니고 같으면 = 같은 래그돌 소속
+	if (filterData0.word2 != 0 && filterData0.word2 == filterData1.word2)
 	{
-		pairFlags = PxPairFlag::eTRIGGER_DEFAULT;
-		return PxFilterFlag::eDEFAULT;
+		return PxFilterFlag::eSUPPRESS;
 	}
 
+	// 기본적으로 충돌 처리
 	pairFlags = PxPairFlag::eCONTACT_DEFAULT;
 
-	if ((filterData0.word0 & filterData1.word1) &&
-		(filterData1.word0 & filterData0.word1))
-	{
-		pairFlags |= PxPairFlag::eNOTIFY_TOUCH_FOUND;
-	}
+	// 충돌 시작/종료 이벤트 활성화
+	pairFlags |= PxPairFlag::eNOTIFY_TOUCH_FOUND;
+	pairFlags |= PxPairFlag::eNOTIFY_TOUCH_LOST;
 
 	return PxFilterFlag::eDEFAULT;
 }
-
-//TODO: setupFiltering https://nvidiagameworks.github.io/PhysX/4.1/documentation/physxguide/Manual/RigidBodyCollision.html
 
 void FPhysicsManager::Initialize()
 {
@@ -36,22 +31,27 @@ void FPhysicsManager::Initialize()
 	Foundation = PxCreateFoundation(PX_PHYSICS_VERSION, gAllocator, gErrorCallback);
 	if (!Foundation) { MessageBoxA(nullptr, "PxCreateFoundation failed!", "Error", MB_OK); return; }
 
-
-
-	//TOOD: Release모드에서 PVD가 안붙도록 
-	// PVD 연결 
+	// 2. PVD 설정 (PhysX Visual Debugger)
 	Pvd = PxCreatePvd(*Foundation);
+	if (Pvd)
+	{
+		Transport = PxDefaultPvdSocketTransportCreate("127.0.0.1", 5425, 10);
+		if (Transport)
+		{
+			Pvd->connect(*Transport, PxPvdInstrumentationFlag::eALL);
+		}
+	}
 
-	Transport =
-		PxDefaultPvdSocketTransportCreate("127.0.0.1", 5425, 10);
-	Pvd->connect(*Transport, PxPvdInstrumentationFlag::eALL);
-	 
+	// 3. Physics (공유 리소스)
+	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale(), true, Pvd);
 
-	// 2. Physics (공유 리소스)
-	// PVD on/off를 정할 수 있음
-	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale() , /*pvd설정*/true, Pvd);
+	// 4. Extensions 초기화 (D6 Joint 등 사용을 위해 필수)
+	if (!PxInitExtensions(*Physics, Pvd))
+	{
+		UE_LOG("[Physics] PxInitExtensions failed!");
+	}
 
-	// 3. CPU Dispatcher (공유 리소스)
+	// 5. CPU Dispatcher (공유 리소스)
 	SYSTEM_INFO SysInfo;
 	GetSystemInfo(&SysInfo);
 	int NumWorkerThreads = PxMax(1, (int)(SysInfo.dwNumberOfProcessors - 1));
@@ -67,11 +67,15 @@ void FPhysicsManager::Initialize()
 }
 
 void FPhysicsManager::Shutdown()
-{ 
+{
 	// 역순 파괴 (공유 리소스만)
 	if (DefaultMaterial) { DefaultMaterial->release(); DefaultMaterial = nullptr; }
 	if (Dispatcher) { Dispatcher->release(); Dispatcher = nullptr; }
 	if (Cooking) { Cooking->release(); Cooking = nullptr; }
+
+	// Extensions 종료 (Physics release 전에 호출)
+	PxCloseExtensions();
+
 	if (Physics) { Physics->release(); Physics = nullptr; }
 	if (Pvd) { Pvd->release();	 Pvd = nullptr; }
 	if (Transport) { Transport->release(); Transport = nullptr;  }
@@ -100,16 +104,18 @@ FPhysicsSceneHandle FPhysicsManager::CreateScene()
 	// Scene 생성
 	Handle.Scene = Physics->createScene(sceneDesc);
 
-	// PVD 연결
-	PxPvdSceneClient* pvdClient = Handle.Scene->getScenePvdClient();
-
-	if (pvdClient)
+	// PVD Scene Client 설정 (PVD가 연결된 경우에만)
+	if (Pvd && Pvd->isConnected())
 	{
-		pvdClient->setScenePvdFlags(
-			PxPvdSceneFlag::eTRANSMIT_CONSTRAINTS |
-			PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES |
-			PxPvdSceneFlag::eTRANSMIT_CONTACTS
-		);
+		PxPvdSceneClient* pvdClient = Handle.Scene->getScenePvdClient();
+		if (pvdClient)
+		{
+			pvdClient->setScenePvdFlags(
+				PxPvdSceneFlag::eTRANSMIT_CONSTRAINTS |
+				PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES |
+				PxPvdSceneFlag::eTRANSMIT_CONTACTS
+			);
+		}
 	}
 
 	return Handle;
@@ -140,20 +146,17 @@ void FPhysicsManager::SimulateScene(FPhysicsSceneHandle& Handle, float DeltaTime
 
 void FPhysicsManager::BeginSimulate(FPhysicsSceneHandle& Handle, float DeltaSeconds)
 {
-	// phsx scene이 없으면 패스 
 	if (!Handle.Scene)
 		return;
 
 	Handle.Accumulator += DeltaSeconds;
 
-	//아직 시뮬레이션을 돌릴 틱이 안모였으면 패스
 	if (Handle.Accumulator < Handle.StepSize)
 		return;
 
 	Handle.Accumulator -= Handle.StepSize;
 
-	// Physx를 통해서 시뮬레이션 시작
-	Handle.Scene->simulate(Handle.StepSize); 
+	Handle.Scene->simulate(Handle.StepSize);
 	Handle.bSimulationRunning = true;
 }
 
@@ -180,7 +183,7 @@ void FPhysicsManager::EndSimulate(FPhysicsSceneHandle& Handle, bool bBlock)
 	if (bBlock)
 	{
 		Handle.Scene->fetchResults(true);
-		Handle.bSimulationRunning = false; 
+		Handle.bSimulationRunning = false;
 	}
 	else
 	{

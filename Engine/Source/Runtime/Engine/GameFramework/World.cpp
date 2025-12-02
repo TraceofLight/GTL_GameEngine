@@ -240,16 +240,18 @@ void UWorld::Tick(float DeltaSeconds)
             ActorTimingMap.Remove(Key);
         }
 	}
-	
+
 	// 중복충돌 방지 pair clear
     FrameOverlapPairs.clear();
 
-	// PIE World에서만 물리 시뮬레이션 실행
 	if (bPie && PhysicsSceneHandle.IsValid())
 	{
 		const float Dt = GetDeltaTime(EDeltaTime::Game);
 
-		if (PHYSICS.GetPipelineMode() == EPhysicsPipelineMode::FetchBeforeRender)
+		// Preview worlds (PAE, SkeletalViewer 등)는 메인 렌더 파이프라인과 분리되어 있으므로
+		// 항상 SimulateScene 사용 (BeginSimulate + EndSimulate 한 번에 처리)
+		if (WorldType == EWorldType::PreviewMinimal ||
+		    PHYSICS.GetPipelineMode() == EPhysicsPipelineMode::FetchBeforeRender)
 		{
 			PHYSICS.SimulateScene(PhysicsSceneHandle, Dt);
 		}
@@ -458,14 +460,14 @@ bool UWorld::DestroyActor(AActor* Actor)
 	Actor->DestroyAllComponents();
 
 	// 레벨에서 제거 시도
-	if (Level && Level->RemoveActor(Actor))
+	if (Level)
 	{
-		// 메모리 해제
-		ObjectFactory::DeleteObject(Actor);
-		return true; // 성공적으로 삭제
+		Level->RemoveActor(Actor);
 	}
 
-	return false; // 레벨에 없는 액터
+	// 메모리 해제
+	ObjectFactory::DeleteObject(Actor);
+	return true;
 }
 
 inline FString RemoveObjExtension(const FString& FileName)

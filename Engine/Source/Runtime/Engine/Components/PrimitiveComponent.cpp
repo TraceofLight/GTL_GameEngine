@@ -101,6 +101,12 @@ void UPrimitiveComponent::SetMaterialByName(uint32 InElementIndex, const FString
         InMaterialName,
         [this, InElementIndex, InMaterialName](UMaterial* LoadedMaterial)
         {
+            // 비동기 로드 완료 전에 컴포넌트가 파괴되었을 수 있음
+            if (!IsValidObject(this))
+            {
+                return;
+            }
+
             if (LoadedMaterial)
             {
                 this->SetMaterial(InElementIndex, LoadedMaterial);
@@ -192,24 +198,16 @@ void UPrimitiveComponent::SetSimulatePhysics(bool bSimulate)
 
 void UPrimitiveComponent::RecreatePhysicsBody()
 {
-	// PIE World에서만 물리 body 생성 (Editor World에서는 생성하지 않음)
 	UWorld* World = GetWorld();
 	if (!World || !World->bPie)
-	{
 		return;
-	}
 
-	// World별 Physics Scene 사용
 	PxScene* WorldScene = World->GetPhysicsScene();
 	if (!PHYSICS.GetPhysics() || !WorldScene)
-	{
 		return;
-	}
 
 	if (BodyInstance.IsValid())
-	{
 		BodyInstance.TermBody();
-	}
 
 	const bool bIsDynamic = bSimulatePhysics;
 	BodyInstance.CreateActor(PHYSICS.GetPhysics(), GetWorldTransform().ToMatrix(), bIsDynamic);

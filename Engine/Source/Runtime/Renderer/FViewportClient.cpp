@@ -16,6 +16,8 @@
 #include "PlayerCameraManager.h"
 #include "SceneView.h"
 #include "PostProcessing/PostProcessing.h"
+#include "ImGui/imgui.h"
+#include <ctime>
 
 FVector FViewportClient::CameraAddPosition{};
 
@@ -296,7 +298,7 @@ void FViewportClient::MouseMove(FViewport* Viewport, int32 X, int32 Y)
 
 void FViewportClient::MouseButtonDown(FViewport* Viewport, int32 X, int32 Y, int32 Button)
 {
-	if (!Viewport || !World) // Only handle left mouse button
+	if (!Viewport || !World)
 		return;
 
 	// GetInstance viewport size
@@ -305,8 +307,7 @@ void FViewportClient::MouseButtonDown(FViewport* Viewport, int32 X, int32 Y, int
 
 	// X, Y are already local coordinates within the viewport, convert to global coordinates for picking
 	FVector2D ViewportMousePos(static_cast<float>(X) + ViewportOffset.X, static_cast<float>(Y) + ViewportOffset.Y);
-	UPrimitiveComponent* PickedComponent = nullptr;
-	TArray<AActor*> AllActors = World->GetActors();
+
 	if (Button == 0)
 	{
 		bIsMouseButtonDown = true;
@@ -322,33 +323,73 @@ void FViewportClient::MouseButtonDown(FViewport* Viewport, int32 X, int32 Y, int
 			return;
 		}
 
-		// 뷰포트의 실제 aspect ratio 계산
-		float PickingAspectRatio = ViewportSize.X / ViewportSize.Y;
-		if (ViewportSize.Y == 0)
-		{
-			PickingAspectRatio = 1.0f;
-		}
+		// 기즈모 호버링 중이면 피킹 하지 않음
 		if (World->GetGizmoActor()->GetbIsHovering())
 		{
 			return;
 		}
-		Camera->SetWorld(World);
-		PickedComponent = URenderManager::GetInstance().GetRenderer()->GetPrimitiveCollided(static_cast<int>(ViewportMousePos.X), static_cast<int>(ViewportMousePos.Y));
 
-		if (PickedComponent)
+		// 더블 클릭 감지
+		double CurrentTime = static_cast<double>(clock()) / CLOCKS_PER_SEC;
+		int32 DeltaX = abs(X - LastClickX);
+		int32 DeltaY = abs(Y - LastClickY);
+		bool bIsDoubleClick = (CurrentTime - LastClickTime < DoubleClickTime) &&
+							  (DeltaX < DoubleClickDistance) && (DeltaY < DoubleClickDistance);
+
+		// 클릭 정보 저장
+		LastClickTime = CurrentTime;
+		LastClickX = X;
+		LastClickY = Y;
+
+		// 피킹 수행
+		Camera->SetWorld(World);
+		UPrimitiveComponent* PickedComponent = URenderManager::GetInstance().GetRenderer()->GetPrimitiveCollided(
+			static_cast<int>(ViewportMousePos.X), static_cast<int>(ViewportMousePos.Y));
+
+		USelectionManager* SelectionMgr = World->GetSelectionManager();
+		AActor* PickedActor = PickedComponent ? PickedComponent->GetOwner() : nullptr;
+		AActor* CurrentSelectedActor = SelectionMgr->GetSelectedActor();
+
+		if (PickedActor && PickedComponent)
 		{
-			if (World)
+			if (bIsDoubleClick)
 			{
-				World->GetSelectionManager()->SelectComponent(PickedComponent);
+				// 더블 클릭: 컴포넌트 피킹 모드로 진입
+				SelectionMgr->SelectActorAndComponent(PickedActor, PickedComponent);
+			}
+			else
+			{
+				// 싱글 클릭
+				if (!CurrentSelectedActor)
+				{
+					// 선택 없음 → Actor 선택
+					SelectionMgr->SelectActor(PickedActor);
+				}
+				else if (SelectionMgr->IsActorMode())
+				{
+					// Actor 모드에서 클릭 → 항상 Actor 선택 (같은 Actor든 다른 Actor든)
+					SelectionMgr->SelectActor(PickedActor);
+				}
+				else
+				{
+					// Component 모드에서 클릭
+					if (CurrentSelectedActor == PickedActor)
+					{
+						// 같은 Actor 내 다른 컴포넌트 → 컴포넌트 전환
+						SelectionMgr->SelectActorAndComponent(PickedActor, PickedComponent);
+					}
+					else
+					{
+						// 다른 Actor → Actor 모드로 복귀
+						SelectionMgr->SelectActor(PickedActor);
+					}
+				}
 			}
 		}
 		else
 		{
-			// Clear selection if nothing was picked
-			if (World)
-			{
-				World->GetSelectionManager()->ClearSelection();
-			}
+			// 빈 공간 클릭: 선택 해제
+			SelectionMgr->ClearSelection();
 		}
 	}
 	else if (Button == 1)
@@ -358,7 +399,6 @@ void FViewportClient::MouseButtonDown(FViewport* Viewport, int32 X, int32 Y, int
 		MouseLastX = X;
 		MouseLastY = Y;
 	}
-
 }
 
 void FViewportClient::MouseButtonUp(FViewport* Viewport, int32 X, int32 Y, int32 Button)
@@ -382,15 +422,58 @@ void FViewportClient::MouseButtonUp(FViewport* Viewport, int32 X, int32 Y, int32
 
 void FViewportClient::MouseWheel(float DeltaSeconds)
 {
-	if (!Camera) return;
+	if (!Camera)
+	{
+		return;
+	}
+
+	// ImGui가 마우스를 캡처하려는 경우 (콘솔, 컨텐츠 브라우저, 슬라이더, 버튼 등 UI 위) 무시
+	if (ImGui::GetIO().WantCaptureMouse)
+	{
+		return;
+	}
 
 	UCameraComponent* CameraComponent = Camera->GetCameraComponent();
-	if (!CameraComponent) return;
+	if (!CameraComponent)
+	{
+		return;
+	}
 	float WheelDelta = UInputManager::GetInstance().GetMouseWheelDelta();
 
-	float zoomFactor = CameraComponent->GetZoomFactor();
-	zoomFactor *= (1.0f - WheelDelta * DeltaSeconds * 100.0f);
+	if (WheelDelta == 0.0f)
+	{
+		return;
+	}
 
-	CameraComponent->SetZoomFactor(zoomFactor);
+	// 우클릭 드래그 중일 때: 카메라 속도 조절
+	if (bIsMouseRightButtonDown || PerspectiveCameraInput)
+	{
+		float CurrentSpeed = Camera->GetCameraSpeed();
+
+		// 속도 배율 계산 (휠 업: 증가, 휠 다운: 감소)
+		// 로그 스케일로 부드럽게 조절
+		float SpeedMultiplier = (WheelDelta > 0) ? 1.15f : (1.0f / 1.15f);
+		float NewSpeed = CurrentSpeed * SpeedMultiplier;
+
+		// 속도 범위 제한 (0.1 ~ 100)
+		NewSpeed = std::max(0.1f, std::min(100.0f, NewSpeed));
+
+		Camera->SetCameraSpeed(NewSpeed);
+	}
+	else if (ViewportType == EViewportType::Perspective)
+	{
+		// Perspective 뷰포트: 카메라가 보는 방향으로 앞뒤 이동
+		FVector Forward = Camera->GetForward();
+		float MoveSpeed = Camera->GetCameraSpeed() * WheelDelta * 0.5f;
+		FVector NewLocation = Camera->GetActorLocation() + Forward * MoveSpeed;
+		Camera->SetActorLocation(NewLocation);
+	}
+	else
+	{
+		// Orthographic 뷰포트: 줌 팩터 조절
+		float zoomFactor = CameraComponent->GetZoomFactor();
+		zoomFactor *= (1.0f - WheelDelta * DeltaSeconds * 100.0f);
+		CameraComponent->SetZoomFactor(zoomFactor);
+	}
 }
 

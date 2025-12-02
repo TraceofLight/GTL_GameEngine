@@ -206,7 +206,12 @@ void UMainMenuBarWindow::RenderMenuBar()
 
     // 현재 레벨 이름 가져오기
     FString LevelName = "New Level";
-    if (GWorld)
+    if (GEngine.IsPIEActive())
+    {
+    	// PIE 모드일 때는 PIE Mode 표시
+        LevelName = "PIE Mode";
+    }
+    else if (GWorld)
     {
         LevelName = GWorld->GetLevelName();
     }
