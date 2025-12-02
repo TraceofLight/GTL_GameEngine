@@ -1,9 +1,26 @@
 ﻿#pragma once
 
+struct FBoneVertInfo;
 class UPhysicsAsset;
 class USkeletalMesh;
 class UBodySetup;
 struct FName;
+
+/**
+ * Parameters for physics asset creation.
+ * Similar to UE's FPhysAssetCreateParams.
+ */
+struct FPhysAssetCreateParams
+{
+    /** Minimum bone size to create a body for. Bones smaller than this will be merged into parent. */
+    float MinBoneSize = 0.1f;
+
+    /** Minimum bone size to even consider for welding. Bones smaller than this are ignored entirely. */
+    float MinWeldSize = 0.01f;
+
+    /** If true, create a body for every bone regardless of size. */
+    bool bBodyForAll = false;
+};
 
 /**
  * Static utility functions for building and manipulating PhysicsAssets.
@@ -15,12 +32,38 @@ namespace FPhysicsAssetUtils
     /**
      * Creates physics bodies from a skeletal mesh's bone hierarchy.
      * Generates capsules for each non-leaf bone based on bone length and heuristic radius.
+     * Small bones are merged into their parents based on MinBoneSize parameter.
+     * This is the public entry point that handles validation and setup.
      *
      * @param PhysicsAsset  The physics asset to populate (will be cleared first)
      * @param SkeletalMesh  The skeletal mesh to generate bodies from
+     * @param Params        Creation parameters (MinBoneSize, MinWeldSize, etc.)
      * @return true if any bodies were created
      */
-    bool CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, const USkeletalMesh* SkeletalMesh);
+    bool CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, const USkeletalMesh* SkeletalMesh, const FPhysAssetCreateParams& Params = FPhysAssetCreateParams());
+
+    /**
+     * Internal implementation of physics asset creation.
+     * Called by CreateFromSkeletalMesh after validation.
+     *
+     * @param PhysicsAsset  The physics asset to populate
+     * @param SkeletalMesh  The skeletal mesh to generate bodies from
+     * @param Params        Creation parameters (MinBoneSize, MinWeldSize, etc.)
+     * @return true if any bodies were created
+     */
+    bool CreateFromSkeletalMeshInternal(UPhysicsAsset* PhysicsAsset, const USkeletalMesh* SkeletalMesh, const FPhysAssetCreateParams& Params);
+
+    /**
+     * Creates collision geometry (capsule) for a single bone using vertex data.
+     * Uses covariance matrix and eigenvector to determine optimal capsule orientation.
+     *
+     * @param BodySetup         The body setup to add collision to
+     * @param Info              Vertex positions/normals associated with this bone (in model-space)
+     * @param InverseBindPose   Transform to convert from model-space to bone-local space
+     * @param BoneName          Name of the bone (for logging)
+     * @return true if collision was created successfully
+     */
+    bool CreateCollisionFromBoneInternal(UBodySetup* BodySetup, const FBoneVertInfo& Info, const FMatrix& InverseBindPose, const std::string& BoneName);
 
     /**
      * Creates a new BodySetup for a specific bone and adds it to the PhysicsAsset.
