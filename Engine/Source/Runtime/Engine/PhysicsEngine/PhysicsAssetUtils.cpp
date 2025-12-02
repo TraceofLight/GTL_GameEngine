@@ -283,12 +283,18 @@ bool FPhysicsAssetUtils::CreateCollisionFromBoneInternal(UBodySetup* BodySetup, 
 
     // Combine: first apply eigenvector rotation, then the additional rotation to align capsule axis
     FQuat EigenQuat = ElementTransform.Rotation;
-    FQuat FinalRotation = EigenQuat * AdditionalRotation;
-    FinalRotation.Normalize();
+    FQuat ModelSpaceRotation = EigenQuat * AdditionalRotation;
+    ModelSpaceRotation.Normalize();
 
     // Transform the box center back to model space, then to bone-local space
     FVector ModelSpaceCenter = ElementTransform.TransformPosition(BoxCenter);
     FVector LocalCenter = InverseBindPose.TransformPosition(ModelSpaceCenter);
+
+    // Transform rotation from model-space to bone-local space
+    // Extract the rotation part of InverseBindPose and apply it to the capsule rotation
+    FTransform InvBindTransform(InverseBindPose);
+    FQuat FinalRotation = InvBindTransform.Rotation * ModelSpaceRotation;
+    FinalRotation.Normalize();
 
     // Convert final quaternion to Euler angles (ZYX order)
     float SingularityTest = 2.0f * (FinalRotation.W * FinalRotation.Y - FinalRotation.Z * FinalRotation.X);
@@ -319,9 +325,10 @@ bool FPhysicsAssetUtils::CreateCollisionFromBoneInternal(UBodySetup* BodySetup, 
 
     BodySetup->AggGeom.SphylElems.Add(Capsule);
 
-    UE_LOG("[PhysicsAssetUtils] Bone '%s': Capsule R=%.3f, L=%.3f, Center=(%.2f,%.2f,%.2f)",
+    UE_LOG("[PhysicsAssetUtils] Bone '%s': Capsule R=%.3f, L=%.3f, Center=(%.2f,%.2f,%.2f), Rot=(%.1f,%.1f,%.1f)",
            BoneName.c_str(), Capsule.Radius, Capsule.Length,
-           Capsule.Center.X, Capsule.Center.Y, Capsule.Center.Z);
+           Capsule.Center.X, Capsule.Center.Y, Capsule.Center.Z,
+           Capsule.Rotation.X, Capsule.Rotation.Y, Capsule.Rotation.Z);
 
     return true;
 }

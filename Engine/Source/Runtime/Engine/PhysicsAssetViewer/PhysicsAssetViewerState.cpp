@@ -236,8 +236,8 @@ void PhysicsAssetViewerState::DrawSphere(URenderer* Renderer, const FTransform& 
 void PhysicsAssetViewerState::DrawBox(URenderer* Renderer, const FTransform& BoneTransform, const FKBoxElem& Box, const FVector4& Color) const
 {
     // Box의 로컬 트랜스폼 (Center + Rotation)
-    // DEG_TO_RAD = PI / 180
-    FQuat BoxRot = FQuat::MakeFromEulerZYX(Box.Rotation * (PI / 180.0f));
+    // MakeFromEulerZYX expects DEGREES (it converts to radians internally)
+    FQuat BoxRot = FQuat::MakeFromEulerZYX(Box.Rotation);
     FTransform BoxLocalTransform(Box.Center, BoxRot, FVector(1, 1, 1));
 
     // 본 트랜스폼과 결합
@@ -283,8 +283,8 @@ void PhysicsAssetViewerState::DrawBox(URenderer* Renderer, const FTransform& Bon
 void PhysicsAssetViewerState::DrawCapsule(URenderer* Renderer, const FTransform& BoneTransform, const FKCapsuleElem& Capsule, const FVector4& Color) const
 {
     // Capsule의 로컬 트랜스폼 (Center + Rotation)
-    // DEG_TO_RAD = PI / 180
-    FQuat CapsuleRot = FQuat::MakeFromEulerZYX(Capsule.Rotation * (PI / 180.0f));
+    // MakeFromEulerZYX expects DEGREES (it converts to radians internally)
+    FQuat CapsuleRot = FQuat::MakeFromEulerZYX(Capsule.Rotation);
     FTransform CapsuleLocalTransform(Capsule.Center, CapsuleRot, FVector(1, 1, 1));
 
     // 본 트랜스폼과 결합 -> 월드 트랜스폼 (회전만 포함, 스케일 1)
@@ -301,74 +301,74 @@ void PhysicsAssetViewerState::DrawCapsule(URenderer* Renderer, const FTransform&
     TArray<FVector> EndPoints;
     TArray<FVector4> Colors;
 
-    // 캡슐은 Z축을 따라 정렬됨 (기본 방향)
-    TArray<FVector> TopRing;
-    TArray<FVector> BottomRing;
-    TopRing.Reserve(NumSlices);
-    BottomRing.Reserve(NumSlices);
+    // Capsule is aligned along X-axis (PhysX convention)
+    TArray<FVector> RightRing;   // +X end
+    TArray<FVector> LeftRing;    // -X end
+    RightRing.Reserve(NumSlices);
+    LeftRing.Reserve(NumSlices);
 
-    // 원형 링 (위, 아래)
+    // Circular rings at +X and -X ends
     for (int i = 0; i < NumSlices; ++i)
     {
         float a = (static_cast<float>(i) / NumSlices) * TWO_PI;
-        float x = Radius * std::sin(a);
-        float y = Radius * std::cos(a);
-        TopRing.Add(FVector(x, y, +HalfLength));
-        BottomRing.Add(FVector(x, y, -HalfLength));
+        float y = Radius * std::sin(a);
+        float z = Radius * std::cos(a);
+        RightRing.Add(FVector(+HalfLength, y, z));
+        LeftRing.Add(FVector(-HalfLength, y, z));
     }
 
-    // 위, 아래 원형 링
+    // Right and left circular rings
     for (int i = 0; i < NumSlices; ++i)
     {
         int j = (i + 1) % NumSlices;
 
-        // 위 링
-        StartPoints.Add(TopRing[i] * WorldMatrix);
-        EndPoints.Add(TopRing[j] * WorldMatrix);
+        // Right ring (+X)
+        StartPoints.Add(RightRing[i] * WorldMatrix);
+        EndPoints.Add(RightRing[j] * WorldMatrix);
         Colors.Add(Color);
 
-        // 아래 링
-        StartPoints.Add(BottomRing[i] * WorldMatrix);
-        EndPoints.Add(BottomRing[j] * WorldMatrix);
+        // Left ring (-X)
+        StartPoints.Add(LeftRing[i] * WorldMatrix);
+        EndPoints.Add(LeftRing[j] * WorldMatrix);
         Colors.Add(Color);
     }
 
-    // 세로선 (위아래 연결)
+    // Vertical lines connecting rings
     for (int i = 0; i < NumSlices; ++i)
     {
-        StartPoints.Add(TopRing[i] * WorldMatrix);
-        EndPoints.Add(BottomRing[i] * WorldMatrix);
+        StartPoints.Add(RightRing[i] * WorldMatrix);
+        EndPoints.Add(LeftRing[i] * WorldMatrix);
         Colors.Add(Color);
     }
 
-    // 반구 (위, 아래) - 두 개의 호
-    auto AddHemisphereArcs = [&](float CenterZSign)
+    // Hemispheres (right and left) - two arcs each
+    auto AddHemisphereArcs = [&](float CenterXSign)
     {
-        float CenterZ = CenterZSign * HalfLength;
+        float CenterX = CenterXSign * HalfLength;
 
         for (int i = 0; i < NumHemisphereSegments; ++i)
         {
             float t0 = (static_cast<float>(i) / NumHemisphereSegments) * PI;
             float t1 = (static_cast<float>(i + 1) / NumHemisphereSegments) * PI;
 
-            // XZ 평면 호
-            FVector PlaneXZ0(Radius * std::cos(t0), 0.0f, CenterZ + CenterZSign * Radius * std::sin(t0));
-            FVector PlaneXZ1(Radius * std::cos(t1), 0.0f, CenterZ + CenterZSign * Radius * std::sin(t1));
-            StartPoints.Add(PlaneXZ0 * WorldMatrix);
-            EndPoints.Add(PlaneXZ1 * WorldMatrix);
+            // XY plane arc
+            FVector PlaneXY0(CenterX + CenterXSign * Radius * std::sin(t0), Radius * std::cos(t0), 0.0f);
+            FVector PlaneXY1(CenterX + CenterXSign * Radius * std::sin(t1), Radius * std::cos(t1), 0.0f);
+            StartPoints.Add(PlaneXY0 * WorldMatrix);
+            EndPoints.Add(PlaneXY1 * WorldMatrix);
             Colors.Add(Color);
 
-            // YZ 평면 호
-            FVector PlaneYZ0(0.0f, Radius * std::cos(t0), CenterZ + CenterZSign * Radius * std::sin(t0));
-            FVector PlaneYZ1(0.0f, Radius * std::cos(t1), CenterZ + CenterZSign * Radius * std::sin(t1));
-            StartPoints.Add(PlaneYZ0 * WorldMatrix);
-            EndPoints.Add(PlaneYZ1 * WorldMatrix);
+            // XZ plane arc
+            FVector PlaneXZ0(CenterX + CenterXSign * Radius * std::sin(t0), 0.0f, Radius * std::cos(t0));
+            FVector PlaneXZ1(CenterX + CenterXSign * Radius * std::sin(t1), 0.0f, Radius * std::cos(t1));
+            StartPoints.Add(PlaneXZ0 * WorldMatrix);
+            EndPoints.Add(PlaneXZ1 * WorldMatrix);
             Colors.Add(Color);
         }
     };
 
-    AddHemisphereArcs(+1.0f); // 위 반구
-    AddHemisphereArcs(-1.0f); // 아래 반구
+    AddHemisphereArcs(+1.0f); // Right hemisphere (+X)
+    AddHemisphereArcs(-1.0f); // Left hemisphere (-X)
 
     Renderer->AddLines(StartPoints, EndPoints, Colors);
 }
