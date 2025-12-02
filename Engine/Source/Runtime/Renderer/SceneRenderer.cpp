@@ -660,6 +660,18 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 
 	for (const FMeshBatchElement& Batch : InShadowBatches)
 	{
+		// Cloth binding (VS) for shadow depth pass
+		if (Batch.bClothEnabled && Batch.ClothSRV)
+		{
+			RHIDevice->SetAndUpdateConstantBuffer(ClothBufferType(1u, Batch.ClothMode, Batch.ClothBaseVertexIndex));
+			RHIDevice->GetDeviceContext()->VSSetShaderResources(8, 1, &Batch.ClothSRV);
+		}
+		else
+		{
+			ID3D11ShaderResourceView* NullSRV[1] = { nullptr };
+			RHIDevice->GetDeviceContext()->VSSetShaderResources(8, 1, NullSRV);
+			RHIDevice->SetAndUpdateConstantBuffer(ClothBufferType(0u, 0u, 0u));
+		}
 		// Mesh Particle인지 확인 (InstanceBuffer가 있고 InstanceCount > 0이면 Mesh Particle)
 		bool bIsMeshParticle = (Batch.InstanceBuffer != nullptr && Batch.InstanceCount > 0);
 
@@ -1925,6 +1937,19 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 			}
 
 			RHIDevice->SetAndUpdateConstantBuffer_Pointer_FSkinningBuffer(pMatrixData, MatrixDataSize);
+		}
+
+		// Cloth binding (VS b6 for CB, t8 for SRV)
+		if (Batch.bClothEnabled && Batch.ClothSRV)
+		{
+			RHIDevice->SetAndUpdateConstantBuffer(ClothBufferType(1u, Batch.ClothMode, Batch.ClothBaseVertexIndex));
+			RHIDevice->GetDeviceContext()->VSSetShaderResources(8, 1, &Batch.ClothSRV);
+		}
+		else
+		{
+			ID3D11ShaderResourceView* NullSRV[1] = { nullptr };
+			RHIDevice->GetDeviceContext()->VSSetShaderResources(8, 1, NullSRV);
+			RHIDevice->SetAndUpdateConstantBuffer(ClothBufferType(0u, 0u, 0u));
 		}
 
 		// 5. Sky 전용 렌더링 상태 설정

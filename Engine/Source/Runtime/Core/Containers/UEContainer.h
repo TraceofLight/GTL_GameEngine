@@ -262,6 +262,12 @@ public:
     {
         std::sort(this->begin(), this->end(), Pred);
     }
+
+    /** 인덱스 유효성 검사 */
+    bool IsValidIndex(int32 Index) const
+    {
+        return Index >= 0 && Index < Num();
+    }
 };
 
 /** TSet - 해시 기반 집합 */

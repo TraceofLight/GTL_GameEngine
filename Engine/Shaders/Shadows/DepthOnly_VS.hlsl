@@ -19,6 +19,16 @@ cbuffer SkinningBuffer : register(b5)
 	row_major float4x4 SkinningMatrices[256];
 };
 
+// Cloth control (VS b6, SRV t8)
+cbuffer ClothCB : register(b6)
+{
+    uint ClothEnabled;
+    uint ClothMode;         // 0: ABSOLUTE, 1: DELTA
+    uint BaseVertexIndex;
+    uint _ClothPad;
+};
+StructuredBuffer<float3> gClothPosition : register(t8);
+
 // --- 셰이더 입출력 구조체 ---
 struct VS_INPUT
 {
@@ -60,7 +70,7 @@ struct VS_OUT
     float3 WorldPosition : TEXCOORD0;
 };
 
-VS_OUT mainVS(VS_INPUT Input)
+VS_OUT mainVS(VS_INPUT Input, uint VertexId : SV_VertexID)
 {
 	VS_OUT Output = (VS_OUT) 0;
 	
@@ -101,6 +111,14 @@ VS_OUT mainVS(VS_INPUT Input)
 	Input.Normal = normalize(BlendNormal);
 	Input.Tangent.xyz = normalize(BlendTangent);
 #endif
+
+    // Cloth absolute override (component space)
+    if (ClothEnabled == 1 && ClothMode == 0)
+    {
+        uint vid = VertexId + BaseVertexIndex;
+        float3 posComp = gClothPosition[vid];
+        Input.Position = posComp;
+    }
 
     // 모델 좌표 -> 월드 좌표 -> 뷰 좌표 -> 클립 좌표
     float4 WorldPos = mul(float4(Input.Position, 1.0f), WorldMatrix);
