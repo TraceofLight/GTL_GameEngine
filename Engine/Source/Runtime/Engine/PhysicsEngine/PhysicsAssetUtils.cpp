@@ -62,17 +62,12 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, con
             continue;
         }
 
-        // Compute average child position for bone direction/length
-        FVector AvgChildPos(0, 0, 0);
-        for (int32 ChildIdx : Children)
-        {
-            AvgChildPos = AvgChildPos + BonePositions[ChildIdx];
-        }
-        AvgChildPos = AvgChildPos * (1.0f / Children.Num());
-
-        // Bone vector from this bone to average child
+        // Use the FIRST child only for bone direction/length
+        // Averaging multiple children causes asymmetric results between left/right sides
+        // The first child is typically the "main" bone in the chain (e.g., forearm for upper arm)
         const FVector& BonePos = BonePositions[BoneIdx];
-        FVector BoneVec = AvgChildPos - BonePos;
+        FVector ChildPos = BonePositions[Children[0]];
+        FVector BoneVec = ChildPos - BonePos;
         float BoneLength = BoneVec.Size();
 
         // Skip very short bones
@@ -84,14 +79,21 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, con
         // Heuristic radius: ~15% of bone length, with reasonable min/max
         float Radius = FMath::Clamp(BoneLength * 0.15f, 0.02f, 0.5f);
 
-        // Capsule center is at midpoint of bone segment (in bone's local space)
-        FVector LocalCenter = BoneVec * 0.5f;
+        // Transform the child position from model-space to this bone's local space.
+        // Use the pre-computed InverseBindPose from the bone data.
+        FVector ChildInBoneLocal = Bone.InverseBindPose.TransformPosition(ChildPos);
+
+        // In bone-local space, the bone origin is at (0,0,0).
+        // The capsule center is at the midpoint between origin and child position.
+        FVector LocalCenter = ChildInBoneLocal * 0.5f;
+
+        // Bone direction in bone-local space
+        FVector BoneDir = ChildInBoneLocal.GetSafeNormal();
 
         // Compute rotation to align capsule X-axis with bone direction
         // PhysX capsules are X-axis aligned by default
-        FVector BoneDir = BoneVec.GetSafeNormal();
 
-        // Compute Euler angles to rotate from X-axis to bone direction
+        // Compute Euler angles to rotate from X-axis to bone direction (in bone-local space)
         FVector EulerRot(0, 0, 0);
         if (BoneDir.SizeSquared() > 0.001f)
         {
@@ -121,7 +123,7 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, con
         NewSetup->AggGeom.SphylElems.Add(Capsule);
 
         UE_LOG("[PhysicsAssetUtils] Bone '%s': Capsule R=%.3f, L=%.3f, Center=(%.2f,%.2f,%.2f)",
-               Bone.Name.c_str(), Radius, Capsule.Length,
+               Bone.Name.c_str(), Capsule.Radius, Capsule.Length,
                LocalCenter.X, LocalCenter.Y, LocalCenter.Z);
 
         // Add to physics asset
