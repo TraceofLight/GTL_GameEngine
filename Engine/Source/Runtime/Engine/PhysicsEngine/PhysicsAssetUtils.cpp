@@ -184,18 +184,13 @@ bool FPhysicsAssetUtils::CreateCollisionFromBoneInternal(UBodySetup* BodySetup, 
         return false;
     }
 
-    // Calculate orientation using covariance matrix and eigenvector
-    // This finds the axis of maximum variance in the vertex cloud (the "long" direction)
-    const FMatrix CovarianceMatrix = ComputeCovarianceMatrix(Info);
-    FVector LongAxis = ComputeEigenVector(CovarianceMatrix);
-
-    // Compute simple AABB first to get center and extents
+    // Vertices are already in bone-local space (bone origin is at 0,0,0)
+    // Compute AABB to get the extents of the vertex cloud
     FVector BoxMin(FLT_MAX, FLT_MAX, FLT_MAX);
     FVector BoxMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 
-    for (int32 j = 0; j < Info.Positions.Num(); j++)
+    for (const FVector& Pos : Info.Positions)
     {
-        const FVector& Pos = Info.Positions[j];
         BoxMin.X = FMath::Min(BoxMin.X, Pos.X);
         BoxMin.Y = FMath::Min(BoxMin.Y, Pos.Y);
         BoxMin.Z = FMath::Min(BoxMin.Z, Pos.Z);
@@ -207,68 +202,54 @@ bool FPhysicsAssetUtils::CreateCollisionFromBoneInternal(UBodySetup* BodySetup, 
     FVector BoxCenter = (BoxMin + BoxMax) * 0.5f;
     FVector BoxExtent = (BoxMax - BoxMin) * 0.5f;
 
-    // If the primitive is too small, use minimum size
-    float MinRad = FMath::Min(FMath::Min(BoxExtent.X, BoxExtent.Y), BoxExtent.Z);
-    if (MinRad < MinPrimSize)
+    // Skip if too small
+    float MaxExtent = FMath::Max(FMath::Max(BoxExtent.X, BoxExtent.Y), BoxExtent.Z);
+    if (MaxExtent < MinPrimSize)
     {
-        BoxExtent = FVector(MinPrimSize, MinPrimSize, MinPrimSize);
+        UE_LOG("[PhysicsAssetUtils] CreateCollisionFromBoneInternal: Bone '%s' too small", BoneName.c_str());
+        return false;
     }
 
-    // PhysX capsules are X-axis aligned by default
-    // We need to compute a rotation that aligns the X-axis with the LongAxis (dominant eigenvector)
-    // For Z-up left-handed system
+    // Use eigenvector to find the dominant axis (direction of maximum variance)
+    const FMatrix CovarianceMatrix = ComputeCovarianceMatrix(Info);
+    FVector LongAxis = ComputeEigenVector(CovarianceMatrix);
 
-    FKCapsuleElem Capsule;
-    Capsule.Center = BoxCenter;
+    // Capsule center is at the AABB center of the vertex cloud
+    FVector LocalCenter = BoxCenter;
 
-    // Compute rotation to align X-axis with LongAxis
-    FVector DefaultAxis(1.0f, 0.0f, 0.0f); // PhysX capsule default axis
-
+    // Compute Euler angles to rotate from X-axis (PhysX capsule default) to long axis
+    FVector EulerRot(0, 0, 0);
     if (LongAxis.SizeSquared() > 0.001f)
     {
         LongAxis = LongAxis.GetSafeNormal();
 
-        // Compute rotation from X-axis to LongAxis
-        float DotProduct = FVector::Dot(DefaultAxis, LongAxis);
+        // Pitch: rotation around Y to tilt up/down toward Z
+        float Pitch = std::atan2(-LongAxis.Z, std::sqrt(LongAxis.X * LongAxis.X + LongAxis.Y * LongAxis.Y));
+        // Yaw: rotation around Z to align in XY plane
+        float Yaw = std::atan2(LongAxis.Y, LongAxis.X);
 
-        if (DotProduct > 0.9999f)
-        {
-            // Already aligned with X
-            Capsule.Rotation = FVector(0, 0, 0);
-        }
-        else if (DotProduct < -0.9999f)
-        {
-            // Opposite direction - rotate 180 degrees around Z (or Y)
-            Capsule.Rotation = FVector(0, 0, 180.0f);
-        }
-        else
-        {
-            // General case: compute rotation axis and angle
-            // For left-handed system, cross product order matters
-            FVector RotAxis = FVector::Cross(DefaultAxis, LongAxis).GetSafeNormal();
-            float Angle = std::acos(FMath::Clamp(DotProduct, -1.0f, 1.0f));
-
-            // Create quaternion from axis-angle and convert to Euler
-            FQuat RotQuat = FQuat::FromAxisAngle(RotAxis, Angle);
-            Capsule.Rotation = RotQuat.ToEulerZYXDeg();
-        }
-    }
-    else
-    {
-        Capsule.Rotation = FVector(0, 0, 0);
+        EulerRot = FVector(0, RadiansToDegrees(Pitch), RadiansToDegrees(Yaw));
     }
 
-    // Compute radius and length based on extents projected onto LongAxis
-    // The length is along LongAxis, radius is perpendicular
+    // Compute length and radius based on AABB extents
+    // Length is along the longest axis, radius is the average of the other two
     float LengthExtent = FMath::Max(FMath::Max(BoxExtent.X, BoxExtent.Y), BoxExtent.Z);
-    float RadiusExtent = FMath::Min(FMath::Min(BoxExtent.X, BoxExtent.Y), BoxExtent.Z);
+    float MinExtent = FMath::Min(FMath::Min(BoxExtent.X, BoxExtent.Y), BoxExtent.Z);
+    float MidExtent = BoxExtent.X + BoxExtent.Y + BoxExtent.Z - LengthExtent - MinExtent;
 
-    // Use middle value for radius if there's significant difference
-    float MidExtent = BoxExtent.X + BoxExtent.Y + BoxExtent.Z - LengthExtent - RadiusExtent;
-    RadiusExtent = FMath::Max(RadiusExtent, MidExtent) * 0.5f + RadiusExtent * 0.5f;
+    // Radius is average of the two smaller extents
+    float Radius = (MinExtent + MidExtent) * 0.5f;
+    Radius = FMath::Max(Radius, MinPrimSize);
 
-    Capsule.Radius = RadiusExtent * 1.01f;
-    Capsule.Length = FMath::Max(LengthExtent * 2.0f - Capsule.Radius * 2.0f, 0.01f);
+    // Length is the full extent along the long axis (diameter), minus the caps
+    float BoneLength = LengthExtent * 2.0f;
+    float CapsuleLength = FMath::Max(BoneLength - Radius * 2.0f, MinPrimSize);
+
+    FKCapsuleElem Capsule;
+    Capsule.Center = LocalCenter;
+    Capsule.Rotation = EulerRot;
+    Capsule.Radius = Radius;
+    Capsule.Length = CapsuleLength;
 
     BodySetup->AggGeom.SphylElems.Add(Capsule);
 
@@ -328,11 +309,15 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMeshInternal(UPhysicsAsset* PhysicsAs
         BonePositions[i] = FVector(BindPose.M[3][0], BindPose.M[3][1], BindPose.M[3][2]);
     }
 
+    // Calculate vertex info for each bone from actual skinned vertex data
+    TArray<FBoneVertInfo> BoneVertInfos;
+    CalcBoneVertInfos(SkeletalMesh, BoneVertInfos, true); // Use dominant weight
+
     // ==================== BONE MERGING LOGIC ====================
     // Strategy (from UE's CreateFromSkeletalMeshInternal):
     // 1. Calculate size for each bone (bone length)
     // 2. Work from leaves up - if bone is too small, merge into parent
-    // 3. Track accumulated merged sizes
+    // 3. Track accumulated merged sizes and merged vertex info
     // 4. Only create bodies for bones big enough after merging
 
     // Track merged sizes (starts with each bone's own length)
@@ -359,6 +344,10 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMeshInternal(UPhysicsAsset* PhysicsAs
             {
                 // Add this bone's size to parent's merged size
                 MergedSizes[ParentIndex] += MyMergedSize;
+
+                // Merge vertex info into parent
+                BoneVertInfos[ParentIndex].Positions.Append(BoneVertInfos[BoneIdx].Positions);
+                BoneVertInfos[ParentIndex].Normals.Append(BoneVertInfos[BoneIdx].Normals);
 
                 // Track this bone as merged into parent
                 FMergedBoneData& ParentMergedData = BoneToMergedData[ParentIndex];
@@ -490,25 +479,56 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMeshInternal(UPhysicsAsset* PhysicsAs
             continue;
         }
 
-        // Heuristic radius: ~15% of bone length, with reasonable min/max
-        float Radius = FMath::Clamp(BoneLength * 0.15f, Params.MinWeldSize * 2, Params.MinBoneSize * 5);
-
-        // Transform the endpoint from model-space to this bone's local space
+        // Transform the endpoint from model-space to this bone's local space.
+        // Use the pre-computed InverseBindPose from the bone data.
         FVector EndpointInBoneLocal = Bone.InverseBindPose.TransformPosition(FurthestEndpoint);
 
-        // Capsule center is at the midpoint
+        // In bone-local space, the bone origin is at (0,0,0).
+        // The capsule center is at the midpoint between origin and endpoint.
         FVector LocalCenter = EndpointInBoneLocal * 0.5f;
 
         // Bone direction in bone-local space
         FVector BoneDir = EndpointInBoneLocal.GetSafeNormal();
 
-        // Compute Euler angles to rotate from X-axis to bone direction
+        // Compute Euler angles to rotate from X-axis to bone direction (in bone-local space)
         FVector EulerRot(0, 0, 0);
         if (BoneDir.SizeSquared() > 0.001f)
         {
+            // Pitch: rotation around Y to align with XZ plane
             float Pitch = std::atan2(-BoneDir.Z, std::sqrt(BoneDir.X * BoneDir.X + BoneDir.Y * BoneDir.Y));
+            // Yaw: rotation around Z to align with XY plane
             float Yaw = std::atan2(BoneDir.Y, BoneDir.X);
+
             EulerRot = FVector(0, RadiansToDegrees(Pitch), RadiansToDegrees(Yaw));
+        }
+
+        // Compute radius from vertex data if available, otherwise use heuristic
+        const FBoneVertInfo& VertInfo = BoneVertInfos[BoneIdx];
+        float Radius;
+
+        if (VertInfo.Positions.Num() > 0)
+        {
+            // Compute radius based on vertex spread perpendicular to bone direction
+            float MaxPerpDist = 0.0f;
+            for (const FVector& Pos : VertInfo.Positions)
+            {
+                // Transform vertex to bone-local space
+                FVector LocalPos = Pos - BonePos;
+                // Project onto bone direction (in model space, before InverseBindPose)
+                FVector BoneDirModel = (FurthestEndpoint - BonePos).GetSafeNormal();
+                float AlongBone = FVector::Dot(LocalPos, BoneDirModel);
+                // Get perpendicular component
+                FVector PerpComponent = LocalPos - BoneDirModel * AlongBone;
+                float PerpDist = PerpComponent.Size();
+                MaxPerpDist = FMath::Max(MaxPerpDist, PerpDist);
+            }
+            // Use perpendicular distance as radius, clamped reasonably
+            Radius = FMath::Clamp(MaxPerpDist, BoneLength * 0.1f, BoneLength * 0.4f);
+        }
+        else
+        {
+            // Heuristic radius: ~15% of bone length, with reasonable min/max
+            Radius = FMath::Clamp(BoneLength * 0.15f, Params.MinWeldSize * 2, Params.MinBoneSize * 5);
         }
 
         // Create BodySetup with capsule
