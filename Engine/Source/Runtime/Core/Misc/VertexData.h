@@ -257,6 +257,9 @@ struct FGroupInfo
     uint32 IndexCount = 0;
     FString InitialMaterialName; // obj 파일 자체에 맵핑된 material 이름
 
+	// cloth는 따로 처리해야 되서 flag 처리
+	bool bEnableCloth = false;
+
     friend FArchive& operator<<(FArchive& Ar, FGroupInfo& Info)
     {
         Ar << Info.StartIndex;

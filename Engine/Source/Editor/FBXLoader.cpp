@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "ObjectFactory.h"
 #include "FbxLoader.h"
 #include "fbxsdk/fileio/fbxiosettings.h"
@@ -477,6 +477,17 @@ void UFbxLoader::LoadMeshFromNode(FbxNode* InNode,
 							MaterialToIndex.Add(Material, MaterialIndex);
 							MeshData.GroupInfos.Add(FGroupInfo());
 							MeshData.GroupInfos[MaterialIndex].InitialMaterialName = MaterialInfo.MaterialName;
+
+							// material에 cloth관련 이름이 있다면 따로 처리 고려  
+
+
+							FString LowerMatName = MaterialInfo.MaterialName;
+							std::transform(LowerMatName.begin(), LowerMatName.end(), LowerMatName.begin(), ::tolower);
+							if ((LowerMatName.find("skirt")) || (LowerMatName.find("cape")) || (LowerMatName.find("cloak")))
+							{
+								MeshData.GroupInfos[MaterialIndex].bEnableCloth = true;
+								UE_LOG("Find Cloth Material ~!!!");
+							}
 						}
 						// MaterialSlot에 대응하는 전역 MaterialIndex 저장
 						MaterialSlotToIndex.Add(MaterialIndex);

@@ -218,6 +218,10 @@ private:
 	void UpdateClothSimulation(float DeltaTime);
 	void UpdateVerticesFromCloth();
 	void BuildClothMesh();
+	void ExtractClothSection(const FGroupInfo& Group, const TArray<FSkinnedVertex>& AllVertices, const TArray<uint32>& AllIndices);
+	bool ShouldFixVertex(const FSkinnedVertex& Vertex);
+	void UpdateSectionVertices(const FGroupInfo& Group, int32& ParticleIdx);
+
 	//void ComputeInvMasses();
 
 	//// Constraint helpers	

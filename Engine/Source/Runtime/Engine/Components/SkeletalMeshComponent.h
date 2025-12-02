@@ -25,6 +25,7 @@ DECLARE_DELEGATE_TYPE(FOnAnimNotify, const FAnimNotifyEvent&);
  * @param bIsInitialized 테스트용 초기화 플래그
  * @param TestBoneBasePose 테스트용 기본 본 포즈
  */
+
 UCLASS(DisplayName="스켈레탈 메시 컴포넌트", Description="스켈레탈 메시를 렌더링하는 컴포넌트입니다")
 class USkeletalMeshComponent : public USkinnedMeshComponent
 {
@@ -134,6 +135,8 @@ public:
 	FBodyInstance* GetBodyInstance(int32 BoneIndex) const;
 	FBodyInstance* GetBodyInstanceByBoneName(const FName& BoneName) const;
 	bool IsRagdollActive() const { return bRagdollActive; }
+
+	//cloth
 
 protected:
 	bool bRagdollActive = false;
