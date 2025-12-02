@@ -12,61 +12,6 @@
 #include "UClothComponent.generated.h"
 
 /**
- * @brief NvCloth용 간단한 Allocator
- */
-class NvClothAllocator : public physx::PxAllocatorCallback
-{
-public:
-	void* allocate(size_t size, const char* typeName, const char* filename, int line) override
-	{
-		return _aligned_malloc(size, 16);
-	}
-
-	void deallocate(void* ptr) override
-	{
-		_aligned_free(ptr);
-	}
-};
-
-/**
- * @brief NvCloth용 간단한 ErrorCallback
- */
-class NvClothErrorCallback : public physx::PxErrorCallback
-{
-public:
-	void reportError(physx::PxErrorCode::Enum code, const char* message, const char* file, int line) override
-	{
-		// 에러 로그 출력 (필요에 따라 엔진의 로깅 시스템 사용)
-		const char* errorCodeStr = "Unknown";
-		switch (code)
-		{
-		case physx::PxErrorCode::eNO_ERROR:          errorCodeStr = "NoError"; break;
-		case physx::PxErrorCode::eDEBUG_INFO:        errorCodeStr = "Info"; break;
-		case physx::PxErrorCode::eDEBUG_WARNING:     errorCodeStr = "Warning"; break;
-		case physx::PxErrorCode::eINVALID_PARAMETER: errorCodeStr = "InvalidParam"; break;
-		case physx::PxErrorCode::eINVALID_OPERATION: errorCodeStr = "InvalidOp"; break;
-		case physx::PxErrorCode::eOUT_OF_MEMORY:     errorCodeStr = "OutOfMemory"; break;
-		case physx::PxErrorCode::eINTERNAL_ERROR:    errorCodeStr = "InternalError"; break;
-		case physx::PxErrorCode::eABORT:             errorCodeStr = "Abort"; break;
-		case physx::PxErrorCode::ePERF_WARNING:      errorCodeStr = "PerfWarning"; break;
-		}
-		printf("[NvCloth %s] %s (%s:%d)\n", errorCodeStr, message, file, line);
-	}
-};
-
-/**
- * @brief NvCloth용 간단한 AssertHandler
- */
-class NvClothAssertHandler : public nv::cloth::PxAssertHandler
-{
-public:
-	void operator()(const char* exp, const char* file, int line, bool& ignore) override
-	{
-		printf("[NvCloth Assert] %s (%s:%d)\n", exp, file, line);
-	}
-};
-
-/**
  * @brief Cloth 시뮬레이션 설정
  */
 struct FClothSimulationSettings
@@ -79,23 +24,24 @@ struct FClothSimulationSettings
 	float Friction = 0.5f;                      // 마찰
 
 	// Stretch constraints (Horizontal/Vertical)
-	float StretchStiffness = 1.0f;              // 신축 강성 (0-1)
-	float StretchStiffnessMultiplier = 1.0f;    // 강성 배율
+	float StretchStiffness = 0.5f;              // 신축 강성 (0-1)
+	float StretchStiffnessMultiplier = 0.5f;    // 강성 배율
 	float CompressionLimit = 1.0f;              // 압축 제한
 	float StretchLimit = 1.0f;                  // 신장 제한
 
 	// Bend constraints
-	float BendStiffness = 1.0f;                 // 굽힘 강성 (0-1)
+	float BendStiffness = 0.5f;                 // 굽힘 강성 (0-1)
 	float BendStiffnessMultiplier = 0.5f;       // 굽힘 배율
 
 	// Shear constraints
-	float ShearStiffness = 1.0f;                // 전단 강성 (0-1)
+	float ShearStiffness = 0.5f;                // 전단 강성 (0-1)
 	float ShearStiffnessMultiplier = 0.75f;     // 전단 배율
 
 	// Collision
 	float CollisionMassScale = 0.0f;            // 충돌 질량 스케일
 	bool bEnableContinuousCollision = true;     // 연속 충돌 검사
 	float CollisionFriction = 0.0f;             // 충돌 마찰
+
 
 	// Self collision
 	bool bEnableSelfCollision = false;          // 자체 충돌 활성화
@@ -111,7 +57,7 @@ struct FClothSimulationSettings
 	FVector GravityOverride = FVector(0, 0, -9.8f); // 중력 오버라이드 (cm/s^2)
 
 	// Wind
-	FVector WindVelocity = FVector(0, 0, 0);    // 바람 속도
+	FVector WindVelocity = FVector(3, 0, 0);    // 바람 속도
 	float WindDrag = 0.0f;                      // 바람 저항
 	float WindLift = 0.0f;                      // 바람 양력
 

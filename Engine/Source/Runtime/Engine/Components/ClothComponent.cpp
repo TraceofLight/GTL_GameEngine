@@ -19,11 +19,70 @@
 using namespace physx;
 using namespace nv::cloth;
 
-// NvCloth 전역 초기화
-static NvClothAllocator g_ClothAllocator;
-static NvClothErrorCallback g_ClothErrorCallback;
-static NvClothAssertHandler g_ClothAssertHandler;
-static bool g_bNvClothInitialized = false;
+// 익명 namespace로 리플렉션 시스템에서 숨김
+namespace
+{
+	/**
+	 * @brief NvCloth용 간단한 Allocator
+	 */
+	class NvClothAllocator : public physx::PxAllocatorCallback
+	{
+	public:
+		void* allocate(size_t size, const char* typeName, const char* filename, int line) override
+		{
+			return _aligned_malloc(size, 16);
+		}
+
+		void deallocate(void* ptr) override
+		{
+			_aligned_free(ptr);
+		}
+	};
+
+	/**
+	 * @brief NvCloth용 간단한 ErrorCallback
+	 */
+	class NvClothErrorCallback : public physx::PxErrorCallback
+	{
+	public:
+		void reportError(physx::PxErrorCode::Enum code, const char* message, const char* file, int line) override
+		{
+			// 에러 로그 출력
+			const char* errorCodeStr = "Unknown";
+			switch (code)
+			{
+			case physx::PxErrorCode::eNO_ERROR:          errorCodeStr = "NoError"; break;
+			case physx::PxErrorCode::eDEBUG_INFO:        errorCodeStr = "Info"; break;
+			case physx::PxErrorCode::eDEBUG_WARNING:     errorCodeStr = "Warning"; break;
+			case physx::PxErrorCode::eINVALID_PARAMETER: errorCodeStr = "InvalidParam"; break;
+			case physx::PxErrorCode::eINVALID_OPERATION: errorCodeStr = "InvalidOp"; break;
+			case physx::PxErrorCode::eOUT_OF_MEMORY:     errorCodeStr = "OutOfMemory"; break;
+			case physx::PxErrorCode::eINTERNAL_ERROR:    errorCodeStr = "InternalError"; break;
+			case physx::PxErrorCode::eABORT:             errorCodeStr = "Abort"; break;
+			case physx::PxErrorCode::ePERF_WARNING:      errorCodeStr = "PerfWarning"; break;
+			}
+			printf("[NvCloth %s] %s (%s:%d)\n", errorCodeStr, message, file, line);
+		}
+	};
+
+	/**
+	 * @brief NvCloth용 간단한 AssertHandler
+	 */
+	class NvClothAssertHandler : public nv::cloth::PxAssertHandler
+	{
+	public:
+		void operator()(const char* exp, const char* file, int line, bool& ignore) override
+		{
+			printf("[NvCloth Assert] %s (%s:%d)\n", exp, file, line);
+		}
+	};
+
+	// NvCloth 전역 초기화 객체
+	NvClothAllocator g_ClothAllocator;
+	NvClothErrorCallback g_ClothErrorCallback;
+	NvClothAssertHandler g_ClothAssertHandler;
+	bool g_bNvClothInitialized = false;
+}
  
 
 UClothComponent::UClothComponent()

@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -716,7 +716,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\UParticleModuleSubUV.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleVelocity.generated.cpp" />
     <ClCompile Include="Generated\UClothComponent.generated.cpp" />
-    <ClCompile Include="Generated\NvClothAllocator.generated.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -1090,7 +1089,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\UParticleModuleSubUV.generated.h" />
     <ClInclude Include="Generated\UParticleModuleVelocity.generated.h" />
     <ClInclude Include="Generated\UClothComponent.generated.h" />
-    <ClInclude Include="Generated\NvClothAllocator.generated.h" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Shaders\Common\LightingBuffers.hlsl" />
