@@ -5,6 +5,7 @@
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsAssetUtils.h"
 #include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsConstraintSetup.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
@@ -884,6 +885,14 @@ void SPhysicsAssetEditorWindow::RenderToPreviewRenderTarget()
         // Renderer->EndLineBatch(FMatrix::Identity());
     }
 
+    // Constraint 디버그 드로잉
+    if (ActiveState->bShowConstraints && ActiveState->PhysicsAsset)
+    {
+        Renderer->BeginLineBatch();
+        ActiveState->DrawConstraints(Renderer);
+        Renderer->EndLineBatch(FMatrix::Identity());
+    }
+
     // 렌더 타겟 복원
     Context->OMSetRenderTargets(1, &OldRTV, OldDSV);
     Context->RSSetViewports(1, &OldViewport);
@@ -1268,6 +1277,71 @@ void SPhysicsAssetBodyListPanel::RenderSkeletonBodyTree(PhysicsAssetViewerState*
                         Setup->AggGeom.SphylElems.Add(NewCapsule);
                     }
                 }
+                ImGui::Separator();
+
+                // Constraint 생성 서브 메뉴
+                if (ImGui::BeginMenu("Add Constraint To..."))
+                {
+                    // 다른 Body 목록 표시
+                    for (int32 i = 0; i < PhysAsset->BodySetups.Num(); ++i)
+                    {
+                        UBodySetup* OtherBody = PhysAsset->BodySetups[i];
+                        if (!OtherBody || OtherBody == Setup) continue;  // 자기 자신은 제외
+
+                        // 이미 Constraint가 있는지 확인
+                        bool bConstraintExists = false;
+                        for (UPhysicsConstraintSetup* Constraint : PhysAsset->ConstraintSetups)
+                        {
+                            if (Constraint &&
+                                ((Constraint->ConstraintBone1 == Setup->BoneName && Constraint->ConstraintBone2 == OtherBody->BoneName) ||
+                                 (Constraint->ConstraintBone1 == OtherBody->BoneName && Constraint->ConstraintBone2 == Setup->BoneName)))
+                            {
+                                bConstraintExists = true;
+                                break;
+                            }
+                        }
+
+                        // 메뉴 아이템 표시
+                        FString MenuLabel = OtherBody->BoneName.ToString();
+                        if (bConstraintExists)
+                        {
+                            MenuLabel += " (Already Connected)";
+                        }
+
+                        bool bEnabled = !bConstraintExists;
+                        if (ImGui::MenuItem(MenuLabel.c_str(), nullptr, false, bEnabled))
+                        {
+                            // 새 Constraint 생성
+                            UPhysicsConstraintSetup* NewConstraint = NewObject<UPhysicsConstraintSetup>();
+                            NewConstraint->ConstraintBone1 = Setup->BoneName;
+                            NewConstraint->ConstraintBone2 = OtherBody->BoneName;
+                            NewConstraint->BodyIndex1 = BodyIndex;
+                            NewConstraint->BodyIndex2 = i;
+
+                            // 기본 제한값 설정
+                            NewConstraint->LinearXMotion = ELinearConstraintMotion::Locked;
+                            NewConstraint->LinearYMotion = ELinearConstraintMotion::Locked;
+                            NewConstraint->LinearZMotion = ELinearConstraintMotion::Locked;
+
+                            NewConstraint->Swing1Motion = EAngularConstraintMotion::Limited;
+                            NewConstraint->Swing2Motion = EAngularConstraintMotion::Limited;
+                            NewConstraint->TwistMotion = EAngularConstraintMotion::Limited;
+
+                            NewConstraint->Swing1LimitAngle = 45.0f;
+                            NewConstraint->Swing2LimitAngle = 45.0f;
+                            NewConstraint->TwistLimitAngle = 45.0f;
+
+                            PhysAsset->AddConstraintSetup(NewConstraint);
+
+                            UE_LOG("[PAE] Created constraint between '%s' and '%s'",
+                                   Setup->BoneName.ToString().c_str(),
+                                   OtherBody->BoneName.ToString().c_str());
+                        }
+                    }
+
+                    ImGui::EndMenu();
+                }
+
                 ImGui::Separator();
                 if (ImGui::MenuItem("Delete Body"))
                 {
@@ -2303,7 +2377,124 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
 
     ed::PopStyleVar();
 
+    // ============================================================================
+    // Constraint 생성 처리 (Pin 드래그)
+    // ============================================================================
+    if (ed::BeginCreate())
+    {
+        ed::PinId startPinId, endPinId;
+        if (ed::QueryNewLink(&startPinId, &endPinId))
+        {
+            // 시작 핀과 끝 핀의 노드 찾기
+            FPAEBodyNode* StartNode = Owner->FindBodyNodeByPin(startPinId);
+            FPAEBodyNode* EndNode = Owner->FindBodyNodeByPin(endPinId);
+
+            if (StartNode && EndNode && StartNode != EndNode)
+            {
+                // 두 Body 간에 이미 Constraint가 있는지 확인
+                UBodySetup* Body1 = PhysAsset->BodySetups[StartNode->BodyIndex];
+                UBodySetup* Body2 = PhysAsset->BodySetups[EndNode->BodyIndex];
+
+                bool bConstraintExists = false;
+                for (UPhysicsConstraintSetup* Constraint : PhysAsset->ConstraintSetups)
+                {
+                    if (Constraint &&
+                        ((Constraint->ConstraintBone1 == Body1->BoneName && Constraint->ConstraintBone2 == Body2->BoneName) ||
+                         (Constraint->ConstraintBone1 == Body2->BoneName && Constraint->ConstraintBone2 == Body1->BoneName)))
+                    {
+                        bConstraintExists = true;
+                        break;
+                    }
+                }
+
+                if (!bConstraintExists)
+                {
+                    // 새 Constraint 생성 허용
+                    if (ed::AcceptNewItem())
+                    {
+                        // 새 Constraint 생성
+                        UPhysicsConstraintSetup* NewConstraint = NewObject<UPhysicsConstraintSetup>();
+                        NewConstraint->ConstraintBone1 = Body1->BoneName;
+                        NewConstraint->ConstraintBone2 = Body2->BoneName;
+                        NewConstraint->BodyIndex1 = StartNode->BodyIndex;
+                        NewConstraint->BodyIndex2 = EndNode->BodyIndex;
+
+                        // 기본 제한값 설정 (Unreal 스타일 - Limited Angular, Locked Linear)
+                        NewConstraint->LinearXMotion = ELinearConstraintMotion::Locked;
+                        NewConstraint->LinearYMotion = ELinearConstraintMotion::Locked;
+                        NewConstraint->LinearZMotion = ELinearConstraintMotion::Locked;
+
+                        NewConstraint->Swing1Motion = EAngularConstraintMotion::Limited;
+                        NewConstraint->Swing2Motion = EAngularConstraintMotion::Limited;
+                        NewConstraint->TwistMotion = EAngularConstraintMotion::Limited;
+
+                        NewConstraint->Swing1LimitAngle = 45.0f;
+                        NewConstraint->Swing2LimitAngle = 45.0f;
+                        NewConstraint->TwistLimitAngle = 45.0f;
+
+                        // PhysicsAsset에 추가
+                        PhysAsset->AddConstraintSetup(NewConstraint);
+
+                        // Graph 동기화
+                        Owner->SyncGraphFromPhysicsAsset();
+
+                        UE_LOG("[PAE] Created constraint between '%s' and '%s'",
+                               Body1->BoneName.ToString().c_str(),
+                               Body2->BoneName.ToString().c_str());
+                    }
+                }
+                else
+                {
+                    // 이미 존재하는 Constraint - 거부
+                    ed::RejectNewItem(ImColor(255, 0, 0), 2.0f);
+                }
+            }
+            else
+            {
+                // 유효하지 않은 연결 - 거부
+                ed::RejectNewItem(ImColor(255, 0, 0), 2.0f);
+            }
+        }
+    }
+    ed::EndCreate();
+
+    // ============================================================================
+    // Constraint 삭제 처리
+    // ============================================================================
+    if (ed::BeginDelete())
+    {
+        ed::LinkId deletedLinkId;
+        while (ed::QueryDeletedLink(&deletedLinkId))
+        {
+            if (ed::AcceptDeletedItem())
+            {
+                // 삭제할 Constraint 찾기
+                FPAEConstraintLink* Link = Owner->FindConstraintLink(deletedLinkId);
+                if (Link && Link->ConstraintIndex >= 0 && Link->ConstraintIndex < PhysAsset->ConstraintSetups.Num())
+                {
+                    UPhysicsConstraintSetup* Constraint = PhysAsset->ConstraintSetups[Link->ConstraintIndex];
+                    if (Constraint)
+                    {
+                        UE_LOG("[PAE] Deleting constraint between '%s' and '%s'",
+                               Constraint->ConstraintBone1.ToString().c_str(),
+                               Constraint->ConstraintBone2.ToString().c_str());
+
+                        // Constraint 삭제
+                        ObjectFactory::DeleteObject(Constraint);
+                        PhysAsset->ConstraintSetups.erase(PhysAsset->ConstraintSetups.begin() + Link->ConstraintIndex);
+
+                        // Graph 동기화
+                        Owner->SyncGraphFromPhysicsAsset();
+                    }
+                }
+            }
+        }
+    }
+    ed::EndDelete();
+
+    // ============================================================================
     // 노드 선택 처리
+    // ============================================================================
     if (ed::GetSelectedObjectCount() > 0)
     {
         ed::NodeId selectedNodeId;

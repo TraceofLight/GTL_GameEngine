@@ -512,6 +512,103 @@ void PhysicsAssetViewerState::DrawPhysicsBodiesSolid(URenderer* Renderer) const
     Renderer->EndPrimitiveBatch();
 }
 
+void PhysicsAssetViewerState::DrawConstraints(URenderer* Renderer) const
+{
+    if (!bShowConstraints || !PhysicsAsset || !Renderer)
+        return;
+
+    // SkeletalMeshComponent에서 본 위치 가져오기
+    USkeletalMeshComponent* SkelComp = nullptr;
+    if (PreviewActor)
+    {
+        SkelComp = PreviewActor->GetSkeletalMeshComponent();
+    }
+
+    const FSkeleton* Skeleton = CurrentMesh ? CurrentMesh->GetSkeleton() : nullptr;
+    if (!Skeleton || !SkelComp)
+        return;
+
+    TArray<FVector> StartPoints;
+    TArray<FVector> EndPoints;
+    TArray<FVector4> Colors;
+
+    const FVector4 NormalConstraintColor(0.8f, 0.8f, 0.2f, 1.0f);  // 노란색
+    const FVector4 SelectedConstraintColor(1.0f, 0.3f, 0.3f, 1.0f); // 빨간색
+
+    // 모든 Constraint 순회
+    for (int32 ConstraintIdx = 0; ConstraintIdx < PhysicsAsset->ConstraintSetups.Num(); ++ConstraintIdx)
+    {
+        UPhysicsConstraintSetup* Constraint = PhysicsAsset->ConstraintSetups[ConstraintIdx];
+        if (!Constraint)
+            continue;
+
+        // 두 Body의 본 찾기
+        int32 BoneIndex1 = -1;
+        int32 BoneIndex2 = -1;
+
+        for (int32 i = 0; i < Skeleton->Bones.size(); ++i)
+        {
+            if (Skeleton->Bones[i].Name == Constraint->ConstraintBone1.ToString())
+                BoneIndex1 = i;
+            if (Skeleton->Bones[i].Name == Constraint->ConstraintBone2.ToString())
+                BoneIndex2 = i;
+        }
+
+        if (BoneIndex1 < 0 || BoneIndex2 < 0)
+            continue;
+
+        // 두 본의 월드 트랜스폼
+        FTransform Bone1Transform = SkelComp->GetBoneWorldTransform(BoneIndex1);
+        FTransform Bone2Transform = SkelComp->GetBoneWorldTransform(BoneIndex2);
+
+        FVector Pos1 = Bone1Transform.Translation;
+        FVector Pos2 = Bone2Transform.Translation;
+
+        // Constraint 선택 여부 확인
+        bool bSelected = (EditMode == EPhysicsAssetEditMode::Constraint && SelectedConstraintIndex == ConstraintIdx);
+        FVector4 ConstraintColor = bSelected ? SelectedConstraintColor : NormalConstraintColor;
+        float LineThickness = bSelected ? 3.0f : 1.5f;
+
+        // 두 본을 연결하는 라인
+        StartPoints.Add(Pos1);
+        EndPoints.Add(Pos2);
+        Colors.Add(ConstraintColor);
+
+        // 선택된 Constraint에만 좌표축 그리기
+        if (bSelected)
+        {
+            // Constraint 위치 (중간점)
+            FVector ConstraintPos = (Pos1 + Pos2) * 0.5f;
+
+            // 좌표축 그리기 (X=빨강, Y=초록, Z=파랑)
+            // 두 본 사이 거리의 30%로 축 길이 설정 (너무 길지 않게)
+            float BoneDistance = (Pos2 - Pos1).Size();
+            float AxisLength = FMath::Min(BoneDistance * 0.3f, 10.0f);  // 최대 10cm
+
+            // X축 (빨강)
+            StartPoints.Add(ConstraintPos);
+            EndPoints.Add(ConstraintPos + FVector(AxisLength, 0, 0));
+            Colors.Add(FVector4(1, 0, 0, 1));
+
+            // Y축 (초록)
+            StartPoints.Add(ConstraintPos);
+            EndPoints.Add(ConstraintPos + FVector(0, AxisLength, 0));
+            Colors.Add(FVector4(0, 1, 0, 1));
+
+            // Z축 (파랑)
+            StartPoints.Add(ConstraintPos);
+            EndPoints.Add(ConstraintPos + FVector(0, 0, AxisLength));
+            Colors.Add(FVector4(0, 0, 1, 1));
+        }
+    }
+
+    // 라인 렌더링
+    if (!StartPoints.empty())
+    {
+        Renderer->AddLines(StartPoints, EndPoints, Colors);
+    }
+}
+
 // Ray-Sphere 교차 검사 헬퍼
 static bool RaySphereIntersect(const FRay& Ray, const FVector& Center, float Radius, float& OutT)
 {
