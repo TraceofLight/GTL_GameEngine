@@ -5,6 +5,7 @@
 #include "FAudioDevice.h"
 #include "FbxLoader.h"
 #include <ObjManager.h>
+#include "ClothManager.h"
 
 #include "MiniDump.h"
 
@@ -411,6 +412,8 @@ void UEditorEngine::MainLoop()
 				PHYSICS.EndSimulate(GWorld->GetPhysicsSceneHandle(), true); 
 			} 
 		}
+		 
+		FClothManager::GetInstance().ClothSimulation(DeltaSeconds);
 
         Tick(DeltaSeconds);
 		// Physics simulation is now handled per-World in UWorld::Tick
@@ -451,6 +454,9 @@ void UEditorEngine::Shutdown()
 
     // AudioDevice 종료
     FAudioDevice::Shutdown();
+
+	// Cloth Manager 종료
+	FClothManager::GetInstance().Shutdown();
 
     // IMPORTANT: Explicitly release Renderer before RHIDevice destructor runs
     // Renderer may hold references to D3D resources

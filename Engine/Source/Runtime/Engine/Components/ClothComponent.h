@@ -159,12 +159,7 @@ public:
 	FTransform GetBoneTransform(int32 BoneIndex) const;
 	FVector GetBoneLocation(const FName& BoneName);
 	FVector GetAttachmentPosition(int32 AttachmentIndex);
-protected:
-	// NvCloth objects
-	nv::cloth::Factory* ClothFactory = nullptr;
-	nv::cloth::Solver* ClothSolver = nullptr;
-	nv::cloth::Fabric* ClothFabric = nullptr;
-	nv::cloth::Cloth* NvCloth = nullptr;
+protected: 
 
 	// Cloth data
 	TArray<physx::PxVec4> ClothParticles;       // 정점 위치 + inverse mass (w)
@@ -209,7 +204,7 @@ private:
 	void CreatePhaseConfig();
 	void CreateSolver();
 
-	void SimulateCloth(float DeltaSeconds);
+	//void SimulateCloth(float DeltaSeconds);
 	void RetrievingSimulateResult();
 	void RecalculateNormals();
 
@@ -240,14 +235,13 @@ private:
 	//// Cooking helpers
 	//nv::cloth::ClothMeshDesc GetClothMeshDesc();
 
-
-	nv::cloth::Factory* factory;
-
+	///nv::cloth::Factory* factory; 
 	nv::cloth::Fabric* fabric;
-	nv::cloth::Cloth* cloth;	
+	nv::cloth::Cloth* cloth;
 	nv::cloth::Vector<int32_t>::Type phaseTypeInfo;
-	nv::cloth::Solver* solver;
 	nv::cloth::PhaseConfig* phases;
+	 
+	//nv::cloth::Solver* solver; 
 	 
 	void CreateOrResizeClothGPUBuffer(uint32 Float3Count);
 	void UpdateClothGPUBufferFromParticles();         // PreviousParticles -> GPU

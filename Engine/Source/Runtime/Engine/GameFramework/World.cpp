@@ -40,6 +40,7 @@
 #include"Character.h"
 #include "LuaBindHelpers.h"
 #include "SkySphereActor.h"
+#include "ClothManager.h"
 
 IMPLEMENT_CLASS(UWorld)
 
@@ -111,6 +112,7 @@ void UWorld::Initialize()
 	{
 		Partition = std::make_unique<UWorldPartitionManager>();
 	}
+
 
 	// 기본 씬을 생성합니다.
 	CreateLevel();
@@ -318,7 +320,7 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 
 	// PIE World용 Physics Scene 생성
 	PIEWorld->PhysicsSceneHandle = PHYSICS.CreateScene();
-
+	 
 	FWorldContext PIEWorldContext = FWorldContext(PIEWorld, EWorldType::Game);
 	GEngine.AddWorldContext(PIEWorldContext);
 

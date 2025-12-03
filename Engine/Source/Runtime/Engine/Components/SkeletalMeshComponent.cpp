@@ -1346,12 +1346,12 @@ void USkeletalMeshComponent::CreateInternalClothComponent()
   
 }
 
-/**
+/**	
  * @brief 내부 ClothComponent 정리
  */
 void USkeletalMeshComponent::DestroyInternalClothComponent()
 {
-	if (InternalClothComponent)
+    if (InternalClothComponent)
 	{
 		if (AActor* Owner = GetOwner())
 		{
