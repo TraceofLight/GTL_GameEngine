@@ -270,6 +270,8 @@ struct FGroupInfo
         else if (Ar.IsLoading())
             Serialization::ReadString(Ar, Info.InitialMaterialName);
 
+        Ar << Info.bEnableCloth;
+
         return Ar;
     }
 };

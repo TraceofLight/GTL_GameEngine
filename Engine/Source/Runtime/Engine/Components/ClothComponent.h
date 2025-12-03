@@ -57,7 +57,7 @@ struct FClothSimulationSettings
 	FVector GravityOverride = FVector(0, 0, -980.0f); // 중력 오버라이드 (cm/s^2)
 
 	// Wind
-	FVector WindVelocity = FVector(0.01, 0, 0);  // 바람 속도 (cm/s)
+	FVector WindVelocity = FVector(500.0f, 0, 0);  // 바람 속도 (cm/s) - 기본값: 5m/s (중간 바람)
 	float WindDrag = 0.5f;                      // 바람 저항 (0-1)
 	float WindLift = 0.3f;                      // 바람 양력 (0-1)
 

@@ -124,6 +124,9 @@ public:
 
 	// Override to create per-bone physics shapes
 	void OnCreatePhysicsState() override;
+
+	// 내부 ClothComponent (Cloth Section이 있을 때 자동 생성)
+	class UClothComponent* InternalClothComponent = nullptr;
 	void OnDestroyPhysicsState();
 
 	// Physics 시뮬레이션 결과를 본 트랜스폼에 반영
@@ -159,4 +162,9 @@ private:
 	bool bIsBoneEditingMode = false;  // 기즈모로 본을 편집 중인지 여부
 	int32 EditingBoneIndex = -1;      // 현재 편집 중인 본 인덱스 (-1이면 없음)
 	TMap<int32, FTransform> EditedBoneDeltas;  // 편집된 본의 델타 (BoneIndex -> Delta Transform)
+
+	// Cloth Section 감지 및 ClothComponent 관리
+	bool HasClothSections() const;
+	void CreateInternalClothComponent();
+	void DestroyInternalClothComponent();
 };

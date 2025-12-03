@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "SkeletalMeshComponent.h"
+#include "ClothComponent.h"
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
 #include "Source/Runtime/Engine/Animation/AnimSingleNodeInstance.h"
 #include "Source/Runtime/Engine/Animation/AnimStateMachine.h"
@@ -34,6 +35,9 @@ USkeletalMeshComponent::~USkeletalMeshComponent()
         ObjectFactory::DeleteObject(AnimInstance);
         AnimInstance = nullptr;
     }
+
+    // InternalClothComponent 정리 (메모리 누수 방지)
+    DestroyInternalClothComponent();
 }
 
 void USkeletalMeshComponent::InitializeComponent()
@@ -174,6 +178,14 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
 
         // Per-bone physics sync
         SyncBonesFromPhysics();
+
+        // Cloth 시뮬레이션 (Physics 중에도 실행)
+        if (InternalClothComponent)
+        {
+            InternalClothComponent->SetWorldTransform(GetWorldTransform());
+            InternalClothComponent->TickComponent(DeltaTime);
+        }
+
         return;  // 물리 시뮬레이션 중에는 애니메이션 업데이트 스킵
     }
 
@@ -252,6 +264,16 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
             }
         }
     }
+
+    // Cloth 시뮬레이션 (AnimInstance 업데이트 이후)
+    if (InternalClothComponent)
+    {
+        // ClothComponent의 Transform을 SkeletalMeshComponent와 동기화
+        InternalClothComponent->SetWorldTransform(GetWorldTransform());
+
+        // Cloth 시뮬레이션 실행
+        InternalClothComponent->TickComponent(DeltaTime);
+    }
 }
 
 void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
@@ -288,6 +310,18 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
         }
 
         ForceRecomputePose();
+
+        // Cloth Section 감지 및 자동 생성
+        if (HasClothSections())
+        {
+            CreateInternalClothComponent();
+            UE_LOG("SkeletalMeshComponent: Cloth sections detected. ClothComponent created automatically.\n");
+        }
+        else
+        {
+            // Cloth Section이 없으면 기존 ClothComponent 제거
+            DestroyInternalClothComponent();
+        }
     }
     else
     {
@@ -296,6 +330,9 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
         CurrentComponentSpacePose.Empty();
         TempFinalSkinningMatrices.Empty();
         TempFinalSkinningNormalMatrices.Empty();
+
+        // ClothComponent 제거
+        DestroyInternalClothComponent();
     }
 }
 
@@ -1224,4 +1261,95 @@ void USkeletalMeshComponent::SyncBonesFromPhysics()
     // Skinning matrices 업데이트
     UpdateFinalSkinningMatrices();
     UpdateSkinningMatrices(TempFinalSkinningMatrices, TempFinalSkinningNormalMatrices);
+}
+
+// ===== Cloth Section 감지 및 ClothComponent 관리 =====
+
+/**
+ * @brief 현재 SkeletalMesh에 Cloth Section이 있는지 확인
+ */
+bool USkeletalMeshComponent::HasClothSections() const
+{
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
+    {
+        return false;
+    }
+
+    const auto& GroupInfos = SkeletalMesh->GetSkeletalMeshData()->GroupInfos;
+    for (const auto& Group : GroupInfos)
+    {
+        if (Group.bEnableCloth)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @brief 내부 ClothComponent 생성 및 초기화
+ */
+void USkeletalMeshComponent::CreateInternalClothComponent()
+{
+    // 이미 생성되어 있으면 재사용
+    if (InternalClothComponent)
+    {
+        return;
+    }
+
+    // ClothComponent 생성
+    InternalClothComponent = NewObject<UClothComponent>();
+    if (!InternalClothComponent)
+    {
+        UE_LOG("SkeletalMeshComponent: Failed to create InternalClothComponent\n");
+        return;
+    }
+
+    // 소유자 연결: 선택/에디터 시스템은 Owner를 요구하므로 Actor 소유 목록에 추가
+    if (AActor* OwnerActor = GetOwner())
+    {
+        OwnerActor->AddOwnedComponent(InternalClothComponent);
+    }
+
+    // ClothComponent 초기화
+    InternalClothComponent->SetSkeletalMesh(SkeletalMesh->GetPathFileName());
+	InternalClothComponent->SetupAttachment(this);
+    InternalClothComponent->SetWorldTransform(GetWorldTransform()); 
+
+    // SkinnedVertices와 VertexBuffer 공유 (중요!)
+	InternalClothComponent->SetSkinnedVertices(this->SkinnedVertices);
+	InternalClothComponent->SetVertexBuffer(this->VertexBuffer);
+
+    // Component 라이프사이클 동기화
+    InternalClothComponent->InitializeComponent();
+
+    // 월드에 등록 (CRITICAL: 이것이 없으면 에디터에서 보이지 않고 클릭도 안됨!)
+    //AActor* Owner = GetOwner();
+    //if (Owner && GetWorld())
+    //{
+    //    Owner->RegisterComponentTree(InternalClothComponent, GetWorld());
+    //}
+
+    InternalClothComponent->BeginPlay();
+}
+
+/**
+ * @brief 내부 ClothComponent 정리
+ */
+void USkeletalMeshComponent::DestroyInternalClothComponent()
+{
+    if (InternalClothComponent)
+    {
+        // 월드에서 등록 해제
+        //AActor* Owner = GetOwner();
+        //if (Owner)
+        //{
+        //    Owner->UnregisterComponentTree(InternalClothComponent);
+        //}
+
+        InternalClothComponent->ReleaseCloth();
+        ObjectFactory::DeleteObject(InternalClothComponent);
+        InternalClothComponent = nullptr;
+    }
 }

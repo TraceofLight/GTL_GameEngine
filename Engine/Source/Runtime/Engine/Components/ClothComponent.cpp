@@ -733,8 +733,7 @@ FVector UClothComponent::GetAttachmentPosition(int32 AttachmentIndex)
 
 void UClothComponent::SetupCapeAttachment()
 {
-	// 망토 상단 정점들을 캐릭터의 어깨/등 본에 부착
-
+	// 망토 상단 정점들을 캐릭터의 어깨/등 본에 부착 
 	AttachmentVertices.Empty();
 	AttachmentBoneNames.Empty();
 	AttachmentOffsets.Empty();
@@ -975,10 +974,6 @@ void UClothComponent::UpdateVerticesFromCloth()
 	if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData() || PreviousParticles.Num() == 0)
 		return;
 
-	const auto& originalVertices = SkeletalMesh->GetSkeletalMeshData()->Vertices;
-	if (PreviousParticles.Num() != originalVertices.Num())
-		return;
-
 	const auto& MeshData = SkeletalMesh->GetSkeletalMeshData();
 	const auto& GroupInfos = MeshData->GroupInfos;
 
@@ -991,7 +986,16 @@ void UClothComponent::UpdateVerticesFromCloth()
 			continue;
 
 		// 이 Section의 정점들만 업데이트
-		UpdateSectionVertices(Group, ParticleIdx); 
+		UpdateSectionVertices(Group, ParticleIdx);
+	}
+
+	// 노멀 재계산
+	RecalculateNormals();
+
+	// VertexBuffer 갱신
+	if (VertexBuffer)
+	{
+		SkeletalMesh->UpdateVertexBuffer(SkinnedVertices, VertexBuffer);
 	}
 
 	//// SkinnedVertices 크기 초기화
@@ -1026,8 +1030,11 @@ void UClothComponent::UpdateSectionVertices(const FGroupInfo& Group, int32& Part
 {
 	// Section의 인덱스로부터 정점 추출
 	const auto& AllIndices = SkeletalMesh->GetSkeletalMeshData()->Indices;
+	const auto& AllVertices = SkeletalMesh->GetSkeletalMeshData()->Vertices;
+	const auto& OriginalVertices = SkeletalMesh->GetSkeletalMeshData()->Vertices;
 
-	TSet<uint32> UsedVertices;
+	TSet<uint32> UsedVertices; 
+	SkinnedVertices.resize(AllVertices.size());
 	for (uint32 i = 0; i < Group.IndexCount; ++i)
 	{
 		uint32 GlobalVertexIdx = AllIndices[Group.StartIndex + i];
@@ -1038,9 +1045,15 @@ void UClothComponent::UpdateSectionVertices(const FGroupInfo& Group, int32& Part
 
 			// Cloth 시뮬레이션 결과를 SkinnedVertices에 반영
 			const physx::PxVec4& Particle = PreviousParticles[ParticleIdx];
-			SkinnedVertices[GlobalVertexIdx].pos = FVector(Particle.x, Particle.y, Particle.z);
+			const auto& OriginalVertex = OriginalVertices[GlobalVertexIdx];
 
-			ParticleIdx++; 
+			SkinnedVertices[GlobalVertexIdx].pos = FVector(Particle.x, Particle.y, Particle.z);
+			SkinnedVertices[GlobalVertexIdx].tex = OriginalVertex.UV;
+			SkinnedVertices[GlobalVertexIdx].Tangent = FVector4(OriginalVertex.Tangent.X, OriginalVertex.Tangent.Y, OriginalVertex.Tangent.Z, OriginalVertex.Tangent.W);
+			SkinnedVertices[GlobalVertexIdx].color = FVector4(1, 1, 1, 1);
+			SkinnedVertices[GlobalVertexIdx].normal = FVector(0, 0, 1);  // RecalculateNormals에서 재계산됨
+
+			ParticleIdx++;
 		}
 	}
 }
