@@ -53,13 +53,7 @@
       "Loop" : false,
       "Name" : "JumpEnd",
       "StateEntryNotifies" : [],
-      "StateExitNotifies" : [{
-          "Duration" : 0.000000,
-          "Name" : "AN_CameraShake",
-          "PropertyData" : "{}",
-          "Time" : 0.000000,
-          "TrackIndex" : 0
-        }],
+      "StateExitNotifies" : [],
       "StateFullyBlendedNotifies" : []
     }],
   "Transitions" : [{

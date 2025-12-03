@@ -9,6 +9,36 @@
 #include "UCharacterMovementComponent.generated.h"
 #include <sol/sol.hpp>
 
+// PhysX 전방 선언
+namespace physx
+{
+	class PxScene;
+	struct PxSweepHit;
+}
+
+/**
+ * FGroundHitResult
+ *
+ * 지면 체크 결과를 담는 구조체
+ */
+struct FGroundHitResult
+{
+	/** 충돌 발생 여부 */
+	bool bBlockingHit = false;
+
+	/** 충돌 지점 */
+	FVector ImpactPoint = FVector::Zero();
+
+	/** 충돌 표면의 노말 */
+	FVector ImpactNormal = FVector(0.0f, 0.0f, 1.0f);
+
+	/** 시작점으로부터의 거리 */
+	float Distance = 0.0f;
+
+	/** 충돌한 액터 (nullptr이면 static geometry) */
+	class AActor* HitActor = nullptr;
+};
+
 // 전방 선언
 class ACharacter;
 
@@ -110,6 +140,22 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="점프 가능 여부")
 	bool bCanJump;
+
+	// ────────────────────────────────────────────────
+	// 캡슐 스윕 설정 (지면 체크용)
+	// ────────────────────────────────────────────────
+
+	UPROPERTY(EditAnywhere, Category="[충돌]", Tooltip="캡슐 반지름")
+	float CapsuleRadius;
+
+	UPROPERTY(EditAnywhere, Category="[충돌]", Tooltip="캡슐 반높이")
+	float CapsuleHalfHeight;
+
+	UPROPERTY(EditAnywhere, Category="[충돌]", Tooltip="지면으로 간주할 최대 거리")
+	float GroundCheckDistance;
+
+	UPROPERTY(EditAnywhere, Category="[충돌]", Tooltip="걸을 수 있는 최대 경사각 (도)")
+	float MaxWalkableSlopeAngle;
 
 	// ────────────────────────────────────────────────
 	// 이동 함수
@@ -225,12 +271,31 @@ protected:
 	void MoveUpdatedComponent(float DeltaTime);
 
 	/**
-	 * 지면 체크 (BoxComponent 오버랩 기반)
-	 * AGravityWall의 IsFloor()가 true인 경우 지면으로 인식합니다.
+	 * 지면 체크 (캡슐 스윕 기반)
+	 * PhysX 씬에서 캡슐 스윕을 수행하여 지면을 감지합니다.
 	 *
 	 * @return 지면에 있으면 true
 	 */
 	bool CheckGround();
+
+	/**
+	 * 캡슐 스윕을 수행합니다.
+	 *
+	 * @param Start - 스윕 시작 위치
+	 * @param Direction - 스윕 방향 (정규화됨)
+	 * @param Distance - 스윕 거리
+	 * @param OutHit - 충돌 결과
+	 * @return 충돌이 발생하면 true
+	 */
+	bool SweepCapsule(const FVector& Start, const FVector& Direction, float Distance, FGroundHitResult& OutHit);
+
+	/**
+	 * 표면이 걸을 수 있는지 확인합니다.
+	 *
+	 * @param SurfaceNormal - 표면 노말 벡터
+	 * @return 걸을 수 있으면 true
+	 */
+	bool IsWalkableSurface(const FVector& SurfaceNormal) const;
 
 	/**
 	 * 벽 충돌 체크 (BoxComponent 오버랩 기반)
@@ -296,4 +361,7 @@ protected:
 
 	/** 측면 충돌 시 호출될 Lua 콜백 함수 */
 	sol::function WallCollisionLuaCallback;
+
+	/** 마지막 지면 체크 결과 */
+	FGroundHitResult CurrentFloor;
 };

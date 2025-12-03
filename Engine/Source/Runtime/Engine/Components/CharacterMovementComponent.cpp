@@ -5,8 +5,11 @@
 #include "pch.h"
 #include "CharacterMovementComponent.h"
 #include "Character.h"
-#include "BoxComponent.h"
 #include "World.h"
+#include "PxPhysicsAPI.h"
+#include "PrimitiveComponent.h"
+
+using namespace physx;
 //
 //IMPLEMENT_CLASS(UCharacterMovementComponent)
 //
@@ -41,6 +44,11 @@ UCharacterMovementComponent::UCharacterMovementComponent()
 	, JumpZVelocity(20.2f)          // 4.2 m/s
 	, MaxAirTime(2.0f)
 	, bCanJump(true)
+	// 캡슐 스윕 설정
+	, CapsuleRadius(0.03f)
+	, CapsuleHalfHeight(0.03f)
+	, GroundCheckDistance(0.001f)
+	, MaxWalkableSlopeAngle(45.0f)  // 45도까지 걸을 수 있음
 {
 	bCanEverTick = true;
 }
@@ -352,19 +360,71 @@ void UCharacterMovementComponent::SetIsRotating(bool bInIsRotating)
 
 void UCharacterMovementComponent::MoveUpdatedComponent(float DeltaTime)
 {
-	if (Velocity.SizeSquared() == 0.0f)
+	if (!CharacterOwner || Velocity.SizeSquared() == 0.0f)
 	{
 		return;
 	}
 
-	// 새 위치 계산
 	FVector CurrentLocation = CharacterOwner->GetActorLocation();
 	FVector Delta = Velocity * DeltaTime;
-	FVector NewLocation = CurrentLocation + Delta;
+	float DeltaSize = Delta.Size();
 
-	// 위치 업데이트
-	CharacterOwner->SetActorLocation(NewLocation);
+	if (DeltaSize < 0.0001f)
+	{
+		return;
+	}
 
+	// PIE 체크 - 물리 씬이 없으면 스윕 없이 이동
+	UWorld* World = CharacterOwner->GetWorld();
+	if (!World || !World->bPie || !World->GetPhysicsScene())
+	{
+		// 물리 씬 없음 - 단순 이동
+		FVector NewLocation = CurrentLocation + Delta;
+		CharacterOwner->SetActorLocation(NewLocation);
+		return;
+	}
+
+	// 이동 방향으로 캡슐 스윕 수행
+	FVector MoveDirection = Delta.GetNormalized();
+
+	FGroundHitResult HitResult;
+	bool bHit = SweepCapsule(CurrentLocation, MoveDirection, DeltaSize, HitResult);
+
+	if (bHit && HitResult.Distance < DeltaSize)
+	{
+		// 충돌한 표면이 걸을 수 있는 경사인지 확인
+		if (IsWalkableSurface(HitResult.ImpactNormal))
+		{
+			// 걸을 수 있는 경사 - 경사면을 따라 이동 (슬로프 워킹)
+			// 이동 벡터를 경사면에 투영하여 경사를 따라 이동
+			float VelocityAlongNormal = FVector::Dot(Delta, HitResult.ImpactNormal);
+			FVector SlideVector = Delta - HitResult.ImpactNormal * VelocityAlongNormal;
+
+			FVector NewLocation = CurrentLocation + SlideVector;
+			CharacterOwner->SetActorLocation(NewLocation);
+		}
+		else
+		{
+			// 걸을 수 없는 벽 - 충돌 지점까지만 이동
+			float SafeDistance = FMath::Max(0.0f, HitResult.Distance - 0.1f); // 약간의 여유
+			FVector NewLocation = CurrentLocation + MoveDirection * SafeDistance;
+			CharacterOwner->SetActorLocation(NewLocation);
+
+			// 충돌면에 대해 속도 조정 (슬라이딩)
+			// 속도에서 충돌 노말 방향 성분을 제거
+			float VelocityAlongNormal = FVector::Dot(Velocity, HitResult.ImpactNormal);
+			if (VelocityAlongNormal < 0.0f) // 표면을 향해 이동 중일 때만
+			{
+				Velocity -= HitResult.ImpactNormal * VelocityAlongNormal;
+			}
+		}
+	}
+	else
+	{
+		// 충돌 없음 - 전체 이동
+		FVector NewLocation = CurrentLocation + Delta;
+		CharacterOwner->SetActorLocation(NewLocation);
+	}
 }
 
 
@@ -380,17 +440,172 @@ bool UCharacterMovementComponent::CheckGround()
 		return false;
 	}
 
-	// Z 위치가 0 이하이면 지면에 있는 것으로 간주
-	FVector CurrentLocation = CharacterOwner->GetActorLocation();
-	if (CurrentLocation.Z <= 0.0f)
+	// PIE 체크 - PIE가 아니면 스윕 불가능하므로 false 반환 (낙하 상태)
+	UWorld* World = CharacterOwner->GetWorld();
+	if (!World || !World->bPie || !World->GetPhysicsScene())
 	{
-		// 위치를 0으로 고정
-		CurrentLocation.Z = 0.0f;
-		CharacterOwner->SetActorLocation(CurrentLocation);
+		// 물리 씬이 없으면 지면 체크 불가 - 낙하 상태로 처리
+		CurrentFloor = FGroundHitResult();
+		return false;
+	}
+
+	// 캐릭터의 현재 위치에서 중력 방향으로 캡슐 스윕 수행
+	FVector CurrentLocation = CharacterOwner->GetActorLocation();
+
+	// 스윕 시작점
+	FVector SweepStart = CurrentLocation;
+
+	// 스윕 방향: 중력 방향 (보통 아래)
+	FVector SweepDirection = GravityDirection;
+
+	// 스윕 거리: 지면 체크 거리 + 캡슐 반높이 (지면 위에 서있을 때 캡슐 중심에서 바닥까지의 거리)
+	float SweepDistance = GroundCheckDistance + CapsuleHalfHeight;
+
+	FGroundHitResult HitResult;
+	bool bHit = SweepCapsule(SweepStart, SweepDirection, SweepDistance, HitResult);
+
+	// 스윕이 아무것도 안 맞으면 지면 없음
+	if (!bHit)
+	{
+		CurrentFloor = FGroundHitResult();
+		return false;
+	}
+
+	if (IsWalkableSurface(HitResult.ImpactNormal))
+	{
+		CurrentFloor = HitResult;
+
+		// 지면과의 거리가 GroundCheckDistance 이내이면 지면에 있는 것으로 판정
+		// HitResult.Distance는 캡슐 중심에서 충돌까지의 거리
+		if (HitResult.Distance <= GroundCheckDistance + CapsuleHalfHeight)
+		{
+			// 캐릭터를 지면 위에 정확히 배치
+			// 충돌 지점에서 캡슐 반높이만큼 위로 올려야 캡슐이 지면 위에 정확히 위치
+			FVector GroundPosition = HitResult.ImpactPoint - (GravityDirection * CapsuleHalfHeight);
+
+			// 현재 위치가 지면 아래로 파묻혀 있다면 보정
+			float CurrentDepthAlongGravity = FVector::Dot(CurrentLocation - GroundPosition, GravityDirection);
+			if (CurrentDepthAlongGravity > 0.01f) // 지면 아래에 있음
+			{
+				CharacterOwner->SetActorLocation(GroundPosition);
+			}
+
+			// 중력 방향 속도 제거 (낙하 중이었다면)
+			float VerticalSpeed = FVector::Dot(Velocity, GravityDirection);
+			if (VerticalSpeed > 0.0f) // 중력 방향으로 이동 중 (낙하 중)
+			{
+				Velocity -= GravityDirection * VerticalSpeed;
+			}
+
+			return true;
+		}
+	}
+
+	// 지면이 너무 멀거나 걸을 수 없는 경사
+	CurrentFloor = FGroundHitResult();
+	return false;
+}
+
+bool UCharacterMovementComponent::SweepCapsule(const FVector& Start, const FVector& Direction, float Distance, FGroundHitResult& OutHit)
+{
+	if (!CharacterOwner)
+	{
+		return false;
+	}
+
+	UWorld* World = CharacterOwner->GetWorld();
+	if (!World || !World->bPie)
+	{
+		// PIE가 아닌 경우 스윕 수행 불가
+		return false;
+	}
+
+	PxScene* Scene = World->GetPhysicsScene();
+	if (!Scene)
+	{
+		return false;
+	}
+
+	// PhysX 캡슐 지오메트리 생성
+	// PhysX의 캡슐은 X축을 따라 정렬됨, 우리는 Z축(수직) 정렬이 필요
+	PxCapsuleGeometry CapsuleGeom(CapsuleRadius, CapsuleHalfHeight);
+
+	// 시작 위치 및 방향 설정
+	PxVec3 PxStart(Start.X, Start.Y, Start.Z);
+	PxVec3 PxDir(Direction.X, Direction.Y, Direction.Z);
+	PxDir.normalize();
+
+	// 캡슐 회전: PhysX 캡슐은 X축 정렬, 우리는 Z축(up) 정렬이 필요
+	// X축을 Z축으로 회전 (Y축 기준 90도 회전)
+	PxQuat CapsuleRotation(PxHalfPi, PxVec3(0.0f, 1.0f, 0.0f));
+	PxTransform StartPose(PxStart, CapsuleRotation);
+
+	// 스윕 결과 버퍼
+	PxSweepBuffer SweepHit;
+
+	// 필터 데이터: 정적 오브젝트만 충돌 (캐릭터 자신의 동적 바디 제외)
+	PxQueryFilterData FilterData;
+	FilterData.flags = PxQueryFlag::eSTATIC;
+
+	// Scene 락 필요 (스윕 전)
+	Scene->lockRead();
+
+	// 캡슐 스윕 수행
+	bool bHit = Scene->sweep(
+		CapsuleGeom,
+		StartPose,
+		PxDir,
+		Distance,
+		SweepHit,
+		PxHitFlag::eDEFAULT | PxHitFlag::eNORMAL,
+		FilterData
+	);
+
+	Scene->unlockRead();
+
+	if (bHit && SweepHit.hasBlock)
+	{
+		const PxSweepHit& Hit = SweepHit.block;
+
+		OutHit.bBlockingHit = true;
+		OutHit.ImpactPoint = FVector(Hit.position.x, Hit.position.y, Hit.position.z);
+		OutHit.ImpactNormal = FVector(Hit.normal.x, Hit.normal.y, Hit.normal.z);
+		OutHit.Distance = Hit.distance;
+
+		// 충돌한 액터 추출 (있을 경우)
+		if (Hit.actor)
+		{
+			void* UserData = Hit.actor->userData;
+			if (UserData)
+			{
+				// UserData가 UPrimitiveComponent를 가리킬 경우
+				UPrimitiveComponent* PrimComp = static_cast<UPrimitiveComponent*>(UserData);
+				if (PrimComp)
+				{
+					OutHit.HitActor = PrimComp->GetOwner();
+				}
+			}
+		}
 		return true;
 	}
 
 	return false;
+}
+
+bool UCharacterMovementComponent::IsWalkableSurface(const FVector& SurfaceNormal) const
+{
+	// 표면 노말과 중력 반대 방향(Up) 사이의 각도 계산
+	FVector UpDirection = -GravityDirection;
+
+	// 두 벡터 사이의 내적
+	float DotProduct = FVector::Dot(SurfaceNormal, UpDirection);
+
+	// 각도 계산 (라디안 → 도)
+	float AngleRad = std::acos(FMath::Clamp(DotProduct, -1.0f, 1.0f));
+	float AngleDeg = RadiansToDegrees(AngleRad);
+
+	// MaxWalkableSlopeAngle보다 작으면 걸을 수 있는 표면
+	return AngleDeg <= MaxWalkableSlopeAngle;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
