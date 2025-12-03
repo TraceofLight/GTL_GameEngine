@@ -576,7 +576,6 @@ void PhysicsAssetViewerState::DrawConstraints(URenderer* Renderer) const
     if (!bShowConstraints || !PhysicsAsset || !Renderer)
         return;
 
-    // SkeletalMeshComponent에서 본 위치 가져오기
     USkeletalMeshComponent* SkelComp = nullptr;
     if (PreviewActor)
     {
@@ -587,14 +586,22 @@ void PhysicsAssetViewerState::DrawConstraints(URenderer* Renderer) const
     if (!Skeleton || !SkelComp)
         return;
 
+    // 라인용 배열 (연결선, 좌표축)
     TArray<FVector> StartPoints;
     TArray<FVector> EndPoints;
-    TArray<FVector4> Colors;
+    TArray<FVector4> LineColors;
 
-    const FVector4 NormalConstraintColor(0.8f, 0.8f, 0.2f, 1.0f);  // 노란색
-    const FVector4 SelectedConstraintColor(1.0f, 0.3f, 0.3f, 1.0f); // 빨간색
+    // 반투명 메시 배치 시작
+    Renderer->BeginPrimitiveBatch();
 
-    // 모든 Constraint 순회
+    // 색상 정의 (언리얼 스타일 - 반투명)
+    const FVector4 SwingConeColor(0.0f, 0.8f, 0.0f, 0.25f);           // 반투명 녹색 - Swing
+    const FVector4 SwingConeSelectedColor(0.2f, 1.0f, 0.2f, 0.4f);    // 반투명 밝은 녹색 - 선택된 Swing
+    const FVector4 TwistArcColor(1.0f, 0.5f, 0.0f, 0.3f);             // 반투명 주황 - Twist
+    const FVector4 TwistArcSelectedColor(1.0f, 0.7f, 0.2f, 0.5f);     // 반투명 밝은 주황 - 선택된 Twist
+    const FVector4 ConnectionColor(0.3f, 0.3f, 0.6f, 1.0f);           // 파란색 - 연결선
+    const FVector4 SelectedConnectionColor(1.0f, 1.0f, 0.0f, 1.0f);   // 노란색 - 선택된 연결선
+
     for (int32 ConstraintIdx = 0; ConstraintIdx < PhysicsAsset->ConstraintSetups.Num(); ++ConstraintIdx)
     {
         UPhysicsConstraintSetup* Constraint = PhysicsAsset->ConstraintSetups[ConstraintIdx];
@@ -623,48 +630,94 @@ void PhysicsAssetViewerState::DrawConstraints(URenderer* Renderer) const
         FVector Pos1 = Bone1Transform.Translation;
         FVector Pos2 = Bone2Transform.Translation;
 
-        // Constraint 선택 여부 확인
         bool bSelected = (EditMode == EPhysicsAssetEditMode::Constraint && SelectedConstraintIndex == ConstraintIdx);
-        FVector4 ConstraintColor = bSelected ? SelectedConstraintColor : NormalConstraintColor;
-        float LineThickness = bSelected ? 3.0f : 1.5f;
 
-        // 두 본을 연결하는 라인
+        // Constraint 위치 (Child 본 위치 사용)
+        FVector ConstraintPos = Pos2;
+        FQuat ConstraintRot = Bone1Transform.Rotation;
+
+        // 크기: 두 본 거리의 15% (작게!)
+        float BoneDistance = (Pos2 - Pos1).Size();
+        float VisualScale = FMath::Clamp(BoneDistance * 0.15f, 1.0f, 5.0f);
+
+        // 연결선
         StartPoints.Add(Pos1);
         EndPoints.Add(Pos2);
-        Colors.Add(ConstraintColor);
+        LineColors.Add(bSelected ? SelectedConnectionColor : ConnectionColor);
 
-        // 선택된 Constraint에만 좌표축 그리기
+        // ===== Swing Cone (반투명 메시) =====
+        float Swing1Limit = 0.0f;
+        float Swing2Limit = 0.0f;
+
+        if (Constraint->Swing1Motion == EAngularConstraintMotion::Limited)
+            Swing1Limit = Constraint->Swing1LimitAngle;
+        else if (Constraint->Swing1Motion == EAngularConstraintMotion::Free)
+            Swing1Limit = 45.0f;  // Free는 45도로 표시 (너무 크지 않게)
+
+        if (Constraint->Swing2Motion == EAngularConstraintMotion::Limited)
+            Swing2Limit = Constraint->Swing2LimitAngle;
+        else if (Constraint->Swing2Motion == EAngularConstraintMotion::Free)
+            Swing2Limit = 45.0f;
+
+        if (Swing1Limit > 0.0f || Swing2Limit > 0.0f)
+        {
+            FMeshData ConeMesh;
+            FVector4 ConeColor = bSelected ? SwingConeSelectedColor : SwingConeColor;
+            FPrimitiveGeometry::GenerateSwingCone(ConeMesh, Swing1Limit, Swing2Limit, VisualScale, 16, ConeColor);
+
+            FMatrix WorldMatrix = FMatrix::FromTRS(ConstraintPos, ConstraintRot, FVector(1, 1, 1));
+            Renderer->AddPrimitiveData(ConeMesh, WorldMatrix);
+        }
+
+        // ===== Twist Arc (반투명 메시) =====
+        float TwistLimit = 0.0f;
+        if (Constraint->TwistMotion == EAngularConstraintMotion::Limited)
+            TwistLimit = Constraint->TwistLimitAngle;
+        else if (Constraint->TwistMotion == EAngularConstraintMotion::Free)
+            TwistLimit = 90.0f;
+
+        if (TwistLimit > 0.0f)
+        {
+            FMeshData ArcMesh;
+            FVector4 ArcColor = bSelected ? TwistArcSelectedColor : TwistArcColor;
+            FPrimitiveGeometry::GenerateTwistArc(ArcMesh, TwistLimit, VisualScale * 0.7f, VisualScale * 0.15f, 16, ArcColor);
+
+            FMatrix WorldMatrix = FMatrix::FromTRS(ConstraintPos, ConstraintRot, FVector(1, 1, 1));
+            Renderer->AddPrimitiveData(ArcMesh, WorldMatrix);
+        }
+
+        // 선택된 경우 좌표축 표시
         if (bSelected)
         {
-            // Constraint 위치 (중간점)
-            FVector ConstraintPos = (Pos1 + Pos2) * 0.5f;
+            float AxisLength = VisualScale * 0.8f;
+            FVector XAxis = ConstraintRot.RotateVector(FVector(1, 0, 0));
+            FVector YAxis = ConstraintRot.RotateVector(FVector(0, 1, 0));
+            FVector ZAxis = ConstraintRot.RotateVector(FVector(0, 0, 1));
 
-            // 좌표축 그리기 (X=빨강, Y=초록, Z=파랑)
-            // 두 본 사이 거리의 30%로 축 길이 설정 (너무 길지 않게)
-            float BoneDistance = (Pos2 - Pos1).Size();
-            float AxisLength = FMath::Min(BoneDistance * 0.3f, 10.0f);  // 최대 10cm
-
-            // X축 (빨강)
+            // X축 (빨강 - Twist)
             StartPoints.Add(ConstraintPos);
-            EndPoints.Add(ConstraintPos + FVector(AxisLength, 0, 0));
-            Colors.Add(FVector4(1, 0, 0, 1));
+            EndPoints.Add(ConstraintPos + XAxis * AxisLength);
+            LineColors.Add(FVector4(1, 0, 0, 1));
 
-            // Y축 (초록)
+            // Y축 (초록 - Swing1)
             StartPoints.Add(ConstraintPos);
-            EndPoints.Add(ConstraintPos + FVector(0, AxisLength, 0));
-            Colors.Add(FVector4(0, 1, 0, 1));
+            EndPoints.Add(ConstraintPos + YAxis * AxisLength);
+            LineColors.Add(FVector4(0, 1, 0, 1));
 
-            // Z축 (파랑)
+            // Z축 (파랑 - Swing2)
             StartPoints.Add(ConstraintPos);
-            EndPoints.Add(ConstraintPos + FVector(0, 0, AxisLength));
-            Colors.Add(FVector4(0, 0, 1, 1));
+            EndPoints.Add(ConstraintPos + ZAxis * AxisLength);
+            LineColors.Add(FVector4(0, 0, 1, 1));
         }
     }
+
+    // 반투명 메시 배치 종료
+    Renderer->EndPrimitiveBatch();
 
     // 라인 렌더링
     if (!StartPoints.empty())
     {
-        Renderer->AddLines(StartPoints, EndPoints, Colors);
+        Renderer->AddLines(StartPoints, EndPoints, LineColors);
     }
 }
 
@@ -985,9 +1038,7 @@ bool PhysicsAssetViewerState::PickConstraint(const FRay& Ray,
     const FSkeleton* Skeleton = CurrentMesh ? CurrentMesh->GetSkeleton() : nullptr;
     if (!SkelComp || !Skeleton) return false;
 
-    const float PickThreshold = 5.0f;  // 픽셀 단위가 아닌 월드 공간 거리 (5cm)
-    float ClosestDist = PickThreshold;
-    float ClosestRayT = FLT_MAX;
+    float ClosestT = FLT_MAX;
     int32 HitConstraintIndex = -1;
 
     for (int32 ConstraintIdx = 0; ConstraintIdx < PhysicsAsset->ConstraintSetups.Num(); ++ConstraintIdx)
@@ -1009,27 +1060,31 @@ bool PhysicsAssetViewerState::PickConstraint(const FRay& Ray,
         if (BoneIndex1 < 0 || BoneIndex2 < 0)
             continue;
 
-        // 두 본의 월드 위치
+        // Constraint 위치 (Child 본 = Pos2)
         FVector Pos1 = SkelComp->GetBoneWorldTransform(BoneIndex1).Translation;
         FVector Pos2 = SkelComp->GetBoneWorldTransform(BoneIndex2).Translation;
+        FVector ConstraintPos = Pos2;
 
-        // Ray와 선분 거리 계산
-        float RayT;
-        float Dist = RaySegmentDistance(Ray, Pos1, Pos2, RayT);
+        // 피킹 반경: 두 본 거리의 15% (시각화 크기와 동일)
+        float BoneDistance = (Pos2 - Pos1).Size();
+        float PickRadius = FMath::Clamp(BoneDistance * 0.15f, 1.0f, 5.0f);
 
-        // 가장 가까운 Constraint 찾기 (threshold 이내, 동일 거리면 더 가까운 것 우선)
-        if (Dist < ClosestDist || (FMath::Abs(Dist - ClosestDist) < 0.1f && RayT < ClosestRayT))
+        // Ray-Sphere 교차 검사
+        float T;
+        if (RaySphereIntersect(Ray, ConstraintPos, PickRadius, T))
         {
-            ClosestDist = Dist;
-            ClosestRayT = RayT;
-            HitConstraintIndex = ConstraintIdx;
+            if (T < ClosestT)
+            {
+                ClosestT = T;
+                HitConstraintIndex = ConstraintIdx;
+            }
         }
     }
 
     if (HitConstraintIndex >= 0)
     {
         OutConstraintIndex = HitConstraintIndex;
-        OutDistance = ClosestRayT;
+        OutDistance = ClosestT;
         return true;
     }
 
