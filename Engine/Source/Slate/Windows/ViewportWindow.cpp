@@ -139,6 +139,15 @@ bool SViewportWindow::Initialize(float StartX, float StartY, float Width, float 
 
 void SViewportWindow::OnRender()
 {
+	// 뷰포트가 너무 작으면 렌더링 건너뛰기 (애니메이션 중 깔끔한 전환을 위해)
+	float ViewportWidth = Rect.Right - Rect.Left;
+	float ViewportHeight = Rect.Bottom - Rect.Top;
+	const float MinRenderSize = 50.0f;  // 최소 렌더링 크기
+	if (ViewportWidth < MinRenderSize || ViewportHeight < MinRenderSize)
+	{
+		return;
+	}
+
 	// Slate(UI)만 처리하고 렌더는 FViewport에 위임
 	RenderToolbar();
 
