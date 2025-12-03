@@ -375,8 +375,8 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
         TempFinalSkinningMatrices.Empty();
         TempFinalSkinningNormalMatrices.Empty();
 
-        // ClothComponent 제거
-        DestroyInternalClothComponent();
+        // ClothComponent 제거 
+       //DestroyInternalClothComponent();
     }
 }
 
@@ -1343,38 +1343,7 @@ void USkeletalMeshComponent::CreateInternalClothComponent()
 		return;
 	}  
 	InternalClothComponent->SetSkeletalMesh(SkeletalMesh->GetPathFileName());
- //   // 이미 생성되어 있으면 재사용
- //   if (InternalClothComponent)
- //   {
- //       return;
- //   }
-
- //   // ClothComponent 생성
- //   InternalClothComponent = NewObject<UClothComponent>();
- //   if (!InternalClothComponent)
- //   {
- //       UE_LOG("SkeletalMeshComponent: Failed to create InternalClothComponent\n");
- //       return;
- //   }
-
- //   // 소유자 연결: 선택/에디터 시스템은 Owner를 요구하므로 Actor 소유 목록에 추가
- //   if (AActor* OwnerActor = GetOwner())
- //   {
- //       OwnerActor->AddOwnedComponent(InternalClothComponent);
- //   }
-
- //   // ClothComponent 초기화
- //   InternalClothComponent->SetSkeletalMesh(SkeletalMesh->GetPathFileName());
-	//InternalClothComponent->SetupAttachment(this);
- //   InternalClothComponent->SetWorldTransform(GetWorldTransform()); 
-
- //   // SkinnedVertices와 VertexBuffer 공유 (중요!)
-	//InternalClothComponent->SetSkinnedVertices(this->SkinnedVertices);
-	//InternalClothComponent->SetVertexBuffer(this->VertexBuffer);
-
- //   // Component 라이프사이클 동기화
- //   InternalClothComponent->InitializeComponent();  
- //   InternalClothComponent->BeginPlay();
+  
 }
 
 /**
@@ -1385,15 +1354,11 @@ void USkeletalMeshComponent::DestroyInternalClothComponent()
     if (InternalClothComponent)
     {
         // 월드에서 등록 해제
-        //AActor* Owner = GetOwner();
-        //if (Owner)
-		//
-		// 
-        //    Owner->UnregisterComponentTree(InternalClothComponent);
-        //}
+        AActor* Owner = GetOwner();
+        if (Owner)
+	        Owner->UnregisterComponentTree(InternalClothComponent);
 
-        InternalClothComponent->ReleaseCloth();
-        ObjectFactory::DeleteObject(InternalClothComponent);
-        InternalClothComponent = nullptr;
-    }
+		ObjectFactory::DeleteObject(InternalClothComponent); 
+		InternalClothComponent = nullptr;
+    } 
 }

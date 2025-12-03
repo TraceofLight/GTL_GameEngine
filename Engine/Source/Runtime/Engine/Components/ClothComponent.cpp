@@ -241,6 +241,8 @@ void UClothComponent::ReleaseCloth()
 	{
 		UE_LOG("[ClothComponent] Removing cloth from solver\n");
 		solver->removeCloth(cloth);
+		solver = nullptr;
+
 	}
 
 	// 2. Cloth 삭제

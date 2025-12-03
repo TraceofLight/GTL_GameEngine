@@ -98,6 +98,9 @@ struct FClothConstraint
 /**
  * @brief NvCloth 기반 Cloth 시뮬레이션 컴포넌트
  */
+
+
+UCLASS(DisplayName = "옷 컴포넌트", Description = "옷")
 class UClothComponent : public USkinnedMeshComponent
 { 
 	GENERATED_REFLECTION_BODY()
