@@ -288,7 +288,7 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
       }
       else
       {
-         UE_LOG("[warning] SkinnedMeshComponent: Failed to load %s", PathFileName.c_str());
+         UE_LOG("SkinnedMeshComponent: SetSkeletalMesh: Failed to load %s", PathFileName.c_str());
       }
    }, EAssetLoadPriority::Normal);
 }

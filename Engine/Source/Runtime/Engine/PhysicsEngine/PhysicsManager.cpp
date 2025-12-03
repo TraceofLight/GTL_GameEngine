@@ -48,7 +48,7 @@ void FPhysicsManager::Initialize()
 	// 4. Extensions 초기화 (D6 Joint 등 사용을 위해 필수)
 	if (!PxInitExtensions(*Physics, Pvd))
 	{
-		UE_LOG("[Physics] PxInitExtensions failed!");
+		UE_LOG("Physics: Initialize: PxInitExtensions failed");
 	}
 
 	// 5. CPU Dispatcher (공유 리소스)
@@ -208,7 +208,7 @@ void FPhysicsManager::InitVehicleSDK()
 	// Vehicle SDK 초기화
 	if (!PxInitVehicleSDK(*Physics))
 	{
-		UE_LOG("[Physics] PxInitVehicleSDK failed!");
+		UE_LOG("Physics: InitVehicleSDK: PxInitVehicleSDK failed");
 		return;
 	}
 
@@ -222,7 +222,7 @@ void FPhysicsManager::InitVehicleSDK()
 	SetupFrictionPairs();
 
 	bVehicleSDKInitialized = true;
-	UE_LOG("[Physics] Vehicle SDK initialized successfully");
+	UE_LOG("Physics: InitVehicleSDK: Vehicle SDK initialized");
 }
 
 void FPhysicsManager::ShutdownVehicleSDK()

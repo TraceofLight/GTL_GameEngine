@@ -295,15 +295,25 @@ void SViewportWindow::RenderToolbar()
 		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));        // 배경 투명
 		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.2f, 0.2f, 0.5f)); // 호버 배경
 
-		// 기즈모 모드 버튼들 렌더링
-		RenderGizmoModeButtons();
+		// PIE 모드에서는 좌측 컨트롤 위젯 숨김
+		if (!GEngine.IsPIEActive())
+		{
+			// 기즈모 모드 버튼들 렌더링
+			RenderGizmoModeButtons();
 
-		// 구분선
-		ImGui::TextColored(ImVec4(0.4f, 0.4f, 0.4f, 1.0f), "|");
-		ImGui::SameLine();
+			// 구분선
+			ImGui::TextColored(ImVec4(0.4f, 0.4f, 0.4f, 1.0f), "|");
+			ImGui::SameLine();
 
-		// 기즈모 스페이스 버튼 렌더링
-		RenderGizmoSpaceButton();
+			// 기즈모 스페이스 버튼 렌더링
+			RenderGizmoSpaceButton();
+		}
+		else if (GEngine.IsPIEInputCaptured())
+		{
+			// PIE 모드이고 입력이 attached 상태일 때 detach 힌트 표시
+			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Press Shift + F1 to detach");
+			ImGui::SameLine();
+		}
 
 		// 기즈모 버튼 스타일 복원
 		ImGui::PopStyleColor(2);

@@ -5,6 +5,7 @@
 #include "FAudioDevice.h"
 #include "FbxLoader.h"
 #include <ObjManager.h>
+#include "AsyncLoader.h"
 
 #include "MiniDump.h"
 
@@ -485,6 +486,39 @@ void UEditorEngine::StartPIE()
 {
     UE_LOG("[info] START PIE");
 
+    // 비동기 로딩 완료 대기
+    FAsyncLoader& AsyncLoader = FAsyncLoader::Get();
+    if (AsyncLoader.IsLoading())
+    {
+        UE_LOG("EditorEngine: StartPIE: Waiting for async loading");
+
+        // 로딩이 완료될 때까지 대기 (메시지 펌프 유지)
+        MSG msg;
+        while (AsyncLoader.IsLoading())
+        {
+            // 완료된 리소스 처리 (메인 스레드에서)
+            AsyncLoader.ProcessCompletedResources();
+
+            // 메시지 펌프 유지 (UI 응답성)
+            while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+                if (msg.message == WM_QUIT)
+                {
+                    return;
+                }
+            }
+
+            // CPU 과부하 방지
+            Sleep(1);
+        }
+
+        // 마지막으로 완료된 리소스 처리
+        AsyncLoader.ProcessCompletedResources();
+        UE_LOG("EditorEngine: StartPIE: Async loading completed");
+    }
+
     UWorld* EditorWorld = WorldContexts[0].World;
     UWorld* PIEWorld = UWorld::DuplicateWorldForPIE(EditorWorld);
 
@@ -534,7 +568,7 @@ void UEditorEngine::SetPIEInputCaptured(bool bCaptured)
         // 게임에 입력 캡처 (Attach) - 커서 숨김 + 잠금 (무한 드래그)
         INPUT.SetCursorVisible(false);
         INPUT.LockCursor();
-        UE_LOG("[PIE] Input captured by game");
+        UE_LOG("EditorEngine: SetPIEInputCaptured: Input captured by game");
     }
     else
     {
@@ -544,7 +578,7 @@ void UEditorEngine::SetPIEInputCaptured(bool bCaptured)
         {
             INPUT.ReleaseCursor();
         }
-        UE_LOG("[PIE] Input released to editor (Shift+F1)");
+        UE_LOG("EditorEngine: SetPIEInputCaptured: Input released to editor (Shift+F1)");
     }
 }
 
