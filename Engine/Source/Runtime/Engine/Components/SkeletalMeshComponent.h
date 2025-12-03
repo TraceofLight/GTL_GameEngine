@@ -123,7 +123,7 @@ public:
 	TArray<FConstraintInstance*> Constraints;
 
 	// Override to create per-bone physics shapes
-	void OnCreatePhysicsState() override;
+    void OnCreatePhysicsState() override;
 
 	// 내부 ClothComponent (Cloth Section이 있을 때 자동 생성)
 	class UClothComponent* InternalClothComponent = nullptr;
@@ -167,4 +167,7 @@ private:
 	bool HasClothSections() const;
 	void CreateInternalClothComponent();
 	void DestroyInternalClothComponent();
+
+	// Render: skip cloth sections when internal cloth is active
+	void CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) override;
 };

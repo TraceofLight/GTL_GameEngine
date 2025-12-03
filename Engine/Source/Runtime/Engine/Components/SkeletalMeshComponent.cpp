@@ -11,6 +11,8 @@
 #include "Source/Runtime/Engine/PhysicsEngine/BodyInstance.h"
 #include "Source/Runtime/Engine/PhysicsEngine/ConstraintInstance.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsConstraintSetup.h"
+#include "SceneView.h"
+#include "MeshBatchElement.h"
 
 USkeletalMeshComponent::USkeletalMeshComponent()
     : AnimInstance(nullptr)
@@ -74,6 +76,47 @@ void USkeletalMeshComponent::InitializeComponent()
 			AnimationData.Initialize(SingleNodeInstance);
 		}
 	}
+}
+
+void USkeletalMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
+{
+    // Collect all as base
+    const int32 BeginIndex = OutMeshBatchElements.Num();
+    Super::CollectMeshBatches(OutMeshBatchElements, View);
+
+    // If we have cloth sections and an internal cloth component, remove those sections from this component's rendering
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
+    {
+        return;
+    }
+
+    if (!HasClothSections() || InternalClothComponent == nullptr)
+    {
+        return;
+    }
+
+    const auto& GroupInfos = SkeletalMesh->GetSkeletalMeshData()->GroupInfos;
+    // Build a quick lookup for cloth groups by (StartIndex,IndexCount)
+    struct Key { uint32 a; uint32 b; };
+    TSet<uint64> ClothKeys;
+    for (const auto& G : GroupInfos)
+    {
+        if (G.bEnableCloth && G.IndexCount > 0)
+        {
+            uint64 k = (uint64(G.StartIndex) << 32) | uint64(G.IndexCount);
+            ClothKeys.Add(k);
+        }
+    }
+
+    for (int32 i = OutMeshBatchElements.Num() - 1; i >= BeginIndex; --i)
+    {
+        const FMeshBatchElement& E = OutMeshBatchElements[i];
+        uint64 k = (uint64(E.StartIndex) << 32) | uint64(E.IndexCount);
+        if (ClothKeys.Contains(k))
+        {
+            OutMeshBatchElements.RemoveAt(i);
+        }
+    }
 }
 
 void USkeletalMeshComponent::BeginPlay()

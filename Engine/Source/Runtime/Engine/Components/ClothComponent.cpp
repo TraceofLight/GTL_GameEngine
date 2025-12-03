@@ -255,7 +255,7 @@ void UClothComponent::ReleaseCloth()
 		delete[] phases;
 		phases = nullptr;
 	}
-
+	  
 	// 4. Solver 삭제
 	if (solver)
 	{
