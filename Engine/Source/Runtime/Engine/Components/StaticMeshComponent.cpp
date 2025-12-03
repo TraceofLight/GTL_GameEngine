@@ -96,6 +96,7 @@ void UStaticMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMesh
 		if (bHasSections)
 		{
 			const FGroupInfo& Group = MeshGroupInfos[SectionIndex];
+
 			IndexCount = Group.IndexCount;
 			StartIndex = Group.StartIndex;
 		}

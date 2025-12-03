@@ -303,7 +303,7 @@ void UClothComponent::UpdateMotionConstraints()
 
 	Range<physx::PxVec4> motionConstraints = cloth->getMotionConstraints();
 
-	for (int i = 0; i < MotionConstraints.Num() && i < motionConstraints.size(); ++i)
+	for (uint32 i = 0; i < static_cast<uint32>(MotionConstraints.Num()) && i < static_cast<uint32>(motionConstraints.size()); ++i)
 	{
 		motionConstraints[i] = MotionConstraints[i];
 	}
@@ -610,7 +610,7 @@ void UClothComponent::RetrievingSimulateResult()
 
 	// 결과를 복사해옴
 	PreviousParticles.SetNum(particles.size());
-	for (int i = 0; i < particles.size(); i++)
+	for (uint32 i = 0; i < static_cast<uint32>(particles.size()); ++i)
 	{
 		//do something with particles[i]
 		//the xyz components are the current positions
@@ -694,10 +694,10 @@ void UClothComponent::AttachingClothToCharacter()
 	// MappedRange 를 통해서 현재 정점 데이터를 직접 갱신
 	MappedRange<physx::PxVec4> particles = cloth->getCurrentParticles();
 
-	for (int i = 0; i < AttachmentVertices.Num(); ++i)
+	for (int32 i = 0; i < AttachmentVertices.Num(); ++i)
 	{
 		int32 vertexIndex = AttachmentVertices[i];
-		if (vertexIndex >= 0 && vertexIndex < particles.size())
+		if (vertexIndex >= 0 && static_cast<uint32>(vertexIndex) < static_cast<uint32>(particles.size()))
 		{
 			FVector attachPos = GetAttachmentPosition(i);
 
@@ -1115,8 +1115,11 @@ void UClothComponent::RecalculateNormals()
 		uint32 idx1 = indices[i + 1];
 		uint32 idx2 = indices[i + 2];
 
-		if (idx0 >= SkinnedVertices.Num() || idx1 >= SkinnedVertices.Num() || idx2 >= SkinnedVertices.Num())
+		const uint32 SkinnedVerticesNum = static_cast<uint32>(SkinnedVertices.Num());
+		if (idx0 >= SkinnedVerticesNum || idx1 >= SkinnedVerticesNum || idx2 >= SkinnedVerticesNum)
+		{
 			continue;
+		}
 
 		const FVector& v0 = SkinnedVertices[idx0].pos;
 		const FVector& v1 = SkinnedVertices[idx1].pos;
@@ -1176,7 +1179,7 @@ void UClothComponent::RestoreOriginalState()
 
 	// Cloth 인스턴스에도 반영
 	nv::cloth::MappedRange<physx::PxVec4> particles = cloth->getCurrentParticles();
-	for (int i = 0; i < CacheOriginalParticles.Num() && i < particles.size(); i++)
+	for (uint32 i = 0; i < static_cast<uint32>(CacheOriginalParticles.Num()) && i < static_cast<uint32>(particles.size()); ++i)
 	{
 		particles[i] = CacheOriginalParticles[i];
 	}
