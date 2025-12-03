@@ -810,11 +810,38 @@ void SPhysicsAssetEditorWindow::StartSimulation()
         }
     }
 
-    // 캐릭터 시뮬레이션 시작
-    SkelComp->SetSimulatePhysics(true);
+    // ========================================================
+    // CRITICAL FIX: Physics State 재생성으로 런타임 포즈 기반 Joint 위치 계산
+    // ========================================================
+    // PAE의 "Generate Ragdoll"은 BindPose(T-Pose) 기준으로 Joint 위치 계산
+    // PIE의 CreateConstraints()는 CurrentComponentSpacePose(런타임 포즈) 기준으로 재계산
+    // 이 차이로 인해 PAE 시뮬레이션이 제대로 동작하지 않았음
+    //
+    // 해결: 기존 Physics State를 파괴하고 다시 생성하여
+    // OnCreatePhysicsState() → BeginPlay() → CreateConstraints() 흐름 실행
+    // CreateConstraints()에서 런타임 포즈 기반으로 Joint 위치 재계산됨
+    // ========================================================
+
+    // 1. 기존 Physics State 파괴 (Bodies + Constraints 모두 해제)
+    SkelComp->OnDestroyPhysicsState();
+
+    // 2. Physics State 재생성 (Bodies 생성)
+    SkelComp->OnCreatePhysicsState();
+
+    // 3. Constraints 생성 (런타임 포즈 기반으로 Joint 위치 재계산)
+    //    BeginPlay()가 이미 호출되었으므로 직접 CreateConstraints() 호출
+    SkelComp->CreateConstraints();
+
+    // 4. 캐릭터 시뮬레이션 시작 (Kinematic → Dynamic 전환)
+    // 주의: SetSimulatePhysics()가 아닌 SetAllBodiesSimulatePhysics() 사용!
+    // SetSimulatePhysics()는 RecreatePhysicsBody()를 호출하여 Bodies를 다시 생성함
+    // SetAllBodiesSimulatePhysics()는 기존 Bodies의 Kinematic 플래그만 변경
+    SkelComp->SetAllBodiesSimulatePhysics(true);
 
     ActiveState->bSimulating = true;
     ActiveState->bSimulationPaused = false;
+
+    UE_LOG("[PAE] Simulation started with runtime pose-based constraints");
 }
 
 void SPhysicsAssetEditorWindow::StopSimulation()
@@ -830,7 +857,11 @@ void SPhysicsAssetEditorWindow::StopSimulation()
         USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent();
         if (SkelComp)
         {
-            SkelComp->SetSimulatePhysics(false);
+            // SetAllBodiesSimulatePhysics(false)로 Kinematic 복원
+            SkelComp->SetAllBodiesSimulatePhysics(false);
+
+            // Physics State 파괴 (Bodies + Constraints 해제)
+            SkelComp->OnDestroyPhysicsState();
 
             // 메시를 다시 설정하여 초기 포즈로 리셋
             if (!ActiveState->LoadedMeshPath.empty())
@@ -1539,6 +1570,7 @@ void SPhysicsAssetBodyListPanel::RenderBodyShapes(PhysicsAssetViewerState* State
         if (ImGui::IsItemClicked())
         {
             State->SelectShape(BodyIndex, EAggCollisionShape::Sphere, i);
+            State->GraphFilterRootBodyIndex = BodyIndex;  // Shape 선택 시에도 해당 Body로 필터링
         }
     }
 
@@ -1567,6 +1599,7 @@ void SPhysicsAssetBodyListPanel::RenderBodyShapes(PhysicsAssetViewerState* State
         if (ImGui::IsItemClicked())
         {
             State->SelectShape(BodyIndex, EAggCollisionShape::Box, i);
+            State->GraphFilterRootBodyIndex = BodyIndex;  // Shape 선택 시에도 해당 Body로 필터링
         }
     }
 
@@ -1595,6 +1628,7 @@ void SPhysicsAssetBodyListPanel::RenderBodyShapes(PhysicsAssetViewerState* State
         if (ImGui::IsItemClicked())
         {
             State->SelectShape(BodyIndex, EAggCollisionShape::Capsule, i);
+            State->GraphFilterRootBodyIndex = BodyIndex;  // Shape 선택 시에도 해당 Body로 필터링
         }
     }
 
@@ -1640,8 +1674,10 @@ void SPhysicsAssetBodyListPanel::RenderConstraintList(PhysicsAssetViewerState* S
         bool bSelected = (State->SelectedConstraintIndex == i);
         if (ImGui::Selectable(label, bSelected))
         {
-            State->SelectedConstraintIndex = i;
-            State->EditMode = EPhysicsAssetEditMode::Constraint;
+            // SelectConstraint 호출로 기즈모 설정
+            State->SelectConstraint(i);
+            // Parent Body(BodyIndex1)로 필터링 설정
+            State->GraphFilterRootBodyIndex = Setup->BodyIndex1;
         }
 
         // 툴팁

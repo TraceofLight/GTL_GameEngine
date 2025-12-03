@@ -809,6 +809,8 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         {
             UE_LOG("[Physics] Warning: Could not find bone '%s' for physics body",
                    BoneSetup->BoneName.ToString().c_str());
+            // 인덱스 정렬 유지를 위해 nullptr 추가 (FindBodyIndexByBoneName과 Bodies 배열 인덱스 일치 필요)
+            Bodies.Add(nullptr);
             continue;
         }
 
