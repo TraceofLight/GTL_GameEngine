@@ -289,7 +289,7 @@ void UStaticMeshComponent::OnCreatePhysicsState()
 	UBodySetup* Setup = StaticMesh->GetBodySetup();
 	if (!Setup)
 	{
-		UE_LOG("[Physics] OnCreatePhysicsState: No BodySetup available for %s", GetName().c_str());
+		UE_LOG("Physics: OnCreatePhysicsState: No BodySetup for %s", GetName().c_str());
 		return;
 	}
 
@@ -301,7 +301,7 @@ void UStaticMeshComponent::OnCreatePhysicsState()
 		{
 			// Cooking succeeded - clear the fallback box since we have real mesh collision
 			Setup->AggGeom.BoxElems.Empty();
-			UE_LOG("[Physics] Cooked mesh collision for %s", GetName().c_str());
+			UE_LOG("Physics: OnCreatePhysicsState: Cooked mesh collision for %s", GetName().c_str());
 		}
 	}
 
@@ -311,11 +311,11 @@ void UStaticMeshComponent::OnCreatePhysicsState()
 
 	if (Setup->HasCookedData())
 	{
-		UE_LOG("[Physics] OnCreatePhysicsState: Using cooked mesh collision for %s", GetName().c_str());
+		UE_LOG("Physics: OnCreatePhysicsState: Using cooked mesh collision for %s", GetName().c_str());
 	}
 	else
 	{
-		UE_LOG("[Physics] OnCreatePhysicsState: Using simple collision (%d shapes) for %s",
+		UE_LOG("Physics: OnCreatePhysicsState: Using simple collision (%d shapes) for %s",
 			Setup->GetElementCount(), GetName().c_str());
 	}
 }

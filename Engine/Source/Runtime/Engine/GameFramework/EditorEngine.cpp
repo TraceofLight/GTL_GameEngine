@@ -5,6 +5,7 @@
 #include "FAudioDevice.h"
 #include "FbxLoader.h"
 #include <ObjManager.h>
+#include "AsyncLoader.h"
 
 #include "MiniDump.h"
 
@@ -300,6 +301,11 @@ bool UEditorEngine::Startup(HINSTANCE hInstance)
 
 void UEditorEngine::Tick(float DeltaSeconds)
 {
+    if (bPIEActive && INPUT.IsKeyDownRaw(VK_SHIFT) && INPUT.IsKeyPressedRaw(VK_F1))
+    {
+        TogglePIEInputCapture();
+    }
+
     // 비동기 로딩 큐 처리
     UResourceManager::GetInstance().ProcessLoadQueue(5.0f);
 
@@ -394,6 +400,16 @@ void UEditorEngine::MainLoop()
             SLATE.SetPIEWorld(GWorld);
 
             bPIEActive = false;
+            bPIEInputCaptured = true;  // 상태 리셋
+
+            // PIE 종료 시 입력 및 커서 복원
+            INPUT.SetGameInputEnabled(true);
+            INPUT.SetCursorVisible(true);
+            if (INPUT.IsCursorLocked())
+            {
+                INPUT.ReleaseCursor();
+            }
+
             UE_LOG("[info] END PIE");
 
             bChangedPieToEditor = false;
@@ -402,19 +418,19 @@ void UEditorEngine::MainLoop()
 
 
 		// GWorld에 PhysX가 활성화되어있고, simulate, fetchResult가 분리되어있다면,
-		// 여기서 fetchResult를 실행해준다.  
+		// 여기서 fetchResult를 실행해준다.
 		if (GWorld && GWorld->GetPhysicsSceneHandle().IsValid())
 		{
 			if (PHYSICS.GetPipelineMode() == EPhysicsPipelineMode::FetchAfterRender)
 			{
 				// Tick에서 돌린 simulate 결과 받기
-				PHYSICS.EndSimulate(GWorld->GetPhysicsSceneHandle(), true); 
-			} 
+				PHYSICS.EndSimulate(GWorld->GetPhysicsSceneHandle(), true);
+			}
 		}
 
         Tick(DeltaSeconds);
 		// Physics simulation is now handled per-World in UWorld::Tick
-        Render(); 
+        Render();
 
         // Shader Hot Reloading - Call AFTER render to avoid mid-frame resource conflicts
         // This ensures all GPU commands are submitted before we check for shader updates
@@ -470,6 +486,39 @@ void UEditorEngine::StartPIE()
 {
     UE_LOG("[info] START PIE");
 
+    // 비동기 로딩 완료 대기
+    FAsyncLoader& AsyncLoader = FAsyncLoader::Get();
+    if (AsyncLoader.IsLoading())
+    {
+        UE_LOG("EditorEngine: StartPIE: Waiting for async loading");
+
+        // 로딩이 완료될 때까지 대기 (메시지 펌프 유지)
+        MSG msg;
+        while (AsyncLoader.IsLoading())
+        {
+            // 완료된 리소스 처리 (메인 스레드에서)
+            AsyncLoader.ProcessCompletedResources();
+
+            // 메시지 펌프 유지 (UI 응답성)
+            while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+                if (msg.message == WM_QUIT)
+                {
+                    return;
+                }
+            }
+
+            // CPU 과부하 방지
+            Sleep(1);
+        }
+
+        // 마지막으로 완료된 리소스 처리
+        AsyncLoader.ProcessCompletedResources();
+        UE_LOG("EditorEngine: StartPIE: Async loading completed");
+    }
+
     UWorld* EditorWorld = WorldContexts[0].World;
     UWorld* PIEWorld = UWorld::DuplicateWorldForPIE(EditorWorld);
 
@@ -477,6 +526,11 @@ void UEditorEngine::StartPIE()
     SLATE.SetPIEWorld(GWorld);  // SLATE의 카메라를 가져와서 설정, TODO: 추후 월드의 카메라 컴포넌트를 가져와서 설정하도록 변경 필요
 
     bPIEActive = true;
+    bPIEInputCaptured = false;  // PIE 시작 시 Detach 상태 (에디터 UI 조작 가능)
+
+    // PIE 시작 시 Detach 상태 - 커서 표시, 게임 입력 비활성화
+    INPUT.SetGameInputEnabled(false);
+    INPUT.SetCursorVisible(true);
 
     // BeginPlay 중에 새로운 actor가 추가될 수도 있어서 복사 후 호출
     TArray<AActor*> LevelActors = GWorld->GetLevel()->GetActors();
@@ -494,4 +548,41 @@ void UEditorEngine::EndPIE()
 {
     // 지연 종료 처리 (UEditorEngine::MainLoop에서 종료 처리됨)
     bChangedPieToEditor = true;
+}
+
+void UEditorEngine::SetPIEInputCaptured(bool bCaptured)
+{
+    if (!bPIEActive)
+    {
+        return;
+    }
+
+    bPIEInputCaptured = bCaptured;
+
+    // InputManager의 게임 입력 활성화 상태 설정
+    // false면 모든 게임 입력 함수가 차단됨
+    INPUT.SetGameInputEnabled(bCaptured);
+
+    if (bCaptured)
+    {
+        // 게임에 입력 캡처 (Attach) - 커서 숨김 + 잠금 (무한 드래그)
+        INPUT.SetCursorVisible(false);
+        INPUT.LockCursor();
+        UE_LOG("EditorEngine: SetPIEInputCaptured: Input captured by game");
+    }
+    else
+    {
+        // 에디터에 입력 반환 - 커서 표시
+        INPUT.SetCursorVisible(true);
+        if (INPUT.IsCursorLocked())
+        {
+            INPUT.ReleaseCursor();
+        }
+        UE_LOG("EditorEngine: SetPIEInputCaptured: Input released to editor (Shift+F1)");
+    }
+}
+
+void UEditorEngine::TogglePIEInputCapture()
+{
+    SetPIEInputCaptured(!bPIEInputCaptured);
 }

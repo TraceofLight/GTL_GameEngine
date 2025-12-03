@@ -208,8 +208,12 @@ void UMainMenuBarWindow::RenderMenuBar()
     FString LevelName = "New Level";
     if (GEngine.IsPIEActive())
     {
-    	// PIE 모드일 때는 PIE Mode 표시
-        LevelName = "PIE Mode";
+        // PIE 모드일 때도 에디터 월드의 레벨 이름 사용
+        const TArray<FWorldContext>& WorldContexts = GEngine.GetWorldContexts();
+        if (!WorldContexts.empty() && WorldContexts[0].World)
+        {
+            LevelName = WorldContexts[0].World->GetLevelName();
+        }
     }
     else if (GWorld)
     {
