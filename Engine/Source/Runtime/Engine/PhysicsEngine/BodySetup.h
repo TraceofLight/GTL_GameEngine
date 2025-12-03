@@ -58,5 +58,8 @@ public:
     bool EnsureCooked();      // Cook mesh data if needed, returns true if cooked data available
     void ClearPhysicsMeshes(); // Release cooked PhysX meshes
     bool HasCookedData() const;
+
+    // Serialization
+    virtual void Serialize(bool bIsLoading, JSON& Json) override;
 };
 

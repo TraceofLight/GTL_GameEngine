@@ -120,14 +120,16 @@ FLuaManager::FLuaManager()
             return FVector(Delta.X, Delta.Y, 1.0);
         },
         "SetCursorVisible", [](UInputManager* Self, bool bVisible){
+            Self->SetCursorVisible(bVisible);
             if (bVisible)
             {
-                Self->SetCursorVisible(true);
                 if (Self->IsCursorLocked())
+                {
                     Self->ReleaseCursor();
-            } else
+                }
+            }
+            else
             {
-                Self->SetCursorVisible(false);
                 Self->LockCursor();
             }
         }

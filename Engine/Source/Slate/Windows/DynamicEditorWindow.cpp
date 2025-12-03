@@ -30,6 +30,9 @@
 #include "Source/Runtime/Engine/Animation/AnimStateMachine.h"
 #include "Source/Runtime/Core/Misc/Archive.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
+#include "Source/Runtime/Engine/PhysicsAssetViewer/PhysicsAssetViewerState.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAssetUtils.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
 
 // ============================================================================
 // SDynamicEditorWindow 구현
@@ -480,6 +483,12 @@ void SDynamicEditorWindow::OnRender()
 					EmbeddedStateMachineEditor->LoadStateMachineFile(WideToUTF8(ActiveState->StateMachineFilePath).c_str());
 				}
 				break;
+			case EEditorMode::PhysicsAsset:
+				if (EmbeddedPhysicsAssetEditor && !ActiveState->PhysicsAssetFilePath.empty())
+				{
+					EmbeddedPhysicsAssetEditor->LoadPhysicsAsset(WideToUTF8(ActiveState->PhysicsAssetFilePath).c_str());
+				}
+				break;
 			default:
 				break;
 			}
@@ -718,6 +727,7 @@ void SDynamicEditorWindow::OnRender()
 			ImGui::Spacing();
 			ImGui::Separator();
 			ImGui::Spacing();
+
 
 			// Toolbar 영역 만큼 높이 빼기
 			contentAvail = ImGui::GetContentRegionAvail();
@@ -1065,6 +1075,13 @@ void SDynamicEditorWindow::OnRender()
 								EmbeddedPhysicsAssetEditor->Initialize(ContentRect.Left, ContentRect.Top,
 									ContentRect.GetWidth(), ContentRect.GetHeight(), World, Device, true);
 								EmbeddedPhysicsAssetEditor->SetEmbeddedMode(true);
+
+								// 저장된 PhysicsAsset 파일 경로가 있으면 로드
+								if (ActiveState && !ActiveState->PhysicsAssetFilePath.empty())
+								{
+									EmbeddedPhysicsAssetEditor->LoadPhysicsAsset(
+										WideToUTF8(ActiveState->PhysicsAssetFilePath).c_str());
+								}
 							}
 
 							// SSplitter 기반 레이아웃 렌더링
@@ -1799,6 +1816,88 @@ void SDynamicEditorWindow::LoadBlendSpace(const FString& Path)
 	}
 }
 
+void SDynamicEditorWindow::LoadPhysicsAsset(const FString& Path)
+{
+	if (Path.empty())
+	{
+		return;
+	}
+
+	// 경로 정규화 (슬래시 통일, 소문자 변환)
+	auto NormalizePath = [](const FString& InPath) -> FString {
+		FString Result = InPath;
+		std::replace(Result.begin(), Result.end(), '\\', '/');
+		std::transform(Result.begin(), Result.end(), Result.begin(), ::tolower);
+		return Result;
+	};
+
+	FString NormalizedPath = NormalizePath(Path);
+
+	// 파일명 추출 (확장자 제거)
+	FString TabName = Path;
+	size_t LastSlash = Path.find_last_of("/\\");
+	if (LastSlash != FString::npos)
+	{
+		TabName = Path.substr(LastSlash + 1);
+	}
+	size_t DotPos = TabName.find_last_of('.');
+	if (DotPos != FString::npos)
+	{
+		TabName = TabName.substr(0, DotPos);
+	}
+
+	// 같은 파일이 열린 탭 찾기
+	FEditorTabState* TargetState = nullptr;
+
+	// 같은 파일이 열린 PhysicsAsset 탭 검색
+	for (int32 i = 0; i < Tabs.Num(); ++i)
+	{
+		FString TabFilePath;
+		TabFilePath.reserve(Tabs[i]->PhysicsAssetFilePath.size());
+		for (wchar_t c : Tabs[i]->PhysicsAssetFilePath)
+			TabFilePath.push_back(static_cast<char>(c));
+
+		if (Tabs[i]->Mode == EEditorMode::PhysicsAsset && NormalizePath(TabFilePath) == NormalizedPath)
+		{
+			ActiveTabIndex = i;
+			ActiveState = Tabs[i];
+			TargetState = Tabs[i];
+			bRequestFocus = true;
+			return;  // 이미 열린 파일이므로 추가 로드 불필요
+		}
+	}
+
+	// 현재 탭이 PhysicsAsset 모드이고 수정되지 않은 New 상태면 재사용
+	if (!TargetState && ActiveState && ActiveState->Mode == EEditorMode::PhysicsAsset && ActiveState->PhysicsAssetFilePath.empty())
+	{
+		TargetState = ActiveState;
+		TargetState->Name = FName(TabName.c_str());
+	}
+
+	// 재사용 가능한 탭이 없으면 새 탭 생성
+	if (!TargetState)
+	{
+		TargetState = CreateNewTab(TabName.c_str(), EEditorMode::PhysicsAsset);
+		if (TargetState)
+		{
+			Tabs.Add(TargetState);
+			ActiveTabIndex = (int32)Tabs.Num() - 1;
+			ActiveState = TargetState;
+		}
+	}
+
+	if (TargetState)
+	{
+		TargetState->PhysicsAssetFilePath = FWideString(Path.begin(), Path.end());
+
+		// EmbeddedPhysicsAssetEditor가 이미 존재하면 파일 로드
+		if (EmbeddedPhysicsAssetEditor)
+		{
+			EmbeddedPhysicsAssetEditor->LoadPhysicsAsset(Path);
+		}
+	}
+}
+
 void SDynamicEditorWindow::SetBlendSpace(UBlendSpace2D* InBlendSpace)
 {
 	// 1탭 1기능: BlendSpace2D 모드 탭 찾거나 새로 생성
@@ -2520,6 +2619,34 @@ void SDynamicEditorWindow::OnSaveClicked()
 		if (EmbeddedBlendSpace2DEditor)
 		{
 			EmbeddedBlendSpace2DEditor->SaveCurrentBlendSpace();
+		}
+		break;
+
+	case EEditorMode::PhysicsAsset:
+		if (EmbeddedPhysicsAssetEditor)
+		{
+			PhysicsAssetViewerState* PAEState = EmbeddedPhysicsAssetEditor->GetActiveState();
+			if (PAEState && PAEState->PhysicsAsset)
+			{
+				// 저장 경로 결정
+				FString SavePath = PAEState->LoadedPhysicsAssetPath;
+				if (SavePath.empty())
+				{
+					// 기본 경로 생성
+					if (!PAEState->LoadedMeshPath.empty())
+					{
+						size_t DotPos = PAEState->LoadedMeshPath.find_last_of('.');
+						SavePath = (DotPos != FString::npos) ?
+							PAEState->LoadedMeshPath.substr(0, DotPos) + ".physicsasset" :
+							PAEState->LoadedMeshPath + ".physicsasset";
+					}
+					else
+					{
+						SavePath = "Data/PhysicsAsset/NewPhysicsAsset.physicsasset";
+					}
+				}
+				EmbeddedPhysicsAssetEditor->SavePhysicsAsset(SavePath);
+			}
 		}
 		break;
 	}

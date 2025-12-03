@@ -42,7 +42,7 @@ using namespace physx;
 extern PxDefaultAllocator      gAllocator;
 extern PxDefaultErrorCallback  gErrorCallback;
 
-#define PHYSICS     FPhysicsManager::GetInstance() 
+#define PHYSICS     FPhysicsManager::GetInstance()
 
 // Windows & DirectX
 #include <windows.h>
@@ -147,7 +147,7 @@ extern UWorld* GWorld;
 #pragma comment(lib, DIRECTX_TEX)
 #pragma comment(lib, LUA_LIB)
 #pragma comment(lib, FBX_SDK)
- 
+
 
 #ifdef _DEBUG
 #pragma comment(lib, "PhysXExtensions_static_64.lib")
@@ -156,7 +156,8 @@ extern UWorld* GWorld;
 #pragma comment(lib, "PhysXFoundation_static_64.lib")
 #pragma comment(lib, "PhysXPvdSDK_static_64.lib")
 #pragma comment(lib, "PhysXCooking_static_64.lib")
-#pragma comment(lib, "NvCloth_x64.lib") 
+#pragma comment(lib, "PhysXVehicle_static_64.lib")
+#pragma comment(lib, "NvCloth_x64.lib")
 #else
 #pragma comment(lib, "PhysXExtensions_static_64.lib")
 #pragma comment(lib, "PhysX_static_64.lib")
@@ -164,5 +165,6 @@ extern UWorld* GWorld;
 #pragma comment(lib, "PhysXFoundation_static_64.lib")
 #pragma comment(lib, "PhysXPvdSDK_static_64.lib")
 #pragma comment(lib, "PhysXCooking_static_64.lib")
+#pragma comment(lib, "PhysXVehicle_static_64.lib")
 #pragma comment(lib, "NvCloth_x64.lib")
 #endif

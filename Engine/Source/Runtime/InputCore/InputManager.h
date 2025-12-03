@@ -53,10 +53,14 @@ public:
     bool IsMouseButtonPressed(EMouseButton Button) const; // 이번 프레임에 눌림
     bool IsMouseButtonReleased(EMouseButton Button) const; // 이번 프레임에 떼짐
 
-    // 키보드 함수들
+    // 키보드 함수들 (게임 입력, bGameInputEnabled 체크)
     bool IsKeyDown(int KeyCode) const;
     bool IsKeyPressed(int KeyCode) const; // 이번 프레임에 눌림
     bool IsKeyReleased(int KeyCode) const; // 이번 프레임에 떼짐
+
+    // Raw 입력 함수들 (시스템용으로 항상 실제 상태 반환, Shift + F1 등 시스템 키 감지용)
+    bool IsKeyDownRaw(int KeyCode) const;
+    bool IsKeyPressedRaw(int KeyCode) const;
 
     // 마우스 휠 함수들
     float GetMouseWheelDelta() const { return MouseWheelDelta; }
@@ -75,6 +79,11 @@ public:
     void LockCursor();
     void ReleaseCursor();
     bool IsCursorLocked() const { return bIsCursorLocked; }
+
+    // 게임 입력 활성화/비활성화 (PIE Shift+F1 용)
+    // false로 설정하면 모든 키보드/마우스 입력 함수가 false 반환
+    void SetGameInputEnabled(bool bEnabled) { bGameInputEnabled = bEnabled; }
+    bool IsGameInputEnabled() const { return bGameInputEnabled; }
 
 private:
     // 내부 헬퍼 함수들
@@ -108,5 +117,9 @@ private:
 
     // 커서 잠금 상태
     bool bIsCursorLocked = false;
-    FVector2D LockedCursorPosition; // 우클릭한 위치 (기준점)
+    FVector2D LockedCursorPosition;    // 잠금 위치 (중앙)
+    FVector2D PreLockCursorPosition;   // 잠금 전 원래 커서 위치 (복원용)
+
+    // 게임 입력 활성화 상태 (PIE Shift+F1 용)
+    bool bGameInputEnabled = true;
 };

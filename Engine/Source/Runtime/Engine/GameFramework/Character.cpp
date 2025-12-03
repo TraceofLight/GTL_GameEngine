@@ -53,7 +53,7 @@ ACharacter::ACharacter()
 		// X Bot 스켈레탈 메시 로드
 		SkeletalMeshComponent->SetSkeletalMesh(GDataDir + "/X Bot.fbx");
 
-		UE_LOG("[Character] SkeletalMeshComponent created!");
+		UE_LOG("Character: Constructor: SkeletalMeshComponent created");
 	}
 
 	// 카메라 컴포넌트 생성 (3인칭 뷰)
@@ -66,8 +66,7 @@ ACharacter::ACharacter()
 		// 3인칭 카메라 위치: 캐릭터 뒤 위
 		CameraComponent->SetRelativeLocation(FVector(-0.0f, 0.0f, 5.0f));
 
-		UE_LOG("[Character] CameraComponent created and attached to SkeletalMeshComponent!");
-		UE_LOG("[Character] CameraComponent parent: %p (SkeletalMesh: %p)",
+		UE_LOG("Character: Constructor: CameraComponent created, parent=%p (SkeletalMesh=%p)",
 			CameraComponent->GetAttachParent(), SkeletalMeshComponent);
 	}
 }
@@ -82,7 +81,7 @@ ACharacter::~ACharacter()
 
 void ACharacter::BeginPlay()
 {
-	UE_LOG("[Character] BeginPlay called!");
+	UE_LOG("Character: BeginPlay: called");
 
 	Super::BeginPlay();
 
@@ -91,12 +90,12 @@ void ACharacter::BeginPlay()
 	{
 		// 애니메이션 에셋 로드
 		USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMesh();
-		UE_LOG("[Character] SkeletalMesh: %p", SkeletalMesh);
+		UE_LOG("Character: BeginPlay: SkeletalMesh=%p", SkeletalMesh);
 
 		if (SkeletalMesh)
 		{
 			const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
-			UE_LOG("[Character] Skeleton: %p", Skeleton);
+			UE_LOG("Character: BeginPlay: Skeleton=%p", Skeleton);
 
 			if (Skeleton)
 			{
@@ -133,18 +132,18 @@ void ACharacter::BeginPlay()
 
 					// SkeletalMeshComponent에 BlendSpace2D 설정
 					SkeletalMeshComponent->SetBlendSpace2D(BlendSpace);
-					UE_LOG("[Character] BlendSpace2D initialized!");
+					UE_LOG("Character: BeginPlay: BlendSpace2D initialized");
 				}
 				*/
 			}
 			else
 			{
-				UE_LOG("[Character] ERROR: Skeleton is null!");
+				UE_LOG("Character: BeginPlay: Skeleton is null");
 			}
 		}
 		else
 		{
-			UE_LOG("[Character] ERROR: SkeletalMesh is null!");
+			UE_LOG("Character: BeginPlay: SkeletalMesh is null");
 		}
 	}
 }
@@ -242,7 +241,7 @@ void ACharacter::SetupPlayerInputComponent(UInputComponent* InInputComponent)
 
 	if (!InInputComponent)
 	{
-		UE_LOG("[Character] ERROR: InputComponent is null!");
+		UE_LOG("Character: SetupPlayerInputComponent: InputComponent is null");
 		return;
 	}
 
@@ -261,7 +260,7 @@ void ACharacter::SetupPlayerInputComponent(UInputComponent* InInputComponent)
 	// 점프 바인딩
 	InInputComponent->BindAction("Jump", VK_SPACE, this, &ACharacter::Jump, &ACharacter::StopJumping);
 
-	UE_LOG("[Character] Input bindings set up successfully");
+	UE_LOG("Character: SetupPlayerInputComponent: Input bindings set up");
 }
 
 // ────────────────────────────────────────────────────────────────────────────

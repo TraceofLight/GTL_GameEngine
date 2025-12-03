@@ -251,3 +251,40 @@ void UPhysicsAsset::Serialize(bool bIsLoading, JSON& Json)
 			   BodySetups.Num(), ConstraintSetups.Num());
 	}
 }
+
+bool UPhysicsAsset::SaveToFile(const FString& FilePath) const
+{
+	JSON Root = JSON::Make(JSON::Class::Object);
+
+	// const_cast를 사용하여 Serialize 호출 (내부적으로 수정하지 않음)
+	const_cast<UPhysicsAsset*>(this)->Serialize(false, Root);
+
+	// 파일로 저장
+	FWideString WidePath = UTF8ToWide(FilePath);
+	if (FJsonSerializer::SaveJsonToFile(Root, WidePath))
+	{
+		UE_LOG("[PhysicsAsset] Saved to file: %s", FilePath.c_str());
+		return true;
+	}
+
+	UE_LOG("[PhysicsAsset] Failed to save file: %s", FilePath.c_str());
+	return false;
+}
+
+bool UPhysicsAsset::LoadFromFile(const FString& FilePath)
+{
+	JSON Root;
+	FWideString WidePath = UTF8ToWide(FilePath);
+
+	if (!FJsonSerializer::LoadJsonFromFile(Root, WidePath))
+	{
+		UE_LOG("[PhysicsAsset] Failed to load file: %s", FilePath.c_str());
+		return false;
+	}
+
+	// JSON에서 역직렬화
+	Serialize(true, Root);
+
+	UE_LOG("[PhysicsAsset] Loaded from file: %s", FilePath.c_str());
+	return true;
+}

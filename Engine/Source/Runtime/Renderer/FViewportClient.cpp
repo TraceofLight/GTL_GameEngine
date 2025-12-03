@@ -20,6 +20,7 @@
 #include <ctime>
 
 FVector FViewportClient::CameraAddPosition{};
+float FViewportClient::SharedOrthoZoom = 0.1f;
 
 FViewportClient::FViewportClient()
 {
@@ -204,50 +205,52 @@ void FViewportClient::SetupCameraMode()
 	switch (ViewportType)
 	{
 	case EViewportType::Perspective:
-
 		Camera->SetActorLocation(PerspectiveCameraPosition);
 		Camera->SetRotationFromEulerAngles(PerspectiveCameraRotation);
 		Camera->GetCameraComponent()->SetFOV(PerspectiveCameraFov);
 		Camera->GetCameraComponent()->SetClipPlanes(0.1f, 50000.0f);
 		break;
 	case EViewportType::Orthographic_Top:
-
 		Camera->SetActorLocation({ CameraAddPosition.X, CameraAddPosition.Y, 1000 });
 		Camera->SetActorRotation(FQuat::MakeFromEulerZYX({ 0, 90, 0 }));
 		Camera->GetCameraComponent()->SetFOV(100);
 		Camera->GetCameraComponent()->SetClipPlanes(0.1f, 50000.0f);
+		Camera->GetCameraComponent()->SetOrthoZoom(SharedOrthoZoom);
 		break;
 	case EViewportType::Orthographic_Bottom:
-
 		Camera->SetActorLocation({ CameraAddPosition.X, CameraAddPosition.Y, -1000 });
 		Camera->SetActorRotation(FQuat::MakeFromEulerZYX({ 0, -90, 0 }));
 		Camera->GetCameraComponent()->SetFOV(100);
 		Camera->GetCameraComponent()->SetClipPlanes(0.1f, 50000.0f);
+		Camera->GetCameraComponent()->SetOrthoZoom(SharedOrthoZoom);
 		break;
 	case EViewportType::Orthographic_Left:
 		Camera->SetActorLocation({ CameraAddPosition.X, 1000 , CameraAddPosition.Z });
 		Camera->SetActorRotation(FQuat::MakeFromEulerZYX({ 0, 0, -90 }));
 		Camera->GetCameraComponent()->SetFOV(100);
 		Camera->GetCameraComponent()->SetClipPlanes(0.1f, 50000.0f);
+		Camera->GetCameraComponent()->SetOrthoZoom(SharedOrthoZoom);
 		break;
 	case EViewportType::Orthographic_Right:
 		Camera->SetActorLocation({ CameraAddPosition.X, -1000, CameraAddPosition.Z });
 		Camera->SetActorRotation(FQuat::MakeFromEulerZYX({ 0, 0, 90 }));
 		Camera->GetCameraComponent()->SetFOV(100);
 		Camera->GetCameraComponent()->SetClipPlanes(0.1f, 50000.0f);
+		Camera->GetCameraComponent()->SetOrthoZoom(SharedOrthoZoom);
 		break;
-
 	case EViewportType::Orthographic_Front:
 		Camera->SetActorLocation({ -1000 , CameraAddPosition.Y, CameraAddPosition.Z });
 		Camera->SetActorRotation(FQuat::MakeFromEulerZYX({ 0, 0, 0 }));
 		Camera->GetCameraComponent()->SetFOV(100);
 		Camera->GetCameraComponent()->SetClipPlanes(0.1f, 50000.0f);
+		Camera->GetCameraComponent()->SetOrthoZoom(SharedOrthoZoom);
 		break;
 	case EViewportType::Orthographic_Back:
 		Camera->SetActorLocation({ 1000 , CameraAddPosition.Y, CameraAddPosition.Z });
 		Camera->SetActorRotation(FQuat::MakeFromEulerZYX({ 0, 0, 180 }));
 		Camera->GetCameraComponent()->SetFOV(100);
 		Camera->GetCameraComponent()->SetClipPlanes(0.1f, 50000.0f);
+		Camera->GetCameraComponent()->SetOrthoZoom(SharedOrthoZoom);
 		break;
 	}
 }
@@ -263,8 +266,10 @@ void FViewportClient::MouseMove(FViewport* Viewport, int32 X, int32 Y)
 	{
 		if (ViewportType != EViewportType::Perspective)
 		{
-			int32 deltaX = X - MouseLastX;
-			int32 deltaY = Y - MouseLastY;
+			// LockCursor 상태에서도 올바른 델타를 얻기 위해 InputManager 사용
+			FVector2D MouseDelta = INPUT.GetMouseDelta();
+			float deltaX = MouseDelta.X;
+			float deltaY = MouseDelta.Y;
 
 			if (Camera && (deltaX != 0 || deltaY != 0))
 			{
@@ -285,9 +290,6 @@ void FViewportClient::MouseMove(FViewport* Viewport, int32 X, int32 Y)
 
 				SetupCameraMode();
 			}
-
-			MouseLastX = X;
-			MouseLastY = Y;
 		}
 		else if (ViewportType == EViewportType::Perspective)
 		{
@@ -433,6 +435,12 @@ void FViewportClient::MouseWheel(float DeltaSeconds)
 		return;
 	}
 
+	// 호버링 중이 아니면 처리하지 않음
+	if (!bIsHovered)
+	{
+		return;
+	}
+
 	UCameraComponent* CameraComponent = Camera->GetCameraComponent();
 	if (!CameraComponent)
 	{
@@ -462,7 +470,7 @@ void FViewportClient::MouseWheel(float DeltaSeconds)
 	}
 	else if (ViewportType == EViewportType::Perspective)
 	{
-		// Perspective 뷰포트: 카메라가 보는 방향으로 앞뒤 이동
+		// Perspective 뷰포트: 호버링 중인 뷰포트만 줌 (카메라 앞뒤 이동)
 		FVector Forward = Camera->GetForward();
 		float MoveSpeed = Camera->GetCameraSpeed() * WheelDelta * 0.5f;
 		FVector NewLocation = Camera->GetActorLocation() + Forward * MoveSpeed;
@@ -470,10 +478,16 @@ void FViewportClient::MouseWheel(float DeltaSeconds)
 	}
 	else
 	{
-		// Orthographic 뷰포트: 줌 팩터 조절
-		float zoomFactor = CameraComponent->GetZoomFactor();
-		zoomFactor *= (1.0f - WheelDelta * DeltaSeconds * 100.0f);
-		CameraComponent->SetZoomFactor(zoomFactor);
+		// Orthographic 뷰포트: 공유 OrthoZoom 변경 (모든 Ortho 뷰포트에 적용)
+		float orthoZoom = SharedOrthoZoom;
+		// 휠 위로 = 줌인 = OrthoZoom 감소, 휠 아래 = 줌아웃 = OrthoZoom 증가
+		// 비율 기반 스케일링 (10%씩)
+		float zoomMultiplier = 1.0f - WheelDelta * 0.1f;
+		orthoZoom *= zoomMultiplier;
+		orthoZoom = std::max(0.001f, std::min(10.0f, orthoZoom));  // 범위 제한
+		SharedOrthoZoom = orthoZoom;
+		// 현재 카메라에 즉시 적용
+		CameraComponent->SetOrthoZoom(orthoZoom);
 	}
 }
 

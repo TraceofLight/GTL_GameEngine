@@ -80,16 +80,31 @@ struct FStreamableHandle
 	std::atomic<EAssetLoadState> LoadState{EAssetLoadState::NotLoaded};
 	FString FilePath;
 	UResourceBase* LoadedResource = nullptr;
-	std::function<void(UResourceBase*)> Callback;
+
+	// 콜백 리스트로 관리 (여러 요청의 콜백을 모두 보존)
+	TArray<std::function<void(UResourceBase*)>> Callbacks;
 
 	bool IsLoading() const { return LoadState == EAssetLoadState::Loading || LoadState == EAssetLoadState::Queued; }
 	bool IsLoaded() const { return LoadState == EAssetLoadState::Loaded; }
 	bool HasFailed() const { return LoadState == EAssetLoadState::Failed; }
 
+	void AddCallback(std::function<void(UResourceBase*)> InCallback)
+	{
+		if (InCallback)
+		{
+			Callbacks.Add(std::move(InCallback));
+		}
+	}
+
+	void ClearCallbacks()
+	{
+		Callbacks.clear();
+	}
+
 	void ReleaseHandle()
 	{
 		LoadedResource = nullptr;
-		Callback = nullptr;
+		Callbacks.clear();
 	}
 };
 

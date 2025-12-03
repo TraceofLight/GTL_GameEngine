@@ -46,7 +46,8 @@ public:
     FString LoadedPhysicsAssetPath;
 
     // Selection
-    int32 SelectedBodyIndex = -1;
+    int32 SelectedBodyIndex = -1;              // 현재 선택된 Body (Details 패널 표시용)
+    int32 GraphFilterRootBodyIndex = -1;       // 그래프 필터링 기준 Body (Skeleton Tree 클릭 시만 변경)
     int32 SelectedConstraintIndex = -1;
     int32 SelectedShapeIndex = -1;          // Body 내의 Shape 인덱스
     EAggCollisionShape::Type SelectedShapeType = EAggCollisionShape::Unknown;
@@ -58,11 +59,8 @@ public:
     // Debug Draw Options
     bool bShowBodies = true;
     bool bShowConstraints = true;
-    bool bShowBoneNames = false;
     bool bShowMesh = true;
-    bool bShowSkeleton = false;
-    bool bShowBodyNames = false;
-    bool bWireframe = false;
+    bool bShowBones = false;  // Skeleton Bone 라인 렌더링
 
     // Simulation
     bool bSimulating = false;
@@ -93,6 +91,26 @@ public:
 
     // 디버그 드로잉
     void DrawPhysicsBodies(class URenderer* Renderer) const;
+
+    // 반투명 솔리드 Body 드로잉 (언리얼 스타일)
+    void DrawPhysicsBodiesSolid(class URenderer* Renderer) const;
+
+    // Constraint 드로잉 (언리얼 스타일)
+    void DrawConstraints(class URenderer* Renderer) const;
+
+    // Body/Shape 피킹 (뷰포트에서 마우스 클릭 시)
+    // 반환값: true이면 피킹 성공, OutBodyIndex/OutShapeType/OutShapeIndex에 결과 저장
+    bool PickBodyOrShape(const struct FRay& Ray,
+                         int32& OutBodyIndex,
+                         EAggCollisionShape::Type& OutShapeType,
+                         int32& OutShapeIndex,
+                         float& OutDistance) const;
+
+    // Constraint 피킹 (뷰포트에서 마우스 클릭 시)
+    // 반환값: true이면 피킹 성공, OutConstraintIndex에 결과 저장
+    bool PickConstraint(const struct FRay& Ray,
+                        int32& OutConstraintIndex,
+                        float& OutDistance) const;
 
 private:
     // 개별 Shape 드로잉 헬퍼

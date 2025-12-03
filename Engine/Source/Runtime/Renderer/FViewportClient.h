@@ -55,6 +55,14 @@ public:
     // 마우스 버튼 상태 (ImGui 기반 뷰포트에서 사용)
     bool IsMouseButtonDown() const { return bIsMouseButtonDown; }
 
+    // 호버링 상태 (휠 줌 처리용)
+    void SetHovered(bool bInHovered) { bIsHovered = bInHovered; }
+    bool IsHovered() const { return bIsHovered; }
+
+    // Ortho 공유 줌 레벨 (모든 Ortho 뷰포트가 동일한 줌 사용)
+    static float GetSharedOrthoZoom() { return SharedOrthoZoom; }
+    static void SetSharedOrthoZoom(float Zoom) { SharedOrthoZoom = Zoom; }
+
 protected:
     EViewportType ViewportType = EViewportType::Perspective;
     UWorld* World = nullptr;
@@ -63,7 +71,9 @@ protected:
     int32 MouseLastY{};
     bool bIsMouseButtonDown = false;
     bool bIsMouseRightButtonDown = false;
+    bool bIsHovered = false;
     static FVector CameraAddPosition;
+    static float SharedOrthoZoom;
 
 
     // 직교 뷰용 카메라 설정

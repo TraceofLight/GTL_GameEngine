@@ -33,6 +33,10 @@ public:
 
     UPROPERTY(EditAnywhere, Category="Camera", Range="0.1, 10.0")
     float ZoomFactor;
+
+    UPROPERTY(EditAnywhere, Category="Camera", Range="0.1, 100.0")
+    float OrthoZoom;  // Orthographic 줌 레벨 (픽셀당 월드 유닛, 값이 클수록 줌아웃)
+
     void OnRegister(UWorld* InWorld) override;
     void OnUnregister() override;
 
@@ -43,13 +47,15 @@ public:
     void SetNearClipPlane(float NewNear) { NearClip = NewNear; }
     void SetFarClipPlane(float NewFar) { FarClip = NewFar; }
     void SetProjectionMode(ECameraProjectionMode Mode) { ProjectionMode = Mode; }
-    void SetZoomFactor(float InZoomFactor) { ZoomFactor = InZoomFactor; };
-    
+    void SetZoomFactor(float InZoomFactor) { ZoomFactor = InZoomFactor; }
+    void SetOrthoZoom(float InOrthoZoom) { OrthoZoom = InOrthoZoom; }
+
     float GetFOV() const { return FieldOfView; }
     float GetAspectRatio() const { return AspectRatio; }
     float GetNearClip() const { return NearClip; }
     float GetFarClip() const { return FarClip; }
-    float GetZoomFactor()const { return ZoomFactor; };
+    float GetZoomFactor() const { return ZoomFactor; }
+    float GetOrthoZoom() const { return OrthoZoom; }
     ECameraProjectionMode GetProjectionMode() const { return ProjectionMode; }
 
     // Matrices

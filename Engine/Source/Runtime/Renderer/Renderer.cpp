@@ -39,6 +39,7 @@
 URenderer::URenderer(D3D11RHI* InDevice) : RHIDevice(InDevice)
 {
 	InitializeLineBatch();
+	InitializePrimitiveBatch();
 	GPUTimer = new FGPUTimer(InDevice->GetDevice(), InDevice->GetDeviceContext());
 	UStatsOverlayD2D::Get().SetGPUTimer(GPUTimer);
 }
@@ -48,6 +49,13 @@ URenderer::~URenderer()
 	if (LineBatchData)
 	{
 		delete LineBatchData;
+		LineBatchData = nullptr;
+	}
+
+	if (PrimitiveBatchData)
+	{
+		delete PrimitiveBatchData;
+		PrimitiveBatchData = nullptr;
 	}
 
 	if (GPUTimer)
@@ -392,4 +400,131 @@ void URenderer::ClearLineBatch()
 	LineBatchData->Indices.clear();
 
 	bLineBatchActive = false;
+}
+
+// ============================================================================
+// Primitive Batch Rendering System (반투명 Physics Body 시각화용)
+// ============================================================================
+
+void URenderer::InitializePrimitiveBatch()
+{
+	// Create UPrimitiveDynamicMesh for solid primitive batching
+	DynamicPrimitiveMesh = UResourceManager::GetInstance().Load<UPrimitiveDynamicMesh>("Primitive");
+	DynamicPrimitiveMesh->Initialize(MAX_PRIMITIVE_VERTICES, MAX_PRIMITIVE_INDICES, RHIDevice->GetDevice());
+
+	// Create FMeshData for accumulating primitive data
+	PrimitiveBatchData = new FMeshData();
+}
+
+void URenderer::BeginPrimitiveBatch()
+{
+	if (!PrimitiveBatchData) return;
+
+	bPrimitiveBatchActive = true;
+
+	// Clear previous batch data
+	PrimitiveBatchData->Vertices.clear();
+	PrimitiveBatchData->Color.clear();
+	PrimitiveBatchData->Indices.clear();
+	PrimitiveBatchData->Normal.clear();
+}
+
+void URenderer::AddPrimitiveData(const FMeshData& MeshData, const FMatrix& Transform)
+{
+	if (!bPrimitiveBatchActive || !PrimitiveBatchData) return;
+
+	uint32 baseIndex = static_cast<uint32>(PrimitiveBatchData->Vertices.size());
+
+	// Transform vertices and add to batch
+	for (size_t i = 0; i < MeshData.Vertices.size(); ++i)
+	{
+		FVector transformedPos = MeshData.Vertices[i] * Transform;
+		PrimitiveBatchData->Vertices.Add(transformedPos);
+
+		if (i < MeshData.Color.size())
+		{
+			PrimitiveBatchData->Color.Add(MeshData.Color[i]);
+		}
+		else
+		{
+			PrimitiveBatchData->Color.Add(FVector4(0.0f, 0.8f, 0.0f, 0.4f));
+		}
+
+		// Normal은 단순 컬러 셰이더에서 사용하지 않으므로 생략
+	}
+
+	// Add indices with offset
+	for (size_t i = 0; i < MeshData.Indices.size(); ++i)
+	{
+		PrimitiveBatchData->Indices.Add(baseIndex + MeshData.Indices[i]);
+	}
+}
+
+void URenderer::EndPrimitiveBatch()
+{
+	if (!bPrimitiveBatchActive || !PrimitiveBatchData || !DynamicPrimitiveMesh)
+	{
+		bPrimitiveBatchActive = false;
+		return;
+	}
+
+	if (PrimitiveBatchData->Vertices.empty() || PrimitiveBatchData->Indices.empty())
+	{
+		bPrimitiveBatchActive = false;
+		return;
+	}
+
+	// Update dynamic mesh with batch data
+	if (!DynamicPrimitiveMesh->UpdateData(PrimitiveBatchData, RHIDevice->GetDeviceContext()))
+	{
+		bPrimitiveBatchActive = false;
+		return;
+	}
+
+	// Set up rendering state
+	FMatrix ModelMatrix = FMatrix::Identity();
+	FMatrix ModelInvTranspose = ModelMatrix.InverseAffine().Transpose();
+	RHIDevice->SetAndUpdateConstantBuffer(ModelBufferType(ModelMatrix, ModelInvTranspose));
+	RHIDevice->PrepareShader(LineShader); // LineShader는 단순 컬러 셰이더로 사용 가능
+
+	// Render with alpha blending
+	if (DynamicPrimitiveMesh->GetCurrentVertexCount() > 0 && DynamicPrimitiveMesh->GetCurrentIndexCount() > 0)
+	{
+		UINT stride = sizeof(FVertexSimple);
+		UINT offset = 0;
+		ID3D11Buffer* vertexBuffer = DynamicPrimitiveMesh->GetVertexBuffer();
+		ID3D11Buffer* indexBuffer = DynamicPrimitiveMesh->GetIndexBuffer();
+
+		RHIDevice->GetDeviceContext()->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+		RHIDevice->GetDeviceContext()->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+		RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		// Enable alpha blending for transparency
+		RHIDevice->OMSetBlendState(true);
+		// Depth test enabled but don't write to depth (so wireframe shows through)
+		RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqualReadOnly);
+		// Disable backface culling for two-sided rendering
+		RHIDevice->RSSetState(ERasterizerMode::Solid_NoCull);
+
+		RHIDevice->GetDeviceContext()->DrawIndexed(DynamicPrimitiveMesh->GetCurrentIndexCount(), 0, 0);
+
+		// Restore state
+		RHIDevice->OMSetBlendState(false);
+		RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+		RHIDevice->RSSetState(ERasterizerMode::Solid);
+	}
+
+	bPrimitiveBatchActive = false;
+}
+
+void URenderer::ClearPrimitiveBatch()
+{
+	if (!PrimitiveBatchData) return;
+
+	PrimitiveBatchData->Vertices.clear();
+	PrimitiveBatchData->Color.clear();
+	PrimitiveBatchData->Indices.clear();
+	PrimitiveBatchData->Normal.clear();
+
+	bPrimitiveBatchActive = false;
 }

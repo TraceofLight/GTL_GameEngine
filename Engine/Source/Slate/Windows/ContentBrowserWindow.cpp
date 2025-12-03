@@ -603,6 +603,25 @@ void UContentBrowserWindow::HandleDoubleClick(FFileEntry& Entry)
 		}
 		UE_LOG("Opening StateMachine Editor for: %s", Entry.FileName.c_str());
 	}
+	else if (ext == ".physicsasset")
+	{
+		// Physics Asset 에디터 열기 - DynamicEditorWindow의 LoadPhysicsAsset 사용
+		std::string pathStr = Entry.Path.string();
+		USlateManager& Slate = USlateManager::GetInstance();
+
+		// DynamicEditorWindow가 없으면 생성
+		if (!Slate.IsDynamicEditorOpen())
+		{
+			Slate.OpenDynamicEditor();
+		}
+
+		// LoadPhysicsAsset로 파일 로드
+		if (Slate.GetDynamicEditorWindow())
+		{
+			Slate.GetDynamicEditorWindow()->LoadPhysicsAsset(pathStr.c_str());
+		}
+		UE_LOG("Opening Physics Asset Editor for: %s", Entry.FileName.c_str());
+	}
 	else
 	{
 		UE_LOG("Unsupported file type: %s", ext.c_str());
@@ -647,6 +666,10 @@ const char* UContentBrowserWindow::GetIconForFile(const FFileEntry& Entry) const
 	else if (ext == ".mat")
 	{
 		return "[MAT]";
+	}
+	else if (ext == ".physicsasset")
+	{
+		return "[PHYS]";
 	}
 	else if (ext == ".level" || ext == ".json")
 	{

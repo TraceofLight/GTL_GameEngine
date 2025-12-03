@@ -40,6 +40,7 @@ void USkeletalMesh::Load(const FString& InFilePath, ID3D11Device* InDevice)
     // GPU 버퍼 생성
     CreateVertexBuffer(Data, InDevice);
     CreateIndexBuffer(Data, InDevice);
+    CreateLocalBound(Data);
     VertexCount = static_cast<uint32>(Data->Vertices.size());
     IndexCount = static_cast<uint32>(Data->Indices.size());
     VertexStride = sizeof(FSkinnedVertexDynamic);
@@ -97,6 +98,27 @@ void USkeletalMesh::CreateIndexBuffer(FSkeletalMeshData* InSkeletalMesh, ID3D11D
 {
     HRESULT hr = D3D11RHI::CreateIndexBuffer(InDevice, InSkeletalMesh, &IndexBuffer);
     assert(SUCCEEDED(hr));
+}
+
+void USkeletalMesh::CreateLocalBound(const FSkeletalMeshData* InSkeletalMesh)
+{
+    if (!InSkeletalMesh || InSkeletalMesh->Vertices.empty())
+    {
+        LocalBound = FAABB();
+        return;
+    }
+
+    const TArray<FSkinnedVertex>& Verts = InSkeletalMesh->Vertices;
+    FVector Min = Verts[0].Position;
+    FVector Max = Verts[0].Position;
+
+    for (const FSkinnedVertex& Vertex : Verts)
+    {
+        Min = Min.ComponentMin(Vertex.Position);
+        Max = Max.ComponentMax(Vertex.Position);
+    }
+
+    LocalBound = FAABB(Min, Max);
 }
 
 UPhysicsAsset* USkeletalMesh::GetPhysicsAsset()

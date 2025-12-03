@@ -2,6 +2,7 @@
 #include "BodySetup.h"
 #include "PhysicsCooking.h"
 #include "PxPhysicsAPI.h"
+#include "Source/Runtime/Core/Misc/JsonSerializer.h"
 
 using namespace physx;
 
@@ -84,4 +85,43 @@ void UBodySetup::ClearPhysicsMeshes()
 bool UBodySetup::HasCookedData() const
 {
     return (TriMesh != nullptr) || (ConvexMesh != nullptr);
+}
+
+void UBodySetup::Serialize(bool bIsLoading, JSON& Json)
+{
+    if (bIsLoading)
+    {
+        // BoneName
+        FString BoneNameStr;
+        FJsonSerializer::ReadString(Json, "BoneName", BoneNameStr, "");
+        BoneName = FName(BoneNameStr);
+
+        // CollisionTraceFlag
+        int32 TraceFlagInt;
+        FJsonSerializer::ReadInt32(Json, "CollisionTraceFlag", TraceFlagInt, 0);
+        CollisionTraceFlag = static_cast<ECollisionTraceFlag>(TraceFlagInt);
+
+        // AggGeom (shape data)
+        if (Json.hasKey("AggGeom") && Json["AggGeom"].JSONType() == JSON::Class::Object)
+        {
+            JSON AggGeomJson = Json["AggGeom"];
+            AggGeom.Serialize(true, AggGeomJson);
+        }
+
+        // Note: CookSourceVertices/Indices are not serialized - they're runtime-generated
+        // Note: TriMesh/ConvexMesh are not serialized - they're cooked at runtime
+    }
+    else
+    {
+        // BoneName
+        Json["BoneName"] = BoneName.ToString();
+
+        // CollisionTraceFlag
+        Json["CollisionTraceFlag"] = static_cast<int32>(CollisionTraceFlag);
+
+        // AggGeom (shape data)
+        JSON AggGeomJson;
+        AggGeom.Serialize(false, AggGeomJson);
+        Json["AggGeom"] = AggGeomJson;
+    }
 }
