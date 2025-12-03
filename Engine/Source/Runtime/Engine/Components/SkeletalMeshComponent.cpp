@@ -699,6 +699,14 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
         // AnimInstance는 BeginPlay에서 AnimationMode에 따라 생성됨
         // (UAnimInstance vs UAnimSingleNodeInstance)
         // Serialize에서는 애니메이션 데이터만 로드하고 AnimInstance는 생성하지 않음
+
+        // PhysicsAsset 로드
+        FString LoadedPhysicsAssetPath;
+        FJsonSerializer::ReadString(InOutHandle, "PhysicsAssetPath", LoadedPhysicsAssetPath, "");
+        if (!LoadedPhysicsAssetPath.empty())
+        {
+            SetPhysicsAsset(LoadedPhysicsAssetPath);
+        }
     }
     else
     {
@@ -730,7 +738,65 @@ void USkeletalMeshComponent::Serialize(const bool bInIsLoading, JSON& InOutHandl
         InOutHandle["SavedPlayRate"] = AnimationData.SavedPlayRate;
 
         // AnimInstance는 저장하지 않음 (BeginPlay에서 재생성됨)
+
+        // PhysicsAsset 저장
+        if (PhysicsAsset)
+        {
+            InOutHandle["PhysicsAssetPath"] = PhysicsAssetPath;
+        }
+        else
+        {
+            InOutHandle["PhysicsAssetPath"] = FString("");
+        }
     }
+}
+
+// ===== Physics Asset 관리 =====
+
+void USkeletalMeshComponent::SetPhysicsAsset(const FString& PathFileName)
+{
+    if (PathFileName.empty())
+    {
+        PhysicsAsset = nullptr;
+        PhysicsAssetPath.clear();
+        return;
+    }
+
+    // .physicsasset 파일에서 로드
+    UPhysicsAsset* LoadedAsset = NewObject<UPhysicsAsset>();
+    if (LoadedAsset && LoadedAsset->LoadFromFile(PathFileName))
+    {
+        PhysicsAsset = LoadedAsset;
+        PhysicsAssetPath = PathFileName;
+        UE_LOG("[SkeletalMeshComponent] Loaded PhysicsAsset: %s", PathFileName.c_str());
+    }
+    else
+    {
+        if (LoadedAsset)
+        {
+            ObjectFactory::DeleteObject(LoadedAsset);
+        }
+        PhysicsAsset = nullptr;
+        PhysicsAssetPath.clear();
+        UE_LOG("[SkeletalMeshComponent] Failed to load PhysicsAsset: %s", PathFileName.c_str());
+    }
+}
+
+UPhysicsAsset* USkeletalMeshComponent::GetPhysicsAsset() const
+{
+    // 컴포넌트에 직접 설정된 PhysicsAsset 우선
+    if (PhysicsAsset)
+    {
+        return PhysicsAsset;
+    }
+
+    // 없으면 SkeletalMesh의 PhysicsAsset 사용
+    if (SkeletalMesh)
+    {
+        return SkeletalMesh->GetPhysicsAsset();
+    }
+
+    return nullptr;
 }
 
 // ===== Bone Delta 관리 =====
@@ -783,10 +849,10 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         return;
     }
 
-    // Get physics asset from skeletal mesh (auto-generated if not set)
-    UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset();
+    // Get physics asset (컴포넌트에 설정된 것 우선, 없으면 SkeletalMesh의 것 사용)
+    UPhysicsAsset* UsedPhysicsAsset = GetPhysicsAsset();
 
-    if (!PhysicsAsset || PhysicsAsset->BodySetups.IsEmpty())
+    if (!UsedPhysicsAsset || UsedPhysicsAsset->BodySetups.IsEmpty())
     {
         UE_LOG("Physics: SkeletalMeshComponent::OnCreatePhysicsState: No PhysicsAsset or empty");
         return;
@@ -805,7 +871,7 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
     const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
     const TArray<FBone>& Bones = Skeleton->Bones;
 
-    for (UBodySetup* BoneSetup : PhysicsAsset->BodySetups)
+    for (UBodySetup* BoneSetup : UsedPhysicsAsset->BodySetups)
     {
         if (!BoneSetup) continue;
 
@@ -897,23 +963,23 @@ void USkeletalMeshComponent::CreateConstraints()
 		return;
 	}
 
-	UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset();
-	if (!PhysicsAsset)
+	UPhysicsAsset* UsedPhysicsAsset = GetPhysicsAsset();
+	if (!UsedPhysicsAsset)
 	{
 		return;
 	}
 
 	// PhysicsAsset에 ConstraintSetup이 없으면 자동 생성
-	if (PhysicsAsset->ConstraintSetups.IsEmpty() && Bodies.Num() > 1)
+	if (UsedPhysicsAsset->ConstraintSetups.IsEmpty() && Bodies.Num() > 1)
 	{
-		FPhysicsAssetUtils::CreateConstraintsForRagdoll(PhysicsAsset, SkeletalMesh);
+		FPhysicsAssetUtils::CreateConstraintsForRagdoll(UsedPhysicsAsset, SkeletalMesh);
 	}
 
 	const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
 	const TArray<FBone>& Bones = Skeleton->Bones;
 
 	// Constraint 인스턴스 생성
-	for (UPhysicsConstraintSetup* Setup : PhysicsAsset->ConstraintSetups)
+	for (UPhysicsConstraintSetup* Setup : UsedPhysicsAsset->ConstraintSetups)
 	{
 		if (!Setup)
 		{
@@ -921,8 +987,8 @@ void USkeletalMeshComponent::CreateConstraints()
 		}
 
 		// Body Index 재계산 (런타임에 달라질 수 있음)
-		int32 BodyIdx1 = PhysicsAsset->FindBodyIndexByBoneName(Setup->ConstraintBone1);
-		int32 BodyIdx2 = PhysicsAsset->FindBodyIndexByBoneName(Setup->ConstraintBone2);
+		int32 BodyIdx1 = UsedPhysicsAsset->FindBodyIndexByBoneName(Setup->ConstraintBone1);
+		int32 BodyIdx2 = UsedPhysicsAsset->FindBodyIndexByBoneName(Setup->ConstraintBone2);
 
 		if (BodyIdx1 == -1 || BodyIdx2 == -1)
 		{
@@ -1089,8 +1155,8 @@ void USkeletalMeshComponent::SyncPhysicsToBones()
 	const TArray<FBone>& Bones = Skeleton->Bones;
 	const int32 NumBones = Bones.Num();
 
-	UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset();
-	if (!PhysicsAsset)
+	UPhysicsAsset* UsedPhysicsAsset = GetPhysicsAsset();
+	if (!UsedPhysicsAsset)
 	{
 		return;
 	}
@@ -1214,13 +1280,13 @@ FBodyInstance* USkeletalMeshComponent::GetBodyInstanceByBoneName(const FName& Bo
 		return nullptr;
 	}
 
-	UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset();
-	if (!PhysicsAsset)
+	UPhysicsAsset* UsedPhysicsAsset = GetPhysicsAsset();
+	if (!UsedPhysicsAsset)
 	{
 		return nullptr;
 	}
 
-	int32 BodyIdx = PhysicsAsset->FindBodyIndexByBoneName(BoneName);
+	int32 BodyIdx = UsedPhysicsAsset->FindBodyIndexByBoneName(BoneName);
 	if (BodyIdx == -1 || BodyIdx >= Bodies.Num())
 	{
 		return nullptr;

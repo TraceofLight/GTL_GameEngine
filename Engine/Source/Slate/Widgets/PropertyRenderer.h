@@ -49,6 +49,7 @@ private:
 	static bool RenderSpotLightShadowMap(class FLightManager* LightManager, class ULightComponent* LightComp, ID3D11ShaderResourceView* AtlasSRV);
 	static bool RenderSkeletalMeshProperty(const FProperty& Prop, void* Instance);
 	static bool RenderStaticMeshProperty(const FProperty& Prop, void* Instance);
+	static bool RenderPhysicsAssetProperty(const FProperty& Prop, void* Instance);
 	static bool RenderMaterialProperty(const FProperty& Prop, void* Instance);
 	static bool RenderMaterialArrayProperty(const FProperty& Prop, void* Instance);
 	static bool RenderSingleMaterialSlot(const char* Label, UMaterialInterface** MaterialPtr, UObject* OwningObject, uint32 MaterialIndex);	// 단일 UMaterial* 슬롯을 렌더링하는 헬퍼 함수.
@@ -87,4 +88,6 @@ private:
 	static TArray<const char*> CachedAnimStateMachineItems;
 	static TArray<FString> CachedParticleSystemPaths;
 	static TArray<const char*> CachedParticleSystemItems;
+	static TArray<FString> CachedPhysicsAssetPaths;
+	static TArray<FString> CachedPhysicsAssetItems;
 };

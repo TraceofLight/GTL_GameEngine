@@ -25,6 +25,7 @@
 #include "AnimStateMachine.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystem.h"
 #include "Source/Runtime/Engine/Particle/ParticleSystemComponent.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
 
 // Disable warnings for third-party library
 #pragma warning(push)
@@ -56,6 +57,8 @@ TArray<FString> UPropertyRenderer::CachedAnimStateMachinePaths;
 TArray<const char*> UPropertyRenderer::CachedAnimStateMachineItems;
 TArray<FString> UPropertyRenderer::CachedParticleSystemPaths;
 TArray<const char*> UPropertyRenderer::CachedParticleSystemItems;
+TArray<FString> UPropertyRenderer::CachedPhysicsAssetPaths;
+TArray<FString> UPropertyRenderer::CachedPhysicsAssetItems;
 
 static bool ItemsGetter(void* Data, int Index, const char** CItem)
 {
@@ -139,6 +142,10 @@ bool UPropertyRenderer::RenderPropertyInternal(const FProperty& Property, void* 
 
 	case EPropertyType::SkeletalMesh:
 		bChanged = RenderSkeletalMeshProperty(Property, Instance);
+		break;
+
+	case EPropertyType::PhysicsAsset:
+		bChanged = RenderPhysicsAssetProperty(Property, Instance);
 		break;
 
 	case EPropertyType::StaticMesh:
@@ -563,6 +570,28 @@ void UPropertyRenderer::CacheResources()
             CachedParticleSystemItems.push_back(CachedParticleSystemPaths[i].c_str());
         }
     }
+
+    // 9. PhysicsAsset (.physicsasset) - 파일 시스템 스캔
+    if (CachedPhysicsAssetPaths.IsEmpty() && CachedPhysicsAssetItems.IsEmpty())
+    {
+        CachedPhysicsAssetPaths.Add("");
+        CachedPhysicsAssetItems.Add("None");
+
+        // Data 디렉토리 전체에서 .physicsasset 파일 검색
+        if (fs::exists(GDataDir) && fs::is_directory(GDataDir))
+        {
+            for (const auto& Entry : fs::recursive_directory_iterator(GDataDir))
+            {
+                if (Entry.is_regular_file() && Entry.path().extension() == ".physicsasset")
+                {
+                    FString Path = WideToUTF8(Entry.path().generic_wstring());
+                    CachedPhysicsAssetPaths.Add(NormalizePath(Path));
+                    // 파일명만 표시
+                    CachedPhysicsAssetItems.Add(Entry.path().filename().string());
+                }
+            }
+        }
+    }
 }
 
 void UPropertyRenderer::ClearResourcesCache()
@@ -587,6 +616,8 @@ void UPropertyRenderer::ClearResourcesCache()
 	CachedAnimStateMachineItems.Empty();
 	CachedParticleSystemPaths.Empty();
 	CachedParticleSystemItems.Empty();
+	CachedPhysicsAssetPaths.Empty();
+	CachedPhysicsAssetItems.Empty();
 }
 
 // ===== 타입별 렌더링 구현 =====
@@ -1612,9 +1643,13 @@ bool UPropertyRenderer::RenderSkeletalMeshProperty(const FProperty& Prop, void* 
 	ImGui::Spacing();
 
 	static UAnimStateMachine* SelectedStateMachine = nullptr;
-	if (UAnimStateMachine* StateMachine = SkeletalMeshComponent->GetAnimInstance()->GetStateMachineNode()->GetStateMachine())
+	auto* StateMachineNode = SkeletalMeshComponent->GetAnimInstance()->GetStateMachineNode();
+	if (StateMachineNode)
 	{
-		SelectedStateMachine = StateMachine;
+		if (UAnimStateMachine* StateMachine = StateMachineNode->GetStateMachine())
+		{
+			SelectedStateMachine = StateMachine;
+		}
 	}
 
 	ImGui::Text("State Machine ");
@@ -1654,6 +1689,60 @@ bool UPropertyRenderer::RenderSkeletalMeshProperty(const FProperty& Prop, void* 
 			}
 		}
 		ImGui::EndCombo();
+	}
+
+	return false;
+}
+
+bool UPropertyRenderer::RenderPhysicsAssetProperty(const FProperty& Prop, void* Instance)
+{
+	UPhysicsAsset** AssetPtr = Prop.GetValuePtr<UPhysicsAsset*>(Instance);
+
+	FString CurrentPath;
+	if (*AssetPtr)
+	{
+		CurrentPath = (*AssetPtr)->GetFilePath();
+	}
+
+	if (CachedPhysicsAssetPaths.empty())
+	{
+		ImGui::Text("%s: <No PhysicsAssets>", Prop.Name);
+		return false;
+	}
+
+	int SelectedIdx = -1;
+	for (int i = 0; i < static_cast<int>(CachedPhysicsAssetPaths.size()); ++i)
+	{
+		if (CachedPhysicsAssetPaths[i] == CurrentPath)
+		{
+			SelectedIdx = i;
+			break;
+		}
+	}
+
+	ImGui::SetNextItemWidth(240);
+	if (ImGui::Combo(Prop.Name, &SelectedIdx, &ItemsGetter, (void*)&CachedPhysicsAssetItems, static_cast<int>(CachedPhysicsAssetItems.size())))
+	{
+		if (SelectedIdx >= 0 && SelectedIdx < static_cast<int>(CachedPhysicsAssetPaths.size()))
+		{
+			// SkeletalMeshComponent인 경우 SetPhysicsAsset 호출
+			UObject* Object = static_cast<UObject*>(Instance);
+			USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(Object);
+			if (SkelComp)
+			{
+				SkelComp->SetPhysicsAsset(CachedPhysicsAssetPaths[SelectedIdx]);
+			}
+			else
+			{
+				// 일반적인 UPhysicsAsset* 프로퍼티는 직접 로드
+				UPhysicsAsset* LoadedAsset = NewObject<UPhysicsAsset>();
+				if (LoadedAsset && LoadedAsset->LoadFromFile(CachedPhysicsAssetPaths[SelectedIdx]))
+				{
+					*AssetPtr = LoadedAsset;
+				}
+			}
+			return true;
+		}
 	}
 
 	return false;

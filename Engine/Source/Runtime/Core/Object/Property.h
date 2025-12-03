@@ -24,6 +24,7 @@ enum class EPropertyType : uint8
 	Curve,
 	Enum,			// Enum 타입 (콤보박스 UI)
 	AnimSequence,	// UAnimSequence* 타입 (애니메이션 에셋)
+	PhysicsAsset,	// UPhysicsAsset* 타입 (물리 에셋)
 	// 추후 추가될 프로퍼티들은 직접 해줘야함.
 	Count			// 요소 개수, 항상 마지막!
 };

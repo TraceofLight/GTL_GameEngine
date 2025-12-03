@@ -2,6 +2,7 @@
 #include "../Animation/SingleAnimationPlayData.h"
 #include "SkinnedMeshComponent.h"
 #include "Source/Runtime/Core/Misc/Delegates.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
 #include "USkeletalMeshComponent.generated.h"
 
 class UAnimInstance;
@@ -118,6 +119,19 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Animation")
 	FSingleAnimationPlayData AnimationData;
+
+	// Physics Asset - 컴포넌트별로 설정 가능 (없으면 SkeletalMesh의 것 사용)
+	UPROPERTY(EditAnywhere, Category="Physics")
+	UPhysicsAsset* PhysicsAsset = nullptr;
+
+	// Physics Asset 경로 (Serialization 전용 - UI에 노출 안 함)
+	FString PhysicsAssetPath;
+
+	// Physics Asset 설정 (파일 경로로)
+	void SetPhysicsAsset(const FString& PathFileName);
+
+	// Physics Asset Getter (컴포넌트의 것 또는 SkeletalMesh의 것)
+	UPhysicsAsset* GetPhysicsAsset() const;
 
 	TArray<FBodyInstance*> Bodies;
 	TArray<int32> BodyToBoneIndex;  // Bodies와 병렬 배열: Bodies[i]에 해당하는 본 인덱스

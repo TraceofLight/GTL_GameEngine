@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "BodySetup.h"
 #include "PhysicsConstraintSetup.h"
 #include "Name.h"
@@ -50,4 +50,11 @@ public:
     // Serialization
     bool SaveToFile(const FString& FilePath) const;
     bool LoadFromFile(const FString& FilePath);
+
+	// File Path (for PropertyRenderer)
+	const FString& GetFilePath() const { return AssetFilePath; }
+	void SetFilePath(const FString& InFilePath) { AssetFilePath = InFilePath; }
+
+private:
+	FString AssetFilePath;  // 로드된 파일 경로
 };

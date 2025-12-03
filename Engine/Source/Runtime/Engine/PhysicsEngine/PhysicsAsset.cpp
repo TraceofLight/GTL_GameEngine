@@ -304,6 +304,9 @@ bool UPhysicsAsset::LoadFromFile(const FString& FilePath)
 	// JSON에서 역직렬화
 	Serialize(true, Root);
 
+	// 파일 경로 저장 (PropertyRenderer에서 사용)
+	AssetFilePath = FilePath;
+
 	UE_LOG("[PhysicsAsset] Loaded from file: %s", FilePath.c_str());
 	return true;
 }
