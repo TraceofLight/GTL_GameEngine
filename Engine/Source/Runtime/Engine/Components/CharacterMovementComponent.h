@@ -132,7 +132,7 @@ public:
 	// 점프 설정
 	// ────────────────────────────────────────────────
 
-	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="점프 초기 속도 (cm/s)")
+	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="점프 초기 속도")
 	float JumpZVelocity;
 
 	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="공중에 있을 수 있는 최대 시간 (초)")
@@ -140,6 +140,21 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="점프 가능 여부")
 	bool bCanJump;
+
+	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="점프 상승 중 중력 스케일 (1.0 = 기본, 낮을수록 더 높이 뜸)")
+	float JumpGravityScale;
+
+	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="점프 하강 중 중력 스케일 (1.0 = 기본, 높을수록 빨리 떨어짐)")
+	float FallGravityScale;
+
+	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="점프 키를 일찍 놓았을 때 상승 속도 감소 비율 (0.0~1.0)")
+	float JumpCutMultiplier;
+
+	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="코요테 타임 - 땅을 떠난 후에도 점프 가능한 시간 (초)")
+	float CoyoteTime;
+
+	UPROPERTY(EditAnywhere, Category="[점프]", Tooltip="점프 버퍼 - 착지 전 점프 입력을 기억하는 시간 (초)")
+	float JumpBufferTime;
 
 	// ────────────────────────────────────────────────
 	// 캡슐 스윕 설정 (지면 체크용)
@@ -355,6 +370,18 @@ protected:
 
 	/** 점프 중인지 여부 */
 	bool bIsJumping;
+
+	/** 점프 키를 누르고 있는지 여부 */
+	bool bJumpHeld;
+
+	/** 코요테 타임 카운터 (땅을 떠난 후 경과 시간) */
+	float CoyoteTimeCounter;
+
+	/** 점프 버퍼 카운터 (점프 입력 후 경과 시간) */
+	float JumpBufferCounter;
+
+	/** 마지막 프레임에 땅에 있었는지 */
+	bool bWasGroundedLastFrame;
 
 	/** 회전 중인지 여부 (회전 중에는 모든 움직임과 중력 멈춤) */
 	bool bIsRotating;

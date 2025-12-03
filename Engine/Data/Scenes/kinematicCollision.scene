@@ -1,9 +1,9 @@
 {
   "Actors" : {
-    "1029" : {
+    "1244" : {
       "ObjectName" : "스태틱 메시_0",
       "OwnedComponents" : [{
-          "Id" : 1031,
+          "Id" : 1246,
           "MaterialSlots" : [{
               "AssetPath" : "texture",
               "Type" : "UMaterial"
@@ -24,17 +24,17 @@
           "bSimulatePhysics" : false,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1031,
+      "RootComponentId" : 1246,
       "Tag" : "",
       "Type" : "AStaticMeshActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1033" : {
+    "1247" : {
       "ObjectName" : "스태틱 메시_1",
       "OwnedComponents" : [{
-          "Id" : 1035,
+          "Id" : 1249,
           "MaterialSlots" : [{
               "AssetPath" : "texture",
               "Type" : "UMaterial"
@@ -55,14 +55,14 @@
           "bSimulatePhysics" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1035,
+      "RootComponentId" : 1249,
       "Tag" : "",
       "Type" : "AStaticMeshActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1039" : {
+    "1250" : {
       "ObjectName" : "ADirectionalLightActor_2",
       "OwnedComponents" : [{
           "CascadedAreaColorDebugValue" : 0.000000,
@@ -70,7 +70,7 @@
           "CascadedCount" : 4,
           "CascadedLinearBlendingValue" : 0.500000,
           "CascadedOverlapValue" : 0.200000,
-          "Id" : 1041,
+          "Id" : 1252,
           "Intensity" : 1.000000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UDirectionalLightComponent_2",
@@ -91,17 +91,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1041,
+      "RootComponentId" : 1252,
       "Tag" : "",
       "Type" : "ADirectionalLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1043" : {
+    "1253" : {
       "ObjectName" : "AAmbientLightActor_2",
       "OwnedComponents" : [{
-          "Id" : 1046,
+          "Id" : 1255,
           "Intensity" : 0.100000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UAmbientLightComponent_2",
@@ -121,17 +121,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1046,
+      "RootComponentId" : 1255,
       "Tag" : "",
       "Type" : "AAmbientLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1048" : {
+    "1256" : {
       "ObjectName" : "APlayerCameraManager_3",
       "OwnedComponents" : [{
-          "Id" : 1049,
+          "Id" : 1257,
           "ObjectName" : "USceneComponent_4",
           "ParentId" : 0,
           "RelativeLocation" : [0.000000, 0.000000, 0.000000],
@@ -143,14 +143,14 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1049,
+      "RootComponentId" : 1257,
       "Tag" : "",
       "Type" : "APlayerCameraManager",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "1050" : {
+    "1258" : {
       "ObjectName" : "ACharacter_0",
       "OwnedComponents" : [{
           "ObjectName" : "UInputComponent_1",
@@ -162,11 +162,11 @@
           "AspectRatio" : 1.000000,
           "FarClip" : 100.000000,
           "FieldOfView" : 60.000000,
-          "Id" : 1055,
+          "Id" : 1265,
           "NearClip" : 0.100000,
           "ObjectName" : "UCameraComponent_5",
           "OrthoZoom" : 0.100000,
-          "ParentId" : 1059,
+          "ParentId" : 1268,
           "ProjectionMode" : 0,
           "RelativeLocation" : [-0.000000, 0.000000, 5.000000],
           "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
@@ -178,37 +178,10 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }, {
-          "ObjectName" : "ULuaScriptComponent_1",
-          "ScriptFilePath" : "Data/Scripts/AnimInstanceBinding.lua",
-          "Type" : "ULuaScriptComponent",
-          "bHiddenInGame" : false,
-          "bIsActive" : true,
-          "bTickEnabled" : true
-        }, {
-          "AirControl" : 0.050000,
-          "BreakingDeceleration" : 20.480000,
-          "CapsuleHalfHeight" : 0.050000,
-          "CapsuleRadius" : 0.050000,
-          "GravityDirection" : [0.000000, 0.000000, -1.000000],
-          "GravityScale" : 1.000000,
-          "GroundCheckDistance" : 0.000500,
-          "GroundFriction" : 8.000000,
-          "JumpZVelocity" : 150.000000,
-          "MaxAcceleration" : 15.000000,
-          "MaxAirTime" : 100.000000,
-          "MaxWalkSpeed" : 60.000000,
-          "MaxWalkableSlopeAngle" : 45.000000,
-          "ObjectName" : "UCharacterMovementComponent_1",
-          "Type" : "UCharacterMovementComponent",
-          "bCanJump" : true,
-          "bHiddenInGame" : false,
-          "bIsActive" : true,
-          "bTickEnabled" : true
-        }, {
           "AnimBlueprintPath" : "Data/StateMachine/Player.statemachine",
           "AnimToPlayPath" : "",
           "AnimationMode" : 0,
-          "Id" : 1059,
+          "Id" : 1268,
           "MaterialSlots" : [{
               "Type" : "None"
             }],
@@ -232,8 +205,40 @@
           "bSavedPlaying" : true,
           "bSimulatePhysics" : false,
           "bTickEnabled" : true
+        }, {
+          "ObjectName" : "ULuaScriptComponent_1",
+          "ScriptFilePath" : "Data/Scripts/AnimInstanceBinding.lua",
+          "Type" : "ULuaScriptComponent",
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bTickEnabled" : true
+        }, {
+          "AirControl" : 0.050000,
+          "BreakingDeceleration" : 20.480000,
+          "CapsuleHalfHeight" : 0.050000,
+          "CapsuleRadius" : 0.050000,
+          "CoyoteTime" : 0.100000,
+          "FallGravityScale" : 1.000000,
+          "GravityDirection" : [0.000000, 0.000000, -1.000000],
+          "GravityScale" : 1.000000,
+          "GroundCheckDistance" : 0.000500,
+          "GroundFriction" : 8.000000,
+          "JumpBufferTime" : 0.100000,
+          "JumpCutMultiplier" : 0.400000,
+          "JumpGravityScale" : 0.800000,
+          "JumpZVelocity" : 100.000000,
+          "MaxAcceleration" : 15.000000,
+          "MaxAirTime" : 100.000000,
+          "MaxWalkSpeed" : 60.000000,
+          "MaxWalkableSlopeAngle" : 45.000000,
+          "ObjectName" : "UCharacterMovementComponent_1",
+          "Type" : "UCharacterMovementComponent",
+          "bCanJump" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bTickEnabled" : true
         }],
-      "RootComponentId" : 1059,
+      "RootComponentId" : 1268,
       "Tag" : "",
       "Type" : "ACharacter",
       "bActorHiddenInGame" : false,
@@ -241,7 +246,7 @@
       "bTickInEditor" : false
     }
   },
-  "NextUUID" : 2096,
+  "NextUUID" : 1384,
   "PerspectiveCamera" : {
     "FOV" : [60.000000],
     "FarClip" : [2000.000000],

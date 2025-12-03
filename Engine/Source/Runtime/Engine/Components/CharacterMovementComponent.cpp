@@ -30,6 +30,10 @@ UCharacterMovementComponent::UCharacterMovementComponent()
 	, MovementMode(EMovementMode::Falling)
 	, TimeInAir(0.0f)
 	, bIsJumping(false)
+	, bJumpHeld(false)
+	, CoyoteTimeCounter(0.0f)
+	, JumpBufferCounter(0.0f)
+	, bWasGroundedLastFrame(false)
 	, bIsRotating(false)
 	// 이동 설정
 	, MaxWalkSpeed(60.0f)           // 2.0 m/s
@@ -44,6 +48,11 @@ UCharacterMovementComponent::UCharacterMovementComponent()
 	, JumpZVelocity(20.2f)          // 4.2 m/s
 	, MaxAirTime(2.0f)
 	, bCanJump(true)
+	, JumpGravityScale(0.8f)        // 상승 중 중력 80%
+	, FallGravityScale(1.5f)        // 하강 중 중력 150%
+	, JumpCutMultiplier(0.4f)       // 점프 키 놓으면 상승 속도 40%로 감소
+	, CoyoteTime(0.1f)              // 0.1초 코요테 타임
+	, JumpBufferTime(0.1f)          // 0.1초 점프 버퍼
 	// 캡슐 스윕 설정
 	, CapsuleRadius(0.03f)
 	, CapsuleHalfHeight(0.03f)
@@ -73,18 +82,6 @@ void UCharacterMovementComponent::TickComponent(float DeltaTime)
 {
 	Super::TickComponent(DeltaTime);
 
-	// 사망한 상태면 조기 리턴
-	//UWorld* World = CharacterOwner->GetWorld();
-	//
-	//if (World)
-	//{
-	//	GameMode = (World->GetGameMode());
-	//	if (GameMode &&
-	//		GameMode->GetGameState()->GetGameState() == EGameState::GameOver)
-	//	{
-	//		return;
-	//	}
-	//}
 	if (!CharacterOwner)
 	{
 		return;
@@ -103,7 +100,29 @@ void UCharacterMovementComponent::TickComponent(float DeltaTime)
 	bool bWasGrounded = IsGrounded();
 	bool bIsNowGrounded = CheckGround();
 
-	// 5. 이동 모드 업데이트
+	// 5. 코요테 타임 및 점프 버퍼 업데이트
+	if (bIsNowGrounded)
+	{
+		// 땅에 있으면 코요테 타임 리셋
+		CoyoteTimeCounter = CoyoteTime;
+	}
+	else
+	{
+		// 공중에 있으면 코요테 타임 감소
+		CoyoteTimeCounter -= DeltaTime;
+		if (CoyoteTimeCounter < 0.0f)
+		{
+			CoyoteTimeCounter = 0.0f;
+		}
+	}
+
+	// 점프 버퍼 카운터 감소
+	if (JumpBufferCounter > 0.0f)
+	{
+		JumpBufferCounter -= DeltaTime;
+	}
+
+	// 6. 이동 모드 업데이트
 	if (bIsNowGrounded && !bWasGrounded)
 	{
 		// 착지 - 중력 방향의 속도 성분 제거
@@ -112,6 +131,12 @@ void UCharacterMovementComponent::TickComponent(float DeltaTime)
 		Velocity -= GravityDirection * VerticalSpeed;
 		TimeInAir = 0.0f;
 		bIsJumping = false;
+
+		// 착지 시 점프 버퍼 체크 - 착지 직전에 점프를 눌렀다면 즉시 점프
+		if (JumpBufferCounter > 0.0f && bCanJump)
+		{
+			Jump();
+		}
 	}
 	else if (!bIsNowGrounded && bWasGrounded)
 	{
@@ -119,21 +144,20 @@ void UCharacterMovementComponent::TickComponent(float DeltaTime)
 		SetMovementMode(EMovementMode::Falling);
 	}
 
-	// 6. 공중 시간 체크
+	// 7. 공중 시간 체크
 	if (IsFalling())
 	{
 		TimeInAir += DeltaTime;
 
-		// 너무 오래 공중에 있으면 GameOver 처리
+		// 너무 오래 공중에 있으면 리셋
 		if (TimeInAir > MaxAirTime)
 		{
-			//if (GameMode)
-			//{
-			//	GameMode->OnPlayerDeath(CharacterOwner);
-			//}
 			TimeInAir = 0.0f;
 		}
 	}
+
+	// 마지막 프레임 땅 상태 저장
+	bWasGroundedLastFrame = bIsNowGrounded;
 
 	// 입력 초기화
 	PendingInputVector = FVector();
@@ -167,11 +191,30 @@ void UCharacterMovementComponent::AddInputVector(FVector WorldDirection, float S
 
 bool UCharacterMovementComponent::Jump()
 {
-	// 점프 가능 조건 체크
-	if (!bCanJump || !IsGrounded())
+	if (!bCanJump)
 	{
 		return false;
 	}
+
+	// 점프 버퍼 설정 - 점프 입력 기록
+	JumpBufferCounter = JumpBufferTime;
+	bJumpHeld = true;
+
+	// 점프 가능 조건 체크: 땅에 있거나 코요테 타임 내
+	bool bCanJumpNow = IsGrounded() || (CoyoteTimeCounter > 0.0f);
+
+	if (!bCanJumpNow)
+	{
+		return false;
+	}
+
+	// 코요테 타임 소비
+	CoyoteTimeCounter = 0.0f;
+	JumpBufferCounter = 0.0f;
+
+	// 기존 수직 속도 제거 후 점프 속도 적용 (더 일관된 점프 높이)
+	float CurrentVerticalSpeed = FVector::Dot(Velocity, GravityDirection);
+	Velocity -= GravityDirection * CurrentVerticalSpeed;
 
 	// 중력 반대 방향으로 점프 속도 적용
 	FVector JumpVelocity = GravityDirection * -1.0f * JumpZVelocity;
@@ -186,15 +229,16 @@ bool UCharacterMovementComponent::Jump()
 
 void UCharacterMovementComponent::StopJumping()
 {
-	// 점프 키를 뗐을 때 상승 속도를 줄임
-	// 중력 반대 방향으로의 속도만 감소
+	bJumpHeld = false;
+
+	// 점프 키를 뗐을 때 상승 중이면 속도 감소 (가변 점프 높이)
 	FVector UpDirection = GravityDirection * -1.0f;
 	float UpwardSpeed = FVector::Dot(Velocity, UpDirection);
 
 	if (bIsJumping && UpwardSpeed > 0.0f)
 	{
-		// 상승 속도 성분만 감소
-		Velocity -= UpDirection * (UpwardSpeed * 0.5f);
+		// 상승 속도를 JumpCutMultiplier 비율로 감소
+		Velocity -= UpDirection * (UpwardSpeed * (1.0f - JumpCutMultiplier));
 	}
 }
 
@@ -311,8 +355,25 @@ void UCharacterMovementComponent::ApplyGravity(float DeltaTime)
 		return;
 	}
 
+	// 현재 수직 속도 계산 (중력 방향 기준)
+	FVector UpDirection = -GravityDirection;
+	float VerticalVelocity = FVector::Dot(Velocity, UpDirection);
+
+	// 상승 중인지 하강 중인지에 따라 다른 중력 스케일 적용
+	float CurrentGravityScale = GravityScale;
+	if (VerticalVelocity > 0.0f)
+	{
+		// 상승 중 - JumpGravityScale 적용 (낮으면 더 높이 뜸)
+		CurrentGravityScale *= JumpGravityScale;
+	}
+	else
+	{
+		// 하강 중 - FallGravityScale 적용 (높으면 빨리 떨어짐)
+		CurrentGravityScale *= FallGravityScale;
+	}
+
 	// 중력 가속도 적용 (방향 벡터 사용)
-	float GravityMagnitude = DefaultGravity * GravityScale;
+	float GravityMagnitude = DefaultGravity * CurrentGravityScale;
 	FVector GravityVector = GravityDirection * GravityMagnitude;
 	Velocity += GravityVector * DeltaTime;
 
