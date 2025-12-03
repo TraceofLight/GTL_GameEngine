@@ -22,13 +22,13 @@ bool FConstraintInstance::CreateJoint(PxPhysics* Physics, FBodyInstance* InBodyA
 {
 	if (!Physics)
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Physics is null");
+		UE_LOG("Physics: CreateJoint: Physics is null");
 		return false;
 	}
 
 	if (!Setup)
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Setup is null");
+		UE_LOG("Physics: CreateJoint: Setup is null");
 		return false;
 	}
 
@@ -56,31 +56,31 @@ bool FConstraintInstance::CreateJoint(PxPhysics* Physics, FBodyInstance* InBodyA
 	// PhysX Joint 생성 조건 검증
 	if (!ActorA && !ActorB)
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Both actors are null");
+		UE_LOG("Physics: CreateJoint: Both actors are null");
 		return false;
 	}
 
 	if (ActorA && !ActorA->getScene())
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: ActorA is not in scene");
+		UE_LOG("Physics: CreateJoint: ActorA is not in scene");
 		return false;
 	}
 
 	if (ActorB && !ActorB->getScene())
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: ActorB is not in scene");
+		UE_LOG("Physics: CreateJoint: ActorB is not in scene");
 		return false;
 	}
 
 	if (ActorA && ActorB && ActorA->getScene() != ActorB->getScene())
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Actors are in different scenes");
+		UE_LOG("Physics: CreateJoint: Actors are in different scenes");
 		return false;
 	}
 
 	if (ActorA && ActorB && ActorA == ActorB)
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Same actor");
+		UE_LOG("Physics: CreateJoint: Same actor");
 		return false;
 	}
 
@@ -107,12 +107,12 @@ bool FConstraintInstance::CreateJoint(PxPhysics* Physics, FBodyInstance* InBodyA
 	// PxTransform 유효성 검증
 	if (!LocalFrameA.isValid())
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: LocalFrameA is invalid");
+		UE_LOG("Physics: CreateJoint: LocalFrameA is invalid");
 		return false;
 	}
 	if (!LocalFrameB.isValid())
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: LocalFrameB is invalid");
+		UE_LOG("Physics: CreateJoint: LocalFrameB is invalid");
 		return false;
 	}
 
@@ -122,7 +122,7 @@ bool FConstraintInstance::CreateJoint(PxPhysics* Physics, FBodyInstance* InBodyA
 
 	if (!JointHandle)
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Failed to create PxD6Joint");
+		UE_LOG("Physics: CreateJoint: Failed to create PxD6Joint");
 		return false;
 	}
 

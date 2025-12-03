@@ -759,13 +759,13 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
 
     if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
     {
-        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: No skeletal mesh");
+        UE_LOG("Physics: SkeletalMeshComponent::OnCreatePhysicsState: No skeletal mesh");
         return;
     }
 
     if (!PHYSICS.GetPhysics())
     {
-        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: PhysX not ready");
+        UE_LOG("Physics: SkeletalMeshComponent::OnCreatePhysicsState: PhysX not ready");
         return;
     }
 
@@ -774,7 +774,7 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
 
     if (!PhysicsAsset || PhysicsAsset->BodySetups.IsEmpty())
     {
-        UE_LOG("[Physics] SkeletalMeshComponent::OnCreatePhysicsState: No PhysicsAsset or empty");
+        UE_LOG("Physics: SkeletalMeshComponent::OnCreatePhysicsState: No PhysicsAsset or empty");
         return;
     }
 
@@ -807,7 +807,7 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
 
         if (BoneIdx < 0)
         {
-            UE_LOG("[Physics] Warning: Could not find bone '%s' for physics body",
+            UE_LOG("Physics: OnCreatePhysicsState: Could not find bone '%s' for physics body",
                    BoneSetup->BoneName.ToString().c_str());
             // 인덱스 정렬 유지를 위해 nullptr 추가 (FindBodyIndexByBoneName과 Bodies 배열 인덱스 일치 필요)
             Bodies.Add(nullptr);
@@ -1016,7 +1016,7 @@ void USkeletalMeshComponent::SetAllBodiesSimulatePhysics(bool bNewSimulate)
 
 	if (Bodies.IsEmpty())
 	{
-		UE_LOG("[Physics] SetAllBodiesSimulatePhysics: No physics bodies");
+		UE_LOG("Physics: SetAllBodiesSimulatePhysics: No physics bodies");
 		return;
 	}
 

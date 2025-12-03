@@ -115,7 +115,7 @@ void APlayerController::OnPossess(APawn* InPawn)
 				if (CameraComp)
 				{
 					PlayerCameraManager->SetViewCamera(CameraComp);
-					UE_LOG("[PlayerController] Camera set to Character's CameraComponent");
+					UE_LOG("PlayerController: OnPossess: Camera set to Character's CameraComponent");
 				}
 			}
 		}

@@ -1,5 +1,9 @@
 #pragma once
 #include "PxPhysicsAPI.h"
+#include "vehicle/PxVehicleSDK.h"
+#include "vehicle/PxVehicleUpdate.h"
+#include "vehicle/PxVehicleUtil.h"
+#include "vehicle/PxVehicleTireFriction.h"
 #include "PhysicsEventCallback.h"
 
 using namespace physx;
@@ -58,6 +62,10 @@ public:
 	PxDefaultCpuDispatcher* GetDispatcher() { return Dispatcher; }
 	PxCooking* GetCooking() { return Cooking; }
 
+	// Vehicle SDK 관련
+	bool IsVehicleSDKInitialized() const { return bVehicleSDKInitialized; }
+	PxBatchQuery* GetVehicleBatchQuery(FPhysicsSceneHandle& Handle);
+	PxVehicleDrivableSurfaceToTireFrictionPairs* GetFrictionPairs() { return FrictionPairs; }
 
 	// simulate, fetch 분리 함수
 	void SetPipelineMode(EPhysicsPipelineMode InMode) { PipelineMode = InMode; }
@@ -78,8 +86,15 @@ private:
 	PxCooking* Cooking = nullptr;
 	PxMaterial* DefaultMaterial = nullptr;
 
-	//PVD용 객체들 
-	PxPvd* Pvd; 
+	//PVD용 객체들
+	PxPvd* Pvd;
 	PxPvdTransport* Transport;
 
+	// Vehicle SDK 관련
+	bool bVehicleSDKInitialized = false;
+	PxVehicleDrivableSurfaceToTireFrictionPairs* FrictionPairs = nullptr;
+
+	void InitVehicleSDK();
+	void ShutdownVehicleSDK();
+	void SetupFrictionPairs();
 };

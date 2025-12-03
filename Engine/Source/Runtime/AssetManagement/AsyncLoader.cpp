@@ -241,20 +241,11 @@ std::shared_ptr<FStreamableHandle> FAsyncLoader::RequestAsyncLoad(
 			auto& Handle = *ExistingHandle;
 			EAssetLoadState State = Handle->LoadState.load();
 
-			if (State == EAssetLoadState::Queued || State == EAssetLoadState::Loading)
+			// Queued, Loading, Loaded 상태 모두 콜백 리스트에 추가
+			// Loaded 상태여도 ProcessCompletedResources가 아직 안 불렸을 수 있음
+			if (State == EAssetLoadState::Queued || State == EAssetLoadState::Loading || State == EAssetLoadState::Loaded)
 			{
-				if (Callback)
-				{
-					auto OldCallback = Handle->Callback;
-					Handle->Callback = [OldCallback, Callback](UResourceBase* Res)
-					{
-						if (OldCallback)
-						{
-							OldCallback(Res);
-						}
-						Callback(Res);
-					};
-				}
+				Handle->AddCallback(Callback);
 				return Handle;
 			}
 		}
@@ -263,7 +254,7 @@ std::shared_ptr<FStreamableHandle> FAsyncLoader::RequestAsyncLoad(
 	auto Handle = std::make_shared<FStreamableHandle>();
 	Handle->FilePath = NormalizedPath;
 	Handle->LoadState = EAssetLoadState::Queued;
-	Handle->Callback = Callback;
+	Handle->AddCallback(Callback);
 
 	{
 		std::lock_guard<std::mutex> Lock(HandleMutex);
@@ -365,19 +356,23 @@ void FAsyncLoader::ProcessCompletedResources()
 			}
 		}
 
-		std::function<void(UResourceBase*)> CallbackToExecute = nullptr;
+		// 콜백 리스트 전체 실행 후 정리
 		{
 			std::lock_guard<std::mutex> Lock(HandleMutex);
 			auto* Handle = HandleMap.Find(Result.FilePath);
 			if (Handle && *Handle)
 			{
-				CallbackToExecute = (*Handle)->Callback;
+				for (auto& Callback : (*Handle)->Callbacks)
+				{
+					if (Callback)
+					{
+						Callback(Result.Resource);
+					}
+				}
+				(*Handle)->ClearCallbacks();
+				// 처리 완료 후 핸들 제거 (다음 요청은 ResourceManager에서 즉시 처리됨)
+				HandleMap.Remove(Result.FilePath);
 			}
-		}
-
-		if (CallbackToExecute)
-		{
-			CallbackToExecute(Result.Resource);
 		}
 	}
 }
@@ -405,24 +400,15 @@ void FAsyncLoader::Resume()
 
 void FAsyncLoader::ClearAllCallbacks()
 {
-	// HandleMap의 모든 콜백 제거
+	// HandleMap의 모든 콜백 리스트 제거
 	{
 		std::lock_guard<std::mutex> Lock(HandleMutex);
 		for (auto& Pair : HandleMap)
 		{
 			if (Pair.second)
 			{
-				Pair.second->Callback = nullptr;
+				Pair.second->ClearCallbacks();
 			}
-		}
-	}
-
-	// CompletedQueue의 모든 콜백 제거
-	{
-		std::lock_guard<std::mutex> Lock(CompletedMutex);
-		for (auto& Result : CompletedQueue)
-		{
-			Result.Callback = nullptr;
 		}
 	}
 
