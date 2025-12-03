@@ -56,6 +56,56 @@ void PhysicsAssetViewerState::SelectBody(int32 BodyIndex)
         if (Setup)
         {
             SelectedBoneName = Setup->BoneName;
+
+            // Body의 첫 번째 Shape 위치에 Gizmo 설정
+            AGizmoActor* Gizmo = World ? World->GetGizmoActor() : nullptr;
+            if (Gizmo && PreviewActor && CurrentMesh)
+            {
+                USkeletalMeshComponent* SkelComp = PreviewActor->GetSkeletalMeshComponent();
+                const FSkeleton* Skeleton = CurrentMesh->GetSkeleton();
+
+                if (SkelComp && Skeleton)
+                {
+                    // 해당 본의 인덱스 찾기
+                    int32 BoneIndex = -1;
+                    std::string BoneNameStr = Setup->BoneName.ToString();
+                    for (int32 i = 0; i < Skeleton->Bones.size(); ++i)
+                    {
+                        if (Skeleton->Bones[i].Name == BoneNameStr)
+                        {
+                            BoneIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (BoneIndex >= 0)
+                    {
+                        // Body의 첫 번째 Shape 타입 및 인덱스 결정
+                        EAggCollisionShape::Type ShapeType = EAggCollisionShape::Unknown;
+                        int32 ShapeIndex = 0;
+
+                        if (Setup->AggGeom.SphereElems.Num() > 0)
+                        {
+                            ShapeType = EAggCollisionShape::Sphere;
+                        }
+                        else if (Setup->AggGeom.BoxElems.Num() > 0)
+                        {
+                            ShapeType = EAggCollisionShape::Box;
+                        }
+                        else if (Setup->AggGeom.SphylElems.Num() > 0)
+                        {
+                            ShapeType = EAggCollisionShape::Capsule;
+                        }
+
+                        if (ShapeType != EAggCollisionShape::Unknown)
+                        {
+                            Gizmo->SetShapeTarget(SkelComp, Setup, BoneIndex, ShapeType, ShapeIndex);
+                            Gizmo->SetMode(EGizmoMode::Translate);  // Body는 이동이 주요 용도
+                            Gizmo->SetbRender(true);
+                        }
+                    }
+                }
+            }
         }
     }
 

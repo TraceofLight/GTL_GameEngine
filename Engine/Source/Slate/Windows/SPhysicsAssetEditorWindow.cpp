@@ -332,6 +332,14 @@ void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
     }
     bool bInViewport = VPRect.Contains(MousePos);
 
+    // Viewport 클릭 시 Node Editor 선택 해제 (입력 캡처 해제)
+    if (bInViewport && GraphState && GraphState->Context)
+    {
+        ed::SetCurrentEditor(GraphState->Context);
+        ed::ClearSelection();
+        ed::SetCurrentEditor(nullptr);
+    }
+
     if (bInViewport)
     {
         FVector2D LocalPos = MousePos - FVector2D(VPRect.Left, VPRect.Top);
@@ -1354,7 +1362,10 @@ void SPhysicsAssetBodyListPanel::RenderSkeletonBodyTree(PhysicsAssetViewerState*
             }
             else
             {
+                // Body가 없는 bone 클릭 시: 선택만 초기화, 필터링 상태 유지
+                int32 savedFilter = State->GraphFilterRootBodyIndex;
                 State->ClearSelection();
+                State->GraphFilterRootBodyIndex = savedFilter;  // 필터링 유지
                 State->SelectedBoneName = BoneName;
             }
         }
@@ -3588,13 +3599,9 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                 // Parent Body 노드 확인 (그룹당 1개)
                 if (Group.ParentBodyNodeID == selectedNodeId)
                 {
-                    // 선택 상태 업데이트 (필터링 유지)
-                    State->SelectedConstraintIndex = -1;
-                    State->SelectedShapeIndex = -1;
-                    State->SelectedShapeType = EAggCollisionShape::Unknown;
-                    State->SelectedBodyIndex = Group.ParentBodyIndex;
-                    State->EditMode = EPhysicsAssetEditMode::Body;
-                    State->SelectedBoneName = FName(Group.ParentBoneName.c_str());
+                    // SelectBody 호출로 Gizmo 설정 + 필터링 유지
+                    State->SelectBody(Group.ParentBodyIndex);
+                    State->GraphFilterRootBodyIndex = savedFilterIndex;  // 필터 복원
                     bFound = true;
                     break;
                 }
@@ -3615,13 +3622,9 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                     // Child Body 노드 확인
                     if (Child.ChildBodyNodeID == selectedNodeId)
                     {
-                        // 선택 상태 업데이트 (필터링 유지)
-                        State->SelectedConstraintIndex = -1;
-                        State->SelectedShapeIndex = -1;
-                        State->SelectedShapeType = EAggCollisionShape::Unknown;
-                        State->SelectedBodyIndex = Child.ChildBodyIndex;
-                        State->EditMode = EPhysicsAssetEditMode::Body;
-                        State->SelectedBoneName = FName(Child.ChildBoneName.c_str());
+                        // SelectBody 호출로 Gizmo 설정 + 필터링 유지
+                        State->SelectBody(Child.ChildBodyIndex);
+                        State->GraphFilterRootBodyIndex = savedFilterIndex;  // 필터 복원
                         bFound = true;
                         break;
                     }
@@ -3636,21 +3639,9 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                 FPAEBodyNode* SelectedBody = Owner->FindBodyNode(selectedNodeId);
                 if (SelectedBody && SelectedBody->BodyIndex >= 0)
                 {
-                    // 선택 상태 업데이트 (필터링 유지)
-                    State->SelectedConstraintIndex = -1;
-                    State->SelectedShapeIndex = -1;
-                    State->SelectedShapeType = EAggCollisionShape::Unknown;
-                    State->SelectedBodyIndex = SelectedBody->BodyIndex;
-                    State->EditMode = EPhysicsAssetEditMode::Body;
-
-                    if (State->PhysicsAsset && SelectedBody->BodyIndex < State->PhysicsAsset->BodySetups.Num())
-                    {
-                        UBodySetup* Setup = State->PhysicsAsset->BodySetups[SelectedBody->BodyIndex];
-                        if (Setup)
-                        {
-                            State->SelectedBoneName = Setup->BoneName;
-                        }
-                    }
+                    // SelectBody 호출로 Gizmo 설정 + 필터링 유지
+                    State->SelectBody(SelectedBody->BodyIndex);
+                    State->GraphFilterRootBodyIndex = savedFilterIndex;  // 필터 복원
                 }
                 else
                 {
