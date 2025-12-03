@@ -14,11 +14,18 @@ class CPickingSystem;
 class FViewport;
 class USkeletalMeshComponent;
 
+class UPhysicsConstraintSetup;
+class UBodySetup;
+struct FKShapeElem;
+namespace EAggCollisionShape { enum Type : int; }
+
 // Gizmo 타겟 타입
 enum class EGizmoTargetType : uint8
 {
     Actor,        // 일반 Actor/Component 타겟
-    Bone          // SkeletalMeshComponent의 특정 본 타겟
+    Bone,         // SkeletalMeshComponent의 특정 본 타겟
+    Constraint,   // Physics Constraint 타겟
+    Shape         // Physics Shape 타겟 (Body 내의 개별 Shape)
 };
 
 class AGizmoActor : public AActor
@@ -83,6 +90,20 @@ public:
     bool IsBoneTarget() const { return TargetType == EGizmoTargetType::Bone; }
     EGizmoTargetType GetTargetType() const { return TargetType; }
 
+    // Constraint target functions
+    void SetConstraintTarget(USkeletalMeshComponent* InComponent, UPhysicsConstraintSetup* InConstraint, int32 InBone1Index, int32 InBone2Index);
+    void ClearConstraintTarget();
+    bool IsConstraintTarget() const { return TargetType == EGizmoTargetType::Constraint; }
+    UPhysicsConstraintSetup* GetTargetConstraint() const { return TargetConstraintSetup; }
+
+    // Shape target functions
+    void SetShapeTarget(USkeletalMeshComponent* InComponent, UBodySetup* InBodySetup, int32 InBoneIndex, EAggCollisionShape::Type InShapeType, int32 InShapeIndex);
+    void ClearShapeTarget();
+    bool IsShapeTarget() const { return TargetType == EGizmoTargetType::Shape; }
+    UBodySetup* GetTargetBodySetup() const { return TargetBodySetup; }
+    EAggCollisionShape::Type GetTargetShapeType() const { return TargetShapeType; }
+    int32 GetTargetShapeIndex() const { return TargetShapeIndex; }
+
     void ProcessGizmoInteraction(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
     void ProcessGizmoModeSwitch();
 
@@ -129,6 +150,16 @@ protected:
     USkeletalMeshComponent* TargetSkeletalMeshComponent = nullptr;
     int32 TargetBoneIndex = -1;
 
+    // Constraint target state
+    UPhysicsConstraintSetup* TargetConstraintSetup = nullptr;
+    int32 TargetConstraintBone1Index = -1;
+    int32 TargetConstraintBone2Index = -1;
+
+    // Shape target state
+    UBodySetup* TargetBodySetup = nullptr;
+    EAggCollisionShape::Type TargetShapeType = static_cast<EAggCollisionShape::Type>(0);
+    int32 TargetShapeIndex = -1;
+
     // Manager references
     USelectionManager* SelectionManager = nullptr;
     UInputManager* InputManager = nullptr;
@@ -146,6 +177,18 @@ private:
     FQuat DragStartRotation;
     FVector DragStartLocation;
     FVector DragStartScale;
+
+    // Shape 드래그 시작 시점의 로컬 데이터
+    FVector DragStartShapeCenter;
+    FVector DragStartShapeRotation;  // Euler angles
+    float DragStartShapeRadius = 0.0f;
+    float DragStartShapeX = 0.0f;
+    float DragStartShapeY = 0.0f;
+    float DragStartShapeZ = 0.0f;
+    float DragStartShapeLength = 0.0f;
+
+    // Constraint 드래그 시작 시점의 데이터
+    FQuat DragStartConstraintRotation;
 
     // 드래그 시작 시점의 마우스 및 카메라 정보
     FVector2D DragStartPosition;

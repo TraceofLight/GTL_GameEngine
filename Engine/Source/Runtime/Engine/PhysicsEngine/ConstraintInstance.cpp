@@ -22,13 +22,13 @@ bool FConstraintInstance::CreateJoint(PxPhysics* Physics, FBodyInstance* InBodyA
 {
 	if (!Physics)
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Physics is null");
+		UE_LOG("Physics: CreateJoint: Physics is null");
 		return false;
 	}
 
 	if (!Setup)
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Setup is null");
+		UE_LOG("Physics: CreateJoint: Setup is null");
 		return false;
 	}
 
@@ -56,31 +56,31 @@ bool FConstraintInstance::CreateJoint(PxPhysics* Physics, FBodyInstance* InBodyA
 	// PhysX Joint 생성 조건 검증
 	if (!ActorA && !ActorB)
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Both actors are null");
+		UE_LOG("Physics: CreateJoint: Both actors are null");
 		return false;
 	}
 
 	if (ActorA && !ActorA->getScene())
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: ActorA is not in scene");
+		UE_LOG("Physics: CreateJoint: ActorA is not in scene");
 		return false;
 	}
 
 	if (ActorB && !ActorB->getScene())
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: ActorB is not in scene");
+		UE_LOG("Physics: CreateJoint: ActorB is not in scene");
 		return false;
 	}
 
 	if (ActorA && ActorB && ActorA->getScene() != ActorB->getScene())
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Actors are in different scenes");
+		UE_LOG("Physics: CreateJoint: Actors are in different scenes");
 		return false;
 	}
 
 	if (ActorA && ActorB && ActorA == ActorB)
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Same actor");
+		UE_LOG("Physics: CreateJoint: Same actor");
 		return false;
 	}
 
@@ -107,12 +107,12 @@ bool FConstraintInstance::CreateJoint(PxPhysics* Physics, FBodyInstance* InBodyA
 	// PxTransform 유효성 검증
 	if (!LocalFrameA.isValid())
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: LocalFrameA is invalid");
+		UE_LOG("Physics: CreateJoint: LocalFrameA is invalid");
 		return false;
 	}
 	if (!LocalFrameB.isValid())
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: LocalFrameB is invalid");
+		UE_LOG("Physics: CreateJoint: LocalFrameB is invalid");
 		return false;
 	}
 
@@ -122,7 +122,7 @@ bool FConstraintInstance::CreateJoint(PxPhysics* Physics, FBodyInstance* InBodyA
 
 	if (!JointHandle)
 	{
-		UE_LOG("[Physics] FConstraintInstance::CreateJoint: Failed to create PxD6Joint");
+		UE_LOG("Physics: CreateJoint: Failed to create PxD6Joint");
 		return false;
 	}
 
@@ -237,14 +237,32 @@ void FConstraintInstance::SetAngularLimits(const UPhysicsConstraintSetup* Setup)
 		return;
 	}
 
-	// Swing1 (Y축 회전)
-	SetSwing1Limit(Setup->Swing1Motion, Setup->Swing1LimitAngle);
+	// Motion 설정
+	JointHandle->setMotion(PxD6Axis::eSWING1, ConvertAngularMotion(Setup->Swing1Motion));
+	JointHandle->setMotion(PxD6Axis::eSWING2, ConvertAngularMotion(Setup->Swing2Motion));
+	JointHandle->setMotion(PxD6Axis::eTWIST, ConvertAngularMotion(Setup->TwistMotion));
 
-	// Swing2 (Z축 회전)
-	SetSwing2Limit(Setup->Swing2Motion, Setup->Swing2LimitAngle);
+	// Swing Limit (Swing1과 Swing2를 함께 설정)
+	bool bSwing1Limited = (Setup->Swing1Motion == EAngularConstraintMotion::Limited);
+	bool bSwing2Limited = (Setup->Swing2Motion == EAngularConstraintMotion::Limited);
 
-	// Twist (X축 회전)
-	SetTwistLimit(Setup->TwistMotion, Setup->TwistLimitAngle);
+	if (bSwing1Limited || bSwing2Limited)
+	{
+		float Swing1Rad = bSwing1Limited ? DegreesToRadians(Setup->Swing1LimitAngle) : PxPi;
+		float Swing2Rad = bSwing2Limited ? DegreesToRadians(Setup->Swing2LimitAngle) : PxPi;
+
+		// PxJointLimitCone(swing1, swing2, spring)
+		PxJointLimitCone SwingLimit(Swing1Rad, Swing2Rad, PxSpring(0.0f, 0.0f));
+		JointHandle->setSwingLimit(SwingLimit);
+	}
+
+	// Twist Limit
+	if (Setup->TwistMotion == EAngularConstraintMotion::Limited)
+	{
+		float TwistRad = DegreesToRadians(Setup->TwistLimitAngle);
+		PxJointAngularLimitPair TwistLimit(-TwistRad, TwistRad, PxSpring(0.0f, 0.0f));
+		JointHandle->setTwistLimit(TwistLimit);
+	}
 }
 
 void FConstraintInstance::SetSwing1Limit(EAngularConstraintMotion Motion, float LimitAngle)
@@ -299,15 +317,20 @@ void FConstraintInstance::SetTwistLimit(EAngularConstraintMotion Motion, float L
 
 void FConstraintInstance::SetSoftSwingLimit(bool bEnable, float Stiffness, float Damping)
 {
-	if (!JointHandle)
+	if (!JointHandle || !ConstraintSetup)
 	{
 		return;
 	}
 
-	if (bEnable && ConstraintSetup)
+	if (bEnable)
 	{
-		float Swing1Rad = DegreesToRadians(ConstraintSetup->Swing1LimitAngle);
-		float Swing2Rad = DegreesToRadians(ConstraintSetup->Swing2LimitAngle);
+		// Swing1과 Swing2 각도를 함께 설정 (Soft Spring 포함)
+		bool bSwing1Limited = (ConstraintSetup->Swing1Motion == EAngularConstraintMotion::Limited);
+		bool bSwing2Limited = (ConstraintSetup->Swing2Motion == EAngularConstraintMotion::Limited);
+
+		float Swing1Rad = bSwing1Limited ? DegreesToRadians(ConstraintSetup->Swing1LimitAngle) : PxPi;
+		float Swing2Rad = bSwing2Limited ? DegreesToRadians(ConstraintSetup->Swing2LimitAngle) : PxPi;
+
 		PxJointLimitCone SwingLimit(Swing1Rad, Swing2Rad, PxSpring(Stiffness, Damping));
 		JointHandle->setSwingLimit(SwingLimit);
 	}

@@ -1,5 +1,9 @@
 ﻿#pragma once
 
+// Forward declaration for JSON type (defined in pch.h via nlohmann/json.hpp)
+namespace json { class JSON; }
+using JSON = json::JSON;
+
 namespace EAggCollisionShape
 {
 	enum Type : int
@@ -45,14 +49,18 @@ public:
 	/** Get whether this shape should be considered for query or sim collision */
 	bool GetCollisionEnabled() const { return bCollisionEnabled; }
 
+	/** Get the shape type */
+	EAggCollisionShape::Type GetShapeType() const { return ShapeType; }
+
 	virtual FTransform GetTransform() const
 	{
 		return FTransform();
 	}
 
+	/** Serialize this shape element to/from JSON */
+	virtual void Serialize(bool bIsLoading, JSON& Json);
 
-
-private:
+protected:
 	FName Name;
 	EAggCollisionShape::Type ShapeType;
 	bool bContributeToMass = true;

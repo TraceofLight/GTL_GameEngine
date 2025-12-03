@@ -22,6 +22,7 @@ FSceneView::FSceneView(FMinimalViewInfo* InMinimalViewInfo, URenderSettings* InR
 	FieldOfView = InMinimalViewInfo->FieldOfView;
 	AspectRatio = InMinimalViewInfo->AspectRatio;
 	ZoomFactor = InMinimalViewInfo->ZoomFactor;
+	OrthoZoom = InMinimalViewInfo->OrthoZoom;
 	ProjectionMode = InMinimalViewInfo->ProjectionMode;
 
 	// --- 2. 뷰 행렬 계산 ---
@@ -36,7 +37,7 @@ FSceneView::FSceneView(FMinimalViewInfo* InMinimalViewInfo, URenderSettings* InR
 		static_cast<float>(InMinimalViewInfo->ViewRect.Height()),
 		InMinimalViewInfo->NearClip,
 		InMinimalViewInfo->FarClip,
-		InMinimalViewInfo->ZoomFactor,
+		InMinimalViewInfo->OrthoZoom,
 		InMinimalViewInfo->ProjectionMode
 	);
 
@@ -69,6 +70,7 @@ FSceneView::FSceneView(UCameraComponent* InCamera, FViewport* InViewport, URende
 	FarClip = InCamera->GetFarClip();
 	FieldOfView = InCamera->GetFOV();
 	ZoomFactor = InCamera->GetZoomFactor();
+	OrthoZoom = InCamera->GetOrthoZoom();
 
 	ViewRect.MinX = InViewport->GetStartX();
 	ViewRect.MinY = InViewport->GetStartY();

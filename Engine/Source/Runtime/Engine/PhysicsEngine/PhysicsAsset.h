@@ -42,4 +42,8 @@ public:
 
 	// ===== Serialization =====
 	void Serialize(bool bIsLoading, JSON& Json);
+
+    // Serialization
+    bool SaveToFile(const FString& FilePath) const;
+    bool LoadFromFile(const FString& FilePath);
 };

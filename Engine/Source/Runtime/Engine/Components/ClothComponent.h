@@ -98,6 +98,9 @@ struct FClothConstraint
 /**
  * @brief NvCloth 기반 Cloth 시뮬레이션 컴포넌트
  */
+
+
+UCLASS(DisplayName = "옷 컴포넌트", Description = "옷")
 class UClothComponent : public USkinnedMeshComponent
 { 
 	GENERATED_REFLECTION_BODY()
@@ -109,32 +112,19 @@ public:
 	// Lifecycle
 	virtual void InitializeComponent() override;
 	virtual void BeginPlay() override;
+	virtual void EndPlay() override;
 	virtual void TickComponent(float DeltaTime) override;
 	virtual void OnCreatePhysicsState() override;
 	virtual void CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) override;
-	//virtual void OnDestroyPhysicsState() override;
 
 	// Cloth setup
 	void SetupClothFromMesh();
 	void ReleaseCloth();
-
-	// Constraint management
-	//void AddConstraint(int32 VertexIndex, EClothConstraintType Type,
-	//	const FVector& Position = FVector::Zero(),
-	//	float MaxDistance = 0.0f);
-	//void RemoveConstraint(int32 VertexIndex);
-	//void ClearConstraints();
-	//void UpdateConstraintPositions();
-
+	 
 	// Wind control
 	void SetWindVelocity(const FVector& Velocity);
 	void SetWindParams(float Drag, float Lift);
-
-	//// Simulation control
-	//void ResetClothSimulation();
-	//void SetClothEnabled(bool bEnabled);
-	//bool IsClothEnabled() const { return bClothEnabled; }
-
+	 
 	// Settings
 	//void SetClothSettings(const FClothSimulationSettings& NewSettings);
 	const FClothSimulationSettings& GetClothSettings() const { return ClothSettings; }
@@ -156,12 +146,7 @@ public:
 	FTransform GetBoneTransform(int32 BoneIndex) const;
 	FVector GetBoneLocation(const FName& BoneName);
 	FVector GetAttachmentPosition(int32 AttachmentIndex);
-protected:
-	// NvCloth objects
-	nv::cloth::Factory* ClothFactory = nullptr;
-	nv::cloth::Solver* ClothSolver = nullptr;
-	nv::cloth::Fabric* ClothFabric = nullptr;
-	nv::cloth::Cloth* NvCloth = nullptr;
+protected: 
 
 	// Cloth data
 	TArray<physx::PxVec4> ClothParticles;       // 정점 위치 + inverse mass (w)
@@ -197,6 +182,11 @@ protected:
 	float AccumulatedTime = 0.0f;
 	float SimulationFrequency = 60.0f;          // Hz
 
+	// PIE state restoration
+	TArray<physx::PxVec4> CacheOriginalParticles;    // PIE 시작 전 원본 위치 (복구용)
+	bool bHasSavedOriginalState = false;        // 원본 상태 저장 여부
+
+	virtual void DuplicateSubObjects() override;
 private:
 	// Internal helpers
 	void InitializeNvCloth();
@@ -205,10 +195,10 @@ private:
 	void CreatePhaseConfig();
 	void CreateSolver();
 
-	void SimulateCloth(float DeltaSeconds);
+	//void SimulateCloth(float DeltaSeconds);
 	void RetrievingSimulateResult();
 	void RecalculateNormals();
-
+	
 	void ApplyClothProperties();
 	void ApplyTetherConstraint();
 
@@ -218,33 +208,24 @@ private:
 	void UpdateClothSimulation(float DeltaTime);
 	void UpdateVerticesFromCloth();
 	void BuildClothMesh();
+
+	// PIE state management
+	void SaveOriginalState();
+	void RestoreOriginalState();
 	void ExtractClothSection(const FGroupInfo& Group, const TArray<FSkinnedVertex>& AllVertices, const TArray<uint32>& AllIndices);
 	bool ShouldFixVertex(const FSkinnedVertex& Vertex);
 	void UpdateSectionVertices(const FGroupInfo& Group, int32& ParticleIdx);
 
-	//void ComputeInvMasses();
-
-	//// Constraint helpers	
-	//void ApplyConstraintsToCloth();
-	void UpdateMotionConstraints();
-	//void UpdateSeparationConstraints();
+	// Constraint helpers	 
+	void UpdateMotionConstraints(); 
 	void ClearMotionConstraints();
-
-	//// Collision helpers
-	//void UpdateCollisionShapes();
-
-	//// Cooking helpers
-	//nv::cloth::ClothMeshDesc GetClothMeshDesc();
-
-
-	nv::cloth::Factory* factory;
-
-	nv::cloth::Fabric* fabric;
-	nv::cloth::Cloth* cloth;	
-	nv::cloth::Vector<int32_t>::Type phaseTypeInfo;
-	nv::cloth::Solver* solver;
-	nv::cloth::PhaseConfig* phases;
 	 
+	 
+	nv::cloth::Fabric* fabric;
+	nv::cloth::Cloth* cloth;
+	nv::cloth::Vector<int32_t>::Type phaseTypeInfo;
+	nv::cloth::PhaseConfig* phases;
+	  
 	void CreateOrResizeClothGPUBuffer(uint32 Float3Count);
 	void UpdateClothGPUBufferFromParticles();         // PreviousParticles -> GPU
 	void ReleaseClothGPUBuffer(); 

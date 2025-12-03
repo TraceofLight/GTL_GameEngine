@@ -40,6 +40,7 @@
 #include"Character.h"
 #include "LuaBindHelpers.h"
 #include "SkySphereActor.h"
+#include "ClothManager.h"
 
 IMPLEMENT_CLASS(UWorld)
 
@@ -111,6 +112,7 @@ void UWorld::Initialize()
 	{
 		Partition = std::make_unique<UWorldPartitionManager>();
 	}
+	 
 
 	// 기본 씬을 생성합니다.
 	CreateLevel();
@@ -318,7 +320,7 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 
 	// PIE World용 Physics Scene 생성
 	PIEWorld->PhysicsSceneHandle = PHYSICS.CreateScene();
-
+	 
 	FWorldContext PIEWorldContext = FWorldContext(PIEWorld, EWorldType::Game);
 	GEngine.AddWorldContext(PIEWorldContext);
 
@@ -357,7 +359,7 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 	APlayerController* NewPlayerController = PIEWorld->SpawnActor<APlayerController>();
 	if (NewPlayerController)
 	{
-		UE_LOG("[World] PlayerController created for PIE: %s", NewPlayerController->GetName().c_str());
+		UE_LOG("World: DuplicateWorldForPIE: PlayerController created - %s", NewPlayerController->GetName().c_str());
 
 		// 첫 번째 Character 찾아서 자동으로 Possess
 		ACharacter* Character = nullptr;
@@ -379,7 +381,7 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 		if (Character)
 		{
 			NewPlayerController->Possess(Character);
-			UE_LOG("[World] PlayerController possessed Pawn: %s", Character->GetName().c_str());
+			UE_LOG("World: DuplicateWorldForPIE: Possessed Pawn - %s", Character->GetName().c_str());
 		}
 	}
 
@@ -388,7 +390,7 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 	{
 		APlayerCameraManager* NewPCM = PIEWorld->SpawnActor<APlayerCameraManager>();
 		PIEWorld->PlayerCameraManager = NewPCM;
-		UE_LOG("[World] PlayerCameraManager created for PIE");
+		UE_LOG("World: DuplicateWorldForPIE: PlayerCameraManager created");
 	}
 
 	return PIEWorld;
@@ -846,12 +848,12 @@ void UWorld::PlaySound3D(const FString& SoundPath, const FVector& Location, floa
 	USound* Sound = UResourceManager::GetInstance().Load<USound>(SoundPath);
 	if (Sound)
 	{
-		UE_LOG("[World] PlaySound3D: Playing sound at location (%.1f, %.1f, %.1f), Volume=%.2f", Location.X, Location.Y, Location.Z, Volume);
+		UE_LOG("World: PlaySound3D: Playing at (%.1f, %.1f, %.1f), Volume=%.2f", Location.X, Location.Y, Location.Z, Volume);
 		FAudioDevice::PlaySound3D(Sound, Location, Volume, false);
 	}
 	else
 	{
-		UE_LOG("[World] PlaySound3D: Failed to load sound: %s", SoundPath.c_str());
+		UE_LOG("World: PlaySound3D: Failed to load - %s", SoundPath.c_str());
 	}
 }
 

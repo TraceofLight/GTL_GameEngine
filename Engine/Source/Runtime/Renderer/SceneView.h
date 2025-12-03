@@ -28,6 +28,7 @@ struct FMinimalViewInfo
     FQuat ViewRotation;
     float FieldOfView = 90.0f;
     float ZoomFactor = 1.0f;
+    float OrthoZoom = 0.1f;
     float NearClip = 10.0f;
     float FarClip = 1000.0f;
     float AspectRatio = 1.7777f;
@@ -76,6 +77,7 @@ public:
     float FieldOfView = 0.0f;
     float AspectRatio = 0.0f;
     float ZoomFactor = 0.0f;
+    float OrthoZoom = 0.1f;  // Orthographic 줌 레벨 (픽셀당 월드 유닛)
 
     TArray<FPostProcessModifier> Modifiers;
 };

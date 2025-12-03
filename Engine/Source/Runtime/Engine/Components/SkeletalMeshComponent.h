@@ -140,6 +140,10 @@ public:
 	FBodyInstance* GetBodyInstanceByBoneName(const FName& BoneName) const;
 	bool IsRagdollActive() const { return bRagdollActive; }
 
+	// Constraint 생성 (런타임 포즈 기반으로 Joint 위치 계산)
+	// PAE에서 시뮬레이션 시작 시 명시적 호출 필요
+	void CreateConstraints();
+
 	// ===== Kinematic Sync Functions =====
 	// 애니메이션 평가 후 본 트랜스폼을 물리 바디에 푸시 (per-bone kinematic bodies)
 	void UpdateKinematicBonesToPhysics();
@@ -157,7 +161,6 @@ protected:
 	void ForceRecomputePose();
 	void UpdateComponentSpaceTransforms();
 	void UpdateFinalSkinningMatrices();
-	void CreateConstraints();  // Constraint 생성 (BeginPlay에서 호출)
 
 private:
 	UAnimInstance* AnimInstance;

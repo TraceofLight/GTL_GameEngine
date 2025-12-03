@@ -168,11 +168,11 @@ void USlateManager::Initialize(ID3D11Device* InDevice, UWorld* InWorld, const FR
     Viewports[1] = new SViewportWindow();
     Viewports[2] = new SViewportWindow();
     Viewports[3] = new SViewportWindow();
-    MainViewport = Viewports[0];
+    MainViewport = Viewports[2];
 
     Viewports[0]->Initialize(0, 0,
         Rect.GetWidth() / 2, Rect.GetHeight() / 2,
-        World, Device, EViewportType::Perspective);
+        World, Device, EViewportType::Orthographic_Top);
 
     Viewports[1]->Initialize(Rect.GetWidth() / 2, 0,
         Rect.GetWidth(), Rect.GetHeight() / 2,
@@ -180,11 +180,11 @@ void USlateManager::Initialize(ID3D11Device* InDevice, UWorld* InWorld, const FR
 
     Viewports[2]->Initialize(0, Rect.GetHeight() / 2,
         Rect.GetWidth() / 2, Rect.GetHeight(),
-        World, Device, EViewportType::Orthographic_Left);
+        World, Device, EViewportType::Perspective);
 
     Viewports[3]->Initialize(Rect.GetWidth() / 2, Rect.GetHeight() / 2,
         Rect.GetWidth(), Rect.GetHeight(),
-        World, Device, EViewportType::Orthographic_Top);
+        World, Device, EViewportType::Orthographic_Right);
 
     World->SetEditorCameraActor(MainViewport->GetViewportClient()->GetCamera());
 
@@ -919,6 +919,13 @@ void USlateManager::RenderAfterUI()
 void USlateManager::Update(float DeltaSeconds)
 {
     ProcessInput();
+
+    // ESC 키로 드래그 드롭 취소
+    if (ImGui::GetDragDropPayload() != nullptr && ImGui::IsKeyPressed(ImGuiKey_Escape))
+    {
+        ImGui::ClearDragDrop();
+    }
+
     // MainToolbar 업데이트
     MainToolbar->Update();
 
@@ -1032,6 +1039,13 @@ void USlateManager::ProcessInput()
             OnMouseDown(MousePosition, 1);
         }
     }
+	if (INPUT.IsMouseButtonPressed(MiddleButton))
+	{
+		const FVector2D MousePosition = INPUT.GetMousePosition();
+		{
+			OnMouseDown(MousePosition, 2);
+		}
+	}
     if (INPUT.IsMouseButtonReleased(LeftButton))
     {
         const FVector2D MousePosition = INPUT.GetMousePosition();
@@ -1124,6 +1138,16 @@ void USlateManager::ProcessInput()
 
 void USlateManager::OnMouseMove(FVector2D MousePos)
 {
+    // 각 뷰포트의 호버링 상태 업데이트 (휠 줌 처리용)
+    for (auto* VP : Viewports)
+    {
+        if (VP && VP->GetViewportClient())
+        {
+            bool bHovered = VP->Rect.Contains(MousePos);
+            VP->GetViewportClient()->SetHovered(bHovered);
+        }
+    }
+
     // Handle unified splitter dragging first
     if (bIsDraggingCenterCross && LeftPanel && LeftTop && LeftBottom)
     {
@@ -1212,6 +1236,23 @@ void USlateManager::OnMouseMove(FVector2D MousePos)
 
 void USlateManager::OnMouseDown(FVector2D MousePos, uint32 Button)
 {
+    // PIE 모드에서 입력이 해제된 상태에서 뷰포트 클릭 시 입력 재캡처
+    // 좌클릭, 우클릭, 휠클릭 모두 지원
+#ifdef _EDITOR
+    if (GEngine.IsPIEActive() && !GEngine.IsPIEInputCaptured())
+    {
+        // 뷰포트 영역 클릭인지 확인
+        for (auto* VP : Viewports)
+        {
+            if (VP && VP->Rect.Contains(MousePos))
+            {
+                GEngine.SetPIEInputCaptured(true);
+                return;  // 입력 재캡처 후 다른 처리 스킵
+            }
+        }
+    }
+#endif
+
     // Check for unified splitter control first (only left click, only in FourSplit mode)
     if (Button == 0 && CurrentMode == EViewportLayoutMode::FourSplit)
     {
@@ -1297,8 +1338,13 @@ void USlateManager::OnMouseUp(FVector2D MousePos, uint32 Button)
         }
     }
 
-    // Restore cursor on right click release
+    // Restore cursor on right click release (PIE 입력 캡처 중에는 스킵)
+#ifdef _EDITOR
+    bool bShouldRestoreCursor = !(GEngine.IsPIEActive() && GEngine.IsPIEInputCaptured());
+    if (Button == 1 && INPUT.IsCursorLocked() && bShouldRestoreCursor)
+#else
     if (Button == 1 && INPUT.IsCursorLocked())
+#endif
     {
         INPUT.SetCursorVisible(true);
         INPUT.ReleaseCursor();

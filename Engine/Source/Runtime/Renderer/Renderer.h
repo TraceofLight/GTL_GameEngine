@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "RHIDevice.h"
 #include "LineDynamicMesh.h"
+#include "PrimitiveDynamicMesh.h"
 
 class UStaticMeshComponent;
 class UTextRenderComponent;
@@ -45,6 +46,12 @@ public:
 	void EndLineBatchAlwaysOnTop(const FMatrix& ModelMatrix);
 	void ClearLineBatch();
 
+	// Batch Primitive Rendering System (반투명 Physics Body 시각화용)
+	void BeginPrimitiveBatch();
+	void AddPrimitiveData(const FMeshData& MeshData, const FMatrix& Transform);
+	void EndPrimitiveBatch();
+	void ClearPrimitiveBatch();
+
 	D3D11RHI* GetRHIDevice() { return RHIDevice; }
 
 	void SetCurrentCamera(ACameraActor* InCamera) { CurrentCamera = InCamera; }
@@ -68,6 +75,15 @@ private:
 	static const uint32 MAX_LINES = 200000;  // Maximum lines per batch (safety headroom)
 
 	void InitializeLineBatch();
+
+	// Batch Primitive Rendering System (반투명 솔리드 메시용)
+	UPrimitiveDynamicMesh* DynamicPrimitiveMesh = nullptr;
+	FMeshData* PrimitiveBatchData = nullptr;
+	bool bPrimitiveBatchActive = false;
+	static const uint32 MAX_PRIMITIVE_VERTICES = 100000;
+	static const uint32 MAX_PRIMITIVE_INDICES = 300000;
+
+	void InitializePrimitiveBatch();
 
 	// 이전 drawCall에서 이미 썼던 RnderState면, 다시 Set 하지 않기 위해 만든 변수들
 	EViewMode PreViewModeIndex = EViewMode::VMI_Wireframe; // RSSetState, UpdateColorConstantBuffers

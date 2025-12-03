@@ -22,7 +22,7 @@ APawn::APawn()
 	// InputComponent 생성
 	InputComponent = CreateDefaultSubobject<UInputComponent>("InputComponent");
 
-	UE_LOG("[Pawn] Constructor: InputComponent = %p, OwnedComponents.size() = %d",
+	UE_LOG("Pawn: Constructor: InputComponent=%p, OwnedComponents.size=%d",
 	       InputComponent, (int)OwnedComponents.Num());
 }
 
