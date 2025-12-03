@@ -59,11 +59,8 @@ public:
     // Debug Draw Options
     bool bShowBodies = true;
     bool bShowConstraints = true;
-    bool bShowBoneNames = false;
     bool bShowMesh = true;
-    bool bShowSkeleton = false;
-    bool bShowBodyNames = false;
-    bool bWireframe = false;
+    bool bShowBones = false;  // Skeleton Bone 라인 렌더링
 
     // Simulation
     bool bSimulating = false;

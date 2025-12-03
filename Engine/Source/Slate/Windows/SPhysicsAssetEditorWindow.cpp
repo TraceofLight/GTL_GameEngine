@@ -11,6 +11,7 @@
 #include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
+#include "Source/Runtime/Engine/Components/LineComponent.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
@@ -249,6 +250,16 @@ void SPhysicsAssetEditorWindow::OnUpdate(float DeltaSeconds)
             Gizmo->ProcessGizmoModeSwitch();
         }
     }
+
+    // Bone Line 업데이트 (bShowBones가 활성화된 경우)
+    if (ActiveState->bShowBones && ActiveState->PreviewActor && ActiveState->CurrentMesh)
+    {
+        // 시뮬레이션 중이면 매 프레임 본 라인 갱신
+        if (ActiveState->bSimulating && !ActiveState->bSimulationPaused)
+        {
+            ActiveState->PreviewActor->RebuildBoneLines(-1, true, false);
+        }
+    }
 }
 
 void SPhysicsAssetEditorWindow::OnMouseMove(FVector2D MousePos)
@@ -469,6 +480,17 @@ void SPhysicsAssetEditorWindow::LoadSkeletalMesh(const FString& Path)
         {
             SkelComp->SetVisibility(ActiveState->bShowMesh);
         }
+
+        // 본 라인 초기화
+        if (auto* LineComp = ActiveState->PreviewActor->GetBoneLineComponent())
+        {
+            LineComp->ClearLines();
+            LineComp->SetLineVisible(ActiveState->bShowBones);
+            if (ActiveState->bShowBones)
+            {
+                ActiveState->PreviewActor->RebuildBoneLines(-1, false, true);
+            }
+        }
     }
 
     // State 업데이트
@@ -641,19 +663,35 @@ void SPhysicsAssetEditorWindow::RenderToolbar()
         {
             if (ActiveState)
             {
-                ImGui::Checkbox("Show Mesh", &ActiveState->bShowMesh);
-                ImGui::Checkbox("Show Bodies", &ActiveState->bShowBodies);
-                ImGui::Checkbox("Show Constraints", &ActiveState->bShowConstraints);
-                ImGui::Checkbox("Show Bone Names", &ActiveState->bShowBoneNames);
-
-                // Mesh 가시성 변경 시 적용
-                if (ActiveState->PreviewActor)
+                // Show Mesh 체크박스 - 변경 시 즉시 적용
+                if (ImGui::Checkbox("Show Mesh", &ActiveState->bShowMesh))
                 {
-                    if (auto* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent())
+                    if (ActiveState->PreviewActor)
                     {
-                        SkelComp->SetVisibility(ActiveState->bShowMesh);
+                        if (auto* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent())
+                        {
+                            SkelComp->SetVisibility(ActiveState->bShowMesh);
+                        }
                     }
                 }
+                // Show Bones 체크박스 - 변경 시 즉시 적용
+                if (ImGui::Checkbox("Show Bones", &ActiveState->bShowBones))
+                {
+                    if (ActiveState->PreviewActor)
+                    {
+                        if (auto* LineComp = ActiveState->PreviewActor->GetBoneLineComponent())
+                        {
+                            LineComp->SetLineVisible(ActiveState->bShowBones);
+                            if (ActiveState->bShowBones)
+                            {
+                                // 본 라인 초기화/갱신
+                                ActiveState->PreviewActor->RebuildBoneLines(-1, false, true);
+                            }
+                        }
+                    }
+                }
+                ImGui::Checkbox("Show Bodies", &ActiveState->bShowBodies);
+                ImGui::Checkbox("Show Constraints", &ActiveState->bShowConstraints);
             }
             ImGui::EndMenu();
         }
@@ -1650,20 +1688,138 @@ void SPhysicsAssetBodyListPanel::RenderConstraintList(PhysicsAssetViewerState* S
         return;
     }
 
+    UPhysicsAsset* PhysAsset = State->PhysicsAsset;
+
+    // ===== Add Constraint 버튼 =====
+    if (PhysAsset && PhysAsset->BodySetups.Num() >= 2)
+    {
+        if (ImGui::Button("+ Add Constraint", ImVec2(-1, 0)))
+        {
+            ImGui::OpenPopup("AddConstraintPopup");
+        }
+
+        // Add Constraint 팝업
+        if (ImGui::BeginPopup("AddConstraintPopup"))
+        {
+            static int SelectedBody1 = 0;
+            static int SelectedBody2 = 1;
+
+            ImGui::Text("Create New Constraint");
+            ImGui::Separator();
+
+            // Body 1 선택
+            if (ImGui::BeginCombo("Body 1", PhysAsset->BodySetups[SelectedBody1]->BoneName.ToString().c_str()))
+            {
+                for (int32 i = 0; i < PhysAsset->BodySetups.Num(); ++i)
+                {
+                    UBodySetup* Setup = PhysAsset->BodySetups[i];
+                    if (!Setup) continue;
+                    bool bSelected = (SelectedBody1 == i);
+                    if (ImGui::Selectable(Setup->BoneName.ToString().c_str(), bSelected))
+                    {
+                        SelectedBody1 = i;
+                    }
+                }
+                ImGui::EndCombo();
+            }
+
+            // Body 2 선택
+            if (ImGui::BeginCombo("Body 2", PhysAsset->BodySetups[SelectedBody2]->BoneName.ToString().c_str()))
+            {
+                for (int32 i = 0; i < PhysAsset->BodySetups.Num(); ++i)
+                {
+                    UBodySetup* Setup = PhysAsset->BodySetups[i];
+                    if (!Setup) continue;
+                    bool bSelected = (SelectedBody2 == i);
+                    if (ImGui::Selectable(Setup->BoneName.ToString().c_str(), bSelected))
+                    {
+                        SelectedBody2 = i;
+                    }
+                }
+                ImGui::EndCombo();
+            }
+
+            ImGui::Separator();
+
+            // 생성 버튼
+            bool bCanCreate = (SelectedBody1 != SelectedBody2);
+            if (!bCanCreate)
+            {
+                ImGui::BeginDisabled();
+            }
+
+            if (ImGui::Button("Create", ImVec2(120, 0)))
+            {
+                UBodySetup* Body1 = PhysAsset->BodySetups[SelectedBody1];
+                UBodySetup* Body2 = PhysAsset->BodySetups[SelectedBody2];
+
+                // 새 Constraint 생성
+                UPhysicsConstraintSetup* NewConstraint = NewObject<UPhysicsConstraintSetup>();
+                NewConstraint->ConstraintBone1 = Body1->BoneName;
+                NewConstraint->ConstraintBone2 = Body2->BoneName;
+                NewConstraint->BodyIndex1 = SelectedBody1;
+                NewConstraint->BodyIndex2 = SelectedBody2;
+
+                // 기본 제한값 설정
+                NewConstraint->LinearXMotion = ELinearConstraintMotion::Locked;
+                NewConstraint->LinearYMotion = ELinearConstraintMotion::Locked;
+                NewConstraint->LinearZMotion = ELinearConstraintMotion::Locked;
+                NewConstraint->Swing1Motion = EAngularConstraintMotion::Limited;
+                NewConstraint->Swing2Motion = EAngularConstraintMotion::Limited;
+                NewConstraint->TwistMotion = EAngularConstraintMotion::Limited;
+                NewConstraint->Swing1LimitAngle = 45.0f;
+                NewConstraint->Swing2LimitAngle = 45.0f;
+                NewConstraint->TwistLimitAngle = 45.0f;
+
+                PhysAsset->AddConstraintSetup(NewConstraint);
+
+                // Graph 동기화
+                if (Owner)
+                {
+                    Owner->SyncGraphFromPhysicsAsset();
+                }
+
+                UE_LOG("[PAE] Created constraint between '%s' and '%s'",
+                       Body1->BoneName.ToString().c_str(),
+                       Body2->BoneName.ToString().c_str());
+
+                ImGui::CloseCurrentPopup();
+            }
+
+            if (!bCanCreate)
+            {
+                ImGui::EndDisabled();
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 0)))
+            {
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::EndPopup();
+        }
+
+        ImGui::Separator();
+    }
+
     // PhysicsAsset이 없거나 Constraint가 없으면 안내 메시지
-    if (!State->PhysicsAsset || State->PhysicsAsset->ConstraintSetups.IsEmpty())
+    if (!PhysAsset || PhysAsset->ConstraintSetups.IsEmpty())
     {
         ImGui::TextDisabled("No constraints");
-        ImGui::TextDisabled("Use 'Generate Ragdoll' to create");
+        ImGui::TextDisabled("Use 'Generate Ragdoll' or '+ Add Constraint'");
         return;
     }
 
     // Constraint 목록 렌더링
-    UPhysicsAsset* PhysAsset = State->PhysicsAsset;
+    int32 ConstraintToDelete = -1;  // 삭제 예약 인덱스
+
     for (int32 i = 0; i < PhysAsset->ConstraintSetups.Num(); ++i)
     {
         UPhysicsConstraintSetup* Setup = PhysAsset->ConstraintSetups[i];
         if (!Setup) continue;
+
+        ImGui::PushID(i);
 
         char label[256];
         sprintf_s(label, "[C%d] %s <-> %s",
@@ -1680,6 +1836,16 @@ void SPhysicsAssetBodyListPanel::RenderConstraintList(PhysicsAssetViewerState* S
             State->GraphFilterRootBodyIndex = Setup->BodyIndex1;
         }
 
+        // 우클릭 컨텍스트 메뉴
+        if (ImGui::BeginPopupContextItem())
+        {
+            if (ImGui::MenuItem("Delete Constraint"))
+            {
+                ConstraintToDelete = i;
+            }
+            ImGui::EndPopup();
+        }
+
         // 툴팁
         if (ImGui::IsItemHovered())
         {
@@ -1693,6 +1859,23 @@ void SPhysicsAssetBodyListPanel::RenderConstraintList(PhysicsAssetViewerState* S
             ImGui::Text("Twist: %.1f deg", Setup->TwistLimitAngle);
             ImGui::EndTooltip();
         }
+
+        ImGui::PopID();
+    }
+
+    // 삭제 처리 (루프 후에 처리하여 iterator 무효화 방지)
+    if (ConstraintToDelete >= 0)
+    {
+        PhysAsset->ConstraintSetups.RemoveAt(ConstraintToDelete);
+        State->ClearSelection();
+
+        // Graph 동기화
+        if (Owner)
+        {
+            Owner->SyncGraphFromPhysicsAsset();
+        }
+
+        UE_LOG("[PAE] Deleted constraint %d", ConstraintToDelete);
     }
 }
 
@@ -1911,11 +2094,34 @@ void SPhysicsAssetPropertiesPanel::OnRender()
             // View options
             if (ImGui::CollapsingHeader("View Options", ImGuiTreeNodeFlags_DefaultOpen))
             {
+                // Show Mesh 체크박스 - 변경 시 즉시 적용
+                if (ImGui::Checkbox("Show Mesh", &State->bShowMesh))
+                {
+                    if (State->PreviewActor)
+                    {
+                        if (auto* SkelComp = State->PreviewActor->GetSkeletalMeshComponent())
+                        {
+                            SkelComp->SetVisibility(State->bShowMesh);
+                        }
+                    }
+                }
+                // Show Bones 체크박스 - 변경 시 즉시 적용
+                if (ImGui::Checkbox("Show Bones", &State->bShowBones))
+                {
+                    if (State->PreviewActor)
+                    {
+                        if (auto* LineComp = State->PreviewActor->GetBoneLineComponent())
+                        {
+                            LineComp->SetLineVisible(State->bShowBones);
+                            if (State->bShowBones)
+                            {
+                                State->PreviewActor->RebuildBoneLines(-1, false, true);
+                            }
+                        }
+                    }
+                }
                 ImGui::Checkbox("Show Bodies", &State->bShowBodies);
                 ImGui::Checkbox("Show Constraints", &State->bShowConstraints);
-                ImGui::Checkbox("Show Bone Names", &State->bShowBoneNames);
-                ImGui::Checkbox("Show Mesh", &State->bShowMesh);
-                ImGui::Checkbox("Wireframe", &State->bWireframe);
             }
 
             ImGui::Separator();
