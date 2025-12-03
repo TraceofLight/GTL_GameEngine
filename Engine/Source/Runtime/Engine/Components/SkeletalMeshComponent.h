@@ -25,6 +25,7 @@ DECLARE_DELEGATE_TYPE(FOnAnimNotify, const FAnimNotifyEvent&);
  * @param bIsInitialized 테스트용 초기화 플래그
  * @param TestBoneBasePose 테스트용 기본 본 포즈
  */
+
 UCLASS(DisplayName="스켈레탈 메시 컴포넌트", Description="스켈레탈 메시를 렌더링하는 컴포넌트입니다")
 class USkeletalMeshComponent : public USkinnedMeshComponent
 {
@@ -122,7 +123,10 @@ public:
 	TArray<FConstraintInstance*> Constraints;
 
 	// Override to create per-bone physics shapes
-	void OnCreatePhysicsState() override;
+    void OnCreatePhysicsState() override;
+
+	// 내부 ClothComponent (Cloth Section이 있을 때 자동 생성)
+	class UClothComponent* InternalClothComponent = nullptr;
 	void OnDestroyPhysicsState();
 
 	// Physics 시뮬레이션 결과를 본 트랜스폼에 반영
@@ -134,6 +138,8 @@ public:
 	FBodyInstance* GetBodyInstance(int32 BoneIndex) const;
 	FBodyInstance* GetBodyInstanceByBoneName(const FName& BoneName) const;
 	bool IsRagdollActive() const { return bRagdollActive; }
+
+	//cloth
 
 protected:
 	bool bRagdollActive = false;
@@ -156,4 +162,12 @@ private:
 	bool bIsBoneEditingMode = false;  // 기즈모로 본을 편집 중인지 여부
 	int32 EditingBoneIndex = -1;      // 현재 편집 중인 본 인덱스 (-1이면 없음)
 	TMap<int32, FTransform> EditedBoneDeltas;  // 편집된 본의 델타 (BoneIndex -> Delta Transform)
+
+	// Cloth Section 감지 및 ClothComponent 관리
+	bool HasClothSections() const;
+	void CreateInternalClothComponent();
+	void DestroyInternalClothComponent();
+
+	// Render: skip cloth sections when internal cloth is active
+	void CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) override;
 };

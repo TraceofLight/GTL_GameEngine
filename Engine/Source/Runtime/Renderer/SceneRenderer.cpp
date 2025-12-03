@@ -717,7 +717,7 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 			RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(Batch.PrimitiveTopology);
 
 			CurrentVertexBuffer = Batch.VertexBuffer;
-			CurrentIndexBuffer = Batch.IndexBuffer;
+			CurrentIndexBuffer = Batch.IndexBuffer;	
 			CurrentVertexStride = Batch.VertexStride;
 			CurrentTopology = Batch.PrimitiveTopology;
 		}

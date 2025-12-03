@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "ObjectFactory.h"
 #include "FbxLoader.h"
 #include "fbxsdk/fileio/fbxiosettings.h"
@@ -449,7 +449,31 @@ void UFbxLoader::LoadMeshFromNode(FbxNode* InNode,
 			FbxMesh* Mesh = (FbxMesh*)Attribute;
 			// 위의 MaterialSlotToIndex는 MaterialToIndex 해싱을 안 하기 위함이고, MaterialGroupIndexList도 머티리얼이 없거나 1개만 쓰는 경우 해싱을 피할 수 있음.
 			// 이를 위한 최적화 코드를 작성함.
+			FString NodeName = InNode->GetName();
+			std::transform(NodeName.begin(), NodeName.end(), NodeName.begin(), ::tolower);
 
+			bool bNodeIsCloth =
+				(NodeName.find("cloak") != std::string::npos) ||
+				(NodeName.find("skirt") != std::string::npos) ||
+				(NodeName.find("cape") != std::string::npos) ||
+				(NodeName.find("cloth") != std::string::npos);
+
+			// Cloth는 따로 Grouping
+			if (bNodeIsCloth)
+			{
+				int32 ClothGroupIndex = MeshData.GroupInfos.Num();
+
+				FGroupInfo NewClothGroup;
+				NewClothGroup.InitialMaterialName = "Cloth_" + NodeName;
+				NewClothGroup.bEnableCloth = true;
+				NewClothGroup.StartIndex = 0;
+				NewClothGroup.IndexCount = 0;
+
+				MeshData.GroupInfos.Add(NewClothGroup);  
+				LoadMesh(Mesh, MeshData, MaterialGroupIndexList, BoneToIndex, MaterialSlotToIndex, ClothGroupIndex); 
+
+				continue;
+			}
 
 			// 0번이 기본 머티리얼이고 1번 이상은 블렌딩 머티리얼이라고 함. 근데 엄청 고급 기능이라서 일반적인 로더는 0번만 쓴다고 함.
 			if (Mesh->GetElementMaterialCount() > 0)
@@ -477,6 +501,11 @@ void UFbxLoader::LoadMeshFromNode(FbxNode* InNode,
 							MaterialToIndex.Add(Material, MaterialIndex);
 							MeshData.GroupInfos.Add(FGroupInfo());
 							MeshData.GroupInfos[MaterialIndex].InitialMaterialName = MaterialInfo.MaterialName;
+
+							// material에 cloth관련 이름이 있다면 따로 처리 고려   
+							std::string MatNameStr = MaterialInfo.MaterialName;  // FString -> std::string
+							std::string LowerMatName = MatNameStr;
+							std::transform(LowerMatName.begin(), LowerMatName.end(), LowerMatName.begin(), ::tolower); 
 						}
 						// MaterialSlot에 대응하는 전역 MaterialIndex 저장
 						MaterialSlotToIndex.Add(MaterialIndex);
@@ -502,6 +531,11 @@ void UFbxLoader::LoadMeshFromNode(FbxNode* InNode,
 						MaterialToIndex.Add(Material, MaterialIndex);
 						MeshData.GroupInfos.Add(FGroupInfo());
 						MeshData.GroupInfos[MaterialIndex].InitialMaterialName = MaterialInfo.MaterialName;
+
+						// material에 cloth관련 이름이 있다면 따로 처리 고려 (eAllSame 케이스)
+						std::string MatNameStr = MaterialInfo.MaterialName;  // FString -> std::string
+						std::string LowerMatName = MatNameStr;
+						std::transform(LowerMatName.begin(), LowerMatName.end(), LowerMatName.begin(), ::tolower); 
 					}
 					// MaterialSlotToIndex에 추가할 필요 없음(머티리얼 하나일때 해싱 패스하고 Material Index로 바로 그룹핑 할 거라서 안 씀)
 					LoadMesh(Mesh, MeshData, MaterialGroupIndexList, BoneToIndex, MaterialSlotToIndex, MaterialIndex);

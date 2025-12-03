@@ -47,6 +47,9 @@ public:
      */
     const FString& GetSkeletalMeshPath() const { return SkeletalMeshPath; }
 
+	void SetSkinnedVertices(TArray<FNormalVertex> Vertices) { SkinnedVertices = Vertices;  }
+	void SetVertexBuffer(ID3D11Buffer* InVertexBuffer) { VertexBuffer = InVertexBuffer;  }
+
 protected:
     /** @brief 현재 설정된 SkeletalMesh 경로 (비동기 로드 중에도 유지) */
     FString SkeletalMeshPath;

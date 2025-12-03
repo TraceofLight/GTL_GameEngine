@@ -54,10 +54,10 @@ struct FClothSimulationSettings
 
 	// Gravity
 	bool bUseGravity = true;                    // 중력 사용
-	FVector GravityOverride = FVector(0, 0, -980.0f); // 중력 오버라이드 (cm/s^2)
+	FVector GravityOverride = FVector(0, 0, -9.8f); // 중력 오버라이드 (cm/s^2)
 
 	// Wind
-	FVector WindVelocity = FVector(0.01, 0, 0);  // 바람 속도 (cm/s)
+	FVector WindVelocity = FVector(5.0f, 0, 0);  // 바람 속도 (cm/s) - 기본값: 5m/s (중간 바람)
 	float WindDrag = 0.5f;                      // 바람 저항 (0-1)
 	float WindLift = 0.3f;                      // 바람 양력 (0-1)
 
@@ -218,6 +218,10 @@ private:
 	void UpdateClothSimulation(float DeltaTime);
 	void UpdateVerticesFromCloth();
 	void BuildClothMesh();
+	void ExtractClothSection(const FGroupInfo& Group, const TArray<FSkinnedVertex>& AllVertices, const TArray<uint32>& AllIndices);
+	bool ShouldFixVertex(const FSkinnedVertex& Vertex);
+	void UpdateSectionVertices(const FGroupInfo& Group, int32& ParticleIdx);
+
 	//void ComputeInvMasses();
 
 	//// Constraint helpers	
