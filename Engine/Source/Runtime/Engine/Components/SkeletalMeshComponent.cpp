@@ -1376,8 +1376,9 @@ void USkeletalMeshComponent::UpdateKinematicBonesToPhysics()
                     PxQuat(Rot.X, Rot.Y, Rot.Z, Rot.W)
                 );
 
-                // setGlobalPose: 즉시 위치 설정 (kinematic actor에 적합)
-                DynActor->setGlobalPose(PxNewPose);
+                // setKinematicTarget: 다음 시뮬레이션 스텝에서 이동하며 dynamic 객체와 충돌 처리
+                // (setGlobalPose는 텔레포트로, 다른 객체를 밀어내지 않고 통과함)
+                DynActor->setKinematicTarget(PxNewPose);
             }
         }
     }
