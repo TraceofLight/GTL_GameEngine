@@ -285,6 +285,12 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
          }
 
          this->MarkWorldPartitionDirty();
+
+         // 비동기 로드 완료 후 Physics Body 재생성 (BeginPlay 시점에 생성 못했을 수 있음)
+         if (this->IsRegistered() && this->GetWorld() && this->GetWorld()->bPie)
+         {
+            this->RecreatePhysicsBody();
+         }
       }
       else
       {

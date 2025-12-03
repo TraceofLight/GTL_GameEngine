@@ -402,21 +402,27 @@ void FAsyncLoader::ProcessCompletedResources()
 		}
 
 		// 콜백 리스트 전체 실행 후 정리
+		// 주의: 콜백 내에서 AsyncLoad를 호출할 수 있으므로 mutex 밖에서 실행해야 함
+		TArray<std::function<void(UResourceBase*)>> CallbacksToExecute;
 		{
 			std::lock_guard<std::mutex> Lock(HandleMutex);
 			auto* Handle = HandleMap.Find(Result.FilePath);
 			if (Handle && *Handle)
 			{
-				for (auto& Callback : (*Handle)->Callbacks)
-				{
-					if (Callback)
-					{
-						Callback(Result.Resource);
-					}
-				}
+				// 콜백 리스트 복사
+				CallbacksToExecute = (*Handle)->Callbacks;
 				(*Handle)->ClearCallbacks();
 				// 처리 완료 후 핸들 제거 (다음 요청은 ResourceManager에서 즉시 처리됨)
 				HandleMap.Remove(Result.FilePath);
+			}
+		}
+
+		// Mutex 해제 후 콜백 실행 (재진입 방지)
+		for (auto& Callback : CallbacksToExecute)
+		{
+			if (Callback)
+			{
+				Callback(Result.Resource);
 			}
 		}
 	}

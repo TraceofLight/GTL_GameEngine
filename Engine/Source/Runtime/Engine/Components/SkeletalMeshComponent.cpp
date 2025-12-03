@@ -387,9 +387,6 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
         CurrentComponentSpacePose.Empty();
         TempFinalSkinningMatrices.Empty();
         TempFinalSkinningNormalMatrices.Empty();
-
-        // ClothComponent 제거 
-       //DestroyInternalClothComponent();
     }
 }
 
@@ -686,6 +683,38 @@ void USkeletalMeshComponent::DuplicateSubObjects()
 
     // AnimationMode에 따라 AnimInstance는 BeginPlay에서 재생성됨
     // AnimationData와 AnimBlueprint는 얕은 복사로 이미 복사되었음
+
+    // PIE 복제 시 Pose 배열 초기화 (TArray는 얕은 복사로 빈 배열이 됨)
+    if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshData())
+    {
+        const FSkeleton& Skeleton = SkeletalMesh->GetSkeletalMeshData()->Skeleton;
+        const int32 NumBones = Skeleton.Bones.Num();
+
+        CurrentLocalSpacePose.SetNum(NumBones);
+        CurrentComponentSpacePose.SetNum(NumBones);
+        TempFinalSkinningMatrices.SetNum(NumBones);
+        TempFinalSkinningNormalMatrices.SetNum(NumBones);
+
+        for (int32 i = 0; i < NumBones; ++i)
+        {
+            const FBone& ThisBone = Skeleton.Bones[i];
+            const int32 ParentIndex = ThisBone.ParentIndex;
+            FMatrix LocalBindMatrix;
+
+            if (ParentIndex == -1)
+            {
+                LocalBindMatrix = ThisBone.BindPose;
+            }
+            else
+            {
+                const FMatrix& ParentInverseBindPose = Skeleton.Bones[ParentIndex].InverseBindPose;
+                LocalBindMatrix = ThisBone.BindPose * ParentInverseBindPose;
+            }
+            CurrentLocalSpacePose[i] = FTransform(LocalBindMatrix);
+        }
+
+        ForceRecomputePose();
+    }
 }
 
 /**
@@ -813,6 +842,13 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         return;
     }
 
+	// 비동기 로드 중이면 CurrentComponentSpacePose가 아직 초기화되지 않았을 수 있음
+	if (CurrentComponentSpacePose.IsEmpty())
+	{
+		UE_LOG("Physics: SkeletalMeshComponent::OnCreatePhysicsState: Pose not initialized yet (async load in progress?)");
+		return;
+	}
+
     if (!PHYSICS.GetPhysics())
     {
         UE_LOG("Physics: SkeletalMeshComponent::OnCreatePhysicsState: PhysX not ready");
@@ -860,6 +896,15 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
             UE_LOG("Physics: OnCreatePhysicsState: Could not find bone '%s' for physics body",
                    BoneSetup->BoneName.ToString().c_str());
             // 인덱스 정렬 유지를 위해 nullptr 추가 (FindBodyIndexByBoneName과 Bodies 배열 인덱스 일치 필요)
+            Bodies.Add(nullptr);
+            continue;
+        }
+
+        // CurrentComponentSpacePose가 초기화되지 않았으면 스킵
+        if (CurrentComponentSpacePose.IsEmpty() || BoneIdx >= CurrentComponentSpacePose.Num())
+        {
+            UE_LOG("Physics: OnCreatePhysicsState: CurrentComponentSpacePose not initialized (BoneIdx=%d, Size=%d)",
+                   BoneIdx, CurrentComponentSpacePose.Num());
             Bodies.Add(nullptr);
             continue;
         }
@@ -1451,15 +1496,15 @@ bool USkeletalMeshComponent::HasClothSections() const
  * @brief 내부 ClothComponent 생성 및 초기화
  */
 void USkeletalMeshComponent::CreateInternalClothComponent()
-{ 
+{
 	// AActor에 새로운 컴포넌트 추가
 	InternalClothComponent = static_cast<UClothComponent*>(Owner->AddNewComponent(UClothComponent::StaticClass(), this));
 	if (!InternalClothComponent)
 	{
 		return;
-	}  
+	}
 	InternalClothComponent->SetSkeletalMesh(SkeletalMesh->GetPathFileName());
-  
+
 }
 
 /**
