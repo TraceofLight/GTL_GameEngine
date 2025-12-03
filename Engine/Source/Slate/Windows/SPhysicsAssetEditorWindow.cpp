@@ -2828,7 +2828,11 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
 
     // GraphFilterRootBodyIndex가 설정되어 있으면 필터링된 그래프 표시
     // (Skeleton Tree 클릭 시만 설정됨, 그래프 노드 클릭 시에는 유지)
-    bool bShowFilteredGraph = (State->GraphFilterRootBodyIndex >= 0 && State->EditMode == EPhysicsAssetEditMode::Body);
+    // Constraint 모드에서도 필터링 유지 (Constraint 노드 클릭 시 전체 그래프로 전환 방지)
+    bool bShowFilteredGraph = (State->GraphFilterRootBodyIndex >= 0 &&
+        (State->EditMode == EPhysicsAssetEditMode::Body ||
+         State->EditMode == EPhysicsAssetEditMode::Constraint ||
+         State->EditMode == EPhysicsAssetEditMode::Shape));
 
     if (!bShowFilteredGraph)
     {
@@ -3021,14 +3025,15 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
     ed::PushStyleVar(ed::StyleVar_NodeRounding, 8.0f);
     ed::PushStyleVar(ed::StyleVar_NodePadding, ImVec4(8, 4, 8, 8));
 
-    // 연결된 Body 노드들만 그리기
+    // 연결된 Body 노드들만 그리기 (핀 표시하여 링크 가능)
     for (int32 BodyIdx : ConnectedBodyIndices)
     {
         if (BodyIdx >= 0 && BodyIdx < GraphState->BodyNodes.Num())
         {
             auto& Node = GraphState->BodyNodes[BodyIdx];
             bool bIsSelected = (Node.BodyIndex == State->SelectedBodyIndex);
-            DrawBodyNode(Node, State, bIsSelected, bIsSelected, false);  // 필터링된 그래프: 핀 숨김 (클릭만 가능)
+            bool bIsFilterRoot = (Node.BodyIndex == State->GraphFilterRootBodyIndex);
+            DrawBodyNode(Node, State, bIsSelected, bIsFilterRoot, true);  // 필터링된 그래프: 핀 표시
         }
     }
 
@@ -3040,31 +3045,29 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
 
     ed::PopStyleVar(2);
 
-    // 연결된 Link들만 그리기
+    // 연결된 Link들 직접 그리기 (레거시 BodyNodes와 ConstraintNodes의 핀 ID 사용)
     ed::PushStyleVar(ed::StyleVar_LinkStrength, 0.0f);
 
-    for (auto& Link : GraphState->Links)
+    // Filter Root Body의 OutputPin과 각 Constraint의 InputPin 연결
+    for (auto* ConstraintNode : ConnectedConstraints)
     {
-        // 이 Link가 표시된 노드들과 관련 있는지 확인
-        bool bShowLink = false;
+        // Link 1: Filter Root Body → Constraint
+        ed::LinkId linkId1(GraphState->NextLinkID++);
+        ed::Link(linkId1, FilterRootBodyNode->OutputPin, ConstraintNode->InputPin,
+            ImColor(180, 180, 180, 255), 2.0f);
 
-        // 연결된 Constraint의 핀인지 확인
-        for (auto* ConstraintNode : ConnectedConstraints)
+        // Link 2: Constraint → Child Body
+        // 자식 Body 찾기 (Bone2)
+        FString ChildBoneName = ConstraintNode->Bone2Name;
+        for (auto& BodyNode : GraphState->BodyNodes)
         {
-            if (Link.StartPinID == ConstraintNode->InputPin ||
-                Link.StartPinID == ConstraintNode->OutputPin ||
-                Link.EndPinID == ConstraintNode->InputPin ||
-                Link.EndPinID == ConstraintNode->OutputPin)
+            if (BodyNode.BoneName == ChildBoneName)
             {
-                bShowLink = true;
+                ed::LinkId linkId2(GraphState->NextLinkID++);
+                ed::Link(linkId2, ConstraintNode->OutputPin, BodyNode.InputPin,
+                    ImColor(180, 180, 180, 255), 2.0f);
                 break;
             }
-        }
-
-        if (bShowLink)
-        {
-            ed::Link(Link.ID, Link.StartPinID, Link.EndPinID,
-                ImColor(180, 180, 180, 255), 2.0f);
         }
     }
 
@@ -3078,15 +3081,16 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
         ed::PinId startPinId, endPinId;
         if (ed::QueryNewLink(&startPinId, &endPinId))
         {
-            // 시작 핀과 끝 핀의 노드 찾기
-            FPAEBodyNode* StartNode = Owner->FindBodyNodeByPin(startPinId);
-            FPAEBodyNode* EndNode = Owner->FindBodyNodeByPin(endPinId);
+            // 시작 핀과 끝 핀에서 BodyIndex 찾기 (Group 구조 사용)
+            int32 StartBodyIndex = Owner->FindBodyIndexByGroupPin(startPinId);
+            int32 EndBodyIndex = Owner->FindBodyIndexByGroupPin(endPinId);
 
-            if (StartNode && EndNode && StartNode != EndNode)
+            if (StartBodyIndex >= 0 && EndBodyIndex >= 0 && StartBodyIndex != EndBodyIndex &&
+                StartBodyIndex < PhysAsset->BodySetups.Num() && EndBodyIndex < PhysAsset->BodySetups.Num())
             {
                 // 두 Body 간에 이미 Constraint가 있는지 확인
-                UBodySetup* Body1 = PhysAsset->BodySetups[StartNode->BodyIndex];
-                UBodySetup* Body2 = PhysAsset->BodySetups[EndNode->BodyIndex];
+                UBodySetup* Body1 = PhysAsset->BodySetups[StartBodyIndex];
+                UBodySetup* Body2 = PhysAsset->BodySetups[EndBodyIndex];
 
                 bool bConstraintExists = false;
                 for (UPhysicsConstraintSetup* Constraint : PhysAsset->ConstraintSetups)
@@ -3109,8 +3113,8 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                         UPhysicsConstraintSetup* NewConstraint = NewObject<UPhysicsConstraintSetup>();
                         NewConstraint->ConstraintBone1 = Body1->BoneName;
                         NewConstraint->ConstraintBone2 = Body2->BoneName;
-                        NewConstraint->BodyIndex1 = StartNode->BodyIndex;
-                        NewConstraint->BodyIndex2 = EndNode->BodyIndex;
+                        NewConstraint->BodyIndex1 = StartBodyIndex;
+                        NewConstraint->BodyIndex2 = EndBodyIndex;
 
                         // 기본 제한값 설정 (Unreal 스타일 - Limited Angular, Locked Linear)
                         NewConstraint->LinearXMotion = ELinearConstraintMotion::Locked;
@@ -3190,6 +3194,111 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
     }  // else (bShowFilteredGraph) 끝
 
     // ============================================================================
+    // 더블클릭 처리 (필터링 모드 전환)
+    // 방법 1: imgui-node-editor의 GetDoubleClickedNode 사용
+    // 방법 2: ImGui 더블클릭 + 선택된 노드 결합
+    // ============================================================================
+    ed::NodeId doubleClickedNodeId = ed::GetDoubleClickedNode();
+
+    // 방법 2: ImGui 더블클릭과 선택된 노드 결합 (백업)
+    if (doubleClickedNodeId.Get() == 0 && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+    {
+        // 현재 선택된 노드가 있으면 그것을 더블클릭된 것으로 처리
+        if (ed::GetSelectedObjectCount() > 0)
+        {
+            ed::NodeId selectedId;
+            if (ed::GetSelectedNodes(&selectedId, 1) > 0)
+            {
+                doubleClickedNodeId = selectedId;
+            }
+        }
+    }
+
+    if (doubleClickedNodeId.Get() != 0)
+    {
+        bool bDoubleClickHandled = false;
+
+        // Group 구조에서 더블클릭된 노드 찾기
+        for (auto& Group : GraphState->ConstraintGroups)
+        {
+            // Parent Body 노드 더블클릭 → 해당 Body를 루트로 필터링
+            if (Group.ParentBodyNodeID == doubleClickedNodeId)
+            {
+                State->GraphFilterRootBodyIndex = Group.ParentBodyIndex;
+                State->SelectedBodyIndex = Group.ParentBodyIndex;
+                State->EditMode = EPhysicsAssetEditMode::Body;
+                State->SelectedConstraintIndex = -1;
+                State->SelectedShapeIndex = -1;
+                State->SelectedShapeType = EAggCollisionShape::Unknown;
+                bDoubleClickHandled = true;
+                break;
+            }
+
+            for (auto& Child : Group.Children)
+            {
+                // Constraint 노드 더블클릭 → Parent Body를 루트로 필터링
+                if (Child.ConstraintNodeID == doubleClickedNodeId)
+                {
+                    // SelectConstraint가 ClearSelection을 호출하므로 나중에 필터 설정
+                    State->SelectConstraint(Child.ConstraintIndex);
+                    State->GraphFilterRootBodyIndex = Group.ParentBodyIndex;  // SelectConstraint 후 설정
+                    bDoubleClickHandled = true;
+                    break;
+                }
+
+                // Child Body 노드 더블클릭 → Child Body를 루트로 필터링
+                if (Child.ChildBodyNodeID == doubleClickedNodeId)
+                {
+                    State->GraphFilterRootBodyIndex = Child.ChildBodyIndex;
+                    State->SelectedBodyIndex = Child.ChildBodyIndex;
+                    State->EditMode = EPhysicsAssetEditMode::Body;
+                    State->SelectedConstraintIndex = -1;
+                    State->SelectedShapeIndex = -1;
+                    State->SelectedShapeType = EAggCollisionShape::Unknown;
+                    bDoubleClickHandled = true;
+                    break;
+                }
+            }
+
+            if (bDoubleClickHandled) break;
+        }
+
+        // 레거시 구조에서도 검색 (필터링된 그래프 모드에서 사용)
+        if (!bDoubleClickHandled)
+        {
+            // Body 노드 검색
+            FPAEBodyNode* DoubleClickedBody = Owner->FindBodyNode(doubleClickedNodeId);
+            if (DoubleClickedBody && DoubleClickedBody->BodyIndex >= 0)
+            {
+                State->GraphFilterRootBodyIndex = DoubleClickedBody->BodyIndex;
+                State->SelectedBodyIndex = DoubleClickedBody->BodyIndex;
+                State->EditMode = EPhysicsAssetEditMode::Body;
+                bDoubleClickHandled = true;
+            }
+
+            // Constraint 노드 검색 (필터링된 그래프에서 Constraint 더블클릭 시)
+            if (!bDoubleClickHandled)
+            {
+                FPAEConstraintNode* DoubleClickedConstraint = Owner->FindConstraintNode(doubleClickedNodeId);
+                if (DoubleClickedConstraint && DoubleClickedConstraint->ConstraintIndex >= 0)
+                {
+                    // Constraint의 Parent Body(Bone1)를 필터 루트로 설정
+                    FString ParentBoneName = DoubleClickedConstraint->Bone1Name;
+                    for (auto& BodyNode : GraphState->BodyNodes)
+                    {
+                        if (BodyNode.BoneName == ParentBoneName)
+                        {
+                            State->SelectConstraint(DoubleClickedConstraint->ConstraintIndex);
+                            State->GraphFilterRootBodyIndex = BodyNode.BodyIndex;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ============================================================================
     // 노드 선택 처리 (항상 실행)
     // Group 기반 구조에서 노드 ID로 Body/Constraint 찾기
     // ============================================================================
@@ -3203,17 +3312,21 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
 
             bool bFound = false;
 
+            // 그래프 노드 클릭 시 필터링 상태 유지를 위해 인덱스 저장
+            int32 savedFilterIndex = State->GraphFilterRootBodyIndex;
+
             // Group 구조에서 노드 찾기 (Unreal 스타일 3-Column)
             for (auto& Group : GraphState->ConstraintGroups)
             {
                 // Parent Body 노드 확인 (그룹당 1개)
                 if (Group.ParentBodyNodeID == selectedNodeId)
                 {
-                    State->SelectedBodyIndex = Group.ParentBodyIndex;
-                    State->EditMode = EPhysicsAssetEditMode::Body;
+                    // 선택 상태 업데이트 (필터링 유지)
                     State->SelectedConstraintIndex = -1;
                     State->SelectedShapeIndex = -1;
                     State->SelectedShapeType = EAggCollisionShape::Unknown;
+                    State->SelectedBodyIndex = Group.ParentBodyIndex;
+                    State->EditMode = EPhysicsAssetEditMode::Body;
                     State->SelectedBoneName = FName(Group.ParentBoneName.c_str());
                     bFound = true;
                     break;
@@ -3225,7 +3338,9 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                     // Constraint 노드 확인
                     if (Child.ConstraintNodeID == selectedNodeId)
                     {
+                        // SelectConstraint가 ClearSelection을 호출하므로 필터 인덱스 복원 필요
                         State->SelectConstraint(Child.ConstraintIndex);
+                        State->GraphFilterRootBodyIndex = savedFilterIndex;  // 필터 복원
                         bFound = true;
                         break;
                     }
@@ -3233,11 +3348,12 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                     // Child Body 노드 확인
                     if (Child.ChildBodyNodeID == selectedNodeId)
                     {
-                        State->SelectedBodyIndex = Child.ChildBodyIndex;
-                        State->EditMode = EPhysicsAssetEditMode::Body;
+                        // 선택 상태 업데이트 (필터링 유지)
                         State->SelectedConstraintIndex = -1;
                         State->SelectedShapeIndex = -1;
                         State->SelectedShapeType = EAggCollisionShape::Unknown;
+                        State->SelectedBodyIndex = Child.ChildBodyIndex;
+                        State->EditMode = EPhysicsAssetEditMode::Body;
                         State->SelectedBoneName = FName(Child.ChildBoneName.c_str());
                         bFound = true;
                         break;
@@ -3253,11 +3369,12 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                 FPAEBodyNode* SelectedBody = Owner->FindBodyNode(selectedNodeId);
                 if (SelectedBody && SelectedBody->BodyIndex >= 0)
                 {
-                    State->SelectedBodyIndex = SelectedBody->BodyIndex;
-                    State->EditMode = EPhysicsAssetEditMode::Body;
+                    // 선택 상태 업데이트 (필터링 유지)
                     State->SelectedConstraintIndex = -1;
                     State->SelectedShapeIndex = -1;
                     State->SelectedShapeType = EAggCollisionShape::Unknown;
+                    State->SelectedBodyIndex = SelectedBody->BodyIndex;
+                    State->EditMode = EPhysicsAssetEditMode::Body;
 
                     if (State->PhysicsAsset && SelectedBody->BodyIndex < State->PhysicsAsset->BodySetups.Num())
                     {
@@ -3274,6 +3391,7 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                     if (SelectedConstraint && SelectedConstraint->ConstraintIndex >= 0)
                     {
                         State->SelectConstraint(SelectedConstraint->ConstraintIndex);
+                        State->GraphFilterRootBodyIndex = savedFilterIndex;  // 필터 복원
                     }
                 }
             }
@@ -3310,9 +3428,9 @@ void SPhysicsAssetEditorWindow::SyncGraphFromPhysicsAsset()
     //               └─ [C] → Child3
     // ============================================================================
 
-    const float COLUMN_WIDTH = 200.0f;   // 열 너비
-    const float ROW_HEIGHT = 60.0f;      // 행 높이 (Child 간 간격)
-    const float GROUP_SPACING = 30.0f;   // 그룹 간 추가 간격
+    const float COLUMN_WIDTH = 220.0f;   // 열 너비 (노드 겹침 방지)
+    const float ROW_HEIGHT = 80.0f;      // 행 높이 (Child 간 간격 증가)
+    const float GROUP_SPACING = 50.0f;   // 그룹 간 추가 간격 증가
     const float START_X = 50.0f;         // 시작 X 위치
     const float START_Y = 50.0f;         // 시작 Y 위치
 
@@ -3524,4 +3642,33 @@ FPAEConstraintLink* SPhysicsAssetEditorWindow::FindConstraintLink(ed::LinkId Lin
         if (Link.ID == LinkID) return &Link;
     }
     return nullptr;
+}
+
+int32 SPhysicsAssetEditorWindow::FindBodyIndexByGroupPin(ed::PinId PinID)
+{
+    if (!GraphState) return -1;
+
+    // Group 구조에서 핀으로 BodyIndex 찾기
+    for (auto& Group : GraphState->ConstraintGroups)
+    {
+        // Parent Body의 출력 핀
+        if (Group.ParentBodyOutputPin == PinID)
+            return Group.ParentBodyIndex;
+
+        // Children의 입력 핀 확인
+        for (auto& Child : Group.Children)
+        {
+            if (Child.ChildBodyInputPin == PinID)
+                return Child.ChildBodyIndex;
+        }
+    }
+
+    // 레거시 BodyNodes에서도 검색 (폴백)
+    for (auto& Node : GraphState->BodyNodes)
+    {
+        if (Node.InputPin == PinID || Node.OutputPin == PinID)
+            return Node.BodyIndex;
+    }
+
+    return -1;
 }

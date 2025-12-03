@@ -275,6 +275,7 @@ public:
     FPAEConstraintNode* FindConstraintNode(ed::NodeId NodeID);
     FPAEConstraintNode* FindConstraintNodeByPin(ed::PinId PinID);
     FPAEConstraintLink* FindConstraintLink(ed::LinkId LinkID);
+    int32 FindBodyIndexByGroupPin(ed::PinId PinID);  // Group 구조에서 핀으로 BodyIndex 찾기
 
     // Node Graph State (패널에서 접근 필요)
     FPAEGraphState* GraphState = nullptr;
