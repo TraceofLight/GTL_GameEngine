@@ -350,27 +350,20 @@ void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
                     int32 HitShapeIndex = -1;
                     float HitDistance = 0.0f;
 
-                    // Constraint 모드일 때는 Constraint 먼저 피킹 시도
-                    if (ActiveState->EditMode == EPhysicsAssetEditMode::Constraint)
-                    {
-                        int32 HitConstraintIndex = -1;
-                        float ConstraintHitDist = 0.0f;
+                    // 항상 Constraint 먼저 피킹 시도 (Shape보다 작으므로 우선)
+                    int32 HitConstraintIndex = -1;
+                    float ConstraintHitDist = 0.0f;
+                    bool bHitConstraint = ActiveState->PickConstraint(Ray, HitConstraintIndex, ConstraintHitDist);
 
-                        if (ActiveState->PickConstraint(Ray, HitConstraintIndex, ConstraintHitDist))
-                        {
-                            ActiveState->SelectConstraint(HitConstraintIndex);
-                        }
-                        else if (ActiveState->PickBodyOrShape(Ray, HitBodyIndex, HitShapeType, HitShapeIndex, HitDistance))
-                        {
-                            // Constraint 못 찾으면 Body 선택
-                            ActiveState->SelectBody(HitBodyIndex);
-                        }
-                        else
-                        {
-                            ActiveState->ClearSelection();
-                        }
+                    // Shape/Body 피킹
+                    bool bHitShape = ActiveState->PickBodyOrShape(Ray, HitBodyIndex, HitShapeType, HitShapeIndex, HitDistance);
+
+                    // Constraint가 더 가까우면 Constraint 선택
+                    if (bHitConstraint && (!bHitShape || ConstraintHitDist <= HitDistance))
+                    {
+                        ActiveState->SelectConstraint(HitConstraintIndex);
                     }
-                    else if (ActiveState->PickBodyOrShape(Ray, HitBodyIndex, HitShapeType, HitShapeIndex, HitDistance))
+                    else if (bHitShape)
                     {
                         // 피킹 성공 - 편집 모드에 따라 선택
                         if (ActiveState->EditMode == EPhysicsAssetEditMode::Shape)
@@ -577,8 +570,15 @@ void SPhysicsAssetEditorWindow::RenderToolbar()
 
             if (ImGui::MenuItem("Load Physics Asset..."))
             {
+                // PhysicsAsset 폴더가 없으면 생성
+                std::filesystem::path PhysicsAssetDir = "Data/PhysicsAsset";
+                if (!std::filesystem::exists(PhysicsAssetDir))
+                {
+                    std::filesystem::create_directories(PhysicsAssetDir);
+                }
+
                 std::filesystem::path FilePath = FPlatformProcess::OpenLoadFileDialog(
-                    L"Data",
+                    L"Data/PhysicsAsset",
                     L".physicsasset",
                     L"Physics Asset Files (*.physicsasset)"
                 );
@@ -595,8 +595,15 @@ void SPhysicsAssetEditorWindow::RenderToolbar()
             bool bCanSave = ActiveState && ActiveState->CurrentMesh && ActiveState->PhysicsAsset;
             if (ImGui::MenuItem("Save Physics Asset", nullptr, false, bCanSave))
             {
+                // PhysicsAsset 폴더가 없으면 생성
+                std::filesystem::path PhysicsAssetDir = "Data/PhysicsAsset";
+                if (!std::filesystem::exists(PhysicsAssetDir))
+                {
+                    std::filesystem::create_directories(PhysicsAssetDir);
+                }
+
                 std::filesystem::path FilePath = FPlatformProcess::OpenSaveFileDialog(
-                    L"Data",
+                    L"Data/PhysicsAsset",
                     L".physicsasset",
                     L"Physics Asset Files (*.physicsasset)"
                 );

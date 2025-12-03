@@ -663,9 +663,9 @@ void PhysicsAssetViewerState::DrawConstraints(URenderer* Renderer) const
         FVector ConstraintPos = Pos2;
         FQuat ConstraintRot = Bone1Transform.Rotation;
 
-        // 크기: 두 본 거리의 15% (작게!)
+        // 크기: 본 수준의 작은 크기 (1/3로 축소)
         float BoneDistance = (Pos2 - Pos1).Size();
-        float VisualScale = FMath::Clamp(BoneDistance * 0.15f, 1.0f, 5.0f);
+        float VisualScale = FMath::Clamp(BoneDistance * 0.007f, 0.05f, 0.15f);
 
         // 연결선
         StartPoints.Add(Pos1);
@@ -1092,9 +1092,9 @@ bool PhysicsAssetViewerState::PickConstraint(const FRay& Ray,
         FVector Pos2 = SkelComp->GetBoneWorldTransform(BoneIndex2).Translation;
         FVector ConstraintPos = Pos2;
 
-        // 피킹 반경: 두 본 거리의 15% (시각화 크기와 동일)
+        // 피킹 반경: 시각화보다 약간 크게 (클릭 용이성), 1/3로 축소
         float BoneDistance = (Pos2 - Pos1).Size();
-        float PickRadius = FMath::Clamp(BoneDistance * 0.15f, 1.0f, 5.0f);
+        float PickRadius = FMath::Clamp(BoneDistance * 0.015f, 0.1f, 0.3f);
 
         // Ray-Sphere 교차 검사
         float T;
