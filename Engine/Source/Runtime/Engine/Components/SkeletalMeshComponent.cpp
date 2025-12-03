@@ -1351,14 +1351,13 @@ void USkeletalMeshComponent::CreateInternalClothComponent()
  */
 void USkeletalMeshComponent::DestroyInternalClothComponent()
 {
-    if (InternalClothComponent)
-    {
-        // 월드에서 등록 해제
-        AActor* Owner = GetOwner();
-        if (Owner)
-	        Owner->UnregisterComponentTree(InternalClothComponent);
-
-		ObjectFactory::DeleteObject(InternalClothComponent); 
+	if (InternalClothComponent)
+	{
+		if (AActor* Owner = GetOwner())
+		{
+			Owner->RemoveOwnedComponent(InternalClothComponent);
+		}
 		InternalClothComponent = nullptr;
-    } 
+
+	}
 }
