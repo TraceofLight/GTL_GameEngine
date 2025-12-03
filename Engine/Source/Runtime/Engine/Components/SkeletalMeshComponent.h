@@ -120,6 +120,7 @@ public:
 	FSingleAnimationPlayData AnimationData;
 
 	TArray<FBodyInstance*> Bodies;
+	TArray<int32> BodyToBoneIndex;  // Bodies와 병렬 배열: Bodies[i]에 해당하는 본 인덱스
 	TArray<FConstraintInstance*> Constraints;
 
 	// Override to create per-bone physics shapes
@@ -138,6 +139,10 @@ public:
 	FBodyInstance* GetBodyInstance(int32 BoneIndex) const;
 	FBodyInstance* GetBodyInstanceByBoneName(const FName& BoneName) const;
 	bool IsRagdollActive() const { return bRagdollActive; }
+
+	// ===== Kinematic Sync Functions =====
+	// 애니메이션 평가 후 본 트랜스폼을 물리 바디에 푸시 (per-bone kinematic bodies)
+	void UpdateKinematicBonesToPhysics();
 
 	//cloth
 
