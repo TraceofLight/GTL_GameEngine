@@ -54,6 +54,7 @@ UCharacterMovementComponent::UCharacterMovementComponent()
 	, CoyoteTime(0.1f)              // 0.1초 코요테 타임
 	, JumpBufferTime(0.1f)          // 0.1초 점프 버퍼
 	// 캡슐 스윕 설정
+	, bUseSweepForGroundCheck(false) // 기본값: 비활성화
 	, CapsuleRadius(0.03f)
 	, CapsuleHalfHeight(0.03f)
 	, GroundCheckDistance(0.001f)
@@ -435,6 +436,14 @@ void UCharacterMovementComponent::MoveUpdatedComponent(float DeltaTime)
 		return;
 	}
 
+	// 스윕 비활성화 시 단순 이동
+	if (!bUseSweepForGroundCheck)
+	{
+		FVector NewLocation = CurrentLocation + Delta;
+		CharacterOwner->SetActorLocation(NewLocation);
+		return;
+	}
+
 	// PIE 체크 - 물리 씬이 없으면 스윕 없이 이동
 	UWorld* World = CharacterOwner->GetWorld();
 	if (!World || !World->bPie || !World->GetPhysicsScene())
@@ -501,6 +510,31 @@ bool UCharacterMovementComponent::CheckGround()
 		return false;
 	}
 
+	FVector CurrentLocation = CharacterOwner->GetActorLocation();
+
+	// 스윕 비활성화 시 기존 Z==0 로직 사용
+	if (!bUseSweepForGroundCheck)
+	{
+		if (CurrentLocation.Z <= 0.0f)
+		{
+			// 위치를 0으로 고정
+			CurrentLocation.Z = 0.0f;
+			CharacterOwner->SetActorLocation(CurrentLocation);
+
+			// 중력 방향 속도 제거 (낙하 중이었다면)
+			float VerticalSpeed = FVector::Dot(Velocity, GravityDirection);
+			if (VerticalSpeed > 0.0f)
+			{
+				Velocity -= GravityDirection * VerticalSpeed;
+			}
+
+			return true;
+		}
+		return false;
+	}
+
+	// === 스윕 기반 지면 체크 ===
+
 	// PIE 체크 - PIE가 아니면 스윕 불가능하므로 false 반환 (낙하 상태)
 	UWorld* World = CharacterOwner->GetWorld();
 	if (!World || !World->bPie || !World->GetPhysicsScene())
@@ -509,9 +543,6 @@ bool UCharacterMovementComponent::CheckGround()
 		CurrentFloor = FGroundHitResult();
 		return false;
 	}
-
-	// 캐릭터의 현재 위치에서 중력 방향으로 캡슐 스윕 수행
-	FVector CurrentLocation = CharacterOwner->GetActorLocation();
 
 	// 스윕 시작점
 	FVector SweepStart = CurrentLocation;
