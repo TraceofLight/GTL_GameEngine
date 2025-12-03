@@ -4,6 +4,7 @@
 #include "PlayerController.h"
 #include "Pawn.h"
 #include "World.h"
+#include "VehicleActor.h"
 //#include "DeltaTimeManager.h"
 #include "PlayerCameraManager.h"
 //#include "CameraBlendPresetLibrary.h"
@@ -256,13 +257,27 @@ void AGameModeBase::InitPlayer()
 		return;
 	}
 
-	// 2. Pawn 스폰 위치 결정
+	// 2. Level에 이미 배치된 VehicleActor를 찾아서 Possess
+	APawn* ExistingVehicle = FindExistingVehicleInLevel();
+
+	if (ExistingVehicle)
+	{
+		UE_LOG("[GameMode] Found existing Vehicle in level, possessing it...");
+		PlayerController->Possess(ExistingVehicle);
+		UE_LOG("[GameMode] Player initialized with existing Vehicle!");
+		UE_LOG("  PlayerController: %s", PlayerController->GetName().c_str());
+		UE_LOG("  Vehicle: %s", ExistingVehicle->GetName().c_str());
+		return;
+	}
+
+	// 3. Vehicle을 찾지 못했으면 기본 Pawn 스폰
+	UE_LOG("[GameMode] No Vehicle found, spawning default Pawn...");
+
 	FTransform SpawnTransform;
 	SpawnTransform.Translation = PlayerSpawnLocation;
 	SpawnTransform.Rotation = FQuat::Identity();
 	SpawnTransform.Scale3D = FVector(1.0f, 1.0f, 1.0f);
 
-	// 3. Pawn 스폰 및 빙의
 	APawn* SpawnedPawn = SpawnDefaultPawnFor(PlayerController, SpawnTransform);
 
 	if (SpawnedPawn)
@@ -370,4 +385,37 @@ void AGameModeBase::RestartPlayer(APlayerController* Player)
 		NewPawn->BeginPlay();
 		UE_LOG("[GameMode] Player restarted!");
 	}
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Vehicle 찾기
+// ────────────────────────────────────────────────────────────────────────────
+
+APawn* AGameModeBase::FindExistingVehicleInLevel()
+{
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	// Level의 모든 Actor를 순회하며 VehicleActor 찾기
+	const TArray<AActor*>& AllActors = World->GetActors();
+
+	for (AActor* Actor : AllActors)
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+
+		// VehicleActor인지 확인
+		AVehicleActor* Vehicle = Cast<AVehicleActor>(Actor);
+		if (Vehicle)
+		{
+			UE_LOG("[GameMode] Found VehicleActor: %s", Vehicle->GetName().c_str());
+			return Vehicle;
+		}
+	}
+
+	return nullptr;
 }

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -112,7 +112,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Engine\ThirdParty\Library\Lua\$(Configuration)\;$(SolutionDir)Engine\ThirdParty\Library\DirectXTex\$(Configuration)\;$(SolutionDir)Engine\ThirdParty\Library\FBX\$(Configuration)\;$(SolutionDir)Engine\ThirdParty\Library\DirectXTK\;$(SolutionDir)Engine\ThirdParty\Library\PhysX\$(Configuration)\;$(SolutionDir)Engine\ThirdParty\Library\nvCloth\$(Configuration)\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK_debug.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
+      <AdditionalDependencies>PhysX_static_64.lib;PhysXCommon_static_64.lib;PhysXFoundation_static_64.lib;PhysXCooking_static_64.lib;PhysXExtensions_static_64.lib;PhysXVehicle_static_64.lib;DirectXTK_debug.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <Manifest>
@@ -149,7 +149,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Engine\ThirdParty\Library\Lua\$(Configuration)\;$(SolutionDir)Engine\ThirdParty\Library\DirectXTex\$(Configuration)\;$(SolutionDir)Engine\ThirdParty\Library\FBX\$(Configuration)\;$(SolutionDir)Engine\ThirdParty\Library\DirectXTK\;$(SolutionDir)Engine\ThirdParty\Library\PhysX\$(Configuration)\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
+      <AdditionalDependencies>PhysX_static_64.lib;PhysXCommon_static_64.lib;PhysXFoundation_static_64.lib;PhysXCooking_static_64.lib;PhysXExtensions_static_64.lib;PhysXVehicle_static_64.lib;DirectXTK.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <Manifest>
@@ -182,7 +182,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Engine\ThirdParty\Library\Lua\Debug\;$(SolutionDir)Engine\ThirdParty\Library\DirectXTex\Debug\;$(SolutionDir)Engine\ThirdParty\Library\FBX\Debug\;$(SolutionDir)Engine\ThirdParty\Library\DirectXTK\;$(SolutionDir)Engine\ThirdParty\Library\PhysX\Debug\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK_debug.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
+      <AdditionalDependencies>PhysX_static_64.lib;PhysXCommon_static_64.lib;PhysXFoundation_static_64.lib;PhysXCooking_static_64.lib;PhysXExtensions_static_64.lib;PhysXVehicle_static_64.lib;DirectXTK_debug.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -216,7 +216,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(SolutionDir)Engine\ThirdParty\Library\Lua\Release\;$(SolutionDir)Engine\ThirdParty\Library\DirectXTex\Release\;$(SolutionDir)Engine\ThirdParty\Library\FBX\Release\;$(SolutionDir)Engine\ThirdParty\Library\DirectXTK\;$(SolutionDir)Engine\ThirdParty\Library\PhysX\Release\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
+      <AdditionalDependencies>PhysX_static_64.lib;PhysXCommon_static_64.lib;PhysXFoundation_static_64.lib;PhysXCooking_static_64.lib;PhysXExtensions_static_64.lib;PhysXVehicle_static_64.lib;DirectXTK.lib;DirectXTex.lib;Crypt32.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(OutDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
@@ -660,6 +660,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\UCameraComponent.generated.cpp" />
     <ClCompile Include="Generated\UCapsuleComponent.generated.cpp" />
     <ClCompile Include="Generated\UCharacterMovementComponent.generated.cpp" />
+    <ClCompile Include="Generated\UClothComponent.generated.cpp" />
     <ClCompile Include="Generated\UDecalComponent.generated.cpp" />
     <ClCompile Include="Generated\UDirectionalLightComponent.generated.cpp" />
     <ClCompile Include="Generated\UHeightFogComponent.generated.cpp" />
@@ -684,6 +685,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\UStaticMeshComponent.generated.cpp" />
     <ClCompile Include="Generated\UTestAutoBindComponent.generated.cpp" />
     <ClCompile Include="Generated\UTextRenderComponent.generated.cpp" />
+    <ClCompile Include="Generated\UWheeledVehicleMovementComponent.generated.cpp" />
     <ClCompile Include="Generated\AAmbientLightActor.generated.cpp" />
     <ClCompile Include="Generated\ACameraActor.generated.cpp" />
     <ClCompile Include="Generated\ACharacter.generated.cpp" />
@@ -704,6 +706,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\ASkySphereActor.generated.cpp" />
     <ClCompile Include="Generated\ASpotLightActor.generated.cpp" />
     <ClCompile Include="Generated\AStaticMeshActor.generated.cpp" />
+    <ClCompile Include="Generated\AVehicleActor.generated.cpp" />
     <ClCompile Include="Generated\UParticleEmitter.generated.cpp" />
     <ClCompile Include="Generated\UParticleLODLevel.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleRequired.generated.cpp" />
@@ -719,9 +722,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Generated\UParticleModuleSpawn.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleSubUV.generated.cpp" />
     <ClCompile Include="Generated\UParticleModuleVelocity.generated.cpp" />
-    <ClCompile Include="Generated\UClothComponent.generated.cpp" />
-    <ClCompile Include="Generated\UWheeledVehicleMovementComponent.generated.cpp" />
-    <ClCompile Include="Generated\AVehicleActor.generated.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -915,8 +915,8 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Runtime\Engine\PhysicsEngine\SphereElem.h" />
     <ClInclude Include="Source\Runtime\Engine\GameFramework\VehicleActor.h" />
     <ClInclude Include="Source\Runtime\Engine\Components\WheeledVehicleMovementComponent.h" />
-    <ClInclude Include="Source\Runtime\Engine\Vehicle\VehicleHelpers.h" />
     <ClInclude Include="Source\Runtime\Engine\Vehicle\VehicleTypes.h" />
+    <ClInclude Include="Source\Runtime\Engine\Vehicle\VehicleHelpers.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\GameObject.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\LuaBindHelpers.h" />
     <ClInclude Include="Source\Runtime\Engine\Scripting\LuaBindingRegistry.h" />
@@ -1040,6 +1040,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\UCameraComponent.generated.h" />
     <ClInclude Include="Generated\UCapsuleComponent.generated.h" />
     <ClInclude Include="Generated\UCharacterMovementComponent.generated.h" />
+    <ClInclude Include="Generated\UClothComponent.generated.h" />
     <ClInclude Include="Generated\UDecalComponent.generated.h" />
     <ClInclude Include="Generated\UDirectionalLightComponent.generated.h" />
     <ClInclude Include="Generated\UHeightFogComponent.generated.h" />
@@ -1064,6 +1065,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\UStaticMeshComponent.generated.h" />
     <ClInclude Include="Generated\UTestAutoBindComponent.generated.h" />
     <ClInclude Include="Generated\UTextRenderComponent.generated.h" />
+    <ClInclude Include="Generated\UWheeledVehicleMovementComponent.generated.h" />
     <ClInclude Include="Generated\AAmbientLightActor.generated.h" />
     <ClInclude Include="Generated\ACameraActor.generated.h" />
     <ClInclude Include="Generated\ACharacter.generated.h" />
@@ -1084,6 +1086,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\ASkySphereActor.generated.h" />
     <ClInclude Include="Generated\ASpotLightActor.generated.h" />
     <ClInclude Include="Generated\AStaticMeshActor.generated.h" />
+    <ClInclude Include="Generated\AVehicleActor.generated.h" />
     <ClInclude Include="Generated\UParticleEmitter.generated.h" />
     <ClInclude Include="Generated\UParticleLODLevel.generated.h" />
     <ClInclude Include="Generated\UParticleModuleRequired.generated.h" />
@@ -1099,9 +1102,6 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Generated\UParticleModuleSpawn.generated.h" />
     <ClInclude Include="Generated\UParticleModuleSubUV.generated.h" />
     <ClInclude Include="Generated\UParticleModuleVelocity.generated.h" />
-    <ClInclude Include="Generated\UClothComponent.generated.h" />
-    <ClInclude Include="Generated\UWheeledVehicleMovementComponent.generated.h" />
-    <ClInclude Include="Generated\AVehicleActor.generated.h" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Shaders\Common\LightingBuffers.hlsl" />
@@ -1156,5 +1156,8 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug_StandAlone|x64'">true</ExcludedFromBuild>
     </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Source\Runtime\Engine\Vehicle\" />
   </ItemGroup>
 </Project>

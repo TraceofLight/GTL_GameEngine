@@ -200,6 +200,52 @@ void FBodyInstance::CreateShapesFromBodySetup()
 
         Dyn->wakeUp();
     }
+
+    // 충돌 필터 설정
+    // Collision Groups:
+    //   0x00000001 = CHASSIS (차량 본체)
+    //   0x00000002 = GROUND (지면/정적 객체)
+    //   0x00000004 = DYNAMIC (동적 물리 객체)
+    //   0x00001000 = WHEEL (차량 휠)
+    if (PhysicsActor)
+    {
+        const bool bIsStatic = PhysicsActor->is<PxRigidStatic>();
+
+        // 1. Scene Query Filter (Vehicle 서스펜션 레이캐스트용)
+        // Static Actor: DRIVABLE_SURFACE (word3 = 1)
+        // Dynamic Actor: UNDRIVABLE_SURFACE (word3 = 0)
+        PxFilterData QueryFilterData;
+        QueryFilterData.word0 = 0;
+        QueryFilterData.word1 = 0;
+        QueryFilterData.word2 = 0;
+        QueryFilterData.word3 = bIsStatic ? 1 : 0;
+
+        // 2. Simulation Filter (물리 충돌용)
+        PxFilterData SimFilterData;
+        if (bIsStatic)
+        {
+            // 지면: GROUND 그룹, 모든 것과 충돌 시도
+            SimFilterData.word0 = 0x00000002;  // GROUND
+            SimFilterData.word1 = 0xFFFFFFFF;  // 모든 것과 충돌 (상대 word1이 허용해야 실제 충돌)
+        }
+        else
+        {
+            // 동적 객체: DYNAMIC 그룹, 지면 및 다른 동적 객체와 충돌
+            SimFilterData.word0 = 0x00000004;  // DYNAMIC
+            SimFilterData.word1 = 0x00000006;  // GROUND | DYNAMIC
+        }
+        SimFilterData.word2 = 0;
+        SimFilterData.word3 = 0;
+
+        for (PxShape* Shape : Shapes)
+        {
+            if (Shape)
+            {
+                Shape->setQueryFilterData(QueryFilterData);
+                Shape->setSimulationFilterData(SimFilterData);
+            }
+        }
+    }
 }
 
 void FBodyInstance::AddSimpleShape(const FShape& S)

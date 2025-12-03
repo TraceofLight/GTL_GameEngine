@@ -1,0 +1,251 @@
+{
+  "Actors" : {
+    "1248" : {
+      "ObjectName" : "차량_0",
+      "OwnedComponents" : [{
+          "ObjectName" : "UInputComponent_1",
+          "Type" : "UInputComponent",
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bTickEnabled" : true
+        }, {
+          "AnimBlueprintPath" : "",
+          "AnimToPlayPath" : "",
+          "AnimationMode" : 1,
+          "Id" : 1250,
+          "MaterialSlots" : [{
+              "Type" : "None"
+            }, {
+              "AssetPath" : "dMAT_Viper_SRT_10_Metallic_Red_108",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "phong1",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "dMAT_Details_INT_049",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "dMAT_Details_MAT_606",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "dMAT_Glass_292",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "red_glass",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "dMAT_Lights_315",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "dMAT_Details_Chassis_061",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "dMAT_Details_EXT_319",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "dMAT_Details_Grid_01_192",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "dMAT_Tire_Brake_301",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "PAINT",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "CARBON",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "phong2",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "dMAT_Tire_Hub_163",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "dMAT_Tire_Disk_151",
+              "Type" : "UMaterial"
+            }],
+          "ObjectName" : "USkeletalMeshComponent_1",
+          "ParentId" : 0,
+          "RelativeLocation" : [-2.943345, -1.532815, 1.173166],
+          "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+          "RelativeScale" : [1.000000, 1.000000, 1.000000],
+          "SavedPlayRate" : 1.000000,
+          "SavedPosition" : 0.000000,
+          "SkeletalMesh" : "Data/SkeletalMesh/SKM_Dodge_Viper_SRT10.fbx",
+          "SkeletalMeshPath" : "Data/SkeletalMesh/SKM_Dodge_Viper_SRT10.fbx",
+          "Type" : "USkeletalMeshComponent",
+          "bBlockComponent" : false,
+          "bCastShadows" : true,
+          "bGenerateOverlapEvents" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bSavedLooping" : true,
+          "bSavedPlaying" : true,
+          "bSimulatePhysics" : false,
+          "bTickEnabled" : true
+        }, {
+          "ObjectName" : "UWheeledVehicleMovementComponent_1",
+          "Type" : "UWheeledVehicleMovementComponent",
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bTickEnabled" : true
+        }],
+      "RootComponentId" : 1250,
+      "Tag" : "",
+      "Type" : "AVehicleActor",
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bTickInEditor" : false
+    },
+    "527" : {
+      "ObjectName" : "DirectionalLight",
+      "OwnedComponents" : [{
+          "CascadedAreaColorDebugValue" : 0.000000,
+          "CascadedAreaShadowDebugValue" : -1,
+          "CascadedCount" : 4,
+          "CascadedLinearBlendingValue" : 0.500000,
+          "CascadedOverlapValue" : 0.200000,
+          "Id" : 528,
+          "Intensity" : 1.000000,
+          "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
+          "ObjectName" : "UDirectionalLightComponent_1",
+          "ParentId" : 0,
+          "RelativeLocation" : [0.000000, 0.000000, 3.000000],
+          "RelativeRotationEuler" : [-62.900280, 16.769619, -62.900280],
+          "RelativeScale" : [1.000000, 1.000000, 1.000000],
+          "ShadowBias" : 0.000010,
+          "ShadowResolutionScale" : 2048,
+          "ShadowSharpen" : 0.500000,
+          "ShadowSlopeBias" : 0.000010,
+          "Temperature" : 6500.000000,
+          "Type" : "UDirectionalLightComponent",
+          "bCascaded" : true,
+          "bCastShadows" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bTickEnabled" : true
+        }],
+      "RootComponentId" : 528,
+      "Tag" : "",
+      "Type" : "ADirectionalLightActor",
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bTickInEditor" : false
+    },
+    "529" : {
+      "ObjectName" : "AmbientLight",
+      "OwnedComponents" : [{
+          "Id" : 531,
+          "Intensity" : 0.100000,
+          "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
+          "ObjectName" : "UAmbientLightComponent_1",
+          "ParentId" : 0,
+          "RelativeLocation" : [0.000000, 0.000000, 6.000000],
+          "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+          "RelativeScale" : [1.000000, 1.000000, 1.000000],
+          "ShadowBias" : 0.000010,
+          "ShadowResolutionScale" : 1024,
+          "ShadowSharpen" : 0.500000,
+          "ShadowSlopeBias" : 0.000010,
+          "Temperature" : 6500.000000,
+          "Type" : "UAmbientLightComponent",
+          "bCastShadows" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bTickEnabled" : true
+        }],
+      "RootComponentId" : 531,
+      "Tag" : "",
+      "Type" : "AAmbientLightActor",
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bTickInEditor" : false
+    },
+    "532" : {
+      "ObjectName" : "Floor",
+      "OwnedComponents" : [{
+          "Id" : 533,
+          "MaterialSlots" : [{
+              "AssetPath" : "texture",
+              "Type" : "UMaterial"
+            }],
+          "ObjectName" : "UStaticMeshComponent_1",
+          "ParentId" : 0,
+          "RelativeLocation" : [0.000000, 0.000000, 0.100000],
+          "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+          "RelativeScale" : [20.000000, 20.000000, 0.200000],
+          "StaticMesh" : "Data/Default/StaticMesh/Cube.obj",
+          "Type" : "UStaticMeshComponent",
+          "bBlockComponent" : false,
+          "bCastShadows" : true,
+          "bGenerateOverlapEvents" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bSimulatePhysics" : false,
+          "bTickEnabled" : true
+        }],
+      "RootComponentId" : 533,
+      "Tag" : "",
+      "Type" : "AStaticMeshActor",
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bTickInEditor" : false
+    },
+    "554" : {
+      "GroundColor" : [0.300000, 0.250000, 0.200000, 1.000000],
+      "HorizonColor" : [0.647100, 0.823500, 0.945100, 1.000000],
+      "HorizonFalloff" : 3.000000,
+      "ManualSunDirection" : [0.000000, 0.500000, 0.866000],
+      "ObjectName" : "SkySphere",
+      "OverallBrightness" : 1.000000,
+      "OwnedComponents" : [{
+          "GroundColor" : [0.300000, 0.250000, 0.200000, 1.000000],
+          "HorizonColor" : [0.647100, 0.823500, 0.945100, 1.000000],
+          "HorizonFalloff" : 3.000000,
+          "Id" : 555,
+          "ObjectName" : "USkySphereComponent_1",
+          "OverallBrightness" : 1.000000,
+          "ParentId" : 0,
+          "RelativeLocation" : [0.000000, 0.000000, 9.000000],
+          "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+          "RelativeScale" : [1.000000, 1.000000, 1.000000],
+          "SunColor" : [1.000000, 0.950000, 0.800000, 5.000000],
+          "SunDirection" : [-0.436168, 0.852357, 0.288524],
+          "SunDiskSize" : 0.001000,
+          "Type" : "USkySphereComponent",
+          "ZenithColor" : [0.034300, 0.123600, 0.400000, 1.000000],
+          "bAutoUpdateSunDirection" : true,
+          "bBlockComponent" : false,
+          "bGenerateOverlapEvents" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bSimulatePhysics" : false,
+          "bTickEnabled" : true
+        }],
+      "RootComponentId" : 555,
+      "SunColor" : [1.000000, 0.950000, 0.800000, 5.000000],
+      "SunDiskSize" : 0.001000,
+      "Tag" : "",
+      "Type" : "ASkySphereActor",
+      "ZenithColor" : [0.034300, 0.123600, 0.400000, 1.000000],
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bAutoUpdateSunDirection" : true,
+      "bTickInEditor" : true
+    }
+  },
+  "NextUUID" : 1252,
+  "PerspectiveCamera" : {
+    "FOV" : [90.000000],
+    "FarClip" : [50000.000000],
+    "Location" : [-5.000000, 5.000000, 5.000000],
+    "NearClip" : [0.100000],
+    "Rotation" : [0.000000, 22.500000, -45.000000]
+  },
+  "Version" : 1
+}

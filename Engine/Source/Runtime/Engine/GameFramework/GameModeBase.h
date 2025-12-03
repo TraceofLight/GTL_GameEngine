@@ -99,4 +99,7 @@ protected:
 
 	/** 플레이어 초기화 */
 	virtual void InitPlayer();
+
+	/** Level에 배치된 VehicleActor 찾기 */
+	virtual APawn* FindExistingVehicleInLevel();
 };

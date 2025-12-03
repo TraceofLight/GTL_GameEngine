@@ -109,22 +109,25 @@ struct FStreamableHandle
 };
 
 /**
- * @brief 멀티스레드 비동기 에셋 로더
- * @details 워커 스레드에서 파일 로드, 메인 스레드에서 ResourceManager 삽입
+ * @brief 멀티스레드 비동기 에셋 로더 (워커 스레드 풀)
+ * @details 여러 워커 스레드에서 병렬 파일 로드, 메인 스레드에서 ResourceManager 삽입
  *
  * Work Flow:
  * AsyncLoad 호출 시 요청이 RequestQueue에 추가
- * 워커 스레드가 RequestQueue에서 꺼내 로드 수행
+ * 다수의 워커 스레드가 RequestQueue에서 동시에 꺼내 로드 수행
  * 로드 완료된 리소스는 CompletedQueue에 추가 (ResourceManager에 아직 삽입 안됨)
  * 메인 스레드 Tick에서 ProcessCompletedResources 호출
  * CompletedQueue의 리소스를 ResourceManager에 삽입하고 콜백 실행
+ *
+ * Note: D3D11 디바이스는 스레드 안전하므로 여러 워커가 동시에 GPU 리소스 생성 가능
  */
 class FAsyncLoader
 {
 public:
 	static FAsyncLoader& Get();
 
-	void Initialize(ID3D11Device* InDevice);
+	// NumWorkers: 워커 스레드 개수 (기본값 = CPU 코어 수 - 1, 최소 1)
+	void Initialize(ID3D11Device* InDevice, int32 NumWorkers = 0);
 	void Shutdown();
 
 	std::shared_ptr<FStreamableHandle> RequestAsyncLoad(
@@ -151,6 +154,7 @@ public:
 	int32 GetCompletedCount() const { return CompletedCount.load(); }
 	int32 GetTotalRequestedCount() const { return TotalRequestedCount.load(); }
 	TArray<FString> GetCurrentlyLoadingAssets() const;
+	int32 GetWorkerCount() const { return static_cast<int32>(WorkerThreads.size()); }
 
 	// 로딩 세션 카운터 리셋 (모든 로드 완료 후 호출하여 다음 로딩 세션을 위해 카운터 초기화)
 	void ResetSessionCounters();
@@ -162,14 +166,14 @@ private:
 	FAsyncLoader(const FAsyncLoader&) = delete;
 	FAsyncLoader& operator=(const FAsyncLoader&) = delete;
 
-	void WorkerThreadFunc();
+	void WorkerThreadFunc(int32 WorkerIndex);
 	UResourceBase* LoadResourceOnWorker(const FString& FilePath, EResourceType ResourceType);
 
 	ID3D11Device* Device = nullptr;
 
-	std::thread WorkerThread;
+	std::vector<std::thread> WorkerThreads;
 	std::atomic<bool> bShutdownRequested{false};
-	std::atomic<bool> bWorkerRunning{false};
+	std::atomic<int32> ActiveWorkerCount{0};
 	std::atomic<bool> bPaused{false};
 	std::condition_variable PauseCV;
 	std::mutex PauseMutex;
@@ -188,6 +192,7 @@ private:
 	std::atomic<int32> CompletedCount{0};
 	std::atomic<int32> TotalRequestedCount{0};
 
-	FString CurrentLoadingAsset;
+	// 워커별 현재 로딩 중인 에셋 (index = worker index)
+	std::vector<FString> CurrentLoadingAssets;
 	mutable std::mutex CurrentAssetMutex;
 };
