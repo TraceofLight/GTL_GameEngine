@@ -376,17 +376,32 @@ FSkeletalMeshData* UFbxLoader::LoadFbxMeshAsset(const FString& FilePath)
     }
 
     // 머티리얼 그룹별 인덱스를 최종 인덱스 버퍼로 합치기
+    UE_LOG("[FBXLoader] MaterialGroupIndexList has %d entries, GroupInfos has %d entries\n",
+           (int)MaterialGroupIndexList.Num(), MeshData->GroupInfos.Num());
+
     uint32 Count = 0;
     for (auto& Element : MaterialGroupIndexList)
     {
         int32 MaterialIndex = Element.first;
         const TArray<uint32>& IndexList = Element.second;
 
+        UE_LOG("[FBXLoader] Processing MaterialIndex=%d, IndexList.Num()=%d, bEnableCloth=%d\n",
+               MaterialIndex, IndexList.Num(),
+               (MaterialIndex < MeshData->GroupInfos.Num()) ? (MeshData->GroupInfos[MaterialIndex].bEnableCloth ? 1 : 0) : -1);
+
         MeshData->Indices.Append(IndexList);
 
         MeshData->GroupInfos[MaterialIndex].StartIndex = Count;
         MeshData->GroupInfos[MaterialIndex].IndexCount = IndexList.Num();
         Count += IndexList.Num();
+    }
+
+    // 최종 GroupInfos 상태 출력
+    for (int32 i = 0; i < MeshData->GroupInfos.Num(); ++i)
+    {
+        const auto& G = MeshData->GroupInfos[i];
+        UE_LOG("[FBXLoader] Final GroupInfos[%d]: bEnableCloth=%d, StartIndex=%u, IndexCount=%u, Name=%s\n",
+               i, G.bEnableCloth ? 1 : 0, G.StartIndex, G.IndexCount, G.InitialMaterialName.c_str());
     }
 
 #ifdef USE_OBJ_CACHE
@@ -469,8 +484,29 @@ void UFbxLoader::LoadMeshFromNode(FbxNode* InNode,
 				NewClothGroup.StartIndex = 0;
 				NewClothGroup.IndexCount = 0;
 
-				MeshData.GroupInfos.Add(NewClothGroup);  
-				LoadMesh(Mesh, MeshData, MaterialGroupIndexList, BoneToIndex, MaterialSlotToIndex, ClothGroupIndex); 
+				UE_LOG("[FBXLoader] Detected cloth node '%s' at GroupIndex %d\n", NodeName.c_str(), ClothGroupIndex);
+
+				// Cloth 노드에서도 머티리얼 파싱 (텍스처 추출을 위해)
+				for (int MaterialSlot = 0; MaterialSlot < InNode->GetMaterialCount(); MaterialSlot++)
+				{
+					FbxSurfaceMaterial* Material = InNode->GetMaterial(MaterialSlot);
+					if (Material && !MaterialToIndex.Contains(Material))
+					{
+						FMaterialInfo MaterialInfo{};
+						ParseMaterial(Material, MaterialInfo);
+						// MaterialInfos에 추가 (캐시 저장 시 텍스처 정보도 저장됨)
+						MaterialInfos.push_back(MaterialInfo);
+						MaterialToIndex.Add(Material, MaterialToIndex.Num());
+						UE_LOG("[FBXLoader] Parsed cloth material: %s\n", MaterialInfo.MaterialName.c_str());
+					}
+				}
+
+				MeshData.GroupInfos.Add(NewClothGroup);
+				LoadMesh(Mesh, MeshData, MaterialGroupIndexList, BoneToIndex, MaterialSlotToIndex, ClothGroupIndex);
+
+				// 로드 후 IndexCount 확인
+				UE_LOG("[FBXLoader] After LoadMesh - ClothGroup[%d]: StartIndex=%u, IndexCount=%u\n",
+					   ClothGroupIndex, MeshData.GroupInfos[ClothGroupIndex].StartIndex, MeshData.GroupInfos[ClothGroupIndex].IndexCount);
 
 				continue;
 			}
