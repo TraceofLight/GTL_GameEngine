@@ -919,6 +919,13 @@ void USlateManager::RenderAfterUI()
 void USlateManager::Update(float DeltaSeconds)
 {
     ProcessInput();
+
+    // ESC 키로 드래그 드롭 취소
+    if (ImGui::GetDragDropPayload() != nullptr && ImGui::IsKeyPressed(ImGuiKey_Escape))
+    {
+        ImGui::ClearDragDrop();
+    }
+
     // MainToolbar 업데이트
     MainToolbar->Update();
 

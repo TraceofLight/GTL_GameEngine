@@ -2366,53 +2366,112 @@ void SViewportWindow::HandleDropTarget()
 				FVector2D screenPos(mousePos.x - ViewportPos.x, mousePos.y - ViewportPos.y);
 
 				// 카메라 방향 기반으로 월드 좌표 계산
-				FVector worldLocation = FVector(0, 0, 0);
+				FVector WorldLocation = FVector(0, 0, 0);
 
 				if (ViewportClient && ViewportClient->GetCamera())
 				{
-					ACameraActor* camera = ViewportClient->GetCamera();
+					ACameraActor* Camera = ViewportClient->GetCamera();
+					UCameraComponent* CameraComp = Camera->GetCameraComponent();
 
 					// 뷰포트 크기
-					float viewportWidth = ViewportSize.x;
-					float viewportHeight = ViewportSize.y;
+					float ViewportWidth = ViewportSize.x;
+					float ViewportHeight = ViewportSize.y;
 
 					// 스크린 좌표를 NDC(Normalized Device Coordinates)로 변환
 					// NDC 범위: X [-1, 1], Y [-1, 1]
-					float ndcX = (screenPos.X / viewportWidth) * 2.0f - 1.0f;
-					float ndcY = 1.0f - (screenPos.Y / viewportHeight) * 2.0f; // Y축 반전
+					float NdcX = (screenPos.X / ViewportWidth) * 2.0f - 1.0f;
+					float NdcY = 1.0f - (screenPos.Y / ViewportHeight) * 2.0f; // Y축 반전
 
 					// 카메라 정보
-					FVector cameraPos = camera->GetActorLocation();
-					FVector cameraForward = camera->GetForward();
-					FVector cameraRight = camera->GetRight();
-					FVector cameraUp = camera->GetUp();
+					FVector CameraPos = Camera->GetActorLocation();
+					FVector CameraForward = Camera->GetForward();
+					FVector CameraRight = Camera->GetRight();
+					FVector CameraUp = Camera->GetUp();
 
-					// FOV를 고려한 레이 방향 계산
-					float fov = 60.0f;
-					float aspectRatio = viewportWidth / viewportHeight;
-					float tanHalfFov = tan(fov * 0.5f * 3.14159f / 180.0f);
+					ECameraProjectionMode ProjMode = CameraComp->GetProjectionMode();
 
-					// 마우스 스크린 좌표에 해당하는 월드 방향 벡터 계산
-					FVector rayDir = cameraForward
-						+ cameraRight * (ndcX * tanHalfFov * aspectRatio)
-						+ cameraUp * (ndcY * tanHalfFov);
-					rayDir.Normalize();
+					if (ProjMode == ECameraProjectionMode::Orthographic)
+					{
+						// Ortho: 화면 좌표를 직접 월드 좌표로 deproject하여 ground plane(Z=0)에 스폰
+						// OrthoZoom은 픽셀당 월드 유닛 (화면 절반 높이 = OrthoZoom * ViewportHeight / 2)
+						float OrthoZoom = CameraComp->GetOrthoZoom();
+						float HalfWidth = ViewportWidth * 0.5f * OrthoZoom;
+						float HalfHeight = ViewportHeight * 0.5f * OrthoZoom;
 
-					// 카메라가 바라보는 방향(rayDir)으로 일정 거리(500 units) 앞에 소환
-					float spawnDistance = 10.0f;
-					worldLocation = cameraPos + rayDir * spawnDistance;
+						// 카메라 로컬 오프셋 (NDC * 화면 월드 크기)
+						FVector LocalOffset = CameraRight * (NdcX * HalfWidth) + CameraUp * (NdcY * HalfHeight);
 
-					UE_LOG("Viewport: MousePos(%f, %f), ScreenPos(%f, %f), NDC(%f, %f)",
-						mousePos.x, mousePos.y, screenPos.X, screenPos.Y, ndcX, ndcY);
-					UE_LOG("Viewport: RayDir(%f, %f, %f), SpawnPos(%f, %f, %f)",
-						rayDir.X, rayDir.Y, rayDir.Z, worldLocation.X, worldLocation.Y, worldLocation.Z);
+						// 카메라 위치 + 오프셋 = 뷰 평면 위의 월드 좌표
+						FVector ViewPlanePos = CameraPos + LocalOffset;
+
+						// Ground plane(Z=0)으로 레이캐스트
+						// Ray: ViewPlanePos + T * CameraForward, 여기서 결과의 Z = 0
+						// ViewPlanePos.Z + T * CameraForward.Z = 0
+						// T = -ViewPlanePos.Z / CameraForward.Z
+						if (std::abs(CameraForward.Z) > 0.001f)
+						{
+							float T = -ViewPlanePos.Z / CameraForward.Z;
+							WorldLocation = ViewPlanePos + CameraForward * T;
+						}
+						else
+						{
+							// 카메라가 수평을 바라보는 경우 (Front/Right 뷰)
+							// Y=0 또는 X=0 평면에 스폰
+							if (std::abs(CameraForward.Y) > std::abs(CameraForward.X))
+							{
+								// Front 뷰 (Y 방향 바라봄) - Y=0 평면에 스폰
+								float T = -ViewPlanePos.Y / CameraForward.Y;
+								WorldLocation = ViewPlanePos + CameraForward * T;
+							}
+							else
+							{
+								// Right 뷰 (X 방향 바라봄) - X=0 평면에 스폰
+								float T = -ViewPlanePos.X / CameraForward.X;
+								WorldLocation = ViewPlanePos + CameraForward * T;
+							}
+						}
+					}
+					else
+					{
+						// Perspective: 기존 FOV 기반 레이 방향 계산
+						float FOV = CameraComp->GetFOV();
+						float AspectRatio = ViewportWidth / ViewportHeight;
+						float TanHalfFOV = tan(FOV * 0.5f * 3.14159f / 180.0f);
+
+						// 마우스 스크린 좌표에 해당하는 월드 방향 벡터 계산
+						FVector RayDir = CameraForward
+							+ CameraRight * (NdcX * TanHalfFOV * AspectRatio)
+							+ CameraUp * (NdcY * TanHalfFOV);
+						RayDir.Normalize();
+
+						// Ground plane(Z=0)에 레이캐스트하여 스폰 위치 결정
+						// Ray: CameraPos + T * RayDir, Z = 0
+						if (std::abs(RayDir.Z) > 0.001f)
+						{
+							float T = -CameraPos.Z / RayDir.Z;
+							if (T > 0)
+							{
+								WorldLocation = CameraPos + RayDir * T;
+							}
+							else
+							{
+								// 카메라가 ground 아래를 보지 않음 - 적당한 거리에 스폰
+								WorldLocation = CameraPos + RayDir * 500.0f;
+							}
+						}
+						else
+						{
+							// 수평 시야 - 적당한 거리에 스폰
+							WorldLocation = CameraPos + RayDir * 500.0f;
+						}
+					}
 				}
 
 				// 액터 생성
-				SpawnActorFromFile(filePath, worldLocation);
+				SpawnActorFromFile(filePath, WorldLocation);
 
 				UE_LOG("Viewport: Dropped asset '%s' at world location (%f, %f, %f)",
-					filePath, worldLocation.X, worldLocation.Y, worldLocation.Z);
+					filePath, WorldLocation.X, WorldLocation.Y, WorldLocation.Z);
 			}
 			ImGui::EndDragDropTarget();
 		}
@@ -2618,9 +2677,13 @@ void SViewportWindow::FocusOnSelectedActor()
 				if (SkMC->GetSkeletalMesh())
 				{
 					FAABB Bounds = SkMC->GetWorldAABB();
-					ActorMin = Bounds.Min;
-					ActorMax = Bounds.Max;
-					bActorHasBounds = true;
+					// 유효한 AABB인지 확인 (Min < Max)
+					if (Bounds.Min.X < Bounds.Max.X && Bounds.Min.Y < Bounds.Max.Y && Bounds.Min.Z < Bounds.Max.Z)
+					{
+						ActorMin = Bounds.Min;
+						ActorMax = Bounds.Max;
+						bActorHasBounds = true;
+					}
 				}
 			}
 

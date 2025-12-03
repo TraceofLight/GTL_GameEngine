@@ -189,45 +189,46 @@ void USkinnedMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMes
 
 FAABB USkinnedMeshComponent::GetWorldAABB() const
 {
-   return {};
-   // const FTransform WorldTransform = GetWorldTransform();
-   // const FMatrix WorldMatrix = GetWorldMatrix();
-   //
-   // if (!SkeletalMesh)
-   // {
-   //    const FVector Origin = WorldTransform.TransformPosition(FVector());
-   //    return FAABB(Origin, Origin);
-   // }
-   //
-   // const FAABB LocalBound = SkeletalMesh->GetLocalBound(); // <-- 이 함수 구현 필요
-   // const FVector LocalMin = LocalBound.Min;
-   // const FVector LocalMax = LocalBound.Max;
-   //
-   // // ... (이하 AABB 계산 로직은 UStaticMeshComponent와 동일) ...
-   // const FVector LocalCorners[8] = {
-   //    FVector(LocalMin.X, LocalMin.Y, LocalMin.Z),
-   //    FVector(LocalMax.X, LocalMin.Y, LocalMin.Z),
-   //    // ... (나머지 6개 코너) ...
-   //    FVector(LocalMax.X, LocalMax.Y, LocalMax.Z)
-   // };
-   //
-   // FVector4 WorldMin4 = FVector4(LocalCorners[0].X, LocalCorners[0].Y, LocalCorners[0].Z, 1.0f) * WorldMatrix;
-   // FVector4 WorldMax4 = WorldMin4;
-   //
-   // for (int32 CornerIndex = 1; CornerIndex < 8; ++CornerIndex)
-   // {
-   //    const FVector4 WorldPos = FVector4(LocalCorners[CornerIndex].X
-   //       , LocalCorners[CornerIndex].Y
-   //       , LocalCorners[CornerIndex].Z
-   //       , 1.0f)
-   //       * WorldMatrix;
-   //    WorldMin4 = WorldMin4.ComponentMin(WorldPos);
-   //    WorldMax4 = WorldMax4.ComponentMax(WorldPos);
-   // }
-   //
-   // FVector WorldMin = FVector(WorldMin4.X, WorldMin4.Y, WorldMin4.Z);
-   // FVector WorldMax = FVector(WorldMax4.X, WorldMax4.Y, WorldMax4.Z);
-   // return FAABB(WorldMin, WorldMax);
+   const FTransform WorldTransform = GetWorldTransform();
+   const FMatrix WorldMatrix = GetWorldMatrix();
+
+   if (!SkeletalMesh)
+   {
+      const FVector Origin = WorldTransform.TransformPosition(FVector());
+      return FAABB(Origin, Origin);
+   }
+
+   const FAABB LocalBound = SkeletalMesh->GetLocalBound();
+   const FVector LocalMin = LocalBound.Min;
+   const FVector LocalMax = LocalBound.Max;
+
+   const FVector LocalCorners[8] = {
+      FVector(LocalMin.X, LocalMin.Y, LocalMin.Z),
+      FVector(LocalMax.X, LocalMin.Y, LocalMin.Z),
+      FVector(LocalMin.X, LocalMax.Y, LocalMin.Z),
+      FVector(LocalMax.X, LocalMax.Y, LocalMin.Z),
+      FVector(LocalMin.X, LocalMin.Y, LocalMax.Z),
+      FVector(LocalMax.X, LocalMin.Y, LocalMax.Z),
+      FVector(LocalMin.X, LocalMax.Y, LocalMax.Z),
+      FVector(LocalMax.X, LocalMax.Y, LocalMax.Z)
+   };
+
+   FVector4 WorldMin4 = FVector4(LocalCorners[0].X, LocalCorners[0].Y, LocalCorners[0].Z, 1.0f) * WorldMatrix;
+   FVector4 WorldMax4 = WorldMin4;
+
+   for (int32 CornerIndex = 1; CornerIndex < 8; ++CornerIndex)
+   {
+      const FVector4 WorldPos = FVector4(LocalCorners[CornerIndex].X,
+         LocalCorners[CornerIndex].Y,
+         LocalCorners[CornerIndex].Z,
+         1.0f) * WorldMatrix;
+      WorldMin4 = WorldMin4.ComponentMin(WorldPos);
+      WorldMax4 = WorldMax4.ComponentMax(WorldPos);
+   }
+
+   FVector WorldMin = FVector(WorldMin4.X, WorldMin4.Y, WorldMin4.Z);
+   FVector WorldMax = FVector(WorldMax4.X, WorldMax4.Y, WorldMax4.Z);
+   return FAABB(WorldMin, WorldMax);
 }
 
 void USkinnedMeshComponent::OnTransformUpdated()

@@ -15,6 +15,7 @@
 #include "EditorEngine.h"
 #include "SkeletalMeshComponent.h"
 #include "SkeletalMeshActor.h"
+#include "ImGui/imgui.h"
 
 IMPLEMENT_CLASS(AGizmoActor)
 
@@ -475,6 +476,13 @@ void AGizmoActor::ProcessGizmoInteraction(ACameraActor* Camera, FViewport* Viewp
 		return;
 	}
 
+	// ImGui 드래그 드롭 중에는 기즈모 인터랙션 무시
+	const ImGuiPayload* DragPayload = ImGui::GetDragDropPayload();
+	if (DragPayload != nullptr)
+	{
+		return;
+	}
+
 	if (!SelectionManager)
 	{
 		return;
@@ -545,6 +553,11 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 
 	if (!bIsBoneTargetMode && !SelectedComponent)
 	{
+		// 드래그 중인데 선택 대상이 사라진 경우 드래그 종료
+		if (bIsDragging)
+		{
+			EndDrag();
+		}
 		return;
 	}
 	if (!Camera)

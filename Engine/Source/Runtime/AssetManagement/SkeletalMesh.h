@@ -59,9 +59,13 @@ public:
     void CreateVertexBufferForComp(ID3D11Buffer** InVertexBuffer);
     void UpdateVertexBuffer(const TArray<FNormalVertex>& SkinnedVertices, ID3D11Buffer* InVertexBuffer);
 
+    // Local space bounding box
+    FAABB GetLocalBound() const { return LocalBound; }
+
 private:
     void CreateVertexBuffer(FSkeletalMeshData* InSkeletalMesh, ID3D11Device* InDevice);
     void CreateIndexBuffer(FSkeletalMeshData* InSkeletalMesh, ID3D11Device* InDevice);
+    void CreateLocalBound(const FSkeletalMeshData* InSkeletalMesh);
     void ReleaseResources();
 
 private:
@@ -74,6 +78,7 @@ private:
 
     // CPU 리소스
     FSkeletalMeshData* Data = nullptr;
+    FAABB LocalBound;
 
     // Animations
     TArray<UAnimSequence*> Animations;
