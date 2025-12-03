@@ -70,11 +70,28 @@ void UClothComponent::BeginPlay()
     }
 }
 
+void UClothComponent::EndPlay()
+{
+    Super::EndPlay();
+
+    // PIE 종료 시 원본 상태 복구
+    if (bHasSavedOriginalState)
+    {
+        RestoreOriginalState();
+    }
+}
+
 void UClothComponent::TickComponent(float DeltaTime)
 {
     Super::TickComponent(DeltaTime);
 
 	if (IsPendingDestroy() || !IsRegistered())
+	{
+		return;
+	}
+
+	// 에디터 모드에서는 시뮬레이션 하지 않음 (PIE에서만 실행)
+	if (GetWorld() && !GetWorld()->bPie)
 	{
 		return;
 	}
@@ -88,7 +105,7 @@ void UClothComponent::TickComponent(float DeltaTime)
     if (!bClothInitialized)
     {
 		UE_LOG("[ClothComponent] Cloth is not initialized\n");
-		InitializeComponent(); 
+		InitializeComponent();
     }
 
     UpdateClothSimulation(DeltaTime);
@@ -149,20 +166,24 @@ void UClothComponent::SetupClothFromMesh()
 		ReleaseCloth();
 	}
 
-	//InitializeNvCloth();
 	BuildClothMesh();           // Extract vertices + indices
 	CreateClothFabric();        // Cook -> Fabric
 	CreateClothInstance();      // Create nv::cloth::Cloth instance
 	CreatePhaseConfig();
 
-	//CreateSolver();
+	//만든 cloth를 solver에 전달;
 	FClothManager::GetInstance().AddClothToSolver(cloth);
 
 	ApplyClothProperties();
 	ApplyTetherConstraint();
 
-	//bClothInitialized = (factory != nullptr && solver != nullptr && fabric != nullptr && cloth != nullptr);
-}
+	// PIE 모드에서 시뮬레이션 시작 전 원본 상태 저장
+	if (GetWorld() && GetWorld()->bPie && !bHasSavedOriginalState)
+	{
+		SaveOriginalState();
+	}
+
+ }
 
 void UClothComponent::ReleaseCloth()
 {  
@@ -1042,6 +1063,54 @@ void UClothComponent::RecalculateNormals()
 	}
 }
 
+void UClothComponent::SaveOriginalState()
+{
+	if (!cloth || ClothParticles.Num() == 0)
+	{
+		UE_LOG("[ClothComponent] SaveOriginalState: Cannot save, cloth not initialized\n");
+		return;
+	}
+
+	// 현재 ClothParticles의 초기 상태를 저장
+	CacheOriginalParticles = ClothParticles;
+	bHasSavedOriginalState = true;
+	 
+}
+
+void UClothComponent::RestoreOriginalState()
+{
+	if (!bHasSavedOriginalState || CacheOriginalParticles.Num() == 0)
+	{
+		UE_LOG("[ClothComponent] RestoreOriginalState: No saved state to restore\n");
+		return;
+	}
+
+	if (!cloth)
+	{
+		UE_LOG("[ClothComponent] RestoreOriginalState: Cloth not initialized\n");
+		return;
+	}
+
+	// 저장된 원본 위치로 복구
+	ClothParticles = CacheOriginalParticles;
+	PreviousParticles = CacheOriginalParticles;
+
+	// Cloth 인스턴스에도 반영
+	nv::cloth::MappedRange<physx::PxVec4> particles = cloth->getCurrentParticles();
+	for (int i = 0; i < CacheOriginalParticles.Num() && i < particles.size(); i++)
+	{
+		particles[i] = CacheOriginalParticles[i];
+	}
+
+	// VertexBuffer 업데이트
+	UpdateVerticesFromCloth();
+	 
+
+	// 복구 후 플래그 리셋
+	bHasSavedOriginalState = false;
+	CacheOriginalParticles.Empty();
+}
+
 void UClothComponent::BuildClothMesh()
 {
 	if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
@@ -1066,8 +1135,7 @@ void UClothComponent::BuildClothMesh()
 			continue;
 		ExtractClothSection(group, allVertices, allIndices); 
 	}
-	 
-
+	  
 	// 결과를 이전 데이터로 초기화
 	PreviousParticles = ClothParticles;
 }

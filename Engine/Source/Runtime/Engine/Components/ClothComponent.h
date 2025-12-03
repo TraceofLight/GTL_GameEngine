@@ -112,10 +112,11 @@ public:
 	// Lifecycle
 	virtual void InitializeComponent() override;
 	virtual void BeginPlay() override;
+	virtual void EndPlay() override;
 	virtual void TickComponent(float DeltaTime) override;
 	virtual void OnCreatePhysicsState() override;
 	virtual void CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) override;
- 
+
 	// Cloth setup
 	void SetupClothFromMesh();
 	void ReleaseCloth();
@@ -181,6 +182,10 @@ protected:
 	float AccumulatedTime = 0.0f;
 	float SimulationFrequency = 60.0f;          // Hz
 
+	// PIE state restoration
+	TArray<physx::PxVec4> CacheOriginalParticles;    // PIE 시작 전 원본 위치 (복구용)
+	bool bHasSavedOriginalState = false;        // 원본 상태 저장 여부
+
 	virtual void DuplicateSubObjects() override;
 private:
 	// Internal helpers
@@ -203,6 +208,10 @@ private:
 	void UpdateClothSimulation(float DeltaTime);
 	void UpdateVerticesFromCloth();
 	void BuildClothMesh();
+
+	// PIE state management
+	void SaveOriginalState();
+	void RestoreOriginalState();
 	void ExtractClothSection(const FGroupInfo& Group, const TArray<FSkinnedVertex>& AllVertices, const TArray<uint32>& AllIndices);
 	bool ShouldFixVertex(const FSkinnedVertex& Vertex);
 	void UpdateSectionVertices(const FGroupInfo& Group, int32& ParticleIdx);

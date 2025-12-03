@@ -412,10 +412,12 @@ void UEditorEngine::MainLoop()
 				PHYSICS.EndSimulate(GWorld->GetPhysicsSceneHandle(), true); 
 			} 
 		}
-		 
 		FClothManager::GetInstance().ClothSimulation(DeltaSeconds);
-
+		 
         Tick(DeltaSeconds);
+
+
+
 		// Physics simulation is now handled per-World in UWorld::Tick
         Render(); 
 
