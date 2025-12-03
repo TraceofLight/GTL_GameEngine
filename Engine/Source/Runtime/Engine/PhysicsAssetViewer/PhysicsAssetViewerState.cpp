@@ -389,6 +389,10 @@ void PhysicsAssetViewerState::DrawBox(URenderer* Renderer, const FTransform& Bon
 
     // 본 트랜스폼과 결합
     FTransform BoxWorldTransform = BoneTransform.GetWorldTransform(BoxLocalTransform);
+    // Compose world without inheriting parent scale into translation
+    const FQuat BoxWorldRot = BoneTransform.Rotation * BoxRot;
+    const FVector BoxWorldCenter = BoneTransform.Translation + BoneTransform.Rotation.RotateVector(Box.Center);
+    const FTransform BoxWorldNoScale(BoxWorldCenter, BoxWorldRot, FVector(1, 1, 1));
 
     FVector Extent(Box.X * 0.5f, Box.Y * 0.5f, Box.Z * 0.5f);
 
@@ -404,7 +408,7 @@ void PhysicsAssetViewerState::DrawBox(URenderer* Renderer, const FTransform& Bon
     FVector WorldCorners[8];
     for (int i = 0; i < 8; ++i)
     {
-        WorldCorners[i] = BoxWorldTransform.TransformPosition(LocalCorners[i]);
+        WorldCorners[i] = BoxWorldNoScale.TransformPosition(LocalCorners[i]);
     }
 
     TArray<FVector> StartPoints;
@@ -600,9 +604,10 @@ void PhysicsAssetViewerState::DrawPhysicsBodiesSolid(URenderer* Renderer) const
             FPrimitiveGeometry::GenerateSphere(SphereMesh, Sphere.Radius, 12, 6, Color);
 
             // Shape의 로컬 트랜스폼 계산
-            FTransform ShapeLocalTransform(Sphere.Center, FQuat(0, 0, 0, 1), FVector(1, 1, 1));
-            FTransform ShapeWorldTransform = BoneTransform.GetWorldTransform(ShapeLocalTransform);
-            FMatrix WorldMatrix = FMatrix::FromTRS(ShapeWorldTransform.Translation, ShapeWorldTransform.Rotation, FVector(1, 1, 1));
+            // Compose world (ignore parent scale for translation)
+            const FVector SphereWorldCenter = BoneTransform.Translation + BoneTransform.Rotation.RotateVector(Sphere.Center);
+            const FQuat   SphereWorldRot    = BoneTransform.Rotation; // no local rotation for sphere
+            FMatrix WorldMatrix = FMatrix::FromTRS(SphereWorldCenter, SphereWorldRot, FVector(1, 1, 1));
 
             Renderer->AddPrimitiveData(SphereMesh, WorldMatrix);
         }
@@ -623,10 +628,12 @@ void PhysicsAssetViewerState::DrawPhysicsBodiesSolid(URenderer* Renderer) const
             FPrimitiveGeometry::GenerateBox(BoxMesh, FVector(Box.X * 0.5f, Box.Y * 0.5f, Box.Z * 0.5f), Color);
 
             // Shape의 로컬 트랜스폼 계산
-            FQuat BoxRot = FQuat::MakeFromEulerZYX(Box.Rotation * (PI / 180.0f));
-            FTransform ShapeLocalTransform(Box.Center, BoxRot, FVector(1, 1, 1));
-            FTransform ShapeWorldTransform = BoneTransform.GetWorldTransform(ShapeLocalTransform);
-            FMatrix WorldMatrix = FMatrix::FromTRS(ShapeWorldTransform.Translation, ShapeWorldTransform.Rotation, FVector(1, 1, 1));
+            // MakeFromEulerZYX expects degrees
+            FQuat BoxRot = FQuat::MakeFromEulerZYX(Box.Rotation);
+            // Compose world (ignore parent scale for translation)
+            const FVector BoxWorldCenter = BoneTransform.Translation + BoneTransform.Rotation.RotateVector(Box.Center);
+            const FQuat   BoxWorldRot    = BoneTransform.Rotation * BoxRot;
+            FMatrix WorldMatrix = FMatrix::FromTRS(BoxWorldCenter, BoxWorldRot, FVector(1, 1, 1));
 
             Renderer->AddPrimitiveData(BoxMesh, WorldMatrix);
         }
@@ -647,12 +654,20 @@ void PhysicsAssetViewerState::DrawPhysicsBodiesSolid(URenderer* Renderer) const
             FPrimitiveGeometry::GenerateCapsule(CapsuleMesh, Capsule.Radius, Capsule.Length * 0.5f, 12, 4, Color);
 
             // Shape의 로컬 트랜스폼 계산
-            FQuat CapsuleRot = FQuat::MakeFromEulerZYX(Capsule.Rotation * (PI / 180.0f));
+            // MakeFromEulerZYX expects degrees
+            FQuat CapsuleRot = FQuat::MakeFromEulerZYX(Capsule.Rotation);
             FTransform ShapeLocalTransform(Capsule.Center, CapsuleRot, FVector(1, 1, 1));
             FTransform ShapeWorldTransform = BoneTransform.GetWorldTransform(ShapeLocalTransform);
-            FMatrix WorldMatrix = FMatrix::FromTRS(ShapeWorldTransform.Translation, ShapeWorldTransform.Rotation, FVector(1, 1, 1));
-
-            Renderer->AddPrimitiveData(CapsuleMesh, WorldMatrix);
+            // Primitive capsule is Z-axis aligned; physics capsule long axis is X.
+            // Rotate mesh -90deg about Y to map Z->X for correct orientation.
+            {
+                const FQuat CapsuleWorldRot = BoneTransform.Rotation * CapsuleRot;
+                const FVector CapsuleWorldCenter = BoneTransform.Translation + BoneTransform.Rotation.RotateVector(Capsule.Center);
+                FQuat AlignZtoX = FQuat::MakeFromEulerZYX(FVector(0, -90, 0));
+                FMatrix WorldMatrix = FMatrix::FromTRS(CapsuleWorldCenter, CapsuleWorldRot * AlignZtoX, FVector(1, 1, 1));
+                Renderer->AddPrimitiveData(CapsuleMesh, WorldMatrix);
+            }
+            continue;
         }
     }
 
@@ -880,9 +895,9 @@ static bool RayCapsuleIntersect(const FRay& Ray, const FVector& Center, float Ra
     FVector LocalDir = InvRot.RotateVector(Ray.Direction);
 
     // 먼저 무한 실린더와 교차 검사
-    float A = LocalDir.X * LocalDir.X + LocalDir.Y * LocalDir.Y;
-    float B = 2.0f * (LocalOrigin.X * LocalDir.X + LocalOrigin.Y * LocalDir.Y);
-    float C = LocalOrigin.X * LocalOrigin.X + LocalOrigin.Y * LocalOrigin.Y - Radius * Radius;
+    float A = LocalDir.Y * LocalDir.Y + LocalDir.Z * LocalDir.Z;
+    float B = 2.0f * (LocalOrigin.Y * LocalDir.Y + LocalOrigin.Z * LocalDir.Z);
+    float C = LocalOrigin.Y * LocalOrigin.Y + LocalOrigin.Z * LocalOrigin.Z - Radius * Radius;
 
     float Discriminant = B * B - 4 * A * C;
     float ClosestT = FLT_MAX;
@@ -898,8 +913,8 @@ static bool RayCapsuleIntersect(const FRay& Ray, const FVector& Center, float Ra
         {
             if (T >= 0)
             {
-                float Z = LocalOrigin.Z + T * LocalDir.Z;
-                if (Z >= -HalfLength && Z <= HalfLength)
+                float X = LocalOrigin.X + T * LocalDir.X;
+                if (X >= -HalfLength && X <= HalfLength)
                 {
                     if (T < ClosestT) { ClosestT = T; bHit = true; }
                 }
@@ -909,8 +924,8 @@ static bool RayCapsuleIntersect(const FRay& Ray, const FVector& Center, float Ra
 
     // 반구 캡 검사
     float SphereT;
-    FVector TopCenter(0, 0, HalfLength);
-    FVector BotCenter(0, 0, -HalfLength);
+    FVector TopCenter(+HalfLength, 0, 0);
+    FVector BotCenter(-HalfLength, 0, 0);
 
     FVector TopOrigin = LocalOrigin - TopCenter;
     float TopA = FVector::Dot(LocalDir, LocalDir);
@@ -924,7 +939,7 @@ static bool RayCapsuleIntersect(const FRay& Ray, const FVector& Center, float Ra
         if (SphereT >= 0)
         {
             FVector HitPoint = LocalOrigin + LocalDir * SphereT;
-            if (HitPoint.Z >= HalfLength && SphereT < ClosestT) { ClosestT = SphereT; bHit = true; }
+            if (HitPoint.X >= HalfLength && SphereT < ClosestT) { ClosestT = SphereT; bHit = true; }
         }
     }
 
@@ -940,7 +955,7 @@ static bool RayCapsuleIntersect(const FRay& Ray, const FVector& Center, float Ra
         if (SphereT >= 0)
         {
             FVector HitPoint = LocalOrigin + LocalDir * SphereT;
-            if (HitPoint.Z <= -HalfLength && SphereT < ClosestT) { ClosestT = SphereT; bHit = true; }
+            if (HitPoint.X <= -HalfLength && SphereT < ClosestT) { ClosestT = SphereT; bHit = true; }
         }
     }
 
@@ -991,14 +1006,14 @@ bool PhysicsAssetViewerState::PickBodyOrShape(const FRay& Ray,
 
         // Sphere 검사
         for (int32 i = 0; i < Setup->AggGeom.SphereElems.Num(); ++i)
-        {
-            const FKSphereElem& Sphere = Setup->AggGeom.SphereElems[i];
-            FTransform ShapeLocal(Sphere.Center, FQuat(0, 0, 0, 1), FVector(1, 1, 1));
-            FTransform ShapeWorld = BoneTransform.GetWorldTransform(ShapeLocal);
-
-            float T;
-            if (RaySphereIntersect(Ray, ShapeWorld.Translation, Sphere.Radius, T))
             {
+                const FKSphereElem& Sphere = Setup->AggGeom.SphereElems[i];
+                // Compose world center without inheriting parent scale
+                const FVector SphereWorldCenter = BoneTransform.Translation + BoneTransform.Rotation.RotateVector(Sphere.Center);
+
+                float T;
+                if (RaySphereIntersect(Ray, SphereWorldCenter, Sphere.Radius, T))
+                {
                 if (T < ClosestDist)
                 {
                     ClosestDist = T;
@@ -1014,13 +1029,15 @@ bool PhysicsAssetViewerState::PickBodyOrShape(const FRay& Ray,
         for (int32 i = 0; i < Setup->AggGeom.BoxElems.Num(); ++i)
         {
             const FKBoxElem& Box = Setup->AggGeom.BoxElems[i];
-            FQuat BoxRot = FQuat::MakeFromEulerZYX(Box.Rotation * (PI / 180.0f));
-            FTransform ShapeLocal(Box.Center, BoxRot, FVector(1, 1, 1));
-            FTransform ShapeWorld = BoneTransform.GetWorldTransform(ShapeLocal);
+            // MakeFromEulerZYX expects degrees
+            FQuat BoxRot = FQuat::MakeFromEulerZYX(Box.Rotation);
+            // Compose world (ignore parent scale for translation)
+            const FVector BoxWorldCenter = BoneTransform.Translation + BoneTransform.Rotation.RotateVector(Box.Center);
+            const FQuat   BoxWorldRot    = BoneTransform.Rotation * BoxRot;
 
             float T;
             FVector HalfExtent(Box.X * 0.5f, Box.Y * 0.5f, Box.Z * 0.5f);
-            if (RayBoxIntersect(Ray, ShapeWorld.Translation, HalfExtent, ShapeWorld.Rotation, T))
+            if (RayBoxIntersect(Ray, BoxWorldCenter, HalfExtent, BoxWorldRot, T))
             {
                 if (T < ClosestDist)
                 {
@@ -1037,12 +1054,14 @@ bool PhysicsAssetViewerState::PickBodyOrShape(const FRay& Ray,
         for (int32 i = 0; i < Setup->AggGeom.SphylElems.Num(); ++i)
         {
             const FKCapsuleElem& Capsule = Setup->AggGeom.SphylElems[i];
-            FQuat CapsuleRot = FQuat::MakeFromEulerZYX(Capsule.Rotation * (PI / 180.0f));
-            FTransform ShapeLocal(Capsule.Center, CapsuleRot, FVector(1, 1, 1));
-            FTransform ShapeWorld = BoneTransform.GetWorldTransform(ShapeLocal);
+            // MakeFromEulerZYX expects degrees
+            FQuat CapsuleRot = FQuat::MakeFromEulerZYX(Capsule.Rotation);
+            // Compose world (ignore parent scale for translation)
+            const FVector CapsuleWorldCenter = BoneTransform.Translation + BoneTransform.Rotation.RotateVector(Capsule.Center);
+            const FQuat   CapsuleWorldRot    = BoneTransform.Rotation * CapsuleRot;
 
             float T;
-            if (RayCapsuleIntersect(Ray, ShapeWorld.Translation, Capsule.Radius, Capsule.Length * 0.5f, ShapeWorld.Rotation, T))
+            if (RayCapsuleIntersect(Ray, CapsuleWorldCenter, Capsule.Radius, Capsule.Length * 0.5f, CapsuleWorldRot, T))
             {
                 if (T < ClosestDist)
                 {
