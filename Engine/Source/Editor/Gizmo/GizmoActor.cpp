@@ -16,6 +16,8 @@
 #include "SkeletalMeshComponent.h"
 #include "SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsConstraintSetup.h"
+#include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
+#include "Source/Runtime/Engine/PhysicsEngine/ShapeElem.h"
 
 IMPLEMENT_CLASS(AGizmoActor)
 
@@ -174,6 +176,34 @@ void AGizmoActor::Tick(float DeltaSeconds)
 		SetActorLocation(ConstraintPos);
 		SetSpaceWorldMatrix(CurrentSpace, nullptr);
 	}
+	// Shape 타겟일 때는 Shape의 월드 위치를 추적
+	else if (TargetType == EGizmoTargetType::Shape && TargetSkeletalMeshComponent && TargetBodySetup && TargetBoneIndex >= 0 && TargetShapeIndex >= 0)
+	{
+		FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+		FVector ShapeLocalCenter = FVector::Zero();
+
+		switch (TargetShapeType)
+		{
+		case EAggCollisionShape::Sphere:
+			if (TargetShapeIndex < TargetBodySetup->AggGeom.SphereElems.Num())
+				ShapeLocalCenter = TargetBodySetup->AggGeom.SphereElems[TargetShapeIndex].Center;
+			break;
+		case EAggCollisionShape::Box:
+			if (TargetShapeIndex < TargetBodySetup->AggGeom.BoxElems.Num())
+				ShapeLocalCenter = TargetBodySetup->AggGeom.BoxElems[TargetShapeIndex].Center;
+			break;
+		case EAggCollisionShape::Capsule:
+			if (TargetShapeIndex < TargetBodySetup->AggGeom.SphylElems.Num())
+				ShapeLocalCenter = TargetBodySetup->AggGeom.SphylElems[TargetShapeIndex].Center;
+			break;
+		default:
+			break;
+		}
+
+		FVector ShapeWorldPos = BoneWorldTransform.Translation + BoneWorldTransform.Rotation.RotateVector(ShapeLocalCenter);
+		SetActorLocation(ShapeWorldPos);
+		SetSpaceWorldMatrix(CurrentSpace, nullptr);
+	}
 	// Actor/Component 타겟일 때는 선택된 컴포넌트 위치 추적
 	else if (SelectionManager && SelectionManager->HasSelection() && CameraActor)
 	{
@@ -221,6 +251,40 @@ void AGizmoActor::SetSpaceWorldMatrix(EGizmoSpace NewSpace, USceneComponent* Sel
 		if (NewSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
 		{
 			SetActorRotation(BoneWorldTransform.Rotation);
+		}
+		else if (NewSpace == EGizmoSpace::World)
+		{
+			SetActorRotation(FQuat::Identity());
+		}
+		return;
+	}
+
+	// Shape 타겟인 경우
+	if (TargetType == EGizmoTargetType::Shape && TargetSkeletalMeshComponent && TargetBodySetup && TargetBoneIndex >= 0 && TargetShapeIndex >= 0)
+	{
+		FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+		FVector ShapeLocalRotation = FVector::Zero();
+
+		switch (TargetShapeType)
+		{
+		case EAggCollisionShape::Box:
+			if (TargetShapeIndex < TargetBodySetup->AggGeom.BoxElems.Num())
+				ShapeLocalRotation = TargetBodySetup->AggGeom.BoxElems[TargetShapeIndex].Rotation;
+			break;
+		case EAggCollisionShape::Capsule:
+			if (TargetShapeIndex < TargetBodySetup->AggGeom.SphylElems.Num())
+				ShapeLocalRotation = TargetBodySetup->AggGeom.SphylElems[TargetShapeIndex].Rotation;
+			break;
+		default:
+			break;  // Sphere has no rotation
+		}
+
+		FQuat ShapeLocalQuat = FQuat::MakeFromEulerZYX(ShapeLocalRotation);
+		FQuat ShapeWorldRot = BoneWorldTransform.Rotation * ShapeLocalQuat;
+
+		if (NewSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
+		{
+			SetActorRotation(ShapeWorldRot);
 		}
 		else if (NewSpace == EGizmoSpace::World)
 		{
@@ -309,9 +373,11 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 
 	// Bone 타겟인 경우: TargetSkeletalMeshComponent를 사용
 	bool bIsBoneMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
+	// Shape 타겟인 경우: Shape의 로컬 좌표를 수정
+	bool bIsShapeMode = (TargetType == EGizmoTargetType::Shape && TargetSkeletalMeshComponent && TargetBodySetup && TargetBoneIndex >= 0 && TargetShapeIndex >= 0);
 
 	// Actor/Component 타겟인 경우: Target 검증
-	if (!bIsBoneMode && !Target)
+	if (!bIsBoneMode && !bIsShapeMode && !Target)
 	{
 		return;
 	}
@@ -386,6 +452,31 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 				NewWorldTransform.Scale3D = DragStartScale;
 				TargetSkeletalMeshComponent->SetBoneWorldTransform(TargetBoneIndex, NewWorldTransform);
 			}
+			else if (bIsShapeMode)
+			{
+				// Shape의 새로운 월드 위치를 로컬 Center로 변환
+				FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+				FVector NewLocalCenter = BoneWorldTransform.Rotation.Inverse().RotateVector(NewLocation - BoneWorldTransform.Translation);
+
+				// Shape의 Center 업데이트
+				switch (TargetShapeType)
+				{
+				case EAggCollisionShape::Sphere:
+					if (TargetShapeIndex < TargetBodySetup->AggGeom.SphereElems.Num())
+						TargetBodySetup->AggGeom.SphereElems[TargetShapeIndex].Center = NewLocalCenter;
+					break;
+				case EAggCollisionShape::Box:
+					if (TargetShapeIndex < TargetBodySetup->AggGeom.BoxElems.Num())
+						TargetBodySetup->AggGeom.BoxElems[TargetShapeIndex].Center = NewLocalCenter;
+					break;
+				case EAggCollisionShape::Capsule:
+					if (TargetShapeIndex < TargetBodySetup->AggGeom.SphylElems.Num())
+						TargetBodySetup->AggGeom.SphylElems[TargetShapeIndex].Center = NewLocalCenter;
+					break;
+				default:
+					break;
+				}
+			}
 			else
 			{
 				Target->SetWorldLocation(NewLocation);
@@ -409,6 +500,53 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 				NewWorldTransform.Rotation = DragStartRotation;
 				NewWorldTransform.Scale3D = NewScale;
 				TargetSkeletalMeshComponent->SetBoneWorldTransform(TargetBoneIndex, NewWorldTransform);
+			}
+			else if (bIsShapeMode)
+			{
+				// Shape의 크기 업데이트 (축에 따라 다른 속성)
+				switch (TargetShapeType)
+				{
+				case EAggCollisionShape::Sphere:
+					if (TargetShapeIndex < TargetBodySetup->AggGeom.SphereElems.Num())
+					{
+						// Sphere는 모든 축에서 Radius만 조정
+						float NewRadius = DragStartShapeRadius + TotalMovement;
+						if (NewRadius > 0.01f)
+							TargetBodySetup->AggGeom.SphereElems[TargetShapeIndex].Radius = NewRadius;
+					}
+					break;
+				case EAggCollisionShape::Box:
+					if (TargetShapeIndex < TargetBodySetup->AggGeom.BoxElems.Num())
+					{
+						FKBoxElem& Box = TargetBodySetup->AggGeom.BoxElems[TargetShapeIndex];
+						switch (DraggingAxis)
+						{
+						case 1: Box.X = FMath::Max(0.01f, DragStartShapeX + TotalMovement); break;
+						case 2: Box.Y = FMath::Max(0.01f, DragStartShapeY + TotalMovement); break;
+						case 3: Box.Z = FMath::Max(0.01f, DragStartShapeZ + TotalMovement); break;
+						}
+					}
+					break;
+				case EAggCollisionShape::Capsule:
+					if (TargetShapeIndex < TargetBodySetup->AggGeom.SphylElems.Num())
+					{
+						FKCapsuleElem& Capsule = TargetBodySetup->AggGeom.SphylElems[TargetShapeIndex];
+						// X/Y 축 = Radius, Z 축 = Length
+						switch (DraggingAxis)
+						{
+						case 1:
+						case 2:
+							Capsule.Radius = FMath::Max(0.01f, DragStartShapeRadius + TotalMovement);
+							break;
+						case 3:
+							Capsule.Length = FMath::Max(0.01f, DragStartShapeLength + TotalMovement);
+							break;
+						}
+					}
+					break;
+				default:
+					break;
+				}
 			}
 			else
 			{
@@ -468,6 +606,30 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 			NewWorldTransform.Rotation = NewRot;
 			NewWorldTransform.Scale3D = DragStartScale;
 			TargetSkeletalMeshComponent->SetBoneWorldTransform(TargetBoneIndex, NewWorldTransform);
+		}
+		else if (bIsShapeMode)
+		{
+			// Shape의 새로운 월드 회전을 로컬 Rotation으로 변환
+			// NewRot = BoneWorldRot * ShapeLocalRot 이므로
+			// ShapeLocalRot = BoneWorldRot.Inverse * NewRot
+			FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+			FQuat NewShapeLocalRot = BoneWorldTransform.Rotation.Inverse() * NewRot;
+			FVector NewShapeLocalEuler = NewShapeLocalRot.ToEulerZYXDeg();
+
+			// Shape의 Rotation 업데이트 (Sphere는 회전 없음)
+			switch (TargetShapeType)
+			{
+			case EAggCollisionShape::Box:
+				if (TargetShapeIndex < TargetBodySetup->AggGeom.BoxElems.Num())
+					TargetBodySetup->AggGeom.BoxElems[TargetShapeIndex].Rotation = NewShapeLocalEuler;
+				break;
+			case EAggCollisionShape::Capsule:
+				if (TargetShapeIndex < TargetBodySetup->AggGeom.SphylElems.Num())
+					TargetBodySetup->AggGeom.SphylElems[TargetShapeIndex].Rotation = NewShapeLocalEuler;
+				break;
+			default:
+				break;  // Sphere has no rotation
+			}
 		}
 		else
 		{
@@ -786,11 +948,12 @@ bool AGizmoActor::StartDrag(ACameraActor* Camera, FViewport* Viewport, float Mou
 		return false;
 	}
 
-	// 본 타겟 모드 체크
+	// 본/Shape 타겟 모드 체크
 	bool bIsBoneTargetMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
+	bool bIsShapeTargetMode = (TargetType == EGizmoTargetType::Shape && TargetSkeletalMeshComponent && TargetBodySetup && TargetBoneIndex >= 0 && TargetShapeIndex >= 0);
 	USceneComponent* SelectedComponent = SelectionManager ? SelectionManager->GetSelectedComponent() : nullptr;
 
-	if (!bIsBoneTargetMode && !SelectedComponent)
+	if (!bIsBoneTargetMode && !bIsShapeTargetMode && !SelectedComponent)
 	{
 		return false;
 	}
@@ -813,13 +976,71 @@ bool AGizmoActor::StartDrag(ACameraActor* Camera, FViewport* Viewport, float Mou
 		DragStartRotation = BoneWorldTransform.Rotation;
 		DragStartScale = BoneWorldTransform.Scale3D;
 	}
+	else if (bIsShapeTargetMode)
+	{
+		// Shape 모드: 본의 월드 트랜스폼과 Shape의 로컬 데이터 저장
+		FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+
+		// Shape의 로컬 Center로 월드 위치 계산
+		FVector ShapeLocalCenter = FVector::Zero();
+		FVector ShapeLocalRotation = FVector::Zero();
+
+		switch (TargetShapeType)
+		{
+		case EAggCollisionShape::Sphere:
+			if (TargetShapeIndex < TargetBodySetup->AggGeom.SphereElems.Num())
+			{
+				FKSphereElem& Sphere = TargetBodySetup->AggGeom.SphereElems[TargetShapeIndex];
+				ShapeLocalCenter = Sphere.Center;
+				DragStartShapeCenter = Sphere.Center;
+				DragStartShapeRadius = Sphere.Radius;
+			}
+			break;
+		case EAggCollisionShape::Box:
+			if (TargetShapeIndex < TargetBodySetup->AggGeom.BoxElems.Num())
+			{
+				FKBoxElem& Box = TargetBodySetup->AggGeom.BoxElems[TargetShapeIndex];
+				ShapeLocalCenter = Box.Center;
+				ShapeLocalRotation = Box.Rotation;
+				DragStartShapeCenter = Box.Center;
+				DragStartShapeRotation = Box.Rotation;
+				DragStartShapeX = Box.X;
+				DragStartShapeY = Box.Y;
+				DragStartShapeZ = Box.Z;
+			}
+			break;
+		case EAggCollisionShape::Capsule:
+			if (TargetShapeIndex < TargetBodySetup->AggGeom.SphylElems.Num())
+			{
+				FKCapsuleElem& Capsule = TargetBodySetup->AggGeom.SphylElems[TargetShapeIndex];
+				ShapeLocalCenter = Capsule.Center;
+				ShapeLocalRotation = Capsule.Rotation;
+				DragStartShapeCenter = Capsule.Center;
+				DragStartShapeRotation = Capsule.Rotation;
+				DragStartShapeRadius = Capsule.Radius;
+				DragStartShapeLength = Capsule.Length;
+			}
+			break;
+		default:
+			break;
+		}
+
+		// Shape의 월드 위치를 DragStartLocation으로 저장
+		DragStartLocation = BoneWorldTransform.Translation + BoneWorldTransform.Rotation.RotateVector(ShapeLocalCenter);
+
+		// Shape의 월드 회전을 DragStartRotation으로 저장
+		FQuat ShapeLocalQuat = FQuat::MakeFromEulerZYX(ShapeLocalRotation);
+		DragStartRotation = BoneWorldTransform.Rotation * ShapeLocalQuat;
+
+		DragStartScale = FVector::One();
+	}
 
 	// 본 타겟 모드일 때 편집 중인 본 인덱스 설정 (AnimInstance가 해당 본을 덮어쓰지 않도록)
 	if (bIsBoneTargetMode)
 	{
 		TargetSkeletalMeshComponent->SetBoneEditingMode(true, TargetBoneIndex);
 	}
-	else if (SelectedComponent)
+	else if (!bIsShapeTargetMode && SelectedComponent)
 	{
 		DragStartLocation = SelectedComponent->GetWorldLocation();
 		DragStartRotation = SelectedComponent->GetWorldRotation();
@@ -1006,4 +1227,79 @@ void AGizmoActor::ClearConstraintTarget()
 	TargetConstraintSetup = nullptr;
 	TargetConstraintBone1Index = -1;
 	TargetConstraintBone2Index = -1;
+}
+
+// ────────────────────────────────────────────────────────
+// Shape Target Functions
+// ────────────────────────────────────────────────────────
+
+void AGizmoActor::SetShapeTarget(USkeletalMeshComponent* InComponent, UBodySetup* InBodySetup, int32 InBoneIndex, EAggCollisionShape::Type InShapeType, int32 InShapeIndex)
+{
+	if (!InComponent || !InBodySetup || InBoneIndex < 0 || InShapeIndex < 0)
+	{
+		ClearShapeTarget();
+		return;
+	}
+
+	TargetType = EGizmoTargetType::Shape;
+	TargetSkeletalMeshComponent = InComponent;
+	TargetBodySetup = InBodySetup;
+	TargetBoneIndex = InBoneIndex;
+	TargetShapeType = InShapeType;
+	TargetShapeIndex = InShapeIndex;
+
+	// 본의 월드 트랜스폼
+	FTransform BoneWorldTransform = InComponent->GetBoneWorldTransform(InBoneIndex);
+
+	// Shape의 로컬 Center 가져오기
+	FVector ShapeLocalCenter = FVector::Zero();
+	FVector ShapeLocalRotation = FVector::Zero();
+
+	switch (InShapeType)
+	{
+	case EAggCollisionShape::Sphere:
+		if (InShapeIndex < InBodySetup->AggGeom.SphereElems.Num())
+		{
+			ShapeLocalCenter = InBodySetup->AggGeom.SphereElems[InShapeIndex].Center;
+		}
+		break;
+	case EAggCollisionShape::Box:
+		if (InShapeIndex < InBodySetup->AggGeom.BoxElems.Num())
+		{
+			ShapeLocalCenter = InBodySetup->AggGeom.BoxElems[InShapeIndex].Center;
+			ShapeLocalRotation = InBodySetup->AggGeom.BoxElems[InShapeIndex].Rotation;
+		}
+		break;
+	case EAggCollisionShape::Capsule:
+		if (InShapeIndex < InBodySetup->AggGeom.SphylElems.Num())
+		{
+			ShapeLocalCenter = InBodySetup->AggGeom.SphylElems[InShapeIndex].Center;
+			ShapeLocalRotation = InBodySetup->AggGeom.SphylElems[InShapeIndex].Rotation;
+		}
+		break;
+	default:
+		break;
+	}
+
+	// Shape Center를 월드 좌표로 변환
+	FVector ShapeWorldPos = BoneWorldTransform.Translation + BoneWorldTransform.Rotation.RotateVector(ShapeLocalCenter);
+
+	// Shape 로컬 회전을 월드 회전으로 변환
+	FQuat ShapeLocalQuat = FQuat::MakeFromEulerZYX(ShapeLocalRotation);
+	FQuat ShapeWorldRot = BoneWorldTransform.Rotation * ShapeLocalQuat;
+
+	RootComponent->SetWorldLocation(ShapeWorldPos);
+	RootComponent->SetWorldRotation(ShapeWorldRot);
+
+	SetSpaceWorldMatrix(CurrentSpace, nullptr);
+}
+
+void AGizmoActor::ClearShapeTarget()
+{
+	TargetType = EGizmoTargetType::Actor;
+	TargetSkeletalMeshComponent = nullptr;
+	TargetBodySetup = nullptr;
+	TargetBoneIndex = -1;
+	TargetShapeType = static_cast<EAggCollisionShape::Type>(0);
+	TargetShapeIndex = -1;
 }

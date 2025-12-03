@@ -110,6 +110,33 @@ void PhysicsAssetViewerState::SelectShape(int32 BodyIndex, EAggCollisionShape::T
         if (Setup)
         {
             SelectedBoneName = Setup->BoneName;
+
+            // 기즈모 설정
+            if (GizmoActor && PreviewActor && CurrentMesh)
+            {
+                USkeletalMeshComponent* SkelComp = PreviewActor->GetSkeletalMeshComponent();
+                const FSkeleton* Skeleton = CurrentMesh->GetSkeleton();
+
+                if (SkelComp && Skeleton)
+                {
+                    // 해당 본의 인덱스 찾기
+                    int32 BoneIndex = -1;
+                    for (int32 i = 0; i < Skeleton->Bones.size(); ++i)
+                    {
+                        if (Skeleton->Bones[i].Name == Setup->BoneName.ToString())
+                        {
+                            BoneIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (BoneIndex >= 0)
+                    {
+                        GizmoActor->SetShapeTarget(SkelComp, Setup, BoneIndex, ShapeType, ShapeIndex);
+                        GizmoActor->SetbRender(true);
+                    }
+                }
+            }
         }
     }
 

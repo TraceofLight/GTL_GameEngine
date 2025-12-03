@@ -264,6 +264,144 @@ public:
         }
     }
 
+    /**
+     * @brief 타원형 원뿔(Elliptical Cone) 메시 생성 - Constraint Swing 범위 시각화용
+     * @param OutMesh 출력 메시 데이터
+     * @param Swing1Angle Swing1 각도 (degrees) - Y축 방향
+     * @param Swing2Angle Swing2 각도 (degrees) - Z축 방향
+     * @param Length 원뿔 길이
+     * @param Slices 원주 분할 수
+     * @param Color 버텍스 컬러 (RGBA)
+     */
+    static void GenerateSwingCone(FMeshData& OutMesh, float Swing1Angle, float Swing2Angle, float Length, int32 Slices = 16, const FVector4& Color = FVector4(0, 0.8f, 0, 0.3f))
+    {
+        OutMesh.Vertices.clear();
+        OutMesh.Indices.clear();
+        OutMesh.Color.clear();
+        OutMesh.Normal.clear();
+
+        if (Swing1Angle <= 0.0f && Swing2Angle <= 0.0f)
+            return;
+
+        float Swing1Rad = Swing1Angle * (PI / 180.0f);
+        float Swing2Rad = Swing2Angle * (PI / 180.0f);
+
+        // 원뿔 꼭지점 (원점)
+        int32 apexIndex = 0;
+        OutMesh.Vertices.Add(FVector(0, 0, 0));
+        OutMesh.Normal.Add(FVector(-1, 0, 0));
+        OutMesh.Color.Add(Color);
+
+        // 원뿔 테두리 점들 생성
+        for (int32 i = 0; i <= Slices; ++i)
+        {
+            float Angle = TWO_PI * static_cast<float>(i) / static_cast<float>(Slices);
+
+            // 타원형 원뿔: Y방향으로 Swing1, Z방향으로 Swing2
+            float YOffset = std::sin(Swing1Rad) * std::sin(Angle);
+            float ZOffset = std::sin(Swing2Rad) * std::cos(Angle);
+            float XOffset = std::cos(std::max(Swing1Rad, Swing2Rad));
+
+            FVector Dir = FVector(XOffset, YOffset, ZOffset);
+            Dir = Dir.GetNormalized();
+            FVector EdgePoint = Dir * Length;
+
+            OutMesh.Vertices.Add(EdgePoint);
+            OutMesh.Normal.Add(Dir);
+            OutMesh.Color.Add(Color);
+        }
+
+        // 원뿔 측면 삼각형 (꼭지점에서 테두리로)
+        for (int32 i = 0; i < Slices; ++i)
+        {
+            OutMesh.Indices.Add(apexIndex);
+            OutMesh.Indices.Add(i + 1);
+            OutMesh.Indices.Add(i + 2);
+        }
+
+        // 원뿔 바닥 (선택적 - 반투명이면 필요없을 수도)
+        // 바닥 중심점
+        int32 baseCenterIdx = OutMesh.Vertices.Num();
+        float avgX = Length * std::cos(std::max(Swing1Rad, Swing2Rad));
+        OutMesh.Vertices.Add(FVector(avgX, 0, 0));
+        OutMesh.Normal.Add(FVector(1, 0, 0));
+        OutMesh.Color.Add(Color);
+
+        // 바닥 삼각형
+        for (int32 i = 0; i < Slices; ++i)
+        {
+            OutMesh.Indices.Add(baseCenterIdx);
+            OutMesh.Indices.Add(i + 2);
+            OutMesh.Indices.Add(i + 1);
+        }
+    }
+
+    /**
+     * @brief Twist 호(Arc) 메시 생성 - Constraint Twist 범위 시각화용
+     * @param OutMesh 출력 메시 데이터
+     * @param TwistAngle Twist 각도 (degrees, 양방향)
+     * @param Radius 호 반지름
+     * @param Thickness 호 두께
+     * @param Slices 분할 수
+     * @param Color 버텍스 컬러 (RGBA)
+     */
+    static void GenerateTwistArc(FMeshData& OutMesh, float TwistAngle, float Radius, float Thickness = 0.5f, int32 Slices = 16, const FVector4& Color = FVector4(1.0f, 0.6f, 0, 0.4f))
+    {
+        OutMesh.Vertices.clear();
+        OutMesh.Indices.clear();
+        OutMesh.Color.clear();
+        OutMesh.Normal.clear();
+
+        if (TwistAngle <= 0.0f)
+            return;
+
+        float TwistRad = TwistAngle * (PI / 180.0f);
+
+        // 호를 만드는 두 개의 링 (내부/외부)
+        float InnerRadius = Radius - Thickness * 0.5f;
+        float OuterRadius = Radius + Thickness * 0.5f;
+
+        for (int32 i = 0; i <= Slices; ++i)
+        {
+            float t = static_cast<float>(i) / static_cast<float>(Slices);
+            float Angle = -TwistRad + t * 2.0f * TwistRad;
+
+            float cosA = std::cos(Angle);
+            float sinA = std::sin(Angle);
+
+            // 내부 링
+            FVector innerPos(0, cosA * InnerRadius, sinA * InnerRadius);
+            OutMesh.Vertices.Add(innerPos);
+            OutMesh.Normal.Add(FVector(-1, 0, 0));
+            OutMesh.Color.Add(Color);
+
+            // 외부 링
+            FVector outerPos(0, cosA * OuterRadius, sinA * OuterRadius);
+            OutMesh.Vertices.Add(outerPos);
+            OutMesh.Normal.Add(FVector(-1, 0, 0));
+            OutMesh.Color.Add(Color);
+        }
+
+        // 쿼드로 연결
+        for (int32 i = 0; i < Slices; ++i)
+        {
+            int32 inner0 = i * 2;
+            int32 outer0 = i * 2 + 1;
+            int32 inner1 = (i + 1) * 2;
+            int32 outer1 = (i + 1) * 2 + 1;
+
+            // 삼각형 1
+            OutMesh.Indices.Add(inner0);
+            OutMesh.Indices.Add(outer0);
+            OutMesh.Indices.Add(inner1);
+
+            // 삼각형 2
+            OutMesh.Indices.Add(inner1);
+            OutMesh.Indices.Add(outer0);
+            OutMesh.Indices.Add(outer1);
+        }
+    }
+
 private:
     /**
      * @brief 쿼드(사각형) 추가 헬퍼
