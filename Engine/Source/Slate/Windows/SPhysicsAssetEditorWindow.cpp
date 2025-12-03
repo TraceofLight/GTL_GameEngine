@@ -2449,9 +2449,9 @@ static void DrawBodyNode(FPAEBodyNode& BodyNode, PhysicsAssetViewerState* State,
         ImGui::BeginGroup();
         {
             // 입력 핀 (왼쪽)
-            if (!BodyNode.InputPins.empty())
+            if (BodyNode.InputPin.Get() != 0)
             {
-                ed::BeginPin(BodyNode.InputPins[0], ed::PinKind::Input);
+                ed::BeginPin(BodyNode.InputPin, ed::PinKind::Input);
                 ImGui::TextDisabled(">");
                 ed::EndPin();
             }
@@ -2462,9 +2462,9 @@ static void DrawBodyNode(FPAEBodyNode& BodyNode, PhysicsAssetViewerState* State,
             ImGui::SameLine();
 
             // 출력 핀 (오른쪽)
-            if (!BodyNode.OutputPins.empty())
+            if (BodyNode.OutputPin.Get() != 0)
             {
-                ed::BeginPin(BodyNode.OutputPins[0], ed::PinKind::Output);
+                ed::BeginPin(BodyNode.OutputPin, ed::PinKind::Output);
                 ImGui::TextDisabled(">");
                 ed::EndPin();
             }
@@ -2516,7 +2516,199 @@ static void DrawBodyNode(FPAEBodyNode& BodyNode, PhysicsAssetViewerState* State,
     }
 }
 
-// Constraint 노드 그리기 헬퍼 함수
+// Row용 Body 노드 그리기 헬퍼 함수 (Unreal 스타일 3-Column 레이아웃용)
+static void DrawRowBodyNode(ed::NodeId NodeID, ed::PinId OutputPin, ed::PinId InputPin,
+                           int32 BodyIndex, const FString& BoneName,
+                           PhysicsAssetViewerState* State, bool bIsParent)
+{
+    bool bIsSelected = (BodyIndex == State->SelectedBodyIndex);
+
+    // 노드 색상
+    ImU32 HeaderColor;
+    if (bIsSelected)
+        HeaderColor = IM_COL32(70, 130, 180, 255);  // 파란색 (선택됨)
+    else
+        HeaderColor = IM_COL32(60, 60, 70, 255);    // 회색
+
+    ed::BeginNode(NodeID);
+    ImGui::PushID(static_cast<int>(NodeID.Get()));
+
+    // 헤더
+    ImGui::BeginGroup();
+    {
+        ImGui::Dummy(ImVec2(0, 2));
+        ImGui::Indent(4.0f);
+        ImGui::TextColored(ImVec4(1, 1, 1, 1), "%s", BoneName.c_str());
+
+        // Shape 수 표시
+        if (BodyIndex >= 0 && BodyIndex < State->PhysicsAsset->BodySetups.Num())
+        {
+            UBodySetup* Setup = State->PhysicsAsset->BodySetups[BodyIndex];
+            if (Setup)
+            {
+                int32 ShapeCount = Setup->GetElementCount();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                ImGui::Text("%d shapes", ShapeCount);
+                ImGui::PopStyleColor();
+            }
+        }
+
+        ImGui::Unindent(4.0f);
+        ImGui::Dummy(ImVec2(0, 2));
+    }
+    ImGui::EndGroup();
+
+    ImRect HeaderRect;
+    HeaderRect.Min = ImGui::GetItemRectMin();
+    HeaderRect.Max = ImGui::GetItemRectMax();
+
+    float minWidth = 100.0f;
+    if (HeaderRect.GetWidth() < minWidth)
+    {
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(minWidth - HeaderRect.GetWidth(), 0));
+    }
+
+    // 핀 영역 (Parent는 오른쪽 출력만, Child는 왼쪽 입력만)
+    ImGui::Dummy(ImVec2(0, 4));
+    ImGui::BeginGroup();
+    {
+        if (bIsParent)
+        {
+            // Parent Body: 오른쪽에 출력 핀만
+            ImGui::Dummy(ImVec2(70, 0));
+            ImGui::SameLine();
+            ed::BeginPin(OutputPin, ed::PinKind::Output);
+            ImGui::TextDisabled(">");
+            ed::EndPin();
+        }
+        else
+        {
+            // Child Body: 왼쪽에 입력 핀만
+            ed::BeginPin(InputPin, ed::PinKind::Input);
+            ImGui::TextDisabled(">");
+            ed::EndPin();
+            ImGui::SameLine();
+            ImGui::Dummy(ImVec2(70, 0));
+        }
+    }
+    ImGui::EndGroup();
+    ImGui::Dummy(ImVec2(0, 2));
+
+    ImGui::PopID();
+    ed::EndNode();
+
+    // 배경 그리기
+    if (ImGui::IsItemVisible())
+    {
+        ImDrawList* drawList = ed::GetNodeBackgroundDrawList(NodeID);
+        ImVec2 nodeMin = ed::GetNodePosition(NodeID);
+        ImVec2 nodeSize = ed::GetNodeSize(NodeID);
+        ImVec2 nodeMax = ImVec2(nodeMin.x + nodeSize.x, nodeMin.y + nodeSize.y);
+
+        float headerHeight = HeaderRect.GetHeight() + 4;
+        ImVec2 headerMax = ImVec2(nodeMax.x, nodeMin.y + headerHeight);
+
+        drawList->AddRectFilled(nodeMin, headerMax, HeaderColor,
+            ed::GetStyle().NodeRounding, ImDrawFlags_RoundCornersTop);
+        drawList->AddRectFilled(ImVec2(nodeMin.x, headerMax.y), nodeMax,
+            IM_COL32(30, 30, 35, 230),
+            ed::GetStyle().NodeRounding, ImDrawFlags_RoundCornersBottom);
+
+        if (bIsSelected)
+        {
+            drawList->AddRect(nodeMin, nodeMax, IM_COL32(100, 180, 255, 255),
+                ed::GetStyle().NodeRounding, 0, 2.0f);
+        }
+    }
+}
+
+// Row용 Constraint 노드 그리기 헬퍼 함수
+static void DrawRowConstraintNode(ed::NodeId NodeID, ed::PinId InputPin, ed::PinId OutputPin,
+                                  int32 ConstraintIndex, PhysicsAssetViewerState* State)
+{
+    bool bSelected = (State->EditMode == EPhysicsAssetEditMode::Constraint &&
+                     State->SelectedConstraintIndex == ConstraintIndex);
+
+    ImU32 HeaderColor = bSelected ? IM_COL32(230, 210, 150, 255) : IM_COL32(200, 180, 140, 255);
+
+    ed::BeginNode(NodeID);
+    ImGui::PushID(static_cast<int>(NodeID.Get()));
+
+    ImGui::BeginGroup();
+    {
+        ImGui::Dummy(ImVec2(0, 1));
+        ImGui::Indent(2.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+        ImGui::Text("[C]");
+        ImGui::PopStyleColor();
+        ImGui::Unindent(2.0f);
+        ImGui::Dummy(ImVec2(0, 1));
+    }
+    ImGui::EndGroup();
+
+    ImRect HeaderRect;
+    HeaderRect.Min = ImGui::GetItemRectMin();
+    HeaderRect.Max = ImGui::GetItemRectMax();
+
+    float minWidth = 40.0f;
+    if (HeaderRect.GetWidth() < minWidth)
+    {
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(minWidth - HeaderRect.GetWidth(), 0));
+    }
+
+    ImGui::Dummy(ImVec2(0, 2));
+    ImGui::BeginGroup();
+    {
+        ed::BeginPin(InputPin, ed::PinKind::Input);
+        ImGui::TextDisabled("<");
+        ed::EndPin();
+
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(20, 0));
+        ImGui::SameLine();
+
+        ed::BeginPin(OutputPin, ed::PinKind::Output);
+        ImGui::TextDisabled(">");
+        ed::EndPin();
+    }
+    ImGui::EndGroup();
+    ImGui::Dummy(ImVec2(0, 2));
+
+    ImGui::PopID();
+    ed::EndNode();
+
+    if (ImGui::IsItemVisible())
+    {
+        ImDrawList* drawList = ed::GetNodeBackgroundDrawList(NodeID);
+        ImVec2 nodeMin = ed::GetNodePosition(NodeID);
+        ImVec2 nodeSize = ed::GetNodeSize(NodeID);
+        ImVec2 nodeMax = ImVec2(nodeMin.x + nodeSize.x, nodeMin.y + nodeSize.y);
+
+        float headerHeight = HeaderRect.GetHeight() + 4;
+        ImVec2 headerMax = ImVec2(nodeMax.x, nodeMin.y + headerHeight);
+
+        drawList->AddRectFilled(nodeMin, headerMax, HeaderColor,
+            ed::GetStyle().NodeRounding, ImDrawFlags_RoundCornersTop);
+        drawList->AddRectFilled(ImVec2(nodeMin.x, headerMax.y), nodeMax,
+            IM_COL32(245, 235, 215, 230),
+            ed::GetStyle().NodeRounding, ImDrawFlags_RoundCornersBottom);
+
+        if (bSelected)
+        {
+            drawList->AddRect(nodeMin, nodeMax, IM_COL32(255, 200, 100, 255),
+                ed::GetStyle().NodeRounding, 0, 2.5f);
+        }
+        else
+        {
+            drawList->AddRect(nodeMin, nodeMax, IM_COL32(180, 160, 120, 200),
+                ed::GetStyle().NodeRounding, 0, 1.5f);
+        }
+    }
+}
+
+// Constraint 노드 그리기 헬퍼 함수 (레거시 호환용)
 static void DrawConstraintNode(FPAEConstraintNode& ConstraintNode, PhysicsAssetViewerState* State)
 {
     // Constraint 노드 색상 (베이지색 - Unreal 스타일)
@@ -2622,9 +2814,9 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
 {
     if (!State || !GraphState || !State->PhysicsAsset) return;
 
-    // Graph State와 PhysicsAsset 동기화 (Body/Constraint 수가 달라졌을 때만)
-    if (GraphState->BodyNodes.Num() != State->PhysicsAsset->BodySetups.Num() ||
-        GraphState->ConstraintNodes.Num() != State->PhysicsAsset->ConstraintSetups.Num())
+    // Graph State와 PhysicsAsset 동기화 (Constraint 수가 달라졌을 때)
+    if (GraphState->ConstraintRows.Num() != State->PhysicsAsset->ConstraintSetups.Num() ||
+        GraphState->BodyNodes.Num() != State->PhysicsAsset->BodySetups.Num())
     {
         Owner->SyncGraphFromPhysicsAsset();
     }
@@ -2641,31 +2833,51 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
     if (!bShowFilteredGraph)
     {
         // ========================================================================
-        // 전체 그래프 표시 (선택 가능)
+        // Unreal 스타일 3-Column 전체 그래프 표시 (Group 기반)
+        // 같은 Parent를 가진 Constraint들을 하나의 그룹으로 표시:
+        //               ┌─ [C] → Child1
+        // Parent ───────┼─ [C] → Child2
+        //               └─ [C] → Child3
         // ========================================================================
         ed::PushStyleVar(ed::StyleVar_NodeRounding, 8.0f);
         ed::PushStyleVar(ed::StyleVar_NodePadding, ImVec4(8, 4, 8, 8));
 
-        // 모든 Body 노드 그리기
-        for (auto& Node : GraphState->BodyNodes)
+        // Group 기반 렌더링
+        for (auto& Group : GraphState->ConstraintGroups)
         {
-            bool bIsSelected = (Node.BodyIndex == State->SelectedBodyIndex);
-            DrawBodyNode(Node, State, bIsSelected, false, true);  // 전체 그래프: 핀 표시
-        }
+            // 1. Parent Body Node (왼쪽, 그룹당 1개)
+            DrawRowBodyNode(Group.ParentBodyNodeID, Group.ParentBodyOutputPin, ed::PinId(0),
+                           Group.ParentBodyIndex, Group.ParentBoneName, State, true);
 
-        // 모든 Constraint 노드 그리기
-        for (auto& ConstraintNode : GraphState->ConstraintNodes)
-        {
-            DrawConstraintNode(ConstraintNode, State);
+            // 2. 각 Child마다 Constraint + Child Body 노드 그리기
+            for (auto& Child : Group.Children)
+            {
+                // Constraint Node (중앙)
+                DrawRowConstraintNode(Child.ConstraintNodeID, Child.ConstraintInputPin, Child.ConstraintOutputPin,
+                                     Child.ConstraintIndex, State);
+
+                // Child Body Node (오른쪽)
+                DrawRowBodyNode(Child.ChildBodyNodeID, ed::PinId(0), Child.ChildBodyInputPin,
+                               Child.ChildBodyIndex, Child.ChildBoneName, State, false);
+            }
         }
 
         ed::PopStyleVar(2);
 
-        // 모든 Link 그리기
+        // Group 기반 Link 그리기
         ed::PushStyleVar(ed::StyleVar_LinkStrength, 0.0f);
-        for (auto& Link : GraphState->Links)
+        for (auto& Group : GraphState->ConstraintGroups)
         {
-            ed::Link(Link.ID, Link.StartPinID, Link.EndPinID, ImColor(180, 180, 180, 255), 2.0f);
+            for (auto& Child : Group.Children)
+            {
+                // Link 1: Parent Body → Constraint
+                ed::Link(Child.Link1ID, Group.ParentBodyOutputPin, Child.ConstraintInputPin,
+                        ImColor(180, 180, 180, 255), 2.0f);
+
+                // Link 2: Constraint → Child Body
+                ed::Link(Child.Link2ID, Child.ConstraintOutputPin, Child.ChildBodyInputPin,
+                        ImColor(180, 180, 180, 255), 2.0f);
+            }
         }
         ed::PopStyleVar();
     }
@@ -2979,6 +3191,7 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
 
     // ============================================================================
     // 노드 선택 처리 (항상 실행)
+    // Group 기반 구조에서 노드 ID로 Body/Constraint 찾기
     // ============================================================================
     if (ed::GetSelectedObjectCount() > 0)
     {
@@ -2988,34 +3201,80 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
             GraphState->SelectedNodeID = selectedNodeId;
             GraphState->SelectedLinkID = ed::LinkId::Invalid;
 
-            // Body 노드 선택 확인
-            FPAEBodyNode* SelectedBody = Owner->FindBodyNode(selectedNodeId);
-            if (SelectedBody && SelectedBody->BodyIndex >= 0)
-            {
-                // 그래프에서 노드 클릭 시: SelectedBodyIndex만 변경 (GraphFilterRootBodyIndex 유지)
-                State->SelectedBodyIndex = SelectedBody->BodyIndex;
-                State->EditMode = EPhysicsAssetEditMode::Body;
-                State->SelectedConstraintIndex = -1;
-                State->SelectedShapeIndex = -1;
-                State->SelectedShapeType = EAggCollisionShape::Unknown;
+            bool bFound = false;
 
-                // BoneName 업데이트
-                if (State->PhysicsAsset && SelectedBody->BodyIndex < State->PhysicsAsset->BodySetups.Num())
+            // Group 구조에서 노드 찾기 (Unreal 스타일 3-Column)
+            for (auto& Group : GraphState->ConstraintGroups)
+            {
+                // Parent Body 노드 확인 (그룹당 1개)
+                if (Group.ParentBodyNodeID == selectedNodeId)
                 {
-                    UBodySetup* Setup = State->PhysicsAsset->BodySetups[SelectedBody->BodyIndex];
-                    if (Setup)
+                    State->SelectedBodyIndex = Group.ParentBodyIndex;
+                    State->EditMode = EPhysicsAssetEditMode::Body;
+                    State->SelectedConstraintIndex = -1;
+                    State->SelectedShapeIndex = -1;
+                    State->SelectedShapeType = EAggCollisionShape::Unknown;
+                    State->SelectedBoneName = FName(Group.ParentBoneName.c_str());
+                    bFound = true;
+                    break;
+                }
+
+                // Children에서 Constraint 또는 Child Body 노드 확인
+                for (auto& Child : Group.Children)
+                {
+                    // Constraint 노드 확인
+                    if (Child.ConstraintNodeID == selectedNodeId)
                     {
-                        State->SelectedBoneName = Setup->BoneName;
+                        State->SelectConstraint(Child.ConstraintIndex);
+                        bFound = true;
+                        break;
+                    }
+
+                    // Child Body 노드 확인
+                    if (Child.ChildBodyNodeID == selectedNodeId)
+                    {
+                        State->SelectedBodyIndex = Child.ChildBodyIndex;
+                        State->EditMode = EPhysicsAssetEditMode::Body;
+                        State->SelectedConstraintIndex = -1;
+                        State->SelectedShapeIndex = -1;
+                        State->SelectedShapeType = EAggCollisionShape::Unknown;
+                        State->SelectedBoneName = FName(Child.ChildBoneName.c_str());
+                        bFound = true;
+                        break;
                     }
                 }
+
+                if (bFound) break;
             }
-            else
+
+            // Row에서 못 찾으면 레거시 구조에서 찾기 (필터링된 그래프 모드 등)
+            if (!bFound)
             {
-                // Constraint 노드 선택 확인
-                FPAEConstraintNode* SelectedConstraint = Owner->FindConstraintNode(selectedNodeId);
-                if (SelectedConstraint && SelectedConstraint->ConstraintIndex >= 0)
+                FPAEBodyNode* SelectedBody = Owner->FindBodyNode(selectedNodeId);
+                if (SelectedBody && SelectedBody->BodyIndex >= 0)
                 {
-                    State->SelectConstraint(SelectedConstraint->ConstraintIndex);
+                    State->SelectedBodyIndex = SelectedBody->BodyIndex;
+                    State->EditMode = EPhysicsAssetEditMode::Body;
+                    State->SelectedConstraintIndex = -1;
+                    State->SelectedShapeIndex = -1;
+                    State->SelectedShapeType = EAggCollisionShape::Unknown;
+
+                    if (State->PhysicsAsset && SelectedBody->BodyIndex < State->PhysicsAsset->BodySetups.Num())
+                    {
+                        UBodySetup* Setup = State->PhysicsAsset->BodySetups[SelectedBody->BodyIndex];
+                        if (Setup)
+                        {
+                            State->SelectedBoneName = Setup->BoneName;
+                        }
+                    }
+                }
+                else
+                {
+                    FPAEConstraintNode* SelectedConstraint = Owner->FindConstraintNode(selectedNodeId);
+                    if (SelectedConstraint && SelectedConstraint->ConstraintIndex >= 0)
+                    {
+                        State->SelectConstraint(SelectedConstraint->ConstraintIndex);
+                    }
                 }
             }
         }
@@ -3037,126 +3296,174 @@ void SPhysicsAssetEditorWindow::SyncGraphFromPhysicsAsset()
 
     UPhysicsAsset* PhysAsset = ActiveState->PhysicsAsset;
 
-    // 기존 Body 노드 위치 저장 (BoneName을 키로 사용)
-    TMap<FString, ImVec2> SavedBodyPositions;
-    for (auto& Node : GraphState->BodyNodes)
-    {
-        SavedBodyPositions.Add(Node.BoneName, ed::GetNodePosition(Node.ID));
-    }
-
-    // 기존 Constraint 노드 위치 저장 (Bone1Name + Bone2Name을 키로 사용)
-    TMap<FString, ImVec2> SavedConstraintPositions;
-    for (auto& Node : GraphState->ConstraintNodes)
-    {
-        FString Key = Node.Bone1Name + "_" + Node.Bone2Name;
-        SavedConstraintPositions.Add(Key, ed::GetNodePosition(Node.ID));
-    }
-
     // 기존 데이터 클리어
     GraphState->Clear();
     GraphState->NextNodeID = 1;
     GraphState->NextPinID = 100000;
     GraphState->NextLinkID = 200000;
 
-    // Body 노드 생성
+    // ============================================================================
+    // Unreal 스타일 3-Column 레이아웃 (Group 기반)
+    // 같은 Parent를 가진 Constraint들을 하나의 그룹으로 묶음:
+    //               ┌─ [C] → Child1
+    // Parent ───────┼─ [C] → Child2
+    //               └─ [C] → Child3
+    // ============================================================================
+
+    const float COLUMN_WIDTH = 200.0f;   // 열 너비
+    const float ROW_HEIGHT = 60.0f;      // 행 높이 (Child 간 간격)
+    const float GROUP_SPACING = 30.0f;   // 그룹 간 추가 간격
+    const float START_X = 50.0f;         // 시작 X 위치
+    const float START_Y = 50.0f;         // 시작 Y 위치
+
+    // Body 이름 → Body 인덱스 맵 (빠른 조회용)
+    TMap<FString, int32> BoneNameToBodyIndex;
     for (int32 i = 0; i < PhysAsset->BodySetups.Num(); ++i)
     {
         UBodySetup* Setup = PhysAsset->BodySetups[i];
-        if (!Setup) continue;
-
-        FPAEBodyNode Node;
-        Node.ID = GraphState->GetNextNodeId();
-        Node.BodyIndex = i;
-        Node.BoneName = Setup->BoneName.ToString();
-
-        // 입력/출력 핀 생성
-        Node.InputPins.push_back(GraphState->GetNextPinId());
-        Node.OutputPins.push_back(GraphState->GetNextPinId());
-
-        GraphState->BodyNodes.Add(Node);
-
-        // 노드 위치 복원 (저장된 위치가 있으면 사용, 없으면 그리드 배치)
-        ImVec2* SavedPos = SavedBodyPositions.Find(Node.BoneName);
-        if (SavedPos)
+        if (Setup)
         {
-            ed::SetNodePosition(Node.ID, *SavedPos);
-        }
-        else
-        {
-            // 새 노드: 그리드 배치
-            int32 row = i / 4;
-            int32 col = i % 4;
-            ed::SetNodePosition(Node.ID, ImVec2(50.0f + col * 180.0f, 50.0f + row * 120.0f));
+            BoneNameToBodyIndex.Add(Setup->BoneName.ToString(), i);
         }
     }
 
-    // Constraint 노드 생성 (Body와 Body 사이에 중간 노드로)
+    // Step 1: Constraint들을 Parent Body 기준으로 그룹화
+    TMap<FString, TArray<int32>> ParentToConstraints;  // ParentBoneName → ConstraintIndices
+
     for (int32 i = 0; i < PhysAsset->ConstraintSetups.Num(); ++i)
     {
         UPhysicsConstraintSetup* Constraint = PhysAsset->ConstraintSetups[i];
         if (!Constraint) continue;
 
-        // Bone 이름으로 Body 노드 찾기
-        FPAEBodyNode* Node1 = nullptr;
-        FPAEBodyNode* Node2 = nullptr;
+        FString Bone1Name = Constraint->ConstraintBone1.ToString();
 
-        for (auto& Node : GraphState->BodyNodes)
+        // 해당 Parent에 이 Constraint 추가
+        if (!ParentToConstraints.Contains(Bone1Name))
         {
-            if (Node.BoneName == Constraint->ConstraintBone1.ToString())
-                Node1 = &Node;
-            if (Node.BoneName == Constraint->ConstraintBone2.ToString())
-                Node2 = &Node;
+            ParentToConstraints.Add(Bone1Name, TArray<int32>());
+        }
+        ParentToConstraints[Bone1Name].Add(i);
+    }
+
+    // Step 2: 그룹 생성
+    float currentY = START_Y;
+    int32 groupIndex = 0;
+
+    for (auto& Pair : ParentToConstraints)
+    {
+        const FString& ParentBoneName = Pair.first;
+        const TArray<int32>& ConstraintIndices = Pair.second;
+
+        if (ConstraintIndices.Num() == 0) continue;
+
+        // Parent Body 인덱스 찾기
+        int32* ParentBodyIndexPtr = BoneNameToBodyIndex.Find(ParentBoneName);
+        if (!ParentBodyIndexPtr) continue;
+        int32 ParentBodyIndex = *ParentBodyIndexPtr;
+
+        // 그룹 생성
+        FPAEConstraintGroup Group;
+        Group.GroupIndex = groupIndex++;
+        Group.ParentBodyIndex = ParentBodyIndex;
+        Group.ParentBoneName = ParentBoneName;
+
+        // Parent Body Node 생성 (그룹당 1개)
+        Group.ParentBodyNodeID = GraphState->GetNextNodeId();
+        Group.ParentBodyOutputPin = GraphState->GetNextPinId();
+
+        // Parent 노드 위치: 그룹의 중앙에 배치
+        float groupCenterY = currentY + (ConstraintIndices.Num() - 1) * ROW_HEIGHT * 0.5f;
+        ed::SetNodePosition(Group.ParentBodyNodeID, ImVec2(START_X, groupCenterY));
+
+        // 각 Constraint마다 Child 생성
+        for (int32 childIdx = 0; childIdx < ConstraintIndices.Num(); ++childIdx)
+        {
+            int32 constraintIndex = ConstraintIndices[childIdx];
+            UPhysicsConstraintSetup* Constraint = PhysAsset->ConstraintSetups[constraintIndex];
+            if (!Constraint) continue;
+
+            FString ChildBoneName = Constraint->ConstraintBone2.ToString();
+
+            // Child Body 인덱스 찾기
+            int32* ChildBodyIndexPtr = BoneNameToBodyIndex.Find(ChildBoneName);
+            if (!ChildBodyIndexPtr) continue;
+            int32 ChildBodyIndex = *ChildBodyIndexPtr;
+
+            float childY = currentY + childIdx * ROW_HEIGHT;
+
+            // Constraint Child 생성
+            FPAEConstraintChild Child;
+            Child.ConstraintIndex = constraintIndex;
+            Child.ChildBodyIndex = ChildBodyIndex;
+            Child.ChildBoneName = ChildBoneName;
+
+            // Constraint Node 생성
+            Child.ConstraintNodeID = GraphState->GetNextNodeId();
+            Child.ConstraintInputPin = GraphState->GetNextPinId();
+            Child.ConstraintOutputPin = GraphState->GetNextPinId();
+            ed::SetNodePosition(Child.ConstraintNodeID, ImVec2(START_X + COLUMN_WIDTH, childY));
+
+            // Child Body Node 생성
+            Child.ChildBodyNodeID = GraphState->GetNextNodeId();
+            Child.ChildBodyInputPin = GraphState->GetNextPinId();
+            ed::SetNodePosition(Child.ChildBodyNodeID, ImVec2(START_X + COLUMN_WIDTH * 2.0f, childY));
+
+            // Links 생성
+            Child.Link1ID = GraphState->GetNextLinkId();  // Parent → Constraint
+            Child.Link2ID = GraphState->GetNextLinkId();  // Constraint → Child
+
+            Group.Children.Add(Child);
+
+            // 레거시 호환용 ConstraintNode 추가
+            FPAEConstraintNode LegacyConstraintNode;
+            LegacyConstraintNode.ID = Child.ConstraintNodeID;
+            LegacyConstraintNode.ConstraintIndex = constraintIndex;
+            LegacyConstraintNode.InputPin = Child.ConstraintInputPin;
+            LegacyConstraintNode.OutputPin = Child.ConstraintOutputPin;
+            LegacyConstraintNode.Bone1Name = ParentBoneName;
+            LegacyConstraintNode.Bone2Name = ChildBoneName;
+            GraphState->ConstraintNodes.Add(LegacyConstraintNode);
+
+            // 레거시 호환용 Row 추가
+            FPAEConstraintRow LegacyRow;
+            LegacyRow.RowIndex = GraphState->ConstraintRows.Num();
+            LegacyRow.ConstraintIndex = constraintIndex;
+            LegacyRow.ParentBodyNodeID = Group.ParentBodyNodeID;
+            LegacyRow.ParentBodyOutputPin = Group.ParentBodyOutputPin;
+            LegacyRow.ParentBodyIndex = ParentBodyIndex;
+            LegacyRow.ParentBoneName = ParentBoneName;
+            LegacyRow.ConstraintNodeID = Child.ConstraintNodeID;
+            LegacyRow.ConstraintInputPin = Child.ConstraintInputPin;
+            LegacyRow.ConstraintOutputPin = Child.ConstraintOutputPin;
+            LegacyRow.ChildBodyNodeID = Child.ChildBodyNodeID;
+            LegacyRow.ChildBodyInputPin = Child.ChildBodyInputPin;
+            LegacyRow.ChildBodyIndex = ChildBodyIndex;
+            LegacyRow.ChildBoneName = ChildBoneName;
+            LegacyRow.Link1ID = Child.Link1ID;
+            LegacyRow.Link2ID = Child.Link2ID;
+            GraphState->ConstraintRows.Add(LegacyRow);
         }
 
-        if (Node1 && Node2)
-        {
-            // Constraint 노드 생성
-            FPAEConstraintNode ConstraintNode;
-            ConstraintNode.ID = GraphState->GetNextNodeId();
-            ConstraintNode.ConstraintIndex = i;
-            ConstraintNode.InputPin = GraphState->GetNextPinId();
-            ConstraintNode.OutputPin = GraphState->GetNextPinId();
-            ConstraintNode.Bone1Name = Constraint->ConstraintBone1.ToString();
-            ConstraintNode.Bone2Name = Constraint->ConstraintBone2.ToString();
+        GraphState->ConstraintGroups.Add(Group);
 
-            GraphState->ConstraintNodes.Add(ConstraintNode);
+        // 다음 그룹 Y 위치
+        currentY += ConstraintIndices.Num() * ROW_HEIGHT + GROUP_SPACING;
+    }
 
-            // Constraint 노드 위치 복원 (저장된 위치가 있으면 사용, 없으면 두 Body 중간)
-            FString ConstraintKey = ConstraintNode.Bone1Name + "_" + ConstraintNode.Bone2Name;
-            ImVec2* SavedConstraintPos = SavedConstraintPositions.Find(ConstraintKey);
-            if (SavedConstraintPos)
-            {
-                ed::SetNodePosition(ConstraintNode.ID, *SavedConstraintPos);
-            }
-            else
-            {
-                // 새 Constraint: 두 Body 노드의 중간에 배치
-                ImVec2 Pos1 = ed::GetNodePosition(Node1->ID);
-                ImVec2 Pos2 = ed::GetNodePosition(Node2->ID);
-                ImVec2 ConstraintPos((Pos1.x + Pos2.x) * 0.5f, (Pos1.y + Pos2.y) * 0.5f);
-                ed::SetNodePosition(ConstraintNode.ID, ConstraintPos);
-            }
+    // Body가 있지만 Constraint가 없는 경우를 위한 레거시 BodyNodes 생성
+    // (선택 기능 등에서 사용)
+    for (int32 i = 0; i < PhysAsset->BodySetups.Num(); ++i)
+    {
+        UBodySetup* Setup = PhysAsset->BodySetups[i];
+        if (!Setup) continue;
 
-            // Link 1: Body1 -> Constraint
-            if (!Node1->OutputPins.empty())
-            {
-                FPAEConstraintLink Link1;
-                Link1.ID = GraphState->GetNextLinkId();
-                Link1.StartPinID = Node1->OutputPins[0];
-                Link1.EndPinID = ConstraintNode.InputPin;
-                GraphState->Links.Add(Link1);
-            }
-
-            // Link 2: Constraint -> Body2
-            if (!Node2->InputPins.empty())
-            {
-                FPAEConstraintLink Link2;
-                Link2.ID = GraphState->GetNextLinkId();
-                Link2.StartPinID = ConstraintNode.OutputPin;
-                Link2.EndPinID = Node2->InputPins[0];
-                GraphState->Links.Add(Link2);
-            }
-        }
+        FPAEBodyNode LegacyBodyNode;
+        LegacyBodyNode.ID = GraphState->GetNextNodeId();
+        LegacyBodyNode.BodyIndex = i;
+        LegacyBodyNode.BoneName = Setup->BoneName.ToString();
+        LegacyBodyNode.OutputPin = GraphState->GetNextPinId();
+        LegacyBodyNode.InputPin = GraphState->GetNextPinId();
+        GraphState->BodyNodes.Add(LegacyBodyNode);
     }
 
     ed::SetCurrentEditor(nullptr);
@@ -3179,10 +3486,8 @@ FPAEBodyNode* SPhysicsAssetEditorWindow::FindBodyNodeByPin(ed::PinId PinID)
 
     for (auto& Node : GraphState->BodyNodes)
     {
-        for (auto& Pin : Node.InputPins)
-            if (Pin == PinID) return &Node;
-        for (auto& Pin : Node.OutputPins)
-            if (Pin == PinID) return &Node;
+        if (Node.InputPin == PinID || Node.OutputPin == PinID)
+            return &Node;
     }
     return nullptr;
 }
