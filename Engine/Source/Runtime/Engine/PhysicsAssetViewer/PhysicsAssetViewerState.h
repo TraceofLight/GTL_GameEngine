@@ -109,6 +109,12 @@ public:
                          int32& OutShapeIndex,
                          float& OutDistance) const;
 
+    // Constraint 피킹 (뷰포트에서 마우스 클릭 시)
+    // 반환값: true이면 피킹 성공, OutConstraintIndex에 결과 저장
+    bool PickConstraint(const struct FRay& Ray,
+                        int32& OutConstraintIndex,
+                        float& OutDistance) const;
+
 private:
     // 개별 Shape 드로잉 헬퍼
     void DrawSphere(class URenderer* Renderer, const FTransform& BoneTransform, const struct FKSphereElem& Sphere, const FVector4& Color) const;

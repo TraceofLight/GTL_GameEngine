@@ -15,6 +15,7 @@
 #include "EditorEngine.h"
 #include "SkeletalMeshComponent.h"
 #include "SkeletalMeshActor.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsConstraintSetup.h"
 
 IMPLEMENT_CLASS(AGizmoActor)
 
@@ -161,6 +162,16 @@ void AGizmoActor::Tick(float DeltaSeconds)
 	{
 		FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
 		SetActorLocation(BoneWorldTransform.Translation);
+		SetSpaceWorldMatrix(CurrentSpace, nullptr);
+	}
+	// Constraint 타겟일 때는 두 본 사이의 위치를 추적
+	else if (TargetType == EGizmoTargetType::Constraint && TargetSkeletalMeshComponent && TargetConstraintSetup &&
+	         TargetConstraintBone1Index >= 0 && TargetConstraintBone2Index >= 0)
+	{
+		FTransform Bone1Transform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetConstraintBone1Index);
+		FTransform Bone2Transform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetConstraintBone2Index);
+		FVector ConstraintPos = (Bone1Transform.Translation + Bone2Transform.Translation) * 0.5f;
+		SetActorLocation(ConstraintPos);
 		SetSpaceWorldMatrix(CurrentSpace, nullptr);
 	}
 	// Actor/Component 타겟일 때는 선택된 컴포넌트 위치 추적
@@ -952,4 +963,47 @@ void AGizmoActor::ClearBoneTarget()
 	TargetType = EGizmoTargetType::Actor;
 	TargetSkeletalMeshComponent = nullptr;
 	TargetBoneIndex = -1;
+}
+
+// ────────────────────────────────────────────────────────
+// Constraint Target Functions
+// ────────────────────────────────────────────────────────
+
+void AGizmoActor::SetConstraintTarget(USkeletalMeshComponent* InComponent, UPhysicsConstraintSetup* InConstraint, int32 InBone1Index, int32 InBone2Index)
+{
+	if (!InComponent || !InConstraint || InBone1Index < 0 || InBone2Index < 0)
+	{
+		ClearConstraintTarget();
+		return;
+	}
+
+	TargetType = EGizmoTargetType::Constraint;
+	TargetSkeletalMeshComponent = InComponent;
+	TargetConstraintSetup = InConstraint;
+	TargetConstraintBone1Index = InBone1Index;
+	TargetConstraintBone2Index = InBone2Index;
+
+	// 두 본의 월드 트랜스폼
+	FTransform Bone1Transform = InComponent->GetBoneWorldTransform(InBone1Index);
+	FTransform Bone2Transform = InComponent->GetBoneWorldTransform(InBone2Index);
+
+	// Constraint 위치: 두 본의 중간점
+	FVector ConstraintPos = (Bone1Transform.Translation + Bone2Transform.Translation) * 0.5f;
+
+	// Constraint 회전: 첫 번째 본의 회전 사용 (기준 프레임)
+	FQuat ConstraintRot = Bone1Transform.Rotation;
+
+	RootComponent->SetWorldLocation(ConstraintPos);
+	RootComponent->SetWorldRotation(ConstraintRot);
+
+	SetSpaceWorldMatrix(CurrentSpace, nullptr);
+}
+
+void AGizmoActor::ClearConstraintTarget()
+{
+	TargetType = EGizmoTargetType::Actor;
+	TargetSkeletalMeshComponent = nullptr;
+	TargetConstraintSetup = nullptr;
+	TargetConstraintBone1Index = -1;
+	TargetConstraintBone2Index = -1;
 }

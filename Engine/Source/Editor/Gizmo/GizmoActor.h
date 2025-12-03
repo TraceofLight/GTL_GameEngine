@@ -14,11 +14,14 @@ class CPickingSystem;
 class FViewport;
 class USkeletalMeshComponent;
 
+class UPhysicsConstraintSetup;
+
 // Gizmo 타겟 타입
 enum class EGizmoTargetType : uint8
 {
     Actor,        // 일반 Actor/Component 타겟
-    Bone          // SkeletalMeshComponent의 특정 본 타겟
+    Bone,         // SkeletalMeshComponent의 특정 본 타겟
+    Constraint    // Physics Constraint 타겟
 };
 
 class AGizmoActor : public AActor
@@ -83,6 +86,12 @@ public:
     bool IsBoneTarget() const { return TargetType == EGizmoTargetType::Bone; }
     EGizmoTargetType GetTargetType() const { return TargetType; }
 
+    // Constraint target functions
+    void SetConstraintTarget(USkeletalMeshComponent* InComponent, UPhysicsConstraintSetup* InConstraint, int32 InBone1Index, int32 InBone2Index);
+    void ClearConstraintTarget();
+    bool IsConstraintTarget() const { return TargetType == EGizmoTargetType::Constraint; }
+    UPhysicsConstraintSetup* GetTargetConstraint() const { return TargetConstraintSetup; }
+
     void ProcessGizmoInteraction(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
     void ProcessGizmoModeSwitch();
 
@@ -128,6 +137,11 @@ protected:
     EGizmoTargetType TargetType = EGizmoTargetType::Actor;
     USkeletalMeshComponent* TargetSkeletalMeshComponent = nullptr;
     int32 TargetBoneIndex = -1;
+
+    // Constraint target state
+    UPhysicsConstraintSetup* TargetConstraintSetup = nullptr;
+    int32 TargetConstraintBone1Index = -1;
+    int32 TargetConstraintBone2Index = -1;
 
     // Manager references
     USelectionManager* SelectionManager = nullptr;

@@ -2,11 +2,13 @@
 #include "PhysicsAssetViewerState.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
 #include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
+#include "Source/Runtime/Engine/PhysicsEngine/PhysicsConstraintSetup.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Runtime/Core/Misc/PrimitiveGeometry.h"
 #include "Source/Runtime/Engine/Collision/Picking.h"
+#include "Source/Editor/Gizmo/GizmoActor.h"
 #include "Renderer.h"
 
 UBodySetup* PhysicsAssetViewerState::GetSelectedBodySetup() const
@@ -32,6 +34,13 @@ void PhysicsAssetViewerState::ClearSelection()
     SelectedShapeIndex = -1;
     SelectedShapeType = EAggCollisionShape::Unknown;
     SelectedBoneName = FName();
+
+    // 기즈모 클리어
+    if (GizmoActor)
+    {
+        GizmoActor->ClearConstraintTarget();
+        GizmoActor->SetbRender(false);
+    }
 }
 
 void PhysicsAssetViewerState::SelectBody(int32 BodyIndex)
@@ -57,6 +66,35 @@ void PhysicsAssetViewerState::SelectConstraint(int32 ConstraintIndex)
     ClearSelection();
     SelectedConstraintIndex = ConstraintIndex;
     EditMode = EPhysicsAssetEditMode::Constraint;
+
+    // 기즈모 설정
+    if (GizmoActor && PhysicsAsset && PreviewActor && CurrentMesh &&
+        ConstraintIndex >= 0 && ConstraintIndex < PhysicsAsset->ConstraintSetups.Num())
+    {
+        UPhysicsConstraintSetup* Constraint = PhysicsAsset->ConstraintSetups[ConstraintIndex];
+        USkeletalMeshComponent* SkelComp = PreviewActor->GetSkeletalMeshComponent();
+        const FSkeleton* Skeleton = CurrentMesh->GetSkeleton();
+
+        if (Constraint && SkelComp && Skeleton)
+        {
+            // 두 본의 인덱스 찾기
+            int32 BoneIndex1 = -1;
+            int32 BoneIndex2 = -1;
+            for (int32 i = 0; i < Skeleton->Bones.size(); ++i)
+            {
+                if (Skeleton->Bones[i].Name == Constraint->ConstraintBone1.ToString())
+                    BoneIndex1 = i;
+                if (Skeleton->Bones[i].Name == Constraint->ConstraintBone2.ToString())
+                    BoneIndex2 = i;
+            }
+
+            if (BoneIndex1 >= 0 && BoneIndex2 >= 0)
+            {
+                GizmoActor->SetConstraintTarget(SkelComp, Constraint, BoneIndex1, BoneIndex2);
+                GizmoActor->SetbRender(true);
+            }
+        }
+    }
 }
 
 void PhysicsAssetViewerState::SelectShape(int32 BodyIndex, EAggCollisionShape::Type ShapeType, int32 ShapeIndex)
@@ -883,4 +921,117 @@ bool PhysicsAssetViewerState::PickBodyOrShape(const FRay& Ray,
     }
 
     return bHit;
+}
+
+// Ray와 선분 사이의 최단 거리 계산 헬퍼
+static float RaySegmentDistance(const FRay& Ray, const FVector& SegStart, const FVector& SegEnd, float& OutRayT)
+{
+    FVector SegDir = SegEnd - SegStart;
+    float SegLength = SegDir.Size();
+    if (SegLength < 0.0001f)
+    {
+        // 선분 길이가 0에 가까우면 점으로 처리
+        FVector ToPoint = SegStart - Ray.Origin;
+        OutRayT = FVector::Dot(ToPoint, Ray.Direction);
+        FVector ClosestOnRay = Ray.Origin + Ray.Direction * FMath::Max(0.0f, OutRayT);
+        return (SegStart - ClosestOnRay).Size();
+    }
+
+    SegDir = SegDir / SegLength;  // normalize
+
+    FVector W0 = Ray.Origin - SegStart;
+    float A = FVector::Dot(Ray.Direction, Ray.Direction);  // always 1 if normalized
+    float B = FVector::Dot(Ray.Direction, SegDir);
+    float C = FVector::Dot(SegDir, SegDir);  // always 1 if normalized
+    float D = FVector::Dot(Ray.Direction, W0);
+    float E = FVector::Dot(SegDir, W0);
+
+    float Denom = A * C - B * B;
+
+    float RayT, SegT;
+
+    if (FMath::Abs(Denom) < 0.0001f)
+    {
+        // 평행한 경우
+        RayT = 0.0f;
+        SegT = E / C;
+    }
+    else
+    {
+        RayT = (B * E - C * D) / Denom;
+        SegT = (A * E - B * D) / Denom;
+    }
+
+    // Ray는 양의 방향만
+    RayT = FMath::Max(0.0f, RayT);
+
+    // 선분은 [0, SegLength] 범위로 클램프
+    SegT = FMath::Clamp(SegT, 0.0f, SegLength);
+
+    FVector ClosestOnRay = Ray.Origin + Ray.Direction * RayT;
+    FVector ClosestOnSeg = SegStart + SegDir * SegT;
+
+    OutRayT = RayT;
+    return (ClosestOnRay - ClosestOnSeg).Size();
+}
+
+bool PhysicsAssetViewerState::PickConstraint(const FRay& Ray,
+                                              int32& OutConstraintIndex,
+                                              float& OutDistance) const
+{
+    if (!PhysicsAsset || !PreviewActor) return false;
+
+    USkeletalMeshComponent* SkelComp = PreviewActor->GetSkeletalMeshComponent();
+    const FSkeleton* Skeleton = CurrentMesh ? CurrentMesh->GetSkeleton() : nullptr;
+    if (!SkelComp || !Skeleton) return false;
+
+    const float PickThreshold = 5.0f;  // 픽셀 단위가 아닌 월드 공간 거리 (5cm)
+    float ClosestDist = PickThreshold;
+    float ClosestRayT = FLT_MAX;
+    int32 HitConstraintIndex = -1;
+
+    for (int32 ConstraintIdx = 0; ConstraintIdx < PhysicsAsset->ConstraintSetups.Num(); ++ConstraintIdx)
+    {
+        UPhysicsConstraintSetup* Constraint = PhysicsAsset->ConstraintSetups[ConstraintIdx];
+        if (!Constraint) continue;
+
+        // 두 본의 인덱스 찾기
+        int32 BoneIndex1 = -1;
+        int32 BoneIndex2 = -1;
+        for (int32 i = 0; i < Skeleton->Bones.size(); ++i)
+        {
+            if (Skeleton->Bones[i].Name == Constraint->ConstraintBone1.ToString())
+                BoneIndex1 = i;
+            if (Skeleton->Bones[i].Name == Constraint->ConstraintBone2.ToString())
+                BoneIndex2 = i;
+        }
+
+        if (BoneIndex1 < 0 || BoneIndex2 < 0)
+            continue;
+
+        // 두 본의 월드 위치
+        FVector Pos1 = SkelComp->GetBoneWorldTransform(BoneIndex1).Translation;
+        FVector Pos2 = SkelComp->GetBoneWorldTransform(BoneIndex2).Translation;
+
+        // Ray와 선분 거리 계산
+        float RayT;
+        float Dist = RaySegmentDistance(Ray, Pos1, Pos2, RayT);
+
+        // 가장 가까운 Constraint 찾기 (threshold 이내, 동일 거리면 더 가까운 것 우선)
+        if (Dist < ClosestDist || (FMath::Abs(Dist - ClosestDist) < 0.1f && RayT < ClosestRayT))
+        {
+            ClosestDist = Dist;
+            ClosestRayT = RayT;
+            HitConstraintIndex = ConstraintIdx;
+        }
+    }
+
+    if (HitConstraintIndex >= 0)
+    {
+        OutConstraintIndex = HitConstraintIndex;
+        OutDistance = ClosestRayT;
+        return true;
+    }
+
+    return false;
 }

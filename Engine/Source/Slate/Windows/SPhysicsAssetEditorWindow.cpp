@@ -349,7 +349,27 @@ void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
                     int32 HitShapeIndex = -1;
                     float HitDistance = 0.0f;
 
-                    if (ActiveState->PickBodyOrShape(Ray, HitBodyIndex, HitShapeType, HitShapeIndex, HitDistance))
+                    // Constraint 모드일 때는 Constraint 먼저 피킹 시도
+                    if (ActiveState->EditMode == EPhysicsAssetEditMode::Constraint)
+                    {
+                        int32 HitConstraintIndex = -1;
+                        float ConstraintHitDist = 0.0f;
+
+                        if (ActiveState->PickConstraint(Ray, HitConstraintIndex, ConstraintHitDist))
+                        {
+                            ActiveState->SelectConstraint(HitConstraintIndex);
+                        }
+                        else if (ActiveState->PickBodyOrShape(Ray, HitBodyIndex, HitShapeType, HitShapeIndex, HitDistance))
+                        {
+                            // Constraint 못 찾으면 Body 선택
+                            ActiveState->SelectBody(HitBodyIndex);
+                        }
+                        else
+                        {
+                            ActiveState->ClearSelection();
+                        }
+                    }
+                    else if (ActiveState->PickBodyOrShape(Ray, HitBodyIndex, HitShapeType, HitShapeIndex, HitDistance))
                     {
                         // 피킹 성공 - 편집 모드에 따라 선택
                         if (ActiveState->EditMode == EPhysicsAssetEditMode::Shape)
