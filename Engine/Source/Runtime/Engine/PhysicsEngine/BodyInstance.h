@@ -7,6 +7,21 @@ class UBodySetup;
 struct FShape;
 using namespace physx;
 
+/**
+ * 충돌 그룹 상수
+ * PhysX 필터 셰이더에서 사용하는 충돌 그룹/마스크 값
+ */
+namespace ECollisionGroup
+{
+    constexpr uint32 None       = 0;
+    constexpr uint32 Ground     = 1 << 1;  // 0x2 - 지면/정적 오브젝트
+    constexpr uint32 Dynamic    = 1 << 2;  // 0x4 - 동적 오브젝트 (래그돌 포함)
+
+    // 미리 정의된 충돌 마스크
+    constexpr uint32 AllMask           = 0xFFFFFFFF;  // 모든 것과 충돌
+    constexpr uint32 GroundAndDynamic  = Ground | Dynamic;  // 지면과 동적 오브젝트와 충돌
+}
+
 struct FBodyInstance
 {
 public:

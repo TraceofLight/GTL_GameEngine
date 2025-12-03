@@ -929,8 +929,9 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         if (Actor)
         {
             PxFilterData FilterData;
-            FilterData.word0 = 1;  // Collision group
-            FilterData.word1 = 1;  // Collision mask
+            // Ragdoll bodies use DYNAMIC collision group
+            FilterData.word0 = ECollisionGroup::Dynamic;
+            FilterData.word1 = ECollisionGroup::GroundAndDynamic;
             FilterData.word2 = static_cast<PxU32>(reinterpret_cast<uintptr_t>(this) & 0xFFFFFFFF);  // Ragdoll Owner ID
             FilterData.word3 = 0;
 

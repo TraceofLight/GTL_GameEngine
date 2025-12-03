@@ -160,6 +160,9 @@ public:
 	// 캡슐 스윕 설정 (지면 체크용)
 	// ────────────────────────────────────────────────
 
+	UPROPERTY(EditAnywhere, Category="[충돌]", Tooltip="PhysX 스윕을 사용한 지면/벽 충돌 검사 활성화")
+	bool bUseSweepForGroundCheck;
+
 	UPROPERTY(EditAnywhere, Category="[충돌]", Tooltip="캡슐 반지름")
 	float CapsuleRadius;
 

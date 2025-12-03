@@ -225,14 +225,14 @@ void FBodyInstance::CreateShapesFromBodySetup()
         if (bIsStatic)
         {
             // 지면: GROUND 그룹, 모든 것과 충돌 시도
-            SimFilterData.word0 = 0x00000002;  // GROUND
-            SimFilterData.word1 = 0xFFFFFFFF;  // 모든 것과 충돌 (상대 word1이 허용해야 실제 충돌)
+            SimFilterData.word0 = ECollisionGroup::Ground;
+            SimFilterData.word1 = ECollisionGroup::AllMask;
         }
         else
         {
             // 동적 객체: DYNAMIC 그룹, 지면 및 다른 동적 객체와 충돌
-            SimFilterData.word0 = 0x00000004;  // DYNAMIC
-            SimFilterData.word1 = 0x00000006;  // GROUND | DYNAMIC
+            SimFilterData.word0 = ECollisionGroup::Dynamic;
+            SimFilterData.word1 = ECollisionGroup::GroundAndDynamic;
         }
         SimFilterData.word2 = 0;
         SimFilterData.word3 = 0;
