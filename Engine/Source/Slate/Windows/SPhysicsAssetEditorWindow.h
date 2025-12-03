@@ -54,17 +54,10 @@ struct FPAEConstraintNode
     FPAEConstraintNode() : ID(0), InputPin(0), OutputPin(0) {}
 };
 
-// Constraint Row (Unreal 스타일: 한 행에 Parent Body - Constraint - Child Body)
-struct FPAEConstraintRow
+// Constraint Child (Parent에 연결된 하나의 Constraint와 Child Body)
+struct FPAEConstraintChild
 {
-    int32 RowIndex = -1;            // 행 번호
     int32 ConstraintIndex = -1;     // PhysicsAsset의 Constraint 인덱스
-
-    // Parent Body (Column 0 - 왼쪽)
-    ed::NodeId ParentBodyNodeID;
-    ed::PinId ParentBodyOutputPin;
-    int32 ParentBodyIndex = -1;
-    FString ParentBoneName;
 
     // Constraint (Column 1 - 중앙)
     ed::NodeId ConstraintNodeID;
@@ -80,6 +73,53 @@ struct FPAEConstraintRow
     // Links
     ed::LinkId Link1ID;             // Parent Body → Constraint
     ed::LinkId Link2ID;             // Constraint → Child Body
+
+    FPAEConstraintChild()
+        : ConstraintNodeID(0), ConstraintInputPin(0), ConstraintOutputPin(0)
+        , ChildBodyNodeID(0), ChildBodyInputPin(0)
+        , Link1ID(0), Link2ID(0) {}
+};
+
+// Constraint Group (같은 Parent를 가진 Constraint들의 그룹)
+// Unreal 스타일:
+//               ┌─ [C] → Child1
+// Parent ───────┼─ [C] → Child2
+//               └─ [C] → Child3
+struct FPAEConstraintGroup
+{
+    int32 GroupIndex = -1;          // 그룹 번호
+
+    // Parent Body (Column 0 - 왼쪽, 그룹당 1개)
+    ed::NodeId ParentBodyNodeID;
+    ed::PinId ParentBodyOutputPin;
+    int32 ParentBodyIndex = -1;
+    FString ParentBoneName;
+
+    // 이 Parent에 연결된 Constraint + Child 쌍들
+    TArray<FPAEConstraintChild> Children;
+
+    FPAEConstraintGroup()
+        : ParentBodyNodeID(0), ParentBodyOutputPin(0) {}
+};
+
+// 레거시 Row 구조 (호환성 유지용)
+struct FPAEConstraintRow
+{
+    int32 RowIndex = -1;
+    int32 ConstraintIndex = -1;
+    ed::NodeId ParentBodyNodeID;
+    ed::PinId ParentBodyOutputPin;
+    int32 ParentBodyIndex = -1;
+    FString ParentBoneName;
+    ed::NodeId ConstraintNodeID;
+    ed::PinId ConstraintInputPin;
+    ed::PinId ConstraintOutputPin;
+    ed::NodeId ChildBodyNodeID;
+    ed::PinId ChildBodyInputPin;
+    int32 ChildBodyIndex = -1;
+    FString ChildBoneName;
+    ed::LinkId Link1ID;
+    ed::LinkId Link2ID;
 
     FPAEConstraintRow()
         : ParentBodyNodeID(0), ParentBodyOutputPin(0)
@@ -103,7 +143,11 @@ struct FPAEGraphState
 {
     ed::EditorContext* Context = nullptr;
 
-    // Unreal 스타일 Row 기반 데이터 (주요 데이터)
+    // Unreal 스타일 Group 기반 데이터 (주요 데이터)
+    // 같은 Parent를 가진 Constraint들을 그룹으로 묶음
+    TArray<FPAEConstraintGroup> ConstraintGroups;
+
+    // 레거시 호환용 (Row 기반, 기존 코드에서 참조)
     TArray<FPAEConstraintRow> ConstraintRows;
 
     // 레거시 호환용 (기존 코드에서 참조)
@@ -142,6 +186,7 @@ struct FPAEGraphState
 
     void Clear()
     {
+        ConstraintGroups.Empty();
         ConstraintRows.Empty();
         BodyNodes.Empty();
         ConstraintNodes.Empty();
