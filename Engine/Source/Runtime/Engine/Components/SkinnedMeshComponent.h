@@ -53,6 +53,13 @@ public:
 protected:
     /** @brief 현재 설정된 SkeletalMesh 경로 (비동기 로드 중에도 유지) */
     FString SkeletalMeshPath;
+
+    /**
+     * @brief 비동기 로드 완료 후 호출되는 가상 함수
+     * @note 파생 클래스에서 오버라이드하여 추가 초기화 수행 가능 (Pose, Cloth 등)
+     */
+    virtual void OnSkeletalMeshLoaded();
+
     /**
      * @brief 자식에게서 원본 메시를 받아 CPU 스키닝을 수행
      * @param InSkinningMatrices 스키닝 매트릭스

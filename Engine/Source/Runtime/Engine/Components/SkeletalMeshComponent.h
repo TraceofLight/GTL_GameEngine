@@ -42,6 +42,11 @@ public:
 	void SetSkeletalMesh(const FString& PathFileName) override;
 	void HandleAnimNotify(const FAnimNotifyEvent& Notify);
 
+protected:
+	void OnSkeletalMeshLoaded() override;
+
+public:
+
 	UFUNCTION(LuaBind)
 	void TriggerAnimNotify(const FString& NotifyName, float TriggerTime, float Duration);
 

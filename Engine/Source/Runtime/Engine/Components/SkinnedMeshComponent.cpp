@@ -286,6 +286,9 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
 
          this->MarkWorldPartitionDirty();
 
+         // 비동기 로드 완료 후 파생 클래스 초기화 호출 (Pose, Cloth 등)
+         this->OnSkeletalMeshLoaded();
+
          // 비동기 로드 완료 후 Physics Body 재생성 (BeginPlay 시점에 생성 못했을 수 있음)
          if (this->IsRegistered() && this->GetWorld() && this->GetWorld()->bPie)
          {
@@ -297,6 +300,11 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
          UE_LOG("SkinnedMeshComponent: SetSkeletalMesh: Failed to load %s", PathFileName.c_str());
       }
    }, EAssetLoadPriority::Normal);
+}
+
+void USkinnedMeshComponent::OnSkeletalMeshLoaded()
+{
+   // 기본 구현: 파생 클래스에서 오버라이드하여 추가 초기화 수행 (Pose, Cloth 등)
 }
 
 void USkinnedMeshComponent::PerformSkinning()

@@ -334,59 +334,63 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
 
 void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
 {
+    // 비동기 로드 시작 - 완료 시 OnSkeletalMeshLoaded 호출됨
     Super::SetSkeletalMesh(PathFileName);
+}
 
-    if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshData())
-    {
-        const FSkeleton& Skeleton = SkeletalMesh->GetSkeletalMeshData()->Skeleton;
-        const int32 NumBones = Skeleton.Bones.Num();
+void USkeletalMeshComponent::OnSkeletalMeshLoaded()
+{
+    Super::OnSkeletalMeshLoaded();
 
-        CurrentLocalSpacePose.SetNum(NumBones);
-        CurrentComponentSpacePose.SetNum(NumBones);
-        TempFinalSkinningMatrices.SetNum(NumBones);
-        TempFinalSkinningNormalMatrices.SetNum(NumBones);
-
-        for (int32 i = 0; i < NumBones; ++i)
-        {
-            const FBone& ThisBone = Skeleton.Bones[i];
-            const int32 ParentIndex = ThisBone.ParentIndex;
-            FMatrix LocalBindMatrix;
-
-            if (ParentIndex == -1) // 루트 본
-            {
-                LocalBindMatrix = ThisBone.BindPose;
-            }
-            else // 자식 본
-            {
-                const FMatrix& ParentInverseBindPose = Skeleton.Bones[ParentIndex].InverseBindPose;
-                LocalBindMatrix = ThisBone.BindPose * ParentInverseBindPose;
-            }
-            // 계산된 로컬 행렬을 로컬 트랜스폼으로 변환
-            CurrentLocalSpacePose[i] = FTransform(LocalBindMatrix);
-        }
-
-        ForceRecomputePose();
-
-        // Cloth Section 감지 및 자동 생성
-        if (HasClothSections())
-        {
-            CreateInternalClothComponent();
-
-            UE_LOG("SkeletalMeshComponent: Cloth sections detected. ClothComponent created automatically.\n");
-        }
-        else
-        {
-            // Cloth Section이 없으면 기존 ClothComponent 제거
-            DestroyInternalClothComponent();
-        }
-    }
-    else
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
     {
         // 메시 로드 실패 시 버퍼 비우기
         CurrentLocalSpacePose.Empty();
         CurrentComponentSpacePose.Empty();
         TempFinalSkinningMatrices.Empty();
         TempFinalSkinningNormalMatrices.Empty();
+        return;
+    }
+
+    const FSkeleton& Skeleton = SkeletalMesh->GetSkeletalMeshData()->Skeleton;
+    const int32 NumBones = Skeleton.Bones.Num();
+
+    CurrentLocalSpacePose.SetNum(NumBones);
+    CurrentComponentSpacePose.SetNum(NumBones);
+    TempFinalSkinningMatrices.SetNum(NumBones);
+    TempFinalSkinningNormalMatrices.SetNum(NumBones);
+
+    for (int32 i = 0; i < NumBones; ++i)
+    {
+        const FBone& ThisBone = Skeleton.Bones[i];
+        const int32 ParentIndex = ThisBone.ParentIndex;
+        FMatrix LocalBindMatrix;
+
+        if (ParentIndex == -1) // 루트 본
+        {
+            LocalBindMatrix = ThisBone.BindPose;
+        }
+        else // 자식 본
+        {
+            const FMatrix& ParentInverseBindPose = Skeleton.Bones[ParentIndex].InverseBindPose;
+            LocalBindMatrix = ThisBone.BindPose * ParentInverseBindPose;
+        }
+        // 계산된 로컬 행렬을 로컬 트랜스폼으로 변환
+        CurrentLocalSpacePose[i] = FTransform(LocalBindMatrix);
+    }
+
+    ForceRecomputePose();
+
+    // Cloth Section 감지 및 자동 생성
+    if (HasClothSections())
+    {
+        CreateInternalClothComponent();
+        UE_LOG("SkeletalMeshComponent: Cloth sections detected. ClothComponent created automatically.\n");
+    }
+    else
+    {
+        // Cloth Section이 없으면 기존 ClothComponent 제거
+        DestroyInternalClothComponent();
     }
 }
 

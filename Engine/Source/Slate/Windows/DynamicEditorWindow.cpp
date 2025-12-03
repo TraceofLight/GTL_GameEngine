@@ -123,7 +123,7 @@ bool SDynamicEditorWindow::Initialize(float StartX, float StartY, float Width, f
 	// Mode 아이콘 로드
 	IconModeSkeletal = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/SkeletalMeshActor_64.dds");
 	IconModeAnimation = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/AnimSequence_64.dds");
-	IconModeAnimGraph = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/StateMachine_512.png");
+	IconModeAnimGraph = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/StateMachine_512.dds");
 	IconModeBlendSpace = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/BlendSpace_64.dds");
 	IconModePhysicsAsset = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/PhysicsAsset_64x.dds");
 
