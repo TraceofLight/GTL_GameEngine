@@ -241,6 +241,13 @@ void SPhysicsAssetEditorWindow::OnUpdate(float DeltaSeconds)
     if (ActiveState->World)
     {
         ActiveState->World->Tick(DeltaSeconds);
+
+        // 기즈모 모드 전환 (Space 키)
+        AGizmoActor* Gizmo = ActiveState->World->GetGizmoActor();
+        if (Gizmo)
+        {
+            Gizmo->ProcessGizmoModeSwitch();
+        }
     }
 }
 
@@ -324,11 +331,11 @@ void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
             ACameraActor* Camera = ActiveState->Client->GetCamera();
             if (Camera)
             {
-                // 기즈모가 드래그 중이 아닐 때만 피킹
-                AGizmoActor* Gizmo = ActiveState->GizmoActor;
-                bool bGizmoDragging = Gizmo && Gizmo->GetbIsDragging();
+                // 기즈모가 호버링/드래그 중이 아닐 때만 피킹 (기즈모 조작 시 선택이 풀리지 않도록)
+                AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
+                bool bGizmoInteracting = Gizmo && (Gizmo->GetbIsDragging() || Gizmo->GetbIsHovering());
 
-                if (!bGizmoDragging)
+                if (!bGizmoInteracting)
                 {
                     FVector CameraPos = Camera->GetActorLocation();
                     FVector CameraRight = Camera->GetRight();
@@ -358,24 +365,16 @@ void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
                     // Shape/Body 피킹
                     bool bHitShape = ActiveState->PickBodyOrShape(Ray, HitBodyIndex, HitShapeType, HitShapeIndex, HitDistance);
 
-                    // Constraint가 더 가까우면 Constraint 선택
-                    if (bHitConstraint && (!bHitShape || ConstraintHitDist <= HitDistance))
+                    // Constraint가 hit되면 무조건 Constraint 선택 (Shape보다 작으므로 우선)
+                    if (bHitConstraint)
                     {
                         ActiveState->SelectConstraint(HitConstraintIndex);
                     }
                     else if (bHitShape)
                     {
-                        // 피킹 성공 - 편집 모드에 따라 선택
-                        if (ActiveState->EditMode == EPhysicsAssetEditMode::Shape)
-                        {
-                            // Shape 모드: 개별 Shape 선택
-                            ActiveState->SelectShape(HitBodyIndex, HitShapeType, HitShapeIndex);
-                        }
-                        else
-                        {
-                            // Body 모드: Body 전체 선택
-                            ActiveState->SelectBody(HitBodyIndex);
-                        }
+                        // 뷰포트에서 Shape를 직접 클릭하면 항상 Shape 선택 (개별 Shape 편집 가능)
+                        // EditMode는 SelectShape 내에서 Shape로 설정됨
+                        ActiveState->SelectShape(HitBodyIndex, HitShapeType, HitShapeIndex);
                     }
                     else
                     {
@@ -531,10 +530,26 @@ void SPhysicsAssetEditorWindow::SavePhysicsAsset(const FString& Path)
         return;
     }
 
-    // SourceSkeletalPath 업데이트
+    // SourceSkeletalPath 업데이트 (상대 경로로 변환)
     if (ActiveState->CurrentMesh)
     {
-        ActiveState->PhysicsAsset->SourceSkeletalPath = ActiveState->LoadedMeshPath;
+        FString MeshPath = ActiveState->LoadedMeshPath;
+
+        // 절대 경로를 상대 경로로 변환 ("Data/" 이후 부분만 사용)
+        size_t DataPos = MeshPath.find("Data/");
+        if (DataPos == FString::npos)
+        {
+            DataPos = MeshPath.find("Data\\");
+        }
+        if (DataPos != FString::npos)
+        {
+            MeshPath = MeshPath.substr(DataPos);
+        }
+
+        // 백슬래시를 슬래시로 변환
+        std::replace(MeshPath.begin(), MeshPath.end(), '\\', '/');
+
+        ActiveState->PhysicsAsset->SourceSkeletalPath = MeshPath;
     }
 
     if (ActiveState->PhysicsAsset->SaveToFile(Path))
@@ -1224,9 +1239,10 @@ void SPhysicsAssetBodyListPanel::RenderSkeletonBodyTree(PhysicsAssetViewerState*
         int32 BodyIndex = PhysAsset->FindBodyIndexByBoneName(BoneName);
         bool bHasBody = (BodyIndex >= 0);
 
-        // 선택 상태 확인
+        // 선택 상태 확인 (Body 모드 또는 Shape 모드에서 해당 Body가 선택된 경우)
         bool bSelected = false;
-        if (State->EditMode == EPhysicsAssetEditMode::Body && bHasBody && State->SelectedBodyIndex == BodyIndex)
+        if ((State->EditMode == EPhysicsAssetEditMode::Body || State->EditMode == EPhysicsAssetEditMode::Shape) &&
+            bHasBody && State->SelectedBodyIndex == BodyIndex)
         {
             bSelected = true;
             flags |= ImGuiTreeNodeFlags_Selected;
@@ -1458,7 +1474,9 @@ void SPhysicsAssetBodyListPanel::RenderBodySetupList(PhysicsAssetViewerState* St
 
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanFullWidth;
 
-        bool bSelected = (State->EditMode == EPhysicsAssetEditMode::Body && State->SelectedBodyIndex == i);
+        // Body 모드 또는 Shape 모드에서 해당 Body가 선택된 경우 하이라이트
+        bool bSelected = ((State->EditMode == EPhysicsAssetEditMode::Body || State->EditMode == EPhysicsAssetEditMode::Shape) &&
+                          State->SelectedBodyIndex == i);
         if (bSelected)
         {
             flags |= ImGuiTreeNodeFlags_Selected;

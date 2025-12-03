@@ -35,11 +35,12 @@ void PhysicsAssetViewerState::ClearSelection()
     SelectedShapeType = EAggCollisionShape::Unknown;
     SelectedBoneName = FName();
 
-    // 기즈모 클리어
-    if (GizmoActor)
+    // 기즈모 클리어 (World에서 가져옴)
+    AGizmoActor* Gizmo = World ? World->GetGizmoActor() : nullptr;
+    if (Gizmo)
     {
-        GizmoActor->ClearConstraintTarget();
-        GizmoActor->SetbRender(false);
+        Gizmo->ClearConstraintTarget();
+        Gizmo->SetbRender(false);
     }
 }
 
@@ -67,8 +68,9 @@ void PhysicsAssetViewerState::SelectConstraint(int32 ConstraintIndex)
     SelectedConstraintIndex = ConstraintIndex;
     EditMode = EPhysicsAssetEditMode::Constraint;
 
-    // 기즈모 설정
-    if (GizmoActor && PhysicsAsset && PreviewActor && CurrentMesh &&
+    // 기즈모 설정 (World에서 가져옴)
+    AGizmoActor* Gizmo = World ? World->GetGizmoActor() : nullptr;
+    if (Gizmo && PhysicsAsset && PreviewActor && CurrentMesh &&
         ConstraintIndex >= 0 && ConstraintIndex < PhysicsAsset->ConstraintSetups.Num())
     {
         UPhysicsConstraintSetup* Constraint = PhysicsAsset->ConstraintSetups[ConstraintIndex];
@@ -90,8 +92,9 @@ void PhysicsAssetViewerState::SelectConstraint(int32 ConstraintIndex)
 
             if (BoneIndex1 >= 0 && BoneIndex2 >= 0)
             {
-                GizmoActor->SetConstraintTarget(SkelComp, Constraint, BoneIndex1, BoneIndex2);
-                GizmoActor->SetbRender(true);
+                Gizmo->SetConstraintTarget(SkelComp, Constraint, BoneIndex1, BoneIndex2);
+                Gizmo->SetMode(EGizmoMode::Rotate);  // Constraint는 회전만 의미 있음
+                Gizmo->SetbRender(true);
             }
         }
     }
@@ -99,6 +102,10 @@ void PhysicsAssetViewerState::SelectConstraint(int32 ConstraintIndex)
 
 void PhysicsAssetViewerState::SelectShape(int32 BodyIndex, EAggCollisionShape::Type ShapeType, int32 ShapeIndex)
 {
+    char debugMsg[512];
+    sprintf_s(debugMsg, "[PAE] SelectShape called: BodyIndex=%d, ShapeType=%d, ShapeIndex=%d\n", BodyIndex, (int)ShapeType, ShapeIndex);
+    OutputDebugStringA(debugMsg);
+
     ClearSelection();
     SelectedBodyIndex = BodyIndex;
     SelectedShapeType = ShapeType;
@@ -111,33 +118,88 @@ void PhysicsAssetViewerState::SelectShape(int32 BodyIndex, EAggCollisionShape::T
         {
             SelectedBoneName = Setup->BoneName;
 
-            // 기즈모 설정
-            if (GizmoActor && PreviewActor && CurrentMesh)
+            // 기즈모 설정 (World에서 가져옴)
+            AGizmoActor* Gizmo = World ? World->GetGizmoActor() : nullptr;
+
+            sprintf_s(debugMsg, "[PAE] SelectShape: Gizmo=%p, PreviewActor=%p, CurrentMesh=%p\n",
+                (void*)Gizmo, (void*)PreviewActor, (void*)CurrentMesh);
+            OutputDebugStringA(debugMsg);
+
+            if (Gizmo && PreviewActor && CurrentMesh)
             {
                 USkeletalMeshComponent* SkelComp = PreviewActor->GetSkeletalMeshComponent();
                 const FSkeleton* Skeleton = CurrentMesh->GetSkeleton();
+
+                sprintf_s(debugMsg, "[PAE] SelectShape: SkelComp=%p, Skeleton=%p\n", (void*)SkelComp, (void*)Skeleton);
+                OutputDebugStringA(debugMsg);
 
                 if (SkelComp && Skeleton)
                 {
                     // 해당 본의 인덱스 찾기
                     int32 BoneIndex = -1;
+                    std::string BoneNameStr = Setup->BoneName.ToString();
+
+                    sprintf_s(debugMsg, "[PAE] SelectShape: Looking for BoneName='%s' in %d bones\n",
+                        BoneNameStr.c_str(), (int)Skeleton->Bones.size());
+                    OutputDebugStringA(debugMsg);
+
                     for (int32 i = 0; i < Skeleton->Bones.size(); ++i)
                     {
-                        if (Skeleton->Bones[i].Name == Setup->BoneName.ToString())
+                        if (Skeleton->Bones[i].Name == BoneNameStr)
                         {
                             BoneIndex = i;
                             break;
                         }
                     }
 
-                    if (BoneIndex >= 0)
+                    // 본 매칭 실패 시 디버그 출력
+                    if (BoneIndex < 0)
                     {
-                        GizmoActor->SetShapeTarget(SkelComp, Setup, BoneIndex, ShapeType, ShapeIndex);
-                        GizmoActor->SetbRender(true);
+                        sprintf_s(debugMsg, "[PAE] SelectShape: BoneName='%s' NOT FOUND in Skeleton!\n", BoneNameStr.c_str());
+                        OutputDebugStringA(debugMsg);
+
+                        // 스켈레톤의 본 이름들 출력 (처음 10개)
+                        for (int32 i = 0; i < std::min((int32)Skeleton->Bones.size(), 10); ++i)
+                        {
+                            sprintf_s(debugMsg, "  Skeleton Bone[%d]: '%s'\n", i, Skeleton->Bones[i].Name.c_str());
+                            OutputDebugStringA(debugMsg);
+                        }
+                    }
+                    else
+                    {
+                        sprintf_s(debugMsg, "[PAE] SelectShape: Found BoneIndex=%d, calling SetShapeTarget\n", BoneIndex);
+                        OutputDebugStringA(debugMsg);
+
+                        Gizmo->SetShapeTarget(SkelComp, Setup, BoneIndex, ShapeType, ShapeIndex);
+                        Gizmo->SetMode(EGizmoMode::Scale);  // Shape는 크기 조정이 주요 용도
+                        Gizmo->SetbRender(true);
+
+                        // 기즈모 설정 후 상태 확인
+                        sprintf_s(debugMsg, "[PAE] SelectShape: After SetShapeTarget - TargetType=%d, bRender=%d\n",
+                            (int)Gizmo->GetTargetType(), Gizmo->GetbRender() ? 1 : 0);
+                        OutputDebugStringA(debugMsg);
                     }
                 }
+                else
+                {
+                    OutputDebugStringA("[PAE] SelectShape: SkelComp or Skeleton is null!\n");
+                }
+            }
+            else
+            {
+                OutputDebugStringA("[PAE] SelectShape: Gizmo, PreviewActor, or CurrentMesh is null!\n");
             }
         }
+        else
+        {
+            OutputDebugStringA("[PAE] SelectShape: Setup is null!\n");
+        }
+    }
+    else
+    {
+        sprintf_s(debugMsg, "[PAE] SelectShape: Invalid BodyIndex or PhysicsAsset (PhysicsAsset=%p, BodyIndex=%d)\n",
+            (void*)PhysicsAsset, BodyIndex);
+        OutputDebugStringA(debugMsg);
     }
 
     EditMode = EPhysicsAssetEditMode::Shape;
@@ -661,7 +723,9 @@ void PhysicsAssetViewerState::DrawConstraints(URenderer* Renderer) const
 
         // Constraint 위치 (Child 본 위치 사용)
         FVector ConstraintPos = Pos2;
-        FQuat ConstraintRot = Bone1Transform.Rotation;
+        // Constraint 회전 = 부모 본 회전 * Constraint 로컬 회전 (기즈모 조작 결과 반영)
+        FQuat ConstraintLocalRot = FQuat::MakeFromEulerZYX(Constraint->ConstraintRotationInBody1);
+        FQuat ConstraintRot = Bone1Transform.Rotation * ConstraintLocalRot;
 
         // 크기: 본 수준의 작은 크기 (1/3로 축소)
         float BoneDistance = (Pos2 - Pos1).Size();
@@ -1092,9 +1156,9 @@ bool PhysicsAssetViewerState::PickConstraint(const FRay& Ray,
         FVector Pos2 = SkelComp->GetBoneWorldTransform(BoneIndex2).Translation;
         FVector ConstraintPos = Pos2;
 
-        // 피킹 반경: 시각화보다 약간 크게 (클릭 용이성), 1/3로 축소
+        // 피킹 반경: 시각화 크기와 동일
         float BoneDistance = (Pos2 - Pos1).Size();
-        float PickRadius = FMath::Clamp(BoneDistance * 0.015f, 0.1f, 0.3f);
+        float PickRadius = FMath::Clamp(BoneDistance * 0.007f, 0.05f, 0.15f);
 
         // Ray-Sphere 교차 검사
         float T;

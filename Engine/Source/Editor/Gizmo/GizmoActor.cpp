@@ -166,14 +166,12 @@ void AGizmoActor::Tick(float DeltaSeconds)
 		SetActorLocation(BoneWorldTransform.Translation);
 		SetSpaceWorldMatrix(CurrentSpace, nullptr);
 	}
-	// Constraint 타겟일 때는 두 본 사이의 위치를 추적
+	// Constraint 타겟일 때는 Child 본(Bone2) 위치를 추적
 	else if (TargetType == EGizmoTargetType::Constraint && TargetSkeletalMeshComponent && TargetConstraintSetup &&
 	         TargetConstraintBone1Index >= 0 && TargetConstraintBone2Index >= 0)
 	{
-		FTransform Bone1Transform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetConstraintBone1Index);
 		FTransform Bone2Transform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetConstraintBone2Index);
-		FVector ConstraintPos = (Bone1Transform.Translation + Bone2Transform.Translation) * 0.5f;
-		SetActorLocation(ConstraintPos);
+		SetActorLocation(Bone2Transform.Translation);
 		SetSpaceWorldMatrix(CurrentSpace, nullptr);
 	}
 	// Shape 타겟일 때는 Shape의 월드 위치를 추적
@@ -204,8 +202,8 @@ void AGizmoActor::Tick(float DeltaSeconds)
 		SetActorLocation(ShapeWorldPos);
 		SetSpaceWorldMatrix(CurrentSpace, nullptr);
 	}
-	// Actor/Component 타겟일 때는 선택된 컴포넌트 위치 추적
-	else if (SelectionManager && SelectionManager->HasSelection() && CameraActor)
+	// Actor/Component 타겟일 때만 선택된 컴포넌트 위치 추적 (Bone/Shape/Constraint 타겟은 위에서 처리됨)
+	else if (TargetType == EGizmoTargetType::Actor && SelectionManager && SelectionManager->HasSelection() && CameraActor)
 	{
 		USceneComponent* SelectedComponent = SelectionManager->GetSelectedComponent();
 
@@ -251,6 +249,26 @@ void AGizmoActor::SetSpaceWorldMatrix(EGizmoSpace NewSpace, USceneComponent* Sel
 		if (NewSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
 		{
 			SetActorRotation(BoneWorldTransform.Rotation);
+		}
+		else if (NewSpace == EGizmoSpace::World)
+		{
+			SetActorRotation(FQuat::Identity());
+		}
+		return;
+	}
+
+	// Constraint 타겟인 경우
+	if (TargetType == EGizmoTargetType::Constraint && TargetSkeletalMeshComponent && TargetConstraintSetup &&
+	    TargetConstraintBone1Index >= 0 && TargetConstraintBone2Index >= 0)
+	{
+		// Constraint의 현재 월드 회전 = 부모 본 회전 * Constraint 로컬 회전
+		FTransform Bone1Transform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetConstraintBone1Index);
+		FQuat ConstraintLocalRot = FQuat::MakeFromEulerZYX(TargetConstraintSetup->ConstraintRotationInBody1);
+		FQuat ConstraintWorldRot = Bone1Transform.Rotation * ConstraintLocalRot;
+
+		if (NewSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
+		{
+			SetActorRotation(ConstraintWorldRot);
 		}
 		else if (NewSpace == EGizmoSpace::World)
 		{
@@ -375,9 +393,11 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 	bool bIsBoneMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
 	// Shape 타겟인 경우: Shape의 로컬 좌표를 수정
 	bool bIsShapeMode = (TargetType == EGizmoTargetType::Shape && TargetSkeletalMeshComponent && TargetBodySetup && TargetBoneIndex >= 0 && TargetShapeIndex >= 0);
+	// Constraint 타겟인 경우: Constraint의 회전 프레임을 수정
+	bool bIsConstraintMode = (TargetType == EGizmoTargetType::Constraint && TargetSkeletalMeshComponent && TargetConstraintSetup && TargetConstraintBone1Index >= 0 && TargetConstraintBone2Index >= 0);
 
 	// Actor/Component 타겟인 경우: Target 검증
-	if (!bIsBoneMode && !bIsShapeMode && !Target)
+	if (!bIsBoneMode && !bIsShapeMode && !bIsConstraintMode && !Target)
 	{
 		return;
 	}
@@ -477,7 +497,11 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 					break;
 				}
 			}
-			else
+			else if (bIsConstraintMode)
+			{
+				// Constraint는 Translate 의미 없음 - 무시
+			}
+			else if (Target)
 			{
 				Target->SetWorldLocation(NewLocation);
 			}
@@ -531,15 +555,16 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 					if (TargetShapeIndex < TargetBodySetup->AggGeom.SphylElems.Num())
 					{
 						FKCapsuleElem& Capsule = TargetBodySetup->AggGeom.SphylElems[TargetShapeIndex];
-						// X/Y 축 = Radius, Z 축 = Length
+						// Capsule은 X축 방향으로 정렬됨 (PhysX 컨벤션)
+						// X축 = Length, Y/Z축 = Radius
 						switch (DraggingAxis)
 						{
-						case 1:
-						case 2:
-							Capsule.Radius = FMath::Max(0.01f, DragStartShapeRadius + TotalMovement);
-							break;
-						case 3:
+						case 1:  // X축 = Length
 							Capsule.Length = FMath::Max(0.01f, DragStartShapeLength + TotalMovement);
+							break;
+						case 2:  // Y축 = Radius
+						case 3:  // Z축 = Radius
+							Capsule.Radius = FMath::Max(0.01f, DragStartShapeRadius + TotalMovement);
 							break;
 						}
 					}
@@ -548,7 +573,11 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 					break;
 				}
 			}
-			else
+			else if (bIsConstraintMode)
+			{
+				// Constraint는 Scale 의미 없음 - 무시
+			}
+			else if (Target)
 			{
 				Target->SetWorldScale(NewScale);
 			}
@@ -631,6 +660,16 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 				break;  // Sphere has no rotation
 			}
 		}
+		else if (bIsConstraintMode)
+		{
+			// Constraint 프레임 회전 업데이트
+			// 월드 회전을 부모 본 기준 로컬 회전으로 변환
+			FTransform Bone1Transform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetConstraintBone1Index);
+			FQuat NewLocalRot = Bone1Transform.Rotation.Inverse() * NewRot;
+
+			// Constraint의 Frame1 회전 업데이트 (부모 본 기준) - Euler degrees로 저장
+			TargetConstraintSetup->ConstraintRotationInBody1 = NewLocalRot.ToEulerZYXDeg();
+		}
 		else
 		{
 			Target->SetWorldRotation(NewRot);
@@ -653,12 +692,15 @@ void AGizmoActor::ProcessGizmoInteraction(ACameraActor* Camera, FViewport* Viewp
 		return;
 	}
 
-	// 본 타겟 모드일 때는 SelectedComponent가 없어도 기즈모 인터랙션 처리
+	// Physics Asset 타겟 모드 (Bone, Shape, Constraint)일 때는 SelectedComponent가 없어도 기즈모 인터랙션 처리
 	bool bIsBoneTargetMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
+	bool bIsShapeTargetMode = (TargetType == EGizmoTargetType::Shape && TargetSkeletalMeshComponent && TargetBodySetup && TargetBoneIndex >= 0 && TargetShapeIndex >= 0);
+	bool bIsConstraintTargetMode = (TargetType == EGizmoTargetType::Constraint && TargetSkeletalMeshComponent && TargetConstraintSetup);
+	bool bIsPhysicsAssetTargetMode = bIsBoneTargetMode || bIsShapeTargetMode || bIsConstraintTargetMode;
 
 	USceneComponent* SelectedComponent = SelectionManager->GetSelectedComponent();
 
-	if (!bIsBoneTargetMode && (!SelectedComponent || !Camera))
+	if (!bIsPhysicsAssetTargetMode && (!SelectedComponent || !Camera))
 	{
 		return;
 	}
@@ -711,12 +753,15 @@ void AGizmoActor::ProcessGizmoHovering(ACameraActor* Camera, FViewport* Viewport
 
 void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY)
 {
-	// 본 타겟 모드일 때는 SelectedComponent가 없어도 처리
+	// Physics Asset 타겟 모드 (Bone, Shape, Constraint)일 때는 SelectedComponent가 없어도 처리
 	bool bIsBoneTargetMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
+	bool bIsShapeTargetMode = (TargetType == EGizmoTargetType::Shape && TargetSkeletalMeshComponent && TargetBodySetup && TargetBoneIndex >= 0 && TargetShapeIndex >= 0);
+	bool bIsConstraintTargetMode = (TargetType == EGizmoTargetType::Constraint && TargetSkeletalMeshComponent && TargetConstraintSetup);
+	bool bIsPhysicsAssetTargetMode = bIsBoneTargetMode || bIsShapeTargetMode || bIsConstraintTargetMode;
 
 	USceneComponent* SelectedComponent = SelectionManager ? SelectionManager->GetSelectedComponent() : nullptr;
 
-	if (!bIsBoneTargetMode && !SelectedComponent)
+	if (!bIsPhysicsAssetTargetMode && !SelectedComponent)
 	{
 		return;
 	}
@@ -733,7 +778,9 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 	// --- 1. Begin Drag (드래그 시작) ---
 	// 본 모드가 아닐 때만 자동 시작 (기존 에디터 뷰포트 호환성 유지)
 	// 본 모드일 때는 StartDrag()가 명시적으로 호출되어야 함
-	if (!bIsBoneTargetMode && bMouseDown && !bIsDragging && GizmoAxis > 0)
+	// Shape/Constraint 모드는 자동 시작 허용
+	bool bAllowAutoDrag = !bIsBoneTargetMode;  // Shape, Constraint, 일반 Actor/Component 모드
+	if (bAllowAutoDrag && bMouseDown && !bIsDragging && GizmoAxis > 0)
 	{
 		bIsDragging = true;
 		bDuplicatedThisDrag = false;  // 새 드래그 시작 시 복사 플래그 리셋
@@ -809,11 +856,86 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 		}
 
 		// 드래그 시작 상태 저장
-		DragStartLocation = SelectedComponent->GetWorldLocation();
-		DragStartRotation = SelectedComponent->GetWorldRotation();
-		DragStartScale = SelectedComponent->GetWorldScale();
 		DragStartPosition = CurrentMousePosition;
 		DragImpactPoint = HoverImpactPoint;
+
+		if (bIsShapeTargetMode)
+		{
+			// Shape 모드: 실제 Shape 월드 위치/회전 계산 (StartDrag와 동일한 로직)
+			FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+
+			FVector ShapeLocalCenter = FVector::Zero();
+			FVector ShapeLocalRotation = FVector::Zero();
+
+			// Shape별 시작 데이터 저장 및 로컬 Center/Rotation 가져오기
+			switch (TargetShapeType)
+			{
+			case EAggCollisionShape::Sphere:
+				if (TargetShapeIndex < TargetBodySetup->AggGeom.SphereElems.Num())
+				{
+					FKSphereElem& Sphere = TargetBodySetup->AggGeom.SphereElems[TargetShapeIndex];
+					ShapeLocalCenter = Sphere.Center;
+					DragStartShapeCenter = Sphere.Center;
+					DragStartShapeRadius = Sphere.Radius;
+				}
+				break;
+			case EAggCollisionShape::Box:
+				if (TargetShapeIndex < TargetBodySetup->AggGeom.BoxElems.Num())
+				{
+					FKBoxElem& Box = TargetBodySetup->AggGeom.BoxElems[TargetShapeIndex];
+					ShapeLocalCenter = Box.Center;
+					ShapeLocalRotation = Box.Rotation;
+					DragStartShapeCenter = Box.Center;
+					DragStartShapeRotation = Box.Rotation;
+					DragStartShapeX = Box.X;
+					DragStartShapeY = Box.Y;
+					DragStartShapeZ = Box.Z;
+				}
+				break;
+			case EAggCollisionShape::Capsule:
+				if (TargetShapeIndex < TargetBodySetup->AggGeom.SphylElems.Num())
+				{
+					FKCapsuleElem& Capsule = TargetBodySetup->AggGeom.SphylElems[TargetShapeIndex];
+					ShapeLocalCenter = Capsule.Center;
+					ShapeLocalRotation = Capsule.Rotation;
+					DragStartShapeCenter = Capsule.Center;
+					DragStartShapeRotation = Capsule.Rotation;
+					DragStartShapeRadius = Capsule.Radius;
+					DragStartShapeLength = Capsule.Length;
+				}
+				break;
+			default:
+				break;
+			}
+
+			// Shape의 월드 위치와 회전 계산
+			DragStartLocation = BoneWorldTransform.Translation + BoneWorldTransform.Rotation.RotateVector(ShapeLocalCenter);
+			FQuat ShapeLocalQuat = FQuat::MakeFromEulerZYX(ShapeLocalRotation);
+			DragStartRotation = BoneWorldTransform.Rotation * ShapeLocalQuat;
+			DragStartScale = FVector::One();
+		}
+		else if (bIsConstraintTargetMode)
+		{
+			// Constraint 모드: 실제 Constraint 월드 회전 계산 (StartDrag와 동일한 로직)
+			FTransform Bone1Transform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetConstraintBone1Index);
+			FTransform Bone2Transform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetConstraintBone2Index);
+			DragStartLocation = Bone2Transform.Translation;
+
+			// Constraint의 현재 프레임 로컬 회전
+			FQuat ConstraintLocalRot = FQuat::MakeFromEulerZYX(TargetConstraintSetup->ConstraintRotationInBody1);
+			// Constraint 월드 회전 = Parent 본 회전 * Constraint 로컬 회전
+			DragStartRotation = Bone1Transform.Rotation * ConstraintLocalRot;
+
+			DragStartScale = FVector::One();
+			DragStartConstraintRotation = ConstraintLocalRot;
+		}
+		else if (SelectedComponent)
+		{
+			// 일반 Actor/Component 모드
+			DragStartLocation = SelectedComponent->GetWorldLocation();
+			DragStartRotation = SelectedComponent->GetWorldRotation();
+			DragStartScale = SelectedComponent->GetWorldScale();
+		}
 
 		// (회전용) 드래그 시작 시점의 2D 드래그 벡터 계산
 		if (CurrentMode == EGizmoMode::Rotate)
@@ -948,12 +1070,13 @@ bool AGizmoActor::StartDrag(ACameraActor* Camera, FViewport* Viewport, float Mou
 		return false;
 	}
 
-	// 본/Shape 타겟 모드 체크
+	// 본/Shape/Constraint 타겟 모드 체크
 	bool bIsBoneTargetMode = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
 	bool bIsShapeTargetMode = (TargetType == EGizmoTargetType::Shape && TargetSkeletalMeshComponent && TargetBodySetup && TargetBoneIndex >= 0 && TargetShapeIndex >= 0);
+	bool bIsConstraintTargetMode = (TargetType == EGizmoTargetType::Constraint && TargetSkeletalMeshComponent && TargetConstraintSetup && TargetConstraintBone1Index >= 0 && TargetConstraintBone2Index >= 0);
 	USceneComponent* SelectedComponent = SelectionManager ? SelectionManager->GetSelectedComponent() : nullptr;
 
-	if (!bIsBoneTargetMode && !bIsShapeTargetMode && !SelectedComponent)
+	if (!bIsBoneTargetMode && !bIsShapeTargetMode && !bIsConstraintTargetMode && !SelectedComponent)
 	{
 		return false;
 	}
@@ -1034,14 +1157,35 @@ bool AGizmoActor::StartDrag(ACameraActor* Camera, FViewport* Viewport, float Mou
 
 		DragStartScale = FVector::One();
 	}
+	else if (bIsConstraintTargetMode)
+	{
+		// Constraint 모드: Parent 본(Bone1)과 Child 본(Bone2)의 트랜스폼으로 Constraint 위치 계산
+		FTransform Bone1Transform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetConstraintBone1Index);
+		FTransform Bone2Transform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetConstraintBone2Index);
+
+		// Constraint 위치 = 두 본 사이의 원뿔 꼭지점 (Bone2 위치)
+		DragStartLocation = Bone2Transform.Translation;
+
+		// Constraint의 현재 프레임 로컬 회전
+		FQuat ConstraintLocalRot = FQuat::MakeFromEulerZYX(TargetConstraintSetup->ConstraintRotationInBody1);
+
+		// Constraint 월드 회전 = Parent 본 회전 * Constraint 로컬 회전 (Shape와 동일한 패턴)
+		DragStartRotation = Bone1Transform.Rotation * ConstraintLocalRot;
+
+		DragStartScale = FVector::One();
+
+		// Constraint의 현재 프레임 회전 저장 (Euler degrees → Quaternion)
+		DragStartConstraintRotation = ConstraintLocalRot;
+	}
 
 	// 본 타겟 모드일 때 편집 중인 본 인덱스 설정 (AnimInstance가 해당 본을 덮어쓰지 않도록)
 	if (bIsBoneTargetMode)
 	{
 		TargetSkeletalMeshComponent->SetBoneEditingMode(true, TargetBoneIndex);
 	}
-	else if (!bIsShapeTargetMode && SelectedComponent)
+	else if (!bIsShapeTargetMode && !bIsConstraintTargetMode && SelectedComponent)
 	{
+		// Actor/Component 모드: 선택된 컴포넌트의 트랜스폼 저장
 		DragStartLocation = SelectedComponent->GetWorldLocation();
 		DragStartRotation = SelectedComponent->GetWorldRotation();
 		DragStartScale = SelectedComponent->GetWorldScale();
@@ -1123,9 +1267,12 @@ void AGizmoActor::EndDrag()
 
 void AGizmoActor::UpdateComponentVisibility()
 {
-	// 선택된 액터가 있거나 본 타겟이 있으면 기즈모 표시
+	// 선택된 액터가 있거나 Physics Asset 타겟(Bone/Shape/Constraint)이 있으면 기즈모 표시
+	bool bHasBoneTarget = (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
+	bool bHasShapeTarget = (TargetType == EGizmoTargetType::Shape && TargetSkeletalMeshComponent && TargetBodySetup && TargetBoneIndex >= 0 && TargetShapeIndex >= 0);
+	bool bHasConstraintTarget = (TargetType == EGizmoTargetType::Constraint && TargetSkeletalMeshComponent && TargetConstraintSetup);
 	bool bHasSelection = (SelectionManager && SelectionManager->GetSelectedComponent()) ||
-	                     (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0);
+	                     bHasBoneTarget || bHasShapeTarget || bHasConstraintTarget;
 
 	// 드래그 중일 때는 고정된 축(DraggingAxis)을, 아닐 때는 호버 축(GizmoAxis)을 사용
 	uint32 HighlightAxis = bIsDragging ? DraggingAxis : GizmoAxis;
@@ -1208,10 +1355,10 @@ void AGizmoActor::SetConstraintTarget(USkeletalMeshComponent* InComponent, UPhys
 	FTransform Bone1Transform = InComponent->GetBoneWorldTransform(InBone1Index);
 	FTransform Bone2Transform = InComponent->GetBoneWorldTransform(InBone2Index);
 
-	// Constraint 위치: 두 본의 중간점
-	FVector ConstraintPos = (Bone1Transform.Translation + Bone2Transform.Translation) * 0.5f;
+	// Constraint 위치: Child 본(Bone2) 위치 (시각화/피킹과 일치)
+	FVector ConstraintPos = Bone2Transform.Translation;
 
-	// Constraint 회전: 첫 번째 본의 회전 사용 (기준 프레임)
+	// Constraint 회전: Parent 본(Bone1)의 회전 사용 (기준 프레임)
 	FQuat ConstraintRot = Bone1Transform.Rotation;
 
 	RootComponent->SetWorldLocation(ConstraintPos);
@@ -1235,8 +1382,14 @@ void AGizmoActor::ClearConstraintTarget()
 
 void AGizmoActor::SetShapeTarget(USkeletalMeshComponent* InComponent, UBodySetup* InBodySetup, int32 InBoneIndex, EAggCollisionShape::Type InShapeType, int32 InShapeIndex)
 {
+	char debugMsg[256];
+	sprintf_s(debugMsg, "[Gizmo] SetShapeTarget: InComponent=%p, InBodySetup=%p, BoneIndex=%d, ShapeType=%d, ShapeIndex=%d\n",
+		(void*)InComponent, (void*)InBodySetup, InBoneIndex, (int)InShapeType, InShapeIndex);
+	OutputDebugStringA(debugMsg);
+
 	if (!InComponent || !InBodySetup || InBoneIndex < 0 || InShapeIndex < 0)
 	{
+		OutputDebugStringA("[Gizmo] SetShapeTarget: Validation failed, clearing target\n");
 		ClearShapeTarget();
 		return;
 	}
@@ -1290,6 +1443,16 @@ void AGizmoActor::SetShapeTarget(USkeletalMeshComponent* InComponent, UBodySetup
 
 	RootComponent->SetWorldLocation(ShapeWorldPos);
 	RootComponent->SetWorldRotation(ShapeWorldRot);
+
+	sprintf_s(debugMsg, "[Gizmo] SetShapeTarget: BonePos=(%.2f,%.2f,%.2f), ShapeLocalCenter=(%.2f,%.2f,%.2f), ShapeWorldPos=(%.2f,%.2f,%.2f)\n",
+		BoneWorldTransform.Translation.X, BoneWorldTransform.Translation.Y, BoneWorldTransform.Translation.Z,
+		ShapeLocalCenter.X, ShapeLocalCenter.Y, ShapeLocalCenter.Z,
+		ShapeWorldPos.X, ShapeWorldPos.Y, ShapeWorldPos.Z);
+	OutputDebugStringA(debugMsg);
+
+	sprintf_s(debugMsg, "[Gizmo] SetShapeTarget complete: TargetType=%d, TargetBoneIndex=%d, TargetShapeIndex=%d\n",
+		(int)TargetType, TargetBoneIndex, TargetShapeIndex);
+	OutputDebugStringA(debugMsg);
 
 	SetSpaceWorldMatrix(CurrentSpace, nullptr);
 }

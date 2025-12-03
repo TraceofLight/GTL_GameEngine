@@ -36,7 +36,7 @@ PhysicsAssetViewerState* PhysicsAssetViewerBootstrap::CreateViewerState(const ch
     Client->SetWorld(State->World);
     Client->SetViewportType(EViewportType::Perspective);
     Client->SetViewMode(EViewMode::VMI_Lit_Phong);
-    Client->SetPickingEnabled(true);
+    Client->SetPickingEnabled(false);  // PAE는 자체 피킹 로직 사용 (Shape/Constraint 피킹)
     // 카메라 초기 위치/회전은 FSkeletalViewerViewportClient 생성자에서 설정됨
 
     State->Client = Client;

@@ -187,6 +187,9 @@ private:
     float DragStartShapeZ = 0.0f;
     float DragStartShapeLength = 0.0f;
 
+    // Constraint 드래그 시작 시점의 데이터
+    FQuat DragStartConstraintRotation;
+
     // 드래그 시작 시점의 마우스 및 카메라 정보
     FVector2D DragStartPosition;
     ACameraActor* DragCamera = nullptr;
