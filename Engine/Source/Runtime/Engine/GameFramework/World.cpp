@@ -112,7 +112,7 @@ void UWorld::Initialize()
 	{
 		Partition = std::make_unique<UWorldPartitionManager>();
 	}
-
+	 
 
 	// 기본 씬을 생성합니다.
 	CreateLevel();

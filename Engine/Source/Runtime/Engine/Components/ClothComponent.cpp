@@ -389,8 +389,21 @@ void UClothComponent::ClearCollisionShapes()
 
 void UClothComponent::DuplicateSubObjects()
 {
-	Super::DuplicateSubObjects();
+	Super::DuplicateSubObjects(); 
 
+	// NvCloth 리소스들은 복사하지 않음 (InitializeComponent에서 재생성)
+	// fabric, cloth, phases는 포인터이므로 nullptr로 초기화
+	fabric = nullptr;
+	cloth = nullptr;
+	phases = nullptr;
+
+	// 초기화 플래그를 false로 설정하여 InitializeComponent에서 재생성되도록
+	bClothInitialized = false;
+
+	// GPU 버퍼도 재생성 필요
+	ClothGPUBuffer = nullptr;
+	ClothGPUSRV = nullptr;
+	ClothGPUBufferSize = 0;
 }
 
 void UClothComponent::InitializeNvCloth()

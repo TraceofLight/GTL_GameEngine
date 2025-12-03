@@ -115,29 +115,15 @@ public:
 	virtual void TickComponent(float DeltaTime) override;
 	virtual void OnCreatePhysicsState() override;
 	virtual void CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) override;
-	//virtual void OnDestroyPhysicsState() override;
-
+ 
 	// Cloth setup
 	void SetupClothFromMesh();
 	void ReleaseCloth();
-
-	// Constraint management
-	//void AddConstraint(int32 VertexIndex, EClothConstraintType Type,
-	//	const FVector& Position = FVector::Zero(),
-	//	float MaxDistance = 0.0f);
-	//void RemoveConstraint(int32 VertexIndex);
-	//void ClearConstraints();
-	//void UpdateConstraintPositions();
-
+	 
 	// Wind control
 	void SetWindVelocity(const FVector& Velocity);
 	void SetWindParams(float Drag, float Lift);
-
-	//// Simulation control
-	//void ResetClothSimulation();
-	//void SetClothEnabled(bool bEnabled);
-	//bool IsClothEnabled() const { return bClothEnabled; }
-
+	 
 	// Settings
 	//void SetClothSettings(const FClothSimulationSettings& NewSettings);
 	const FClothSimulationSettings& GetClothSettings() const { return ClothSettings; }
@@ -207,7 +193,7 @@ private:
 	//void SimulateCloth(float DeltaSeconds);
 	void RetrievingSimulateResult();
 	void RecalculateNormals();
-
+	
 	void ApplyClothProperties();
 	void ApplyTetherConstraint();
 
@@ -221,28 +207,16 @@ private:
 	bool ShouldFixVertex(const FSkinnedVertex& Vertex);
 	void UpdateSectionVertices(const FGroupInfo& Group, int32& ParticleIdx);
 
-	//void ComputeInvMasses();
-
-	//// Constraint helpers	
-	//void ApplyConstraintsToCloth();
-	void UpdateMotionConstraints();
-	//void UpdateSeparationConstraints();
+	// Constraint helpers	 
+	void UpdateMotionConstraints(); 
 	void ClearMotionConstraints();
-
-	//// Collision helpers
-	//void UpdateCollisionShapes();
-
-	//// Cooking helpers
-	//nv::cloth::ClothMeshDesc GetClothMeshDesc();
-
-	///nv::cloth::Factory* factory; 
+	 
+	 
 	nv::cloth::Fabric* fabric;
 	nv::cloth::Cloth* cloth;
 	nv::cloth::Vector<int32_t>::Type phaseTypeInfo;
 	nv::cloth::PhaseConfig* phases;
-	 
-	//nv::cloth::Solver* solver; 
-	 
+	  
 	void CreateOrResizeClothGPUBuffer(uint32 Float3Count);
 	void UpdateClothGPUBufferFromParticles();         // PreviousParticles -> GPU
 	void ReleaseClothGPUBuffer(); 
