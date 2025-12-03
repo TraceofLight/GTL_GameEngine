@@ -3555,6 +3555,17 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
     }
 
     // ============================================================================
+    // 우클릭 컨텍스트 메뉴 감지 (ed::End() 이후에 팝업 렌더링)
+    // ============================================================================
+    ed::NodeId contextMenuNodeId;
+    static bool bOpenContextMenu = false;
+    if (ed::ShowNodeContextMenu(&contextMenuNodeId))
+    {
+        GraphState->ContextMenuNodeId = contextMenuNodeId;
+        bOpenContextMenu = true;
+    }
+
+    // ============================================================================
     // 노드 선택 처리 (항상 실행)
     // Group 기반 구조에서 노드 ID로 Body/Constraint 찾기
     // ============================================================================
@@ -3656,6 +3667,161 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
 
     ed::End();
     ed::SetCurrentEditor(nullptr);
+
+    // ============================================================================
+    // 우클릭 컨텍스트 메뉴 렌더링 (ed::End() 이후 - 올바른 스크린 좌표 사용)
+    // ============================================================================
+    if (bOpenContextMenu)
+    {
+        ImGui::OpenPopup("NodeContextMenu");
+        bOpenContextMenu = false;
+    }
+
+    if (ImGui::BeginPopup("NodeContextMenu"))
+    {
+        ed::NodeId nodeId = GraphState->ContextMenuNodeId;
+        bool bIsBodyNode = false;
+        bool bIsConstraintNode = false;
+        int32 BodyIndexToDelete = -1;
+        int32 ConstraintIndexToDelete = -1;
+        std::string NodeName;
+
+        // Group 구조에서 노드 타입 확인
+        for (auto& Group : GraphState->ConstraintGroups)
+        {
+            // Parent Body 노드 확인
+            if (Group.ParentBodyNodeID == nodeId)
+            {
+                bIsBodyNode = true;
+                BodyIndexToDelete = Group.ParentBodyIndex;
+                NodeName = Group.ParentBoneName;
+                break;
+            }
+
+            // Children에서 확인
+            for (auto& Child : Group.Children)
+            {
+                if (Child.ConstraintNodeID == nodeId)
+                {
+                    bIsConstraintNode = true;
+                    ConstraintIndexToDelete = Child.ConstraintIndex;
+                    NodeName = Group.ParentBoneName + " -> " + Child.ChildBoneName;
+                    break;
+                }
+                if (Child.ChildBodyNodeID == nodeId)
+                {
+                    bIsBodyNode = true;
+                    BodyIndexToDelete = Child.ChildBodyIndex;
+                    NodeName = Child.ChildBoneName;
+                    break;
+                }
+            }
+            if (bIsBodyNode || bIsConstraintNode) break;
+        }
+
+        // 레거시 구조에서도 확인
+        if (!bIsBodyNode && !bIsConstraintNode)
+        {
+            FPAEBodyNode* BodyNode = Owner->FindBodyNode(nodeId);
+            if (BodyNode && BodyNode->BodyIndex >= 0)
+            {
+                bIsBodyNode = true;
+                BodyIndexToDelete = BodyNode->BodyIndex;
+                NodeName = BodyNode->BoneName;
+            }
+            else
+            {
+                FPAEConstraintNode* ConstraintNode = Owner->FindConstraintNode(nodeId);
+                if (ConstraintNode && ConstraintNode->ConstraintIndex >= 0)
+                {
+                    bIsConstraintNode = true;
+                    ConstraintIndexToDelete = ConstraintNode->ConstraintIndex;
+                    NodeName = ConstraintNode->Bone1Name + " -> " + ConstraintNode->Bone2Name;
+                }
+            }
+        }
+
+        // Body 노드 메뉴
+        if (bIsBodyNode && BodyIndexToDelete >= 0)
+        {
+            ImGui::Text("Body: %s", NodeName.c_str());
+            ImGui::Separator();
+            if (ImGui::MenuItem("Delete Body"))
+            {
+                // Cascade Delete: 이 Body와 연결된 모든 Constraint 먼저 삭제
+                UBodySetup* BodyToDelete = PhysAsset->BodySetups[BodyIndexToDelete];
+                if (BodyToDelete)
+                {
+                    FName BoneNameToDelete = BodyToDelete->BoneName;
+
+                    // 연결된 Constraint들 찾아서 삭제 (역순으로 삭제해야 인덱스 꼬이지 않음)
+                    for (int32 i = PhysAsset->ConstraintSetups.Num() - 1; i >= 0; --i)
+                    {
+                        UPhysicsConstraintSetup* Constraint = PhysAsset->ConstraintSetups[i];
+                        if (Constraint &&
+                            (Constraint->ConstraintBone1 == BoneNameToDelete ||
+                             Constraint->ConstraintBone2 == BoneNameToDelete))
+                        {
+                            UE_LOG("[PAE] Cascade deleting constraint: %s <-> %s",
+                                Constraint->ConstraintBone1.ToString().c_str(),
+                                Constraint->ConstraintBone2.ToString().c_str());
+                            ObjectFactory::DeleteObject(Constraint);
+                            PhysAsset->ConstraintSetups.erase(PhysAsset->ConstraintSetups.begin() + i);
+                        }
+                    }
+
+                    // Body 삭제
+                    UE_LOG("[PAE] Deleting body: %s", BoneNameToDelete.ToString().c_str());
+                    PhysAsset->BoneNameToBodyIndex.erase(BoneNameToDelete.ToString().c_str());
+                    ObjectFactory::DeleteObject(BodyToDelete);
+                    PhysAsset->BodySetups.erase(PhysAsset->BodySetups.begin() + BodyIndexToDelete);
+
+                    // BoneNameToBodyIndex 맵 재구성
+                    PhysAsset->BoneNameToBodyIndex.clear();
+                    for (int32 i = 0; i < PhysAsset->BodySetups.Num(); ++i)
+                    {
+                        if (PhysAsset->BodySetups[i])
+                        {
+                            PhysAsset->BoneNameToBodyIndex[PhysAsset->BodySetups[i]->BoneName.ToString().c_str()] = i;
+                        }
+                    }
+
+                    // 선택 해제 및 그래프 동기화
+                    State->ClearSelection();
+                    Owner->SyncGraphFromPhysicsAsset();
+                }
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        // Constraint 노드 메뉴
+        else if (bIsConstraintNode && ConstraintIndexToDelete >= 0)
+        {
+            ImGui::Text("Constraint: %s", NodeName.c_str());
+            ImGui::Separator();
+            if (ImGui::MenuItem("Delete Constraint"))
+            {
+                UPhysicsConstraintSetup* Constraint = PhysAsset->ConstraintSetups[ConstraintIndexToDelete];
+                if (Constraint)
+                {
+                    UE_LOG("[PAE] Deleting constraint: %s <-> %s",
+                        Constraint->ConstraintBone1.ToString().c_str(),
+                        Constraint->ConstraintBone2.ToString().c_str());
+                    ObjectFactory::DeleteObject(Constraint);
+                    PhysAsset->ConstraintSetups.erase(PhysAsset->ConstraintSetups.begin() + ConstraintIndexToDelete);
+
+                    State->ClearSelection();
+                    Owner->SyncGraphFromPhysicsAsset();
+                }
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        else
+        {
+            ImGui::TextDisabled("Unknown node");
+        }
+
+        ImGui::EndPopup();
+    }
 }
 
 // ============================================================================

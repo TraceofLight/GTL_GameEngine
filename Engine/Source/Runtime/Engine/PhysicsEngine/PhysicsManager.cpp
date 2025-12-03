@@ -155,7 +155,7 @@ void FPhysicsManager::BeginSimulate(FPhysicsSceneHandle& Handle, float DeltaSeco
 		return;
 
 	Handle.Accumulator -= Handle.StepSize;
-
+	
 	Handle.Scene->simulate(Handle.StepSize);
 	Handle.bSimulationRunning = true;
 }

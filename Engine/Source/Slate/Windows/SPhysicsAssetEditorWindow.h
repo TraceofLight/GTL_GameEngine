@@ -157,6 +157,7 @@ struct FPAEGraphState
 
     ed::NodeId SelectedNodeID;
     ed::LinkId SelectedLinkID;
+    ed::NodeId ContextMenuNodeId;  // 우클릭 컨텍스트 메뉴용
 
     int32 NextNodeID = 1;
     int32 NextPinID = 100000;
@@ -165,6 +166,7 @@ struct FPAEGraphState
     FPAEGraphState()
         : SelectedNodeID(ed::NodeId::Invalid)
         , SelectedLinkID(ed::LinkId::Invalid)
+        , ContextMenuNodeId(ed::NodeId::Invalid)
     {
         ed::Config Config;
         Config.SettingsFile = nullptr;
