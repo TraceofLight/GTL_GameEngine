@@ -1348,8 +1348,9 @@ void USkeletalMeshComponent::CreateInternalClothComponent()
   
 }
 
-/**	
+/**
  * @brief 내부 ClothComponent 정리
+ * @note 소멸자에서는 직접 호출하지 않음 (Owner 파괴 중 Cast 크래시 방지)
  */
 void USkeletalMeshComponent::DestroyInternalClothComponent()
 {
@@ -1360,6 +1361,5 @@ void USkeletalMeshComponent::DestroyInternalClothComponent()
 			Owner->RemoveOwnedComponent(InternalClothComponent);
 		}
 		InternalClothComponent = nullptr;
-
 	}
 }
