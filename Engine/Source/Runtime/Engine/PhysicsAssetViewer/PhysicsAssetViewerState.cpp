@@ -5,6 +5,7 @@
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsConstraintSetup.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
+#include "Source/Runtime/Engine/Components/ClothComponent.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Runtime/Core/Misc/PrimitiveGeometry.h"
 #include "Source/Runtime/Engine/Collision/Picking.h"
@@ -1249,4 +1250,265 @@ bool PhysicsAssetViewerState::PickConstraint(const FRay& Ray,
     }
 
     return false;
+}
+
+// ============================================================================
+// Cloth Paint 관련 함수들
+// ============================================================================
+
+bool PhysicsAssetViewerState::PickClothVertex(const FRay& Ray,
+                                               int32& OutClothVertexIndex,
+                                               float& OutDistance) const
+{
+    if (!PreviewActor) return false;
+
+    // ClothComponent 찾기
+    UClothComponent* ClothComp = nullptr;
+    USkeletalMeshComponent* SkelComp = PreviewActor->GetSkeletalMeshComponent();
+    if (SkelComp)
+    {
+        ClothComp = SkelComp->GetInternalClothComponent();
+    }
+
+    if (!ClothComp || ClothComp->GetClothVertexCount() == 0)
+    {
+        return false;
+    }
+
+    float ClosestT = FLT_MAX;
+    int32 HitVertexIndex = -1;
+    const float VertexPickRadius = ClothPaintBrushRadius * 0.5f;  // 브러시 반경의 절반
+
+    // 모든 Cloth 정점 순회
+    for (int32 i = 0; i < ClothComp->GetClothVertexCount(); ++i)
+    {
+        FVector VertexPos = ClothComp->GetClothVertexPosition(i);
+
+        // Ray-Sphere 교차 검사 (각 정점을 작은 구로 취급)
+        float T;
+        if (RaySphereIntersect(Ray, VertexPos, VertexPickRadius, T))
+        {
+            if (T < ClosestT)
+            {
+                ClosestT = T;
+                HitVertexIndex = i;
+            }
+        }
+    }
+
+    if (HitVertexIndex >= 0)
+    {
+        OutClothVertexIndex = HitVertexIndex;
+        OutDistance = ClosestT;
+        return true;
+    }
+
+    return false;
+}
+
+void PhysicsAssetViewerState::DrawClothWeights(URenderer* Renderer) const
+{
+    if (!Renderer || !bShowClothWeightVisualization) return;
+    // ClothPaint 모드에서만 시각화
+    if (EditMode != EPhysicsAssetEditMode::ClothPaint) return;
+    if (!PreviewActor) return;
+
+    USkeletalMeshComponent* SkelComp = PreviewActor->GetSkeletalMeshComponent();
+    if (!SkelComp) return;
+
+    USkeletalMesh* SkelMesh = SkelComp->GetSkeletalMesh();
+    if (!SkelMesh || !SkelMesh->GetSkeletalMeshData()) return;
+
+    const auto& MeshDataPtr = SkelMesh->GetSkeletalMeshData();
+    const auto& Vertices = MeshDataPtr->Vertices;
+    const auto& GroupInfos = MeshDataPtr->GroupInfos;
+    const auto& Indices = MeshDataPtr->Indices;
+
+    // SkeletalMeshComponent의 월드 변환 가져오기
+    FTransform WorldTransform = SkelComp->GetWorldTransform();
+
+    // Weight에 따른 색상 계산 람다 (반투명하게)
+    auto GetWeightColor = [](float Weight) -> FVector4 {
+        // 0(Red/고정) -> 0.5(Yellow) -> 1(Green/자유)
+        float Alpha = 0.6f;  // 반투명
+        if (Weight < 0.5f)
+        {
+            float t = Weight * 2.0f;
+            return FVector4(1.0f, t, 0.0f, Alpha);
+        }
+        else
+        {
+            float t = (Weight - 0.5f) * 2.0f;
+            return FVector4(1.0f - t, 1.0f, 0.0f, Alpha);
+        }
+    };
+
+    // FMeshData로 삼각형 메시 생성
+    FMeshData ClothMeshData;
+
+    // Cloth Section의 삼각형을 시각화
+    uint32 VertexIndex = 0;
+    for (const auto& Group : GroupInfos)
+    {
+        if (!Group.bEnableCloth)
+            continue;
+
+        // 삼각형 단위로 순회 (3개씩)
+        for (uint32 i = 0; i + 2 < Group.IndexCount; i += 3)
+        {
+            uint32 Idx0 = Indices[Group.StartIndex + i];
+            uint32 Idx1 = Indices[Group.StartIndex + i + 1];
+            uint32 Idx2 = Indices[Group.StartIndex + i + 2];
+
+            // 버텍스 위치 (월드 좌표)
+            FVector P0 = WorldTransform.TransformPosition(Vertices[Idx0].Position);
+            FVector P1 = WorldTransform.TransformPosition(Vertices[Idx1].Position);
+            FVector P2 = WorldTransform.TransformPosition(Vertices[Idx2].Position);
+
+            // 노멀 계산 (면 노멀)
+            FVector Edge1 = P1 - P0;
+            FVector Edge2 = P2 - P0;
+            FVector Normal = FVector::Cross(Edge1, Edge2).GetSafeNormal();
+
+            // 각 버텍스의 Weight 가져오기 (ClothVertexWeights 맵에서)
+            float W0 = 1.0f, W1 = 1.0f, W2 = 1.0f;
+            if (ClothVertexWeights)
+            {
+                auto It0 = ClothVertexWeights->find(Idx0);
+                auto It1 = ClothVertexWeights->find(Idx1);
+                auto It2 = ClothVertexWeights->find(Idx2);
+                if (It0 != ClothVertexWeights->end()) W0 = It0->second;
+                if (It1 != ClothVertexWeights->end()) W1 = It1->second;
+                if (It2 != ClothVertexWeights->end()) W2 = It2->second;
+            }
+
+            // 각 버텍스의 색상
+            FVector4 C0 = GetWeightColor(W0);
+            FVector4 C1 = GetWeightColor(W1);
+            FVector4 C2 = GetWeightColor(W2);
+
+            // 삼각형 버텍스 추가
+            ClothMeshData.Vertices.Add(P0);
+            ClothMeshData.Vertices.Add(P1);
+            ClothMeshData.Vertices.Add(P2);
+
+            ClothMeshData.Color.Add(C0);
+            ClothMeshData.Color.Add(C1);
+            ClothMeshData.Color.Add(C2);
+
+            ClothMeshData.Normal.Add(Normal);
+            ClothMeshData.Normal.Add(Normal);
+            ClothMeshData.Normal.Add(Normal);
+
+            ClothMeshData.UV.Add(FVector2D(0, 0));
+            ClothMeshData.UV.Add(FVector2D(1, 0));
+            ClothMeshData.UV.Add(FVector2D(0.5f, 1));
+
+            // 인덱스 추가
+            ClothMeshData.Indices.Add(VertexIndex);
+            ClothMeshData.Indices.Add(VertexIndex + 1);
+            ClothMeshData.Indices.Add(VertexIndex + 2);
+
+            VertexIndex += 3;
+        }
+    }
+
+    if (ClothMeshData.Vertices.Num() > 0)
+    {
+        Renderer->BeginPrimitiveBatch();
+        Renderer->AddPrimitiveData(ClothMeshData, FMatrix::Identity());
+        Renderer->EndPrimitiveBatch();
+    }
+}
+
+void PhysicsAssetViewerState::ApplyBrushToClothVertices(const FVector& BrushCenter, float BrushRadius,
+                                                         float BrushStrength, float BrushFalloff, float PaintValue)
+{
+    if (!PreviewActor) return;
+
+    USkeletalMeshComponent* SkelComp = PreviewActor->GetSkeletalMeshComponent();
+    if (!SkelComp) return;
+
+    USkeletalMesh* SkelMesh = SkelComp->GetSkeletalMesh();
+    if (!SkelMesh || !SkelMesh->GetSkeletalMeshData()) return;
+
+    const auto& MeshData = SkelMesh->GetSkeletalMeshData();
+    const auto& Vertices = MeshData->Vertices;
+    const auto& GroupInfos = MeshData->GroupInfos;
+    const auto& Indices = MeshData->Indices;
+
+    FTransform WorldTransform = SkelComp->GetWorldTransform();
+
+    // Cloth가 활성화된 그룹의 버텍스들만 처리
+    std::set<uint32> ClothVertexIndices;
+    for (const auto& Group : GroupInfos)
+    {
+        if (!Group.bEnableCloth)
+            continue;
+
+        for (uint32 i = 0; i < Group.IndexCount; ++i)
+        {
+            uint32 VertIdx = Indices[Group.StartIndex + i];
+            ClothVertexIndices.insert(VertIdx);
+        }
+    }
+
+    // 맵이 없으면 생성
+    if (!ClothVertexWeights)
+    {
+        ClothVertexWeights = std::make_unique<std::unordered_map<uint32, float>>();
+    }
+
+    // 브러시 영역 내 정점에 Weight 적용
+    for (uint32 VertIdx : ClothVertexIndices)
+    {
+        FVector LocalPos = Vertices[VertIdx].Position;
+        FVector WorldPos = WorldTransform.TransformPosition(LocalPos);
+        float Distance = (WorldPos - BrushCenter).Size();
+
+        if (Distance <= BrushRadius)
+        {
+            // Falloff 계산: 중심에서 멀어질수록 영향 감소
+            float FalloffFactor = 1.0f;
+            if (BrushFalloff > 0.0f && BrushRadius > 0.0f)
+            {
+                float NormalizedDist = Distance / BrushRadius;
+                // Falloff 0 = hard edge (no falloff), Falloff 1 = linear falloff
+                FalloffFactor = 1.0f - (NormalizedDist * BrushFalloff);
+                FalloffFactor = FMath::Clamp(FalloffFactor, 0.0f, 1.0f);
+            }
+
+            // 최종 적용 강도
+            float ApplyStrength = BrushStrength * FalloffFactor;
+
+            // 현재 weight와 목표 weight 블렌딩
+            float CurrentWeight = 1.0f;
+            auto It = ClothVertexWeights->find(VertIdx);
+            if (It != ClothVertexWeights->end())
+            {
+                CurrentWeight = It->second;
+            }
+            float NewWeight = FMath::Lerp(CurrentWeight, PaintValue, ApplyStrength);
+            NewWeight = FMath::Clamp(NewWeight, 0.0f, 1.0f);
+
+            (*ClothVertexWeights)[VertIdx] = NewWeight;
+        }
+    }
+
+    // ClothComponent에도 weight 동기화 (시뮬레이션에 사용)
+    UClothComponent* ClothComp = SkelComp->GetInternalClothComponent();
+    if (ClothComp && ClothVertexWeights)
+    {
+        for (const auto& Pair : *ClothVertexWeights)
+        {
+            // ClothComponent의 인덱스 매핑이 필요할 수 있음
+            // 현재는 글로벌 버텍스 인덱스를 그대로 사용
+            uint32 VertIdx = Pair.first;
+            float Weight = Pair.second;
+            if (VertIdx < static_cast<uint32>(ClothComp->GetClothVertexCount()))
+            {
+                ClothComp->SetVertexWeight(static_cast<int32>(VertIdx), Weight);
+            }
+        }
+    }
 }

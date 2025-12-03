@@ -215,8 +215,20 @@ void UPhysicsAsset::Serialize(bool bIsLoading, JSON& Json)
 			}
 		}
 
-		UE_LOG("[PhysicsAsset] Loaded: %d bodies, %d constraints from '%s'",
-			   BodySetups.Num(), ConstraintSetups.Num(), SourceSkeletalPath.c_str());
+		// ClothVertexWeights
+		ClothVertexWeights.clear();
+		if (Json.hasKey("ClothVertexWeights") && Json["ClothVertexWeights"].JSONType() == JSON::Class::Object)
+		{
+			for (auto& Pair : Json["ClothVertexWeights"].ObjectRange())
+			{
+				uint32 VertIdx = static_cast<uint32>(std::stoul(Pair.first));
+				float Weight = static_cast<float>(Pair.second.ToFloat());
+				ClothVertexWeights[VertIdx] = Weight;
+			}
+		}
+
+		UE_LOG("[PhysicsAsset] Loaded: %d bodies, %d constraints, %d cloth weights from '%s'",
+			   BodySetups.Num(), ConstraintSetups.Num(), (int)ClothVertexWeights.size(), SourceSkeletalPath.c_str());
 	}
 	else
 	{
@@ -247,8 +259,15 @@ void UPhysicsAsset::Serialize(bool bIsLoading, JSON& Json)
 			}
 		}
 
-		UE_LOG("[PhysicsAsset] Saved: %d bodies, %d constraints",
-			   BodySetups.Num(), ConstraintSetups.Num());
+		// ClothVertexWeights
+		Json["ClothVertexWeights"] = JSON::Make(JSON::Class::Object);
+		for (const auto& Pair : ClothVertexWeights)
+		{
+			Json["ClothVertexWeights"][std::to_string(Pair.first)] = Pair.second;
+		}
+
+		UE_LOG("[PhysicsAsset] Saved: %d bodies, %d constraints, %d cloth weights",
+			   BodySetups.Num(), ConstraintSetups.Num(), (int)ClothVertexWeights.size());
 	}
 }
 

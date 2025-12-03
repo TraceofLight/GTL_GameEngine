@@ -9,6 +9,7 @@
 #include "Source/Runtime/Engine/GameFramework/DirectionalLightActor.h"
 #include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
 #include "Source/Runtime/Engine/Components/DirectionalLightComponent.h"
+#include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsManager.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
 
@@ -99,6 +100,16 @@ void PhysicsAssetViewerBootstrap::DestroyViewerState(PhysicsAssetViewerState*& S
     if (State->World && State->World->GetPhysicsScene())
     {
         PHYSICS.DestroyScene(State->World->GetPhysicsSceneHandle());
+    }
+
+    // PreviewActor의 InternalClothComponent 먼저 정리 (World 삭제 전)
+    // World 삭제 시 Actor 소멸자에서 Cast 크래시 방지
+    if (State->PreviewActor)
+    {
+        if (USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent())
+        {
+            SkelComp->DestroyInternalClothComponent();
+        }
     }
 
     if (State->Viewport) { delete State->Viewport; State->Viewport = nullptr; }

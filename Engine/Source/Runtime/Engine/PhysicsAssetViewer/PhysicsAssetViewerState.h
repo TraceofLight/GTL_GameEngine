@@ -26,7 +26,8 @@ enum class EPhysicsAssetEditMode : uint8
 {
     Body,       // Body 선택/편집 모드
     Constraint, // Constraint 선택/편집 모드
-    Shape       // 개별 Shape 선택/편집 모드
+    Shape,      // 개별 Shape 선택/편집 모드
+    ClothPaint  // Cloth Weight 페인팅 모드
 };
 
 class PhysicsAssetViewerState
@@ -70,6 +71,16 @@ public:
     std::set<int32> ExpandedBoneIndices;    // Skeleton Tree에서 펼쳐진 본들
     int32 PropertiesTabIndex = 0;           // Properties 패널 탭 인덱스
 
+    // Cloth Paint State
+    float ClothPaintBrushRadius = 10.0f;    // 브러시 반경 (cm)
+    float ClothPaintBrushStrength = 1.0f;   // 브러시 강도 (0-1)
+    float ClothPaintBrushFalloff = 0.5f;    // Falloff (0-1, 0=hard edge, 1=soft)
+    float ClothPaintValue = 0.0f;           // 페인팅 값 (0=고정, 1=자유)
+    bool bClothPaintEraseMode = false;      // 지우개 모드 (true이면 1.0으로 설정)
+    int32 SelectedClothVertexIndex = -1;    // 현재 호버 중인 Cloth 정점
+    bool bShowClothWeightVisualization = true; // Weight 시각화 표시
+    mutable std::unique_ptr<std::unordered_map<uint32, float>> ClothVertexWeights; // 버텍스별 Weight (GlobalIndex -> Weight)
+
     // Shape 추가 다이얼로그 상태
     bool bShowAddShapeDialog = false;
     EPhysicsShapeType AddShapeType = EPhysicsShapeType::Capsule;
@@ -111,6 +122,19 @@ public:
     bool PickConstraint(const struct FRay& Ray,
                         int32& OutConstraintIndex,
                         float& OutDistance) const;
+
+    // Cloth 정점 피킹 (ClothPaint 모드에서 사용)
+    // 반환값: true이면 피킹 성공, OutClothVertexIndex에 결과 저장
+    bool PickClothVertex(const struct FRay& Ray,
+                         int32& OutClothVertexIndex,
+                         float& OutDistance) const;
+
+    // Cloth Weight 시각화 그리기
+    void DrawClothWeights(class URenderer* Renderer) const;
+
+    // 브러시 영역 내 정점에 Weight 적용
+    void ApplyBrushToClothVertices(const FVector& BrushCenter, float BrushRadius,
+                                   float BrushStrength, float BrushFalloff, float PaintValue);
 
 private:
     // 개별 Shape 드로잉 헬퍼
