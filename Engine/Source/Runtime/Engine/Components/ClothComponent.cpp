@@ -108,6 +108,12 @@ void UClothComponent::TickComponent(float DeltaTime)
 		InitializeComponent();
     }
 
+    // Paint된 weight가 있으면 시뮬레이션 전에 적용
+    if (bClothWeightsDirty)
+    {
+        ApplyPaintedWeights();
+    }
+
     UpdateClothSimulation(DeltaTime);
 }
 
@@ -1199,6 +1205,8 @@ void UClothComponent::BuildClothMesh()
 
 	ClothParticles.Empty();
 	ClothIndices.Empty();
+	ClothVertexToMeshVertex.Empty();
+	ClothVertexWeights.Empty();
 
 	// Cloth Section만 추출
 	for (const auto& group : groupInfos)
@@ -1315,6 +1323,12 @@ void UClothComponent::ExtractClothSectionOrdered(const FGroupInfo& Group, const 
         const uint32 LocalIdx = GlobalToLocal[GlobalIdx];
         ClothIndices.Add(LocalIdx);
     }
+
+    // 5) Build ClothVertexToMeshVertex mapping for Paint feature
+    for (uint32 GlobalIdx : OrderedUniqueGlobals)
+    {
+        ClothVertexToMeshVertex.Add(GlobalIdx);
+    }
 }
 //void UClothComponent::BuildClothMesh()
 //{
@@ -1357,3 +1371,116 @@ void UClothComponent::ExtractClothSectionOrdered(const FGroupInfo& Group, const 
 //	// 결과를 이전 데이터로 초기화
 //	PreviousParticles = ClothParticles;
 //}
+
+// ========== Cloth Paint API Implementation ==========
+
+FVector UClothComponent::GetClothVertexPosition(int32 ClothVertexIndex) const
+{
+	if (ClothVertexIndex < 0 || ClothVertexIndex >= ClothParticles.Num())
+	{
+		return FVector::Zero();
+	}
+	const physx::PxVec4& P = ClothParticles[ClothVertexIndex];
+	return FVector(P.x, P.y, P.z);
+}
+
+float UClothComponent::GetVertexWeight(int32 ClothVertexIndex) const
+{
+	if (ClothVertexIndex < 0 || ClothVertexIndex >= ClothVertexWeights.Num())
+	{
+		// Weight 배열이 초기화되지 않은 경우, ClothParticles의 invMass에서 가져옴
+		if (ClothVertexIndex >= 0 && ClothVertexIndex < ClothParticles.Num())
+		{
+			return ClothParticles[ClothVertexIndex].w;  // invMass (0=fixed, 1=free)
+		}
+		return 1.0f;  // 기본값: 자유롭게 움직임
+	}
+	return ClothVertexWeights[ClothVertexIndex];
+}
+
+void UClothComponent::SetVertexWeight(int32 ClothVertexIndex, float Weight)
+{
+	if (ClothVertexIndex < 0 || ClothVertexIndex >= ClothParticles.Num())
+	{
+		return;
+	}
+
+	// Weight 배열이 초기화되지 않았으면 초기화
+	if (ClothVertexWeights.Num() != ClothParticles.Num())
+	{
+		InitializeVertexWeights();
+	}
+
+	// Clamp weight to [0, 1]
+	Weight = FMath::Clamp(Weight, 0.0f, 1.0f);
+	ClothVertexWeights[ClothVertexIndex] = Weight;
+	bClothWeightsDirty = true;
+}
+
+void UClothComponent::SetVertexWeightByMeshVertex(uint32 MeshVertexIndex, float Weight)
+{
+	int32 ClothIdx = FindClothVertexByMeshVertex(MeshVertexIndex);
+	if (ClothIdx != INDEX_NONE)
+	{
+		SetVertexWeight(ClothIdx, Weight);
+	}
+}
+
+int32 UClothComponent::FindClothVertexByMeshVertex(uint32 MeshVertexIndex) const
+{
+	for (int32 i = 0; i < ClothVertexToMeshVertex.Num(); ++i)
+	{
+		if (ClothVertexToMeshVertex[i] == MeshVertexIndex)
+		{
+			return i;
+		}
+	}
+	return INDEX_NONE;
+}
+
+void UClothComponent::InitializeVertexWeights()
+{
+	const int32 NumParticles = ClothParticles.Num();
+	ClothVertexWeights.SetNum(NumParticles);
+
+	// ClothParticles의 현재 invMass 값으로 초기화
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		ClothVertexWeights[i] = ClothParticles[i].w;  // invMass (0=fixed, 1=free)
+	}
+
+	bClothWeightsDirty = false;
+}
+
+void UClothComponent::ApplyPaintedWeights()
+{
+	if (!bClothWeightsDirty || ClothVertexWeights.Num() == 0)
+	{
+		return;
+	}
+
+	// ClothParticles의 invMass(w) 값을 Paint된 weight로 업데이트
+	for (int32 i = 0; i < ClothParticles.Num() && i < ClothVertexWeights.Num(); ++i)
+	{
+		ClothParticles[i].w = ClothVertexWeights[i];
+	}
+
+	// Cloth 인스턴스가 있으면 그곳에도 반영
+	if (cloth)
+	{
+		nv::cloth::MappedRange<physx::PxVec4> particles = cloth->getCurrentParticles();
+		for (int32 i = 0; i < ClothVertexWeights.Num() && i < (int32)particles.size(); ++i)
+		{
+			particles[i].w = ClothVertexWeights[i];
+		}
+	}
+
+	// PreviousParticles에도 반영
+	for (int32 i = 0; i < PreviousParticles.Num() && i < ClothVertexWeights.Num(); ++i)
+	{
+		PreviousParticles[i].w = ClothVertexWeights[i];
+	}
+
+	bClothWeightsDirty = false;
+	UE_LOG("[ClothComponent] Applied painted weights to %d vertices\n", ClothVertexWeights.Num());
+}

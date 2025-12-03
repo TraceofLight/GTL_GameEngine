@@ -127,6 +127,7 @@ public:
 
 	// 내부 ClothComponent (Cloth Section이 있을 때 자동 생성)
 	class UClothComponent* InternalClothComponent = nullptr;
+	UClothComponent* GetInternalClothComponent() const { return InternalClothComponent; }
 	void OnDestroyPhysicsState();
 
 	// Physics 시뮬레이션 결과를 본 트랜스폼에 반영
