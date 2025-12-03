@@ -123,31 +123,104 @@ void UClothComponent::OnCreatePhysicsState()
 
 void UClothComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
 {
-    // If cloth active, submit deformed component-local VB (non-skinning variant)
-
-    if (!bClothEnabled || !bClothInitialized)
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
     {
-        // Cloth가 비활성화된 경우 기존 스키닝 방식 사용
-        Super::CollectMeshBatches(OutMeshBatchElements, View);
         return;
     }
 
-    // Cloth 시뮬레이션 모드: CPU 변형만 적용
-    // VertexBuffer는 UpdateVerticesFromCloth()에서 이미 갱신됨
+    if (!bClothEnabled || !bClothInitialized)
     {
-        const int32 BeginIndex = OutMeshBatchElements.Num();
-        Super::CollectMeshBatches(OutMeshBatchElements, View);
-        if (bClothEnabled && bClothInitialized)
+        // Cloth가 비활성화된 경우 아무것도 렌더링하지 않음
+		InitializeComponent(); 
+    }
+
+    // Cloth Section만 렌더링  
+    const TArray<FGroupInfo>& MeshGroupInfos = SkeletalMesh->GetMeshGroupInfo();
+
+    auto DetermineMaterialAndShader = [&](uint32 SectionIndex) -> TPair<UMaterialInterface*, UShader*>
+    {
+        UMaterialInterface* Material = GetMaterial(SectionIndex);
+        UShader* Shader = nullptr;
+
+        if (Material && Material->GetShader())
         {
-            for (int32 i = BeginIndex; i < OutMeshBatchElements.Num(); ++i)
+            Shader = Material->GetShader();
+        }
+        else
+        {
+            Material = UResourceManager::GetInstance().GetDefaultMaterial();
+            if (Material)
             {
-                FMeshBatchElement& BatchElement = OutMeshBatchElements[i];
-                BatchElement.bClothEnabled = true;
-                BatchElement.ClothMode = 0; // ABSOLUTE
-                BatchElement.ClothBaseVertexIndex = 0;
-                BatchElement.ClothSRV = ClothGPUSRV;
+                Shader = Material->GetShader();
+            }
+            if (!Material || !Shader)
+            {
+                UE_LOG("UClothComponent: 기본 머티리얼이 없습니다.");
+                return { nullptr, nullptr };
             }
         }
+        return { Material, Shader };
+    };
+
+    for (uint32 SectionIndex = 0; SectionIndex < MeshGroupInfos.size(); ++SectionIndex)
+    {
+        const FGroupInfo& Group = MeshGroupInfos[SectionIndex];
+
+        // Cloth 섹션만 렌더링
+        if (!Group.bEnableCloth)
+        {
+            continue;
+        }
+
+        if (Group.IndexCount == 0)
+        {
+            continue;
+        }
+
+        auto [MaterialToUse, ShaderToUse] = DetermineMaterialAndShader(SectionIndex);
+        if (!MaterialToUse || !ShaderToUse)
+        {
+            continue;
+        }
+
+        FMeshBatchElement BatchElement;
+        TArray<FShaderMacro> ShaderMacros = View->ViewShaderMacros;
+        if (0 < MaterialToUse->GetShaderMacros().Num())
+        {
+            ShaderMacros.Append(MaterialToUse->GetShaderMacros());
+        }
+
+        // Cloth는 CPU 변형만 사용 (GPU 스키닝 비활성화)
+        FShaderVariant* ShaderVariant = ShaderToUse->GetOrCompileShaderVariant(ShaderMacros);
+
+        if (ShaderVariant)
+        {
+            BatchElement.VertexShader = ShaderVariant->VertexShader;
+            BatchElement.PixelShader = ShaderVariant->PixelShader;
+            BatchElement.InputLayout = ShaderVariant->InputLayout;
+        }
+
+        BatchElement.Material = MaterialToUse;
+
+        // Cloth 전용 VertexBuffer 사용 (시뮬레이션 결과)
+        BatchElement.VertexBuffer = VertexBuffer;
+        BatchElement.IndexBuffer = SkeletalMesh->GetIndexBuffer();
+        BatchElement.VertexStride = sizeof(FVertexDynamic);
+
+        BatchElement.IndexCount = Group.IndexCount;
+        BatchElement.StartIndex = Group.StartIndex;
+        BatchElement.BaseVertexIndex = 0;
+        BatchElement.WorldMatrix = GetWorldMatrix();
+        BatchElement.ObjectID = InternalIndex;
+        BatchElement.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+        // Cloth 플래그 설정
+        BatchElement.bClothEnabled = false;
+        BatchElement.ClothMode = 0; // ABSOLUTE (disabled)
+        BatchElement.ClothBaseVertexIndex = 0;
+        BatchElement.ClothSRV = nullptr;
+
+        OutMeshBatchElements.Add(BatchElement);
     }
 }
 
@@ -1133,7 +1206,7 @@ void UClothComponent::BuildClothMesh()
 		//이미 fbx 파서에서 cloth는 true로 처리해줌 
 		if (!group.bEnableCloth)
 			continue;
-		ExtractClothSection(group, allVertices, allIndices); 
+		ExtractClothSectionOrdered(group, allVertices, allIndices); 
 	}
 	  
 	// 결과를 이전 데이터로 초기화
@@ -1190,12 +1263,59 @@ void UClothComponent::ExtractClothSection(const FGroupInfo& Group, const TArray<
 
 bool UClothComponent::ShouldFixVertex(const FSkinnedVertex& Vertex)
 { 
-	return false;
+    return false;
 }
 
 
 
 
+
+void UClothComponent::ExtractClothSectionOrdered(const FGroupInfo& Group, const TArray<FSkinnedVertex>& AllVertices, const TArray<uint32>& AllIndices)
+{
+    // 1) Collect section indices (keep original order)
+    TArray<uint32> SectionIndices;
+    SectionIndices.Reserve(Group.IndexCount);
+    for (uint32 i = 0; i < Group.IndexCount; ++i)
+    {
+        const uint32 GlobalIndex = AllIndices[Group.StartIndex + i];
+        SectionIndices.Add(GlobalIndex);
+    }
+
+    // 2) Build ordered-unique vertex list by first appearance and a Global->Local map
+    TArray<uint32> OrderedUniqueGlobals;
+    OrderedUniqueGlobals.Reserve(SectionIndices.Num());
+    TMap<uint32, uint32> GlobalToLocal;
+
+    for (uint32 GlobalIdx : SectionIndices)
+    {
+        if (!GlobalToLocal.Contains(GlobalIdx))
+        {
+            const uint32 NewLocal = (uint32)OrderedUniqueGlobals.Num();
+            GlobalToLocal.Add(GlobalIdx, NewLocal);
+            OrderedUniqueGlobals.Add(GlobalIdx);
+        }
+    }
+
+    // 3) Append particles in the same ordered-unique order for stable indexing
+    for (uint32 GlobalIdx : OrderedUniqueGlobals)
+    {
+        const auto& Vertex = AllVertices[GlobalIdx];
+        const float invMass = 1.0f; //ShouldFixVertex(Vertex) ? 0.0f : 1.0f;
+        ClothParticles.Add(physx::PxVec4(
+            Vertex.Position.X,
+            Vertex.Position.Y,
+            Vertex.Position.Z,
+            invMass
+        ));
+    }
+
+    // 4) Remap section indices to local (preserve triangle winding)
+    for (uint32 GlobalIdx : SectionIndices)
+    {
+        const uint32 LocalIdx = GlobalToLocal[GlobalIdx];
+        ClothIndices.Add(LocalIdx);
+    }
+}
 //void UClothComponent::BuildClothMesh()
 //{
 //	if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
