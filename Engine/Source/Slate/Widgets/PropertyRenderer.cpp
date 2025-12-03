@@ -757,16 +757,16 @@ bool UPropertyRenderer::RenderObjectPtrProperty(const FProperty& Prop, void* Ins
 	// 일반 ObjectPtr (컴포넌트 등) - 읽기 전용 표시
 	UObject** ObjPtr = Prop.GetValuePtr<UObject*>(Instance);
 
-	if (*ObjPtr)
+	if (*ObjPtr && ObjectFactory::IsValidObject(*ObjPtr))
 	{
-		// 객체가 있으면 클래스 이름과 객체 이름 표시
+		// 객체가 있고 유효하면 클래스 이름과 객체 이름 표시
 		UClass* ObjClass = (*ObjPtr)->GetClass();
 		FString ObjName = (*ObjPtr)->GetName();
 		ImGui::Text("%s: %s (%s)", Prop.Name, ObjName.c_str(), ObjClass->Name);
 	}
 	else
 	{
-		// nullptr이면 None 표시
+		// nullptr이거나 dangling 포인터면 None 표시
 		ImGui::Text("%s: None", Prop.Name);
 	}
 

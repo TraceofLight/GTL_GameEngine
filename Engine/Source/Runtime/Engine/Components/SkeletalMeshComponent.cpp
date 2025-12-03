@@ -380,6 +380,33 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
 }
 
 /**
+ * @brief 본 이름으로 본 인덱스 찾기
+ * @param BoneName 찾을 본 이름
+ * @return 본 인덱스 (찾지 못하면 -1)
+ */
+int32 USkeletalMeshComponent::GetBoneIndex(const FName& BoneName) const
+{
+	if (!SkeletalMesh)
+	{
+		return -1;
+	}
+
+	const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
+	if (!Skeleton)
+	{
+		return -1;
+	}
+
+	auto It = Skeleton->BoneNameToIndex.find(BoneName.ToString());
+	if (It != Skeleton->BoneNameToIndex.end())
+	{
+		return It->second;
+	}
+
+	return -1;
+}
+
+/**
  * @brief 특정 뼈의 부모 기준 로컬 트랜스폼을 설정
  * @param BoneIndex 수정할 뼈의 인덱스
  * @param NewLocalTransform 새로운 부모 기준 로컬 FTransform
@@ -756,6 +783,15 @@ const FTransform* USkeletalMeshComponent::GetBoneDelta(int32 BoneIndex) const
 void USkeletalMeshComponent::OnCreatePhysicsState()
 {
     Super::OnCreatePhysicsState();
+
+    // CRITICAL: AVehicleActor는 PhysicsAsset을 사용하지 않음
+    // PhysX Vehicle은 단일 RigidDynamic에 모든 Shape을 붙여야 함
+    AActor* OwnerActor = GetOwner();
+    if (OwnerActor && OwnerActor->GetClass()->Name &&
+        strcmp(OwnerActor->GetClass()->Name, "AVehicleActor") == 0)
+    {
+        return;
+    }
 
     if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
     {
