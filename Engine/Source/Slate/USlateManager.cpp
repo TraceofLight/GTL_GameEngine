@@ -863,46 +863,52 @@ void USlateManager::Render()
         {
             ImGui::Separator();
 
-            // 윈도우 너비에 맞춰 텍스트 자르기 (1줄 유지)
-            FString AssetPath = CurrentAssets[0];
-            float AvailableWidth = ImGui::GetContentRegionAvail().x;
+            int32 LoadingCount = static_cast<int32>(CurrentAssets.size());
 
-            // 텍스트 크기 계산
-            ImVec2 TextSize = ImGui::CalcTextSize(AssetPath.c_str());
-
-            // 너비 초과 시 "..."로 자르기
-            if (TextSize.x > AvailableWidth)
+            if (LoadingCount > 1)
             {
-                const char* Ellipsis = "...";
-                float EllipsisWidth = ImGui::CalcTextSize(Ellipsis).x;
-                float TargetWidth = AvailableWidth - EllipsisWidth;
+                // 다중 로드 시 개수만 표시
+                ImGui::Text("%d threads loading...", LoadingCount);
+            }
+            else
+            {
+                // 단일 로드 시 에셋 경로 표시 (너비에 맞춰 자르기)
+                FString AssetPath = CurrentAssets[0];
+                float AvailableWidth = ImGui::GetContentRegionAvail().x;
+                ImVec2 TextSize = ImGui::CalcTextSize(AssetPath.c_str());
 
-                // 이진 탐색으로 적절한 길이 찾기
-                int32 Left = 0;
-                int32 Right = static_cast<int32>(AssetPath.length());
-                int32 BestLength = 0;
-
-                while (Left <= Right)
+                if (TextSize.x > AvailableWidth)
                 {
-                    int32 Mid = (Left + Right) / 2;
-                    FString Truncated = AssetPath.substr(0, Mid);
-                    float Width = ImGui::CalcTextSize(Truncated.c_str()).x;
+                    const char* Ellipsis = "...";
+                    float EllipsisWidth = ImGui::CalcTextSize(Ellipsis).x;
+                    float TargetWidth = AvailableWidth - EllipsisWidth;
 
-                    if (Width <= TargetWidth)
+                    int32 Left = 0;
+                    int32 Right = static_cast<int32>(AssetPath.length());
+                    int32 BestLength = 0;
+
+                    while (Left <= Right)
                     {
-                        BestLength = Mid;
-                        Left = Mid + 1;
+                        int32 Mid = (Left + Right) / 2;
+                        FString Truncated = AssetPath.substr(0, Mid);
+                        float Width = ImGui::CalcTextSize(Truncated.c_str()).x;
+
+                        if (Width <= TargetWidth)
+                        {
+                            BestLength = Mid;
+                            Left = Mid + 1;
+                        }
+                        else
+                        {
+                            Right = Mid - 1;
+                        }
                     }
-                    else
-                    {
-                        Right = Mid - 1;
-                    }
+
+                    AssetPath = AssetPath.substr(0, BestLength) + Ellipsis;
                 }
 
-                AssetPath = AssetPath.substr(0, BestLength) + Ellipsis;
+                ImGui::Text("%s", AssetPath.c_str());
             }
-
-            ImGui::Text("%s", AssetPath.c_str());
         }
 
         ImGui::End();
