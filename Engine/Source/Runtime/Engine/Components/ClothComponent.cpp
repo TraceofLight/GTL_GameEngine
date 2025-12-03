@@ -108,6 +108,12 @@ void UClothComponent::TickComponent(float DeltaTime)
 		InitializeComponent();
     }
 
+    // Paint된 weight가 있으면 시뮬레이션 전에 적용
+    if (bClothWeightsDirty)
+    {
+        ApplyPaintedWeights();
+    }
+
     UpdateClothSimulation(DeltaTime);
 }
 
@@ -131,10 +137,10 @@ void UClothComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatch
     if (!bClothEnabled || !bClothInitialized)
     {
         // Cloth가 비활성화된 경우 아무것도 렌더링하지 않음
-		InitializeComponent(); 
+		InitializeComponent();
     }
 
-    // Cloth Section만 렌더링  
+    // Cloth Section만 렌더링
     const TArray<FGroupInfo>& MeshGroupInfos = SkeletalMesh->GetMeshGroupInfo();
 
     auto DetermineMaterialAndShader = [&](uint32 SectionIndex) -> TPair<UMaterialInterface*, UShader*>
@@ -259,7 +265,7 @@ void UClothComponent::SetupClothFromMesh()
  }
 
 void UClothComponent::ReleaseCloth()
-{  
+{
 	// 1. Cloth를 Solver에서 제거 (삭제 전 필수)
 	if (cloth)
 	{
@@ -286,7 +292,7 @@ void UClothComponent::ReleaseCloth()
 		UE_LOG("[ClothComponent] Releasing fabric\n");
 		fabric->decRefCount();
 		fabric = nullptr;
-	} 
+	}
 }
 
 // 제약 조건 업데이트
@@ -297,7 +303,7 @@ void UClothComponent::UpdateMotionConstraints()
 
 	Range<physx::PxVec4> motionConstraints = cloth->getMotionConstraints();
 
-	for (int i = 0; i < MotionConstraints.Num() && i < motionConstraints.size(); ++i)
+	for (uint32 i = 0; i < static_cast<uint32>(MotionConstraints.Num()) && i < static_cast<uint32>(motionConstraints.size()); ++i)
 	{
 		motionConstraints[i] = MotionConstraints[i];
 	}
@@ -483,7 +489,7 @@ void UClothComponent::ClearCollisionShapes()
 
 void UClothComponent::DuplicateSubObjects()
 {
-	Super::DuplicateSubObjects(); 
+	Super::DuplicateSubObjects();
 
 	// NvCloth 리소스들은 복사하지 않음 (InitializeComponent에서 재생성)
 	// fabric, cloth, phases는 포인터이므로 nullptr로 초기화
@@ -593,7 +599,7 @@ void UClothComponent::CreatePhaseConfig()
 
 	cloth->setPhaseConfig(nv::cloth::Range<nv::cloth::PhaseConfig>(phases, phases + numPhases));
 
-} 
+}
 
 void UClothComponent::RetrievingSimulateResult()
 {
@@ -604,7 +610,7 @@ void UClothComponent::RetrievingSimulateResult()
 
 	// 결과를 복사해옴
 	PreviousParticles.SetNum(particles.size());
-	for (int i = 0; i < particles.size(); i++)
+	for (uint32 i = 0; i < static_cast<uint32>(particles.size()); ++i)
 	{
 		//do something with particles[i]
 		//the xyz components are the current positions
@@ -688,10 +694,10 @@ void UClothComponent::AttachingClothToCharacter()
 	// MappedRange 를 통해서 현재 정점 데이터를 직접 갱신
 	MappedRange<physx::PxVec4> particles = cloth->getCurrentParticles();
 
-	for (int i = 0; i < AttachmentVertices.Num(); ++i)
+	for (int32 i = 0; i < AttachmentVertices.Num(); ++i)
 	{
 		int32 vertexIndex = AttachmentVertices[i];
-		if (vertexIndex >= 0 && vertexIndex < particles.size())
+		if (vertexIndex >= 0 && static_cast<uint32>(vertexIndex) < static_cast<uint32>(particles.size()))
 		{
 			FVector attachPos = GetAttachmentPosition(i);
 
@@ -721,7 +727,7 @@ FVector UClothComponent::GetAttachmentPosition(int32 AttachmentIndex)
 
 void UClothComponent::SetupCapeAttachment()
 {
-	// 망토 상단 정점들을 캐릭터의 어깨/등 본에 부착 
+	// 망토 상단 정점들을 캐릭터의 어깨/등 본에 부착
 	AttachmentVertices.Empty();
 	AttachmentBoneNames.Empty();
 	AttachmentOffsets.Empty();
@@ -1021,7 +1027,7 @@ void UClothComponent::UpdateSectionVertices(const FGroupInfo& Group, int32& Part
 	const auto& AllVertices = SkeletalMesh->GetSkeletalMeshData()->Vertices;
 	const auto& OriginalVertices = SkeletalMesh->GetSkeletalMeshData()->Vertices;
 
-	TSet<uint32> UsedVertices; 
+	TSet<uint32> UsedVertices;
 	SkinnedVertices.resize(AllVertices.size());
 	for (uint32 i = 0; i < Group.IndexCount; ++i)
 	{
@@ -1109,8 +1115,11 @@ void UClothComponent::RecalculateNormals()
 		uint32 idx1 = indices[i + 1];
 		uint32 idx2 = indices[i + 2];
 
-		if (idx0 >= SkinnedVertices.Num() || idx1 >= SkinnedVertices.Num() || idx2 >= SkinnedVertices.Num())
+		const uint32 SkinnedVerticesNum = static_cast<uint32>(SkinnedVertices.Num());
+		if (idx0 >= SkinnedVerticesNum || idx1 >= SkinnedVerticesNum || idx2 >= SkinnedVerticesNum)
+		{
 			continue;
+		}
 
 		const FVector& v0 = SkinnedVertices[idx0].pos;
 		const FVector& v1 = SkinnedVertices[idx1].pos;
@@ -1147,7 +1156,7 @@ void UClothComponent::SaveOriginalState()
 	// 현재 ClothParticles의 초기 상태를 저장
 	CacheOriginalParticles = ClothParticles;
 	bHasSavedOriginalState = true;
-	 
+
 }
 
 void UClothComponent::RestoreOriginalState()
@@ -1170,14 +1179,14 @@ void UClothComponent::RestoreOriginalState()
 
 	// Cloth 인스턴스에도 반영
 	nv::cloth::MappedRange<physx::PxVec4> particles = cloth->getCurrentParticles();
-	for (int i = 0; i < CacheOriginalParticles.Num() && i < particles.size(); i++)
+	for (uint32 i = 0; i < static_cast<uint32>(CacheOriginalParticles.Num()) && i < static_cast<uint32>(particles.size()); ++i)
 	{
 		particles[i] = CacheOriginalParticles[i];
 	}
 
 	// VertexBuffer 업데이트
 	UpdateVerticesFromCloth();
-	 
+
 
 	// 복구 후 플래그 리셋
 	bHasSavedOriginalState = false;
@@ -1189,25 +1198,27 @@ void UClothComponent::BuildClothMesh()
 	if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
 		return;
 
-	
+
 	// 원본 메시의 모든 정점 가져옴
 	const auto& meshData = SkeletalMesh->GetSkeletalMeshData();
 	const auto& allVertices = meshData->Vertices;
 	const auto& allIndices = meshData->Indices;
 	const auto& groupInfos = meshData->GroupInfos;
-	  
+
 	ClothParticles.Empty();
 	ClothIndices.Empty();
+	ClothVertexToMeshVertex.Empty();
+	ClothVertexWeights.Empty();
 
 	// Cloth Section만 추출
 	for (const auto& group : groupInfos)
 	{
-		//이미 fbx 파서에서 cloth는 true로 처리해줌 
+		//이미 fbx 파서에서 cloth는 true로 처리해줌
 		if (!group.bEnableCloth)
 			continue;
-		ExtractClothSectionOrdered(group, allVertices, allIndices); 
+		ExtractClothSectionOrdered(group, allVertices, allIndices);
 	}
-	  
+
 	// 결과를 이전 데이터로 초기화
 	PreviousParticles = ClothParticles;
 }
@@ -1218,7 +1229,7 @@ void UClothComponent::ExtractClothSection(const FGroupInfo& Group, const TArray<
 	TArray<uint32> SectionIndices;
 	for (uint32 i = 0; i < Group.IndexCount; ++i)
 	{
-		uint32 GlobalIndex = AllIndices[Group.StartIndex + i];	
+		uint32 GlobalIndex = AllIndices[Group.StartIndex + i];
 		SectionIndices.Add(GlobalIndex);
 	}
 
@@ -1261,12 +1272,12 @@ void UClothComponent::ExtractClothSection(const FGroupInfo& Group, const TArray<
 }
 
 bool UClothComponent::ShouldFixVertex(const FSkinnedVertex& Vertex)
-{ 
+{
     return false;
-} 
+}
 
 void UClothComponent::ExtractClothSectionOrdered(const FGroupInfo& Group, const TArray<FSkinnedVertex>& AllVertices, const TArray<uint32>& AllIndices)
-{  
+{
     // 1) Collect section indices (keep original order)
     TArray<uint32> SectionIndices;
     SectionIndices.Reserve(Group.IndexCount);
@@ -1310,4 +1321,164 @@ void UClothComponent::ExtractClothSectionOrdered(const FGroupInfo& Group, const 
         const uint32 LocalIdx = GlobalToLocal[GlobalIdx];
         ClothIndices.Add(LocalIdx);
     }
+
+    // 5) Build ClothVertexToMeshVertex mapping for Paint feature
+    for (uint32 GlobalIdx : OrderedUniqueGlobals)
+    {
+        ClothVertexToMeshVertex.Add(GlobalIdx);
+    }
+}
+//void UClothComponent::BuildClothMesh()
+//{
+//	if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
+//		return;
+//
+//	// 원본 메시의 모든 정점 가져옴
+//	const auto& vertices = SkeletalMesh->GetSkeletalMeshData()->Vertices;
+//	const auto& indices = SkeletalMesh->GetSkeletalMeshData()->Indices;
+//
+//	ClothParticles.Empty();
+//	ClothIndices.Empty();
+//
+//	// 1. 메시의 Y 오프셋을 찾아서 (상단 정점 고정을 위함)
+//	float maxY = -FLT_MAX;
+//	float minY = FLT_MAX;
+//	for (const auto& vertex : vertices)
+//	{
+//		maxY = std::max(maxY, vertex.Position.Y);
+//		minY = std::min(minY, vertex.Position.Y);
+//	}
+//
+//	// 상단 일정 비율을 고정시킬 Threshold로 설정 (설정값에 따라)
+//	float fixedThreshold = maxY - (maxY - minY) * ClothSettings.FixedVertexRatio;
+//
+//	// 2. 정점 가져와서 복사 (PxVec4: xyz = position, w = inverse mass)
+//	for (const auto& vertex : vertices)
+//	{
+//		// 상단 정점들은 고정 (invMass = 0)
+//		float invMass = (vertex.Position.Y >= fixedThreshold) ? 0.0f : 1.0f;
+//		ClothParticles.Add(physx::PxVec4(vertex.Position.X, vertex.Position.Y, vertex.Position.Z, invMass));
+//	}
+//
+//	// 인덱스 복사
+//	for (uint32 idx : indices)
+//	{
+//		ClothIndices.Add(idx);
+//	}
+//
+//	// 결과를 이전 데이터로 초기화
+//	PreviousParticles = ClothParticles;
+//}
+
+// ========== Cloth Paint API Implementation ==========
+
+FVector UClothComponent::GetClothVertexPosition(int32 ClothVertexIndex) const
+{
+	if (ClothVertexIndex < 0 || ClothVertexIndex >= ClothParticles.Num())
+	{
+		return FVector::Zero();
+	}
+	const physx::PxVec4& P = ClothParticles[ClothVertexIndex];
+	return FVector(P.x, P.y, P.z);
+}
+
+float UClothComponent::GetVertexWeight(int32 ClothVertexIndex) const
+{
+	if (ClothVertexIndex < 0 || ClothVertexIndex >= ClothVertexWeights.Num())
+	{
+		// Weight 배열이 초기화되지 않은 경우, ClothParticles의 invMass에서 가져옴
+		if (ClothVertexIndex >= 0 && ClothVertexIndex < ClothParticles.Num())
+		{
+			return ClothParticles[ClothVertexIndex].w;  // invMass (0=fixed, 1=free)
+		}
+		return 1.0f;  // 기본값: 자유롭게 움직임
+	}
+	return ClothVertexWeights[ClothVertexIndex];
+}
+
+void UClothComponent::SetVertexWeight(int32 ClothVertexIndex, float Weight)
+{
+	if (ClothVertexIndex < 0 || ClothVertexIndex >= ClothParticles.Num())
+	{
+		return;
+	}
+
+	// Weight 배열이 초기화되지 않았으면 초기화
+	if (ClothVertexWeights.Num() != ClothParticles.Num())
+	{
+		InitializeVertexWeights();
+	}
+
+	// Clamp weight to [0, 1]
+	Weight = FMath::Clamp(Weight, 0.0f, 1.0f);
+	ClothVertexWeights[ClothVertexIndex] = Weight;
+	bClothWeightsDirty = true;
+}
+
+void UClothComponent::SetVertexWeightByMeshVertex(uint32 MeshVertexIndex, float Weight)
+{
+	int32 ClothIdx = FindClothVertexByMeshVertex(MeshVertexIndex);
+	if (ClothIdx != INDEX_NONE)
+	{
+		SetVertexWeight(ClothIdx, Weight);
+	}
+}
+
+int32 UClothComponent::FindClothVertexByMeshVertex(uint32 MeshVertexIndex) const
+{
+	for (int32 i = 0; i < ClothVertexToMeshVertex.Num(); ++i)
+	{
+		if (ClothVertexToMeshVertex[i] == MeshVertexIndex)
+		{
+			return i;
+		}
+	}
+	return INDEX_NONE;
+}
+
+void UClothComponent::InitializeVertexWeights()
+{
+	const int32 NumParticles = ClothParticles.Num();
+	ClothVertexWeights.SetNum(NumParticles);
+
+	// ClothParticles의 현재 invMass 값으로 초기화
+	for (int32 i = 0; i < NumParticles; ++i)
+	{
+		ClothVertexWeights[i] = ClothParticles[i].w;  // invMass (0=fixed, 1=free)
+	}
+
+	bClothWeightsDirty = false;
+}
+
+void UClothComponent::ApplyPaintedWeights()
+{
+	if (!bClothWeightsDirty || ClothVertexWeights.Num() == 0)
+	{
+		return;
+	}
+
+	// ClothParticles의 invMass(w) 값을 Paint된 weight로 업데이트
+	for (int32 i = 0; i < ClothParticles.Num() && i < ClothVertexWeights.Num(); ++i)
+	{
+		ClothParticles[i].w = ClothVertexWeights[i];
+	}
+
+	// Cloth 인스턴스가 있으면 그곳에도 반영
+	if (cloth)
+	{
+		nv::cloth::MappedRange<physx::PxVec4> particles = cloth->getCurrentParticles();
+		for (int32 i = 0; i < ClothVertexWeights.Num() && i < (int32)particles.size(); ++i)
+		{
+			particles[i].w = ClothVertexWeights[i];
+		}
+	}
+
+	// PreviousParticles에도 반영
+	for (int32 i = 0; i < PreviousParticles.Num() && i < ClothVertexWeights.Num(); ++i)
+	{
+		PreviousParticles[i].w = ClothVertexWeights[i];
+	}
+
+	bClothWeightsDirty = false;
+	UE_LOG("[ClothComponent] Applied painted weights to %d vertices\n", ClothVertexWeights.Num());
 }

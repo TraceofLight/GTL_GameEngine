@@ -1,20 +1,20 @@
 #pragma once
-#include "Actor.h"
+#include "Pawn.h"
 #include "Source/Runtime/Engine/Vehicle/VehicleTypes.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/Engine/Components/WheeledVehicleMovementComponent.h"
 #include "AVehicleActor.generated.h"
 
 /**
- * @brief 4륜 차량 액터
- * @details 스켈레탈 메시와 차량 물리 컴포넌트를 가진 차량 액터
+ * @brief 4륜 차량 폰
+ * @details 스켈레탈 메시와 차량 물리 컴포넌트를 가진 차량 폰
  *
  * @param MeshComponent 차량 스켈레탈 메시
  * @param VehicleMovement 차량 이동 컴포넌트
  * @param bIsPlayerControlled 플레이어 제어 여부
  */
-UCLASS(DisplayName="차량", Description="4륜 차량 액터입니다")
-class AVehicleActor : public AActor
+UCLASS(DisplayName="차량", Description="4륜 차량 폰입니다")
+class AVehicleActor : public APawn
 {
 public:
 	GENERATED_REFLECTION_BODY()
@@ -26,19 +26,24 @@ public:
 	void BeginPlay() override;
 	void Tick(float DeltaTime) override;
 
+	// Input Setup (APawn override)
+	void SetupPlayerInputComponent(UInputComponent* InInputComponent) override;
+
 	// Setup
 	void SetSkeletalMesh(const FString& MeshPath);
 	void SetVehicleSetup(const FVehicleSetupData& Setup);
 
-	// Control
-	void SetPlayerControlled(bool bControlled) { bIsPlayerControlled = bControlled; }
-	bool IsPlayerControlled() const { return bIsPlayerControlled; }
-
-	// Input (플레이어 제어 시)
-	void SetThrottleInput(float Value);
-	void SetBrakeInput(float Value);
-	void SetSteerInput(float Value);
-	void SetHandbrakeInput(float Value);
+	// Input Handlers (키바인딩에서 호출됨)
+	void ThrottlePressed();
+	void ThrottleReleased();
+	void BrakePressed();
+	void BrakeReleased();
+	void SteerLeftPressed();
+	void SteerLeftReleased();
+	void SteerRightPressed();
+	void SteerRightReleased();
+	void HandbrakePressed();
+	void HandbrakeReleased();
 
 	// Component Access
 	USkeletalMeshComponent* GetMeshComponent() const { return MeshComponent; }
@@ -59,12 +64,13 @@ public:
 	UPROPERTY(EditAnywhere, Category="Vehicle")
 	UWheeledVehicleMovementComponent* VehicleMovement = nullptr;
 
-	UPROPERTY(EditAnywhere, Category="Vehicle")
-	bool bIsPlayerControlled = false;
-
 protected:
-	// 키보드 입력 처리
-	void ProcessKeyboardInput(float DeltaTime);
+	// 입력 상태 추적
+	bool bThrottlePressed = false;
+	bool bBrakePressed = false;
+	bool bSteerLeftPressed = false;
+	bool bSteerRightPressed = false;
+	bool bHandbrakePressed = false;
 
 	// 컴포넌트 Transform 동기화
 	void SyncTransformFromPhysics();

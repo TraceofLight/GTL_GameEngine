@@ -11,6 +11,7 @@
 #include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/Engine/Components/StaticMeshComponent.h"
+#include "Source/Runtime/Engine/Components/ClothComponent.h"
 #include "Source/Runtime/Engine/Components/LineComponent.h"
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
@@ -302,6 +303,55 @@ void SPhysicsAssetEditorWindow::OnMouseMove(FVector2D MousePos)
                 Gizmo->ProcessGizmoInteraction(Camera, ActiveState->Viewport, (float)LocalPos.X, (float)LocalPos.Y);
             }
         }
+
+        // ClothPaint 모드: 호버 정점 업데이트 및 드래그 페인팅
+        if (ActiveState->EditMode == EPhysicsAssetEditMode::ClothPaint && ActiveState->Client)
+        {
+            ACameraActor* Camera = ActiveState->Client->GetCamera();
+            if (Camera)
+            {
+                FVector CameraPos = Camera->GetActorLocation();
+                FVector CameraRight = Camera->GetRight();
+                FVector CameraUp = Camera->GetUp();
+                FVector CameraForward = Camera->GetForward();
+
+                FVector2D ViewportMousePos(LocalPos.X, LocalPos.Y);
+                FVector2D ViewportSize(VPRect.GetWidth(), VPRect.GetHeight());
+
+                FRay Ray = MakeRayFromViewport(
+                    Camera->GetViewMatrix(),
+                    Camera->GetProjectionMatrix(VPRect.GetWidth() / VPRect.GetHeight(), ActiveState->Viewport),
+                    CameraPos, CameraRight, CameraUp, CameraForward,
+                    ViewportMousePos, ViewportSize
+                );
+
+                // Cloth 정점 피킹 (호버)
+                int32 HoverVertexIndex = -1;
+                float HitDistance = 0.0f;
+                ActiveState->PickClothVertex(Ray, HoverVertexIndex, HitDistance);
+                ActiveState->SelectedClothVertexIndex = HoverVertexIndex;
+
+                // 왼쪽 마우스 버튼이 눌려 있으면 브러시 적용 (드래그 페인팅)
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && HoverVertexIndex >= 0)
+                {
+                    // 호버된 정점 위치에서 브러시 적용
+                    USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr;
+                    UClothComponent* ClothComp = SkelComp ? SkelComp->GetInternalClothComponent() : nullptr;
+                    if (ClothComp)
+                    {
+                        FVector BrushCenter = ClothComp->GetClothVertexPosition(HoverVertexIndex);
+                        float PaintValue = ActiveState->bClothPaintEraseMode ? 1.0f : ActiveState->ClothPaintValue;
+                        ActiveState->ApplyBrushToClothVertices(
+                            BrushCenter,
+                            ActiveState->ClothPaintBrushRadius,
+                            ActiveState->ClothPaintBrushStrength,
+                            ActiveState->ClothPaintBrushFalloff,
+                            PaintValue
+                        );
+                    }
+                }
+            }
+        }
     }
 
     // 스플리터에도 전달 (리사이즈용)
@@ -344,17 +394,14 @@ void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
     {
         FVector2D LocalPos = MousePos - FVector2D(VPRect.Left, VPRect.Top);
 
-        // 왼쪽 마우스 버튼 클릭 시 Body/Shape 피킹
+        // 왼쪽 마우스 버튼 클릭 시 처리
         if (Button == 0 && ActiveState->Client && !ActiveState->bSimulating)
         {
             ACameraActor* Camera = ActiveState->Client->GetCamera();
             if (Camera)
             {
-                // 기즈모가 호버링/드래그 중이 아닐 때만 피킹 (기즈모 조작 시 선택이 풀리지 않도록)
-                AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
-                bool bGizmoInteracting = Gizmo && (Gizmo->GetbIsDragging() || Gizmo->GetbIsHovering());
-
-                if (!bGizmoInteracting)
+                // ClothPaint 모드: 클릭 시 브러시 적용
+                if (ActiveState->EditMode == EPhysicsAssetEditMode::ClothPaint)
                 {
                     FVector CameraPos = Camera->GetActorLocation();
                     FVector CameraRight = Camera->GetRight();
@@ -371,34 +418,79 @@ void SPhysicsAssetEditorWindow::OnMouseDown(FVector2D MousePos, uint32 Button)
                         ViewportMousePos, ViewportSize
                     );
 
-                    int32 HitBodyIndex = -1;
-                    EAggCollisionShape::Type HitShapeType = EAggCollisionShape::Unknown;
-                    int32 HitShapeIndex = -1;
+                    int32 HitVertexIndex = -1;
                     float HitDistance = 0.0f;
-
-                    // 항상 Constraint 먼저 피킹 시도 (Shape보다 작으므로 우선)
-                    int32 HitConstraintIndex = -1;
-                    float ConstraintHitDist = 0.0f;
-                    bool bHitConstraint = ActiveState->PickConstraint(Ray, HitConstraintIndex, ConstraintHitDist);
-
-                    // Shape/Body 피킹
-                    bool bHitShape = ActiveState->PickBodyOrShape(Ray, HitBodyIndex, HitShapeType, HitShapeIndex, HitDistance);
-
-                    // Constraint가 hit되면 무조건 Constraint 선택 (Shape보다 작으므로 우선)
-                    if (bHitConstraint)
+                    if (ActiveState->PickClothVertex(Ray, HitVertexIndex, HitDistance) && HitVertexIndex >= 0)
                     {
-                        ActiveState->SelectConstraint(HitConstraintIndex);
+                        USkeletalMeshComponent* SkelComp = ActiveState->PreviewActor ? ActiveState->PreviewActor->GetSkeletalMeshComponent() : nullptr;
+                        UClothComponent* ClothComp = SkelComp ? SkelComp->GetInternalClothComponent() : nullptr;
+                        if (ClothComp)
+                        {
+                            FVector BrushCenter = ClothComp->GetClothVertexPosition(HitVertexIndex);
+                            float PaintValue = ActiveState->bClothPaintEraseMode ? 1.0f : ActiveState->ClothPaintValue;
+                            ActiveState->ApplyBrushToClothVertices(
+                                BrushCenter,
+                                ActiveState->ClothPaintBrushRadius,
+                                ActiveState->ClothPaintBrushStrength,
+                                ActiveState->ClothPaintBrushFalloff,
+                                PaintValue
+                            );
+                        }
                     }
-                    else if (bHitShape)
+                }
+                else
+                {
+                    // Body/Shape 피킹 (기존 모드들)
+                    // 기즈모가 호버링/드래그 중이 아닐 때만 피킹 (기즈모 조작 시 선택이 풀리지 않도록)
+                    AGizmoActor* Gizmo = ActiveState->World ? ActiveState->World->GetGizmoActor() : nullptr;
+                    bool bGizmoInteracting = Gizmo && (Gizmo->GetbIsDragging() || Gizmo->GetbIsHovering());
+
+                    if (!bGizmoInteracting)
                     {
-                        // 뷰포트에서 Shape를 직접 클릭하면 항상 Shape 선택 (개별 Shape 편집 가능)
-                        // EditMode는 SelectShape 내에서 Shape로 설정됨
-                        ActiveState->SelectShape(HitBodyIndex, HitShapeType, HitShapeIndex);
-                    }
-                    else
-                    {
-                        // 빈 공간 클릭 - 선택 해제
-                        ActiveState->ClearSelection();
+                        FVector CameraPos = Camera->GetActorLocation();
+                        FVector CameraRight = Camera->GetRight();
+                        FVector CameraUp = Camera->GetUp();
+                        FVector CameraForward = Camera->GetForward();
+
+                        FVector2D ViewportMousePos(LocalPos.X, LocalPos.Y);
+                        FVector2D ViewportSize(VPRect.GetWidth(), VPRect.GetHeight());
+
+                        FRay Ray = MakeRayFromViewport(
+                            Camera->GetViewMatrix(),
+                            Camera->GetProjectionMatrix(VPRect.GetWidth() / VPRect.GetHeight(), ActiveState->Viewport),
+                            CameraPos, CameraRight, CameraUp, CameraForward,
+                            ViewportMousePos, ViewportSize
+                        );
+
+                        int32 HitBodyIndex = -1;
+                        EAggCollisionShape::Type HitShapeType = EAggCollisionShape::Unknown;
+                        int32 HitShapeIndex = -1;
+                        float HitDistance = 0.0f;
+
+                        // 항상 Constraint 먼저 피킹 시도 (Shape보다 작으므로 우선)
+                        int32 HitConstraintIndex = -1;
+                        float ConstraintHitDist = 0.0f;
+                        bool bHitConstraint = ActiveState->PickConstraint(Ray, HitConstraintIndex, ConstraintHitDist);
+
+                        // Shape/Body 피킹
+                        bool bHitShape = ActiveState->PickBodyOrShape(Ray, HitBodyIndex, HitShapeType, HitShapeIndex, HitDistance);
+
+                        // Constraint가 hit되면 무조건 Constraint 선택 (Shape보다 작으므로 우선)
+                        if (bHitConstraint)
+                        {
+                            ActiveState->SelectConstraint(HitConstraintIndex);
+                        }
+                        else if (bHitShape)
+                        {
+                            // 뷰포트에서 Shape를 직접 클릭하면 항상 Shape 선택 (개별 Shape 편집 가능)
+                            // EditMode는 SelectShape 내에서 Shape로 설정됨
+                            ActiveState->SelectShape(HitBodyIndex, HitShapeType, HitShapeIndex);
+                        }
+                        else
+                        {
+                            // 빈 공간 클릭 - 선택 해제
+                            ActiveState->ClearSelection();
+                        }
                     }
                 }
             }
@@ -541,6 +633,20 @@ void SPhysicsAssetEditorWindow::LoadPhysicsAsset(const FString& Path)
     ActiveState->PhysicsAsset = PhysAsset;
     ActiveState->LoadedPhysicsAssetPath = Path;
 
+    // PhysicsAsset의 ClothVertexWeights를 State에 복사
+    if (!PhysAsset->ClothVertexWeights.empty())
+    {
+        if (!ActiveState->ClothVertexWeights)
+        {
+            ActiveState->ClothVertexWeights = std::make_unique<std::unordered_map<uint32, float>>();
+        }
+        ActiveState->ClothVertexWeights->clear();
+        for (const auto& Pair : PhysAsset->ClothVertexWeights)
+        {
+            (*ActiveState->ClothVertexWeights)[Pair.first] = Pair.second;
+        }
+    }
+
     // SourceSkeletalPath가 있으면 SkeletalMesh도 로드
     if (!PhysAsset->SourceSkeletalPath.empty())
     {
@@ -580,6 +686,16 @@ void SPhysicsAssetEditorWindow::SavePhysicsAsset(const FString& Path)
         std::replace(MeshPath.begin(), MeshPath.end(), '\\', '/');
 
         ActiveState->PhysicsAsset->SourceSkeletalPath = MeshPath;
+    }
+
+    // State의 ClothVertexWeights를 PhysicsAsset에 복사
+    ActiveState->PhysicsAsset->ClothVertexWeights.clear();
+    if (ActiveState->ClothVertexWeights)
+    {
+        for (const auto& Pair : *ActiveState->ClothVertexWeights)
+        {
+            ActiveState->PhysicsAsset->ClothVertexWeights[Pair.first] = Pair.second;
+        }
     }
 
     if (ActiveState->PhysicsAsset->SaveToFile(Path))
@@ -664,6 +780,36 @@ void SPhysicsAssetEditorWindow::RenderToolbar()
                 }
             }
 
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Mode"))
+        {
+            if (ActiveState)
+            {
+                bool bIsBodyMode = (ActiveState->EditMode == EPhysicsAssetEditMode::Body);
+                bool bIsConstraintMode = (ActiveState->EditMode == EPhysicsAssetEditMode::Constraint);
+                bool bIsShapeMode = (ActiveState->EditMode == EPhysicsAssetEditMode::Shape);
+                bool bIsClothPaintMode = (ActiveState->EditMode == EPhysicsAssetEditMode::ClothPaint);
+
+                if (ImGui::MenuItem("Body Mode", nullptr, bIsBodyMode))
+                {
+                    ActiveState->EditMode = EPhysicsAssetEditMode::Body;
+                }
+                if (ImGui::MenuItem("Constraint Mode", nullptr, bIsConstraintMode))
+                {
+                    ActiveState->EditMode = EPhysicsAssetEditMode::Constraint;
+                }
+                if (ImGui::MenuItem("Shape Mode", nullptr, bIsShapeMode))
+                {
+                    ActiveState->EditMode = EPhysicsAssetEditMode::Shape;
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Cloth Paint Mode", nullptr, bIsClothPaintMode))
+                {
+                    ActiveState->EditMode = EPhysicsAssetEditMode::ClothPaint;
+                }
+            }
             ImGui::EndMenu();
         }
 
@@ -1010,6 +1156,14 @@ void SPhysicsAssetEditorWindow::RenderToPreviewRenderTarget()
     {
         Renderer->BeginLineBatch();
         ActiveState->DrawConstraints(Renderer);
+        Renderer->EndLineBatch(FMatrix::Identity());
+    }
+
+    // ClothPaint 모드: Weight 시각화
+    if (ActiveState->EditMode == EPhysicsAssetEditMode::ClothPaint && ActiveState->bShowClothWeightVisualization)
+    {
+        Renderer->BeginLineBatch();
+        ActiveState->DrawClothWeights(Renderer);
         Renderer->EndLineBatch(FMatrix::Identity());
     }
 
@@ -1920,6 +2074,20 @@ void SPhysicsAssetPropertiesPanel::OnRender()
         }
         else
         {
+            // Edit Mode 선택 콤보박스
+            {
+                const char* ModeNames[] = { "Body", "Constraint", "Shape", "Cloth Paint" };
+                int CurrentMode = static_cast<int>(State->EditMode);
+                ImGui::Text("Edit Mode:");
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(-1);
+                if (ImGui::Combo("##EditMode", &CurrentMode, ModeNames, IM_ARRAYSIZE(ModeNames)))
+                {
+                    State->EditMode = static_cast<EPhysicsAssetEditMode>(CurrentMode);
+                }
+            }
+            ImGui::Separator();
+
             // Tools section
             if (ImGui::CollapsingHeader("Tools", ImGuiTreeNodeFlags_DefaultOpen))
             {
@@ -2155,7 +2323,11 @@ void SPhysicsAssetPropertiesPanel::OnRender()
             if (ImGui::CollapsingHeader("Selection", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 // EditMode에 따라 다른 Properties 표시
-                if (State->EditMode == EPhysicsAssetEditMode::Constraint)
+                if (State->EditMode == EPhysicsAssetEditMode::ClothPaint)
+                {
+                    RenderClothPaintProperties(State);
+                }
+                else if (State->EditMode == EPhysicsAssetEditMode::Constraint)
                 {
                     RenderConstraintProperties(State);
                 }
@@ -2608,6 +2780,146 @@ void SPhysicsAssetPropertiesPanel::RenderConstraintProperties(PhysicsAssetViewer
                 ConstraintInst->SetLinearBreakThreshold(Constraint->bLinearBreakable, Constraint->LinearBreakThreshold);
             if (bAngularBreakChanged)
                 ConstraintInst->SetAngularBreakThreshold(Constraint->bAngularBreakable, Constraint->AngularBreakThreshold);
+        }
+    }
+}
+
+void SPhysicsAssetPropertiesPanel::RenderClothPaintProperties(PhysicsAssetViewerState* State)
+{
+    if (!State)
+    {
+        ImGui::TextDisabled("(No state)");
+        return;
+    }
+
+    ImGui::Text("Cloth Paint Mode");
+    ImGui::Separator();
+
+    // Brush Settings
+    if (ImGui::CollapsingHeader("Brush Settings", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::DragFloat("Brush Radius", &State->ClothPaintBrushRadius, 0.5f, 1.0f, 100.0f, "%.1f cm");
+        ImGui::DragFloat("Brush Strength", &State->ClothPaintBrushStrength, 0.01f, 0.0f, 1.0f, "%.2f");
+        ImGui::DragFloat("Brush Falloff", &State->ClothPaintBrushFalloff, 0.01f, 0.0f, 1.0f, "%.2f");
+
+        ImGui::Separator();
+
+        // Paint Value (0 = Fixed, 1 = Free)
+        ImGui::Text("Paint Value (0=Fixed, 1=Free)");
+        ImGui::DragFloat("##PaintValue", &State->ClothPaintValue, 0.01f, 0.0f, 1.0f, "%.2f");
+
+        // Quick buttons for common values
+        if (ImGui::Button("Fixed (0.0)"))
+        {
+            State->ClothPaintValue = 0.0f;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Free (1.0)"))
+        {
+            State->ClothPaintValue = 1.0f;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Half (0.5)"))
+        {
+            State->ClothPaintValue = 0.5f;
+        }
+
+        ImGui::Separator();
+
+        ImGui::Checkbox("Erase Mode (Set to 1.0)", &State->bClothPaintEraseMode);
+    }
+
+    // Visualization Settings
+    if (ImGui::CollapsingHeader("Visualization", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Checkbox("Show Weight Visualization", &State->bShowClothWeightVisualization);
+
+        ImGui::Separator();
+        ImGui::Text("Color Legend:");
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Red = Fixed (0.0)");
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Green = Free (1.0)");
+        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Yellow = Partial");
+    }
+
+    // Cloth Info
+    if (ImGui::CollapsingHeader("Cloth Info"))
+    {
+        if (State->PreviewActor)
+        {
+            USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
+            UClothComponent* ClothComp = SkelComp ? SkelComp->GetInternalClothComponent() : nullptr;
+            if (ClothComp)
+            {
+                ImGui::Text("Cloth Vertices: %d", ClothComp->GetClothVertexCount());
+                ImGui::Text("Weights Initialized: %s", ClothComp->GetVertexWeights().Num() > 0 ? "Yes" : "No");
+            }
+            else
+            {
+                ImGui::TextDisabled("(No cloth component)");
+            }
+        }
+        else
+        {
+            ImGui::TextDisabled("(No preview actor)");
+        }
+    }
+
+    // Actions
+    ImGui::Separator();
+
+    // Get cloth component
+    USkeletalMeshComponent* SkelComp = State->PreviewActor ? State->PreviewActor->GetSkeletalMeshComponent() : nullptr;
+    UClothComponent* ClothComp = SkelComp ? SkelComp->GetInternalClothComponent() : nullptr;
+
+    if (ImGui::Button("Initialize Weights"))
+    {
+        if (ClothComp)
+        {
+            ClothComp->InitializeVertexWeights();
+            UE_LOG("[ClothPaint] Weights initialized for %d vertices\n", ClothComp->GetClothVertexCount());
+        }
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Initialize weight array from current simulation state");
+    }
+
+    if (ImGui::Button("Apply Weights to Simulation"))
+    {
+        if (ClothComp)
+        {
+            ClothComp->ApplyPaintedWeights();
+            UE_LOG("[ClothPaint] Applied weights to simulation\n");
+        }
+    }
+
+    if (ImGui::Button("Reset All Weights to 1.0"))
+    {
+        if (ClothComp)
+        {
+            int32 VertexCount = ClothComp->GetClothVertexCount();
+            for (int32 i = 0; i < VertexCount; ++i)
+            {
+                ClothComp->SetVertexWeight(i, 1.0f);
+            }
+            ClothComp->ApplyPaintedWeights();
+            UE_LOG("[ClothPaint] Reset all %d weights to 1.0\n", VertexCount);
+        }
+    }
+
+    if (ImGui::Button("Set All Weights to 0.0 (Fixed)"))
+    {
+        if (ClothComp)
+        {
+            int32 VertexCount = ClothComp->GetClothVertexCount();
+            for (int32 i = 0; i < VertexCount; ++i)
+            {
+                ClothComp->SetVertexWeight(i, 0.0f);
+            }
+            ClothComp->ApplyPaintedWeights();
+            UE_LOG("[ClothPaint] Set all %d weights to 0.0 (fixed)\n", VertexCount);
         }
     }
 }

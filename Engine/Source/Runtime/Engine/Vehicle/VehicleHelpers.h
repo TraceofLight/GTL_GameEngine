@@ -1,151 +1,241 @@
 #pragma once
-#include "Source/Runtime/Engine/GameFramework/VehicleActor.h"
-#include "VehicleTypes.h"
-#include "Source/Runtime/AssetManagement/SkeletalMesh.h"
-#include "Source/Runtime/Engine/GameFramework/World.h"
 
-class UWorld;
-class USkeletalMesh;
+#include "VehicleTypes.h"
 
 /**
- * @brief Vehicle 테스트 및 유틸리티 헬퍼 함수들
+ * @brief 차량 헬퍼 함수
+ * @details 차량 설정 생성 및 유틸리티 함수들
  */
 namespace VehicleHelpers
 {
 	/**
-	 * @brief 스켈레탈 메시의 본 계층 구조 출력 (휠 본 이름 확인용)
-	 * @param SkelMesh 분석할 스켈레탈 메시
+	 * @brief 기본 차량 설정 생성
+	 * @details 테스트용 표준 세단 설정
 	 */
-	inline void PrintBoneHierarchy(USkeletalMesh* SkelMesh)
+	inline FVehicleSetupData CreateDefaultVehicleSetup()
 	{
-		if (!SkelMesh)
-		{
-			UE_LOG("[Vehicle] PrintBoneHierarchy: SkelMesh is null");
-			return;
-		}
+		FVehicleSetupData Setup;
 
-		const FSkeletalMeshData* MeshData = SkelMesh->GetSkeletalMeshData();
-		if (!MeshData)
-		{
-			UE_LOG("[Vehicle] PrintBoneHierarchy: MeshData is null");
-			return;
-		}
+		// ========== 섀시 ==========
+		Setup.Chassis.Mass = 1500.0f;  // 1.5톤
+		Setup.Chassis.MOI = FVector(1000, 1500, 1200);
+		Setup.Chassis.CMOffset = FVector(0, 0, 0.5f);  // 질량중심 약간 위
 
-		const FSkeleton& Skeleton = MeshData->Skeleton;
-		UE_LOG("[Vehicle] ===== Bone Hierarchy for: %s =====", MeshData->PathFileName.c_str());
-		UE_LOG("[Vehicle] Total bones: %d", Skeleton.Bones.Num());
+		// ========== 엔진 ==========
+		Setup.Engine.MaxTorque = 500.0f;  // 500 Nm (증가)
+		Setup.Engine.MaxRPM = 600.0f;     // 약 5730 RPM
+		Setup.Engine.IdleRPM = 100.0f;
+		Setup.Engine.MOI = 1.0f;
+		Setup.Engine.DampingRateFullThrottle = 0.15f;
+		Setup.Engine.DampingRateZeroThrottleClutchEngaged = 2.0f;
+		Setup.Engine.DampingRateZeroThrottleClutchDisengaged = 0.35f;
+		Setup.Engine.TorqueCurve = {
+			{0.0f, 0.8f},
+			{0.33f, 1.0f},
+			{1.0f, 0.8f}
+		};
 
-		for (int32 i = 0; i < Skeleton.Bones.Num(); ++i)
-		{
-			const FBone& Bone = Skeleton.Bones[i];
-			FString ParentName = (Bone.ParentIndex >= 0) ? Skeleton.Bones[Bone.ParentIndex].Name : "ROOT";
-			UE_LOG("[Vehicle] [%d] %s (parent: %s)", i, Bone.Name.c_str(), ParentName.c_str());
-		}
-		UE_LOG("[Vehicle] ===== End Bone Hierarchy =====");
-	}
+		// ========== 기어 ==========
+		// 기어비 낮춤: 더 빠른 가속 (1단 4.0→2.5, FinalDrive 4.0→3.5)
+		Setup.Gears.ForwardGearRatios = {2.5f, 2.0f, 1.5f, 1.2f, 1.0f};
+		Setup.Gears.ReverseGearRatio = -2.5f;
+		Setup.Gears.FinalDriveRatio = 3.5f;
+		Setup.Gears.SwitchTime = 0.3f;
 
-	/**
-	 * @brief Dodge Viper SRT10 차량에 맞는 설정 생성
-	 * @return Dodge Viper용 차량 설정
-	 * @note 실제 FBX의 휠 본 이름에 맞게 수정 필요
-	 */
-	inline FVehicleSetupData CreateDodgeViperSetup()
-	{
-		FVehicleSetupData Setup = FVehicleSetupData::CreateDefault();
+		// ========== 클러치 ==========
+		// 클러치 강도 대폭 증가 (UE 기본값 수준)
+		Setup.Clutch.Strength = 500.0f;
 
-		// Dodge Viper는 후륜구동 스포츠카
-		Setup.Chassis.Mass = 1550.0f;  // kg
-		Setup.Chassis.MOI = FVector(2000, 5000, 5000);
-
-		// 엔진: V10 8.4L
-		Setup.Engine.MaxTorque = 600.0f;  // Nm
-		Setup.Engine.MaxRPM = 700.0f;     // rad/s (약 6700 RPM)
-		Setup.Engine.IdleRPM = 85.0f;
-
-		// 6단 변속기
-		Setup.Gears.ForwardGearRatios = {3.07f, 2.14f, 1.51f, 1.12f, 0.92f, 0.74f};
-		Setup.Gears.ReverseGearRatio = -3.82f;
-		Setup.Gears.FinalDriveRatio = 3.21f;
-
-		// 후륜구동
+		// ========== 차동장치 ==========
 		Setup.Differential.Type = EVehicleDifferentialType::LimitedSlipRearWD;
+		Setup.Differential.FrontRearSplit = 0.45f;
+		Setup.Differential.FrontLeftRightSplit = 0.5f;
+		Setup.Differential.RearLeftRightSplit = 0.5f;
+		Setup.Differential.CentreBias = 1.3f;
+		Setup.Differential.FrontBias = 1.3f;
+		Setup.Differential.RearBias = 1.3f;
 
-		// 휠 크기 (18-19인치 휠 기준)
-		float WheelRadius = 0.35f;  // 약 35cm
+		// ========== Ackermann ==========
+		Setup.Ackermann.Accuracy = 1.0f;
+		Setup.Ackermann.FrontWidth = 1.6f;
+		Setup.Ackermann.RearWidth = 1.6f;
+		Setup.Ackermann.AxleSeparation = 2.7f;
+
+		// ========== 휠 설정 (FL, FR, RL, RR) ==========
 		for (int32 i = 0; i < 4; ++i)
 		{
-			Setup.Wheels[i].Radius = WheelRadius;
-			Setup.Wheels[i].Width = 0.28f;
-			Setup.Wheels[i].Mass = 25.0f;
+			FVehicleWheelData& Wheel = Setup.Wheels[i];
+			Wheel.Radius = 0.35f;
+			Wheel.Width = 0.25f;
+			Wheel.Mass = 20.0f;
+			Wheel.MOI = 1.0f;
+			Wheel.DampingRate = 0.25f;
+			Wheel.MaxBrakeTorque = 1500.0f;
+			Wheel.MaxHandBrakeTorque = 0.0f;
+			Wheel.MaxSteerAngle = 0.0f;
+			Wheel.ToeAngle = 0.0f;
+
+			// 전륜 조향 설정
+			if (i == 0 || i == 1)  // FL, FR
+			{
+				Wheel.MaxSteerAngle = 0.6f;  // 약 35도
+			}
+
+			// 후륜 핸드브레이크 설정
+			if (i == 2 || i == 3)  // RL, RR
+			{
+				Wheel.MaxHandBrakeTorque = 3000.0f;
+			}
 		}
 
-		// 휠 위치 (축간거리 약 2.51m, 트레드 약 1.55m)
-		float FrontAxle = 1.2f;   // 전방 축
-		float RearAxle = -1.3f;   // 후방 축
-		float TrackHalf = 0.78f;  // 트레드 절반
+		// ========== 서스펜션 설정 (FL, FR, RL, RR) ==========
+		float WheelBaseHalf = Setup.Ackermann.AxleSeparation * 0.5f;
+		float TrackWidthHalf = Setup.Ackermann.FrontWidth * 0.5f;
+		float SuspensionHeight = 0.4f;
+		float CMOffsetZ = Setup.Chassis.CMOffset.Z;  // 0.5f
 
-		Setup.Suspensions[0].WheelCentreOffset = FVector(FrontAxle, -TrackHalf, -0.2f);  // FL
-		Setup.Suspensions[1].WheelCentreOffset = FVector(FrontAxle, TrackHalf, -0.2f);   // FR
-		Setup.Suspensions[2].WheelCentreOffset = FVector(RearAxle, -TrackHalf, -0.2f);   // RL
-		Setup.Suspensions[3].WheelCentreOffset = FVector(RearAxle, TrackHalf, -0.2f);    // RR
+		// PhysX Vehicle SDK는 모든 오프셋을 CM 기준으로 요구
+		// WheelCentreOffset: Actor 기준 휠 중심에서 CM 오프셋을 뺌
+		// SuspForceAppOffset/TireForceAppOffset: CM 아래 약 0.3m 위치
 
-		// 스포츠카용 단단한 서스펜션
+		// FL
+		Setup.Suspensions[0].WheelCentreOffset = FVector(WheelBaseHalf, -TrackWidthHalf, SuspensionHeight - CMOffsetZ);
+		Setup.Suspensions[0].SpringStrength = 35000.0f;
+		Setup.Suspensions[0].SpringDamperRate = 4500.0f;
+		Setup.Suspensions[0].MaxCompression = 0.3f;
+		Setup.Suspensions[0].MaxDroop = 1.0f;  // 레이캐스트 길이 확보 (RayLen = 1.0 + 0.3 + 0.35 = 1.65m)
+		Setup.Suspensions[0].SuspensionDirection = FVector(0, 0, -1);
+		Setup.Suspensions[0].SuspensionForceOffset = FVector(WheelBaseHalf, -TrackWidthHalf, -0.3f);
+		Setup.Suspensions[0].TireForceOffset = FVector(WheelBaseHalf, -TrackWidthHalf, -0.3f);
+
+		// FR
+		Setup.Suspensions[1].WheelCentreOffset = FVector(WheelBaseHalf, TrackWidthHalf, SuspensionHeight - CMOffsetZ);
+		Setup.Suspensions[1].SpringStrength = 35000.0f;
+		Setup.Suspensions[1].SpringDamperRate = 4500.0f;
+		Setup.Suspensions[1].MaxCompression = 0.3f;
+		Setup.Suspensions[1].MaxDroop = 1.0f;  // 레이캐스트 길이 확보
+		Setup.Suspensions[1].SuspensionDirection = FVector(0, 0, -1);
+		Setup.Suspensions[1].SuspensionForceOffset = FVector(WheelBaseHalf, TrackWidthHalf, -0.3f);
+		Setup.Suspensions[1].TireForceOffset = FVector(WheelBaseHalf, TrackWidthHalf, -0.3f);
+
+		// RL
+		Setup.Suspensions[2].WheelCentreOffset = FVector(-WheelBaseHalf, -TrackWidthHalf, SuspensionHeight - CMOffsetZ);
+		Setup.Suspensions[2].SpringStrength = 35000.0f;
+		Setup.Suspensions[2].SpringDamperRate = 4500.0f;
+		Setup.Suspensions[2].MaxCompression = 0.3f;
+		Setup.Suspensions[2].MaxDroop = 1.0f;  // 레이캐스트 길이 확보
+		Setup.Suspensions[2].SuspensionDirection = FVector(0, 0, -1);
+		Setup.Suspensions[2].SuspensionForceOffset = FVector(-WheelBaseHalf, -TrackWidthHalf, -0.3f);
+		Setup.Suspensions[2].TireForceOffset = FVector(-WheelBaseHalf, -TrackWidthHalf, -0.3f);
+
+		// RR
+		Setup.Suspensions[3].WheelCentreOffset = FVector(-WheelBaseHalf, TrackWidthHalf, SuspensionHeight - CMOffsetZ);
+		Setup.Suspensions[3].SpringStrength = 35000.0f;
+		Setup.Suspensions[3].SpringDamperRate = 4500.0f;
+		Setup.Suspensions[3].MaxCompression = 0.3f;
+		Setup.Suspensions[3].MaxDroop = 1.0f;  // 레이캐스트 길이 확보
+		Setup.Suspensions[3].SuspensionDirection = FVector(0, 0, -1);
+		Setup.Suspensions[3].SuspensionForceOffset = FVector(-WheelBaseHalf, TrackWidthHalf, -0.3f);
+		Setup.Suspensions[3].TireForceOffset = FVector(-WheelBaseHalf, TrackWidthHalf, -0.3f);
+
+		// ========== 타이어 설정 (공통) ==========
 		for (int32 i = 0; i < 4; ++i)
 		{
-			Setup.Suspensions[i].SpringStrength = 50000.0f;
-			Setup.Suspensions[i].SpringDamperRate = 6000.0f;
-			Setup.Suspensions[i].MaxCompression = 0.15f;
-			Setup.Suspensions[i].MaxDroop = 0.1f;
+			FVehicleTireData& Tire = Setup.Tires[i];
+			Tire.LatStiffX = 2.0f;
+			Tire.LatStiffY = 17.19f;
+			Tire.LongitudinalStiffnessPerUnitGravity = 1000.0f;
+			Tire.CamberStiffnessPerUnitGravity = 0.0f;
+			Tire.TireType = 0;
+			Tire.FrictionVsSlipGraph = {
+				{0.0f, 1.0f},
+				{0.1f, 1.0f},
+				{1.0f, 0.8f}
+			};
 		}
-
-		// 휠 본 이름 (실제 FBX 확인 후 수정 필요)
-		// 일반적인 패턴들: wheel_fl, Wheel_Front_L, WheelFrontLeft 등
-		Setup.Wheels[0].BoneName = FName("wheel_fl");
-		Setup.Wheels[1].BoneName = FName("wheel_fr");
-		Setup.Wheels[2].BoneName = FName("wheel_rl");
-		Setup.Wheels[3].BoneName = FName("wheel_rr");
 
 		return Setup;
 	}
 
 	/**
-	 * @brief World에 테스트용 차량 스폰
-	 * @param World 차량을 스폰할 월드
-	 * @param MeshPath 스켈레탈 메시 경로
-	 * @param SpawnTransform 스폰 위치/회전
-	 * @return 생성된 차량 액터
+	 * @brief Dodge Viper 설정 생성
+	 * @details 고성능 스포츠카 설정 (테스트용)
 	 */
-	inline AVehicleActor* SpawnTestVehicle(UWorld* World, const FString& MeshPath, const FTransform& SpawnTransform)
+	inline FVehicleSetupData CreateDodgeViperSetup()
 	{
-		if (!World)
+		FVehicleSetupData Setup = CreateDefaultVehicleSetup();
+
+		// 섀시: 더 가볍고 낮음
+		Setup.Chassis.Mass = 1200.0f;
+		Setup.Chassis.CMOffset = FVector(0, 0, 0.3f);
+
+		// 엔진: 더 강력한 토크
+		Setup.Engine.MaxTorque = 600.0f;
+		Setup.Engine.MaxRPM = 700.0f;
+
+		// 기어: 더 촘촘한 레이시오
+		Setup.Gears.ForwardGearRatios = {3.5f, 2.2f, 1.6f, 1.2f, 1.0f, 0.8f};
+		Setup.Gears.FinalDriveRatio = 3.5f;
+
+		// 서스펜션: 더 단단함
+		for (int32 i = 0; i < 4; ++i)
 		{
-			UE_LOG("[Vehicle] SpawnTestVehicle: World is null");
-			return nullptr;
+			Setup.Suspensions[i].SpringStrength = 50000.0f;
+			Setup.Suspensions[i].SpringDamperRate = 6000.0f;
+			Setup.Suspensions[i].MaxCompression = 0.2f;
+			Setup.Suspensions[i].MaxDroop = 0.08f;
 		}
 
-		// 차량 액터 스폰
-		AVehicleActor* Vehicle = World->SpawnActor<AVehicleActor>(SpawnTransform);
-		if (!Vehicle)
+		// 타이어: 더 높은 그립
+		for (int32 i = 0; i < 4; ++i)
 		{
-			UE_LOG("[Vehicle] SpawnTestVehicle: Failed to spawn VehicleActor");
-			return nullptr;
+			Setup.Tires[i].LongitudinalStiffnessPerUnitGravity = 1500.0f;
+			Setup.Tires[i].FrictionVsSlipGraph = {
+				{0.0f, 1.2f},
+				{0.1f, 1.2f},
+				{1.0f, 1.0f}
+			};
 		}
 
-		// 스켈레탈 메시 설정
-		Vehicle->SetSkeletalMesh(MeshPath);
+		return Setup;
+	}
 
-		// Dodge Viper 설정 적용
-		FVehicleSetupData Setup = CreateDodgeViperSetup();
-		Vehicle->SetVehicleSetup(Setup);
+	/**
+	 * @brief 트럭 설정 생성
+	 * @details 무거운 차량 설정 (테스트용)
+	 */
+	inline FVehicleSetupData CreateTruckSetup()
+	{
+		FVehicleSetupData Setup = CreateDefaultVehicleSetup();
 
-		// 플레이어 제어 활성화
-		Vehicle->SetPlayerControlled(true);
+		// 섀시: 더 무겁고 높음
+		Setup.Chassis.Mass = 3000.0f;
+		Setup.Chassis.CMOffset = FVector(0, 0, 1.0f);
 
-		UE_LOG("[Vehicle] Test vehicle spawned at (%.1f, %.1f, %.1f)",
-			SpawnTransform.Translation.X,
-			SpawnTransform.Translation.Y,
-			SpawnTransform.Translation.Z);
+		// 엔진: 낮은 RPM, 높은 토크
+		Setup.Engine.MaxTorque = 800.0f;
+		Setup.Engine.MaxRPM = 400.0f;
 
-		return Vehicle;
+		// 기어: 더 낮은 레이시오
+		Setup.Gears.ForwardGearRatios = {5.0f, 3.0f, 2.0f, 1.5f, 1.0f};
+		Setup.Gears.FinalDriveRatio = 5.0f;
+
+		// 서스펜션: 더 부드러움
+		for (int32 i = 0; i < 4; ++i)
+		{
+			Setup.Suspensions[i].SpringStrength = 25000.0f;
+			Setup.Suspensions[i].SpringDamperRate = 3000.0f;
+			Setup.Suspensions[i].MaxCompression = 0.5f;
+			Setup.Suspensions[i].MaxDroop = 0.2f;
+		}
+
+		// 휠: 더 큰 반경
+		for (int32 i = 0; i < 4; ++i)
+		{
+			Setup.Wheels[i].Radius = 0.5f;
+			Setup.Wheels[i].Mass = 30.0f;
+		}
+
+		return Setup;
 	}
 }

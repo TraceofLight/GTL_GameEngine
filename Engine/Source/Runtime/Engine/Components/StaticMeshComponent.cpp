@@ -97,12 +97,6 @@ void UStaticMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMesh
 		{
 			const FGroupInfo& Group = MeshGroupInfos[SectionIndex];
 
-			// Cloth 섹션은 ClothComponent에서 처리하므로 스킵
-			if (Group.bEnableCloth)
-			{
-				continue;
-			}
-
 			IndexCount = Group.IndexCount;
 			StartIndex = Group.StartIndex;
 		}

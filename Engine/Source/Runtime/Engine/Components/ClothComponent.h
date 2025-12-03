@@ -146,6 +146,18 @@ public:
 	FTransform GetBoneTransform(int32 BoneIndex) const;
 	FVector GetBoneLocation(const FName& BoneName);
 	FVector GetAttachmentPosition(int32 AttachmentIndex);
+
+	// Cloth Paint API
+	int32 GetClothVertexCount() const { return ClothParticles.Num(); }
+	FVector GetClothVertexPosition(int32 ClothVertexIndex) const;
+	float GetVertexWeight(int32 ClothVertexIndex) const;
+	void SetVertexWeight(int32 ClothVertexIndex, float Weight);
+	void SetVertexWeightByMeshVertex(uint32 MeshVertexIndex, float Weight);
+	void InitializeVertexWeights();
+	void ApplyPaintedWeights();
+	const TArray<float>& GetVertexWeights() const { return ClothVertexWeights; }
+	const TArray<uint32>& GetClothVertexToMeshVertexMapping() const { return ClothVertexToMeshVertex; }
+	int32 FindClothVertexByMeshVertex(uint32 MeshVertexIndex) const;
 protected: 
 
 	// Cloth data
@@ -155,6 +167,11 @@ protected:
 	TArray<uint32> ClothIndices;                // 인덱스 (triangles)
 	TArray<uint32> ClothQuads;                  // 쿼드 인덱스 (optional)
 	TArray<float> ClothInvMasses;               // 역질량 (0 = 고정)
+
+	// Cloth Paint - 정점별 weight (0 = 고정, 1 = 자유)
+	TArray<float> ClothVertexWeights;           // Paint된 weight 값
+	TArray<uint32> ClothVertexToMeshVertex;     // Cloth 정점 → 원본 메시 정점 매핑
+	bool bClothWeightsDirty = false;            // weight 변경 시 true
 
 	// Attachment data - 망토를 캐릭터에 고정
 	TArray<int32> AttachmentVertices;           // 고정할 정점 인덱스

@@ -400,6 +400,7 @@ private:
     void RenderBodyProperties(PhysicsAssetViewerState* State);
     void RenderShapeProperties(PhysicsAssetViewerState* State);
     void RenderConstraintProperties(PhysicsAssetViewerState* State);
+    void RenderClothPaintProperties(PhysicsAssetViewerState* State);
 };
 
 /**

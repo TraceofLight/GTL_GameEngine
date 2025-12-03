@@ -28,6 +28,7 @@
 #include "Level.h"
 #include "LightManager.h"
 #include "LuaManager.h"
+#include "VehicleActor.h"
 #include "SkeletalMeshComponent.h"
 #include "FAudioDevice.h"
 #include "ResourceManager.h"
@@ -361,27 +362,47 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 	{
 		UE_LOG("World: DuplicateWorldForPIE: PlayerController created - %s", NewPlayerController->GetName().c_str());
 
-		// 첫 번째 Character 찾아서 자동으로 Possess
-		ACharacter* Character = nullptr;
+		// 1. 먼저 VehicleActor 찾기 (우선순위 1)
+		AVehicleActor* Vehicle = nullptr;
 		for (AActor* Actor : PIEWorld->GetActors())
 		{
-			if (Actor->IsA(ACharacter::StaticClass()))
+			if (Actor->IsA(AVehicleActor::StaticClass()))
 			{
-				Character = Cast<ACharacter>(Actor);
+				Vehicle = Cast<AVehicleActor>(Actor);
+				UE_LOG("World: DuplicateWorldForPIE: Found VehicleActor - %s", Vehicle->GetName().c_str());
 				break;
 			}
 		}
 
-		// 없을 시 생성
-		if (!Character)
+		if (Vehicle)
 		{
-			Character = PIEWorld->SpawnActor<ACharacter>();
+			NewPlayerController->Possess(Vehicle);
+			UE_LOG("World: DuplicateWorldForPIE: Possessed VehicleActor - %s", Vehicle->GetName().c_str());
 		}
-
-		if (Character)
+		else
 		{
-			NewPlayerController->Possess(Character);
-			UE_LOG("World: DuplicateWorldForPIE: Possessed Pawn - %s", Character->GetName().c_str());
+			// 2. VehicleActor가 없으면 Character 찾기 (우선순위 2)
+			ACharacter* Character = nullptr;
+			for (AActor* Actor : PIEWorld->GetActors())
+			{
+				if (Actor->IsA(ACharacter::StaticClass()))
+				{
+					Character = Cast<ACharacter>(Actor);
+					break;
+				}
+			}
+
+			// 3. Character도 없으면 생성
+			if (!Character)
+			{
+				Character = PIEWorld->SpawnActor<ACharacter>();
+			}
+
+			if (Character)
+			{
+				NewPlayerController->Possess(Character);
+				UE_LOG("World: DuplicateWorldForPIE: Possessed Character - %s", Character->GetName().c_str());
+			}
 		}
 	}
 

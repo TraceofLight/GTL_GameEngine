@@ -24,6 +24,10 @@ public:
 	UPROPERTY(EditAnywhere)
 	FString SourceSkeletalPath;
 
+	// Cloth Paint Weights (버텍스 인덱스 -> Weight)
+	UPROPERTY(EditAnywhere)
+	TMap<uint32, float> ClothVertexWeights;
+
     int32 FindBodyIndexByBoneName(FName BoneName) const;
     UBodySetup* FindBodySetupByBoneName(FName BoneName);
     const UBodySetup* FindBodySetupByBoneName(FName BoneName) const;

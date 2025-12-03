@@ -232,7 +232,14 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
         return;  // 물리 시뮬레이션 중에는 애니메이션 업데이트 스킵
     }
 
-    Super::TickComponent(DeltaTime);
+    USceneComponent::TickComponent(DeltaTime);
+
+    // bSimulatePhysics 캐시 동기화
+    if (bSimulatePhysics != bSimulatePhysics_Cached)
+    {
+        bSimulatePhysics_Cached = bSimulatePhysics;
+        SetAllBodiesSimulatePhysics(bSimulatePhysics);
+    }
 
 	// Ragdoll 모드일 때는 물리 시뮬레이션 결과를 본에 동기화
 	if (bRagdollActive)
@@ -308,6 +315,12 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
         }
     }
 
+    // 키네마틱 업데이트: Bodies가 있고, 물리 시뮬레이션이 아닐 때 본 트랜스폼을 물리 바디에 푸시
+    if (!Bodies.IsEmpty() && !bSimulatePhysics && !bRagdollActive)
+    {
+        UpdateKinematicBonesToPhysics();
+    }
+
     // Cloth 시뮬레이션 (AnimInstance 업데이트 이후)
     if (InternalClothComponent)
     {
@@ -374,10 +387,34 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
         CurrentComponentSpacePose.Empty();
         TempFinalSkinningMatrices.Empty();
         TempFinalSkinningNormalMatrices.Empty();
-
-        // ClothComponent 제거 
-       //DestroyInternalClothComponent();
     }
+}
+
+/**
+ * @brief 본 이름으로 본 인덱스 찾기
+ * @param BoneName 찾을 본 이름
+ * @return 본 인덱스 (찾지 못하면 -1)
+ */
+int32 USkeletalMeshComponent::GetBoneIndex(const FName& BoneName) const
+{
+	if (!SkeletalMesh)
+	{
+		return -1;
+	}
+
+	const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
+	if (!Skeleton)
+	{
+		return -1;
+	}
+
+	auto It = Skeleton->BoneNameToIndex.find(BoneName.ToString());
+	if (It != Skeleton->BoneNameToIndex.end())
+	{
+		return It->second;
+	}
+
+	return -1;
 }
 
 /**
@@ -646,6 +683,38 @@ void USkeletalMeshComponent::DuplicateSubObjects()
 
     // AnimationMode에 따라 AnimInstance는 BeginPlay에서 재생성됨
     // AnimationData와 AnimBlueprint는 얕은 복사로 이미 복사되었음
+
+    // PIE 복제 시 Pose 배열 초기화 (TArray는 얕은 복사로 빈 배열이 됨)
+    if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshData())
+    {
+        const FSkeleton& Skeleton = SkeletalMesh->GetSkeletalMeshData()->Skeleton;
+        const int32 NumBones = Skeleton.Bones.Num();
+
+        CurrentLocalSpacePose.SetNum(NumBones);
+        CurrentComponentSpacePose.SetNum(NumBones);
+        TempFinalSkinningMatrices.SetNum(NumBones);
+        TempFinalSkinningNormalMatrices.SetNum(NumBones);
+
+        for (int32 i = 0; i < NumBones; ++i)
+        {
+            const FBone& ThisBone = Skeleton.Bones[i];
+            const int32 ParentIndex = ThisBone.ParentIndex;
+            FMatrix LocalBindMatrix;
+
+            if (ParentIndex == -1)
+            {
+                LocalBindMatrix = ThisBone.BindPose;
+            }
+            else
+            {
+                const FMatrix& ParentInverseBindPose = Skeleton.Bones[ParentIndex].InverseBindPose;
+                LocalBindMatrix = ThisBone.BindPose * ParentInverseBindPose;
+            }
+            CurrentLocalSpacePose[i] = FTransform(LocalBindMatrix);
+        }
+
+        ForceRecomputePose();
+    }
 }
 
 /**
@@ -758,11 +827,27 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
 {
     Super::OnCreatePhysicsState();
 
+    // CRITICAL: AVehicleActor는 PhysicsAsset을 사용하지 않음
+    // PhysX Vehicle은 단일 RigidDynamic에 모든 Shape을 붙여야 함
+    AActor* OwnerActor = GetOwner();
+    if (OwnerActor && OwnerActor->GetClass()->Name &&
+        strcmp(OwnerActor->GetClass()->Name, "AVehicleActor") == 0)
+    {
+        return;
+    }
+
     if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
     {
         UE_LOG("Physics: SkeletalMeshComponent::OnCreatePhysicsState: No skeletal mesh");
         return;
     }
+
+	// 비동기 로드 중이면 CurrentComponentSpacePose가 아직 초기화되지 않았을 수 있음
+	if (CurrentComponentSpacePose.IsEmpty())
+	{
+		UE_LOG("Physics: SkeletalMeshComponent::OnCreatePhysicsState: Pose not initialized yet (async load in progress?)");
+		return;
+	}
 
     if (!PHYSICS.GetPhysics())
     {
@@ -811,6 +896,15 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
             UE_LOG("Physics: OnCreatePhysicsState: Could not find bone '%s' for physics body",
                    BoneSetup->BoneName.ToString().c_str());
             // 인덱스 정렬 유지를 위해 nullptr 추가 (FindBodyIndexByBoneName과 Bodies 배열 인덱스 일치 필요)
+            Bodies.Add(nullptr);
+            continue;
+        }
+
+        // CurrentComponentSpacePose가 초기화되지 않았으면 스킵
+        if (CurrentComponentSpacePose.IsEmpty() || BoneIdx >= CurrentComponentSpacePose.Num())
+        {
+            UE_LOG("Physics: OnCreatePhysicsState: CurrentComponentSpacePose not initialized (BoneIdx=%d, Size=%d)",
+                   BoneIdx, CurrentComponentSpacePose.Num());
             Bodies.Add(nullptr);
             continue;
         }
@@ -866,6 +960,7 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         }
 
         Bodies.Add(BoneBody);
+        BodyToBoneIndex.Add(BoneIdx);  // 캐시: Bodies[i]에 해당하는 본 인덱스 저장
     }
 
 	// Constraint 생성은 BeginPlay로 지연 (PVD가 Body들을 완전히 등록한 후 생성)
@@ -1001,6 +1096,7 @@ void USkeletalMeshComponent::OnDestroyPhysicsState()
         }
     }
     Bodies.Empty();
+    BodyToBoneIndex.Empty();  // 캐시도 함께 비우기
 
 	bRagdollActive = false;
 	bPendingConstraintCreation = false;
@@ -1309,6 +1405,69 @@ void USkeletalMeshComponent::SyncBonesFromPhysics()
     UpdateSkinningMatrices(TempFinalSkinningMatrices, TempFinalSkinningNormalMatrices);
 }
 
+void USkeletalMeshComponent::UpdateKinematicBonesToPhysics()
+{
+    // Early-out: 필수 데이터 체크
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
+    {
+        return;
+    }
+
+    if (Bodies.IsEmpty() || BodyToBoneIndex.IsEmpty())
+    {
+        return;
+    }
+
+    // 컴포넌트 월드 트랜스폼 (루프 밖에서 한 번만 계산)
+    FTransform ComponentWorldTransform = GetWorldTransform();
+
+    // 각 Body에 대해 본 트랜스폼 푸시
+    for (int32 BodyIdx = 0; BodyIdx < Bodies.Num(); ++BodyIdx)
+    {
+        FBodyInstance* Body = Bodies[BodyIdx];
+        if (!Body || !Body->IsValid())
+        {
+            continue;
+        }
+
+        // 캐시된 본 인덱스 사용 (O(1) 조회)
+        int32 BoneIdx = BodyToBoneIndex[BodyIdx];
+        if (BoneIdx < 0 || BoneIdx >= CurrentComponentSpacePose.Num())
+        {
+            continue;
+        }
+
+        // 본 월드 트랜스폼 계산: ComponentSpace -> WorldSpace
+        FTransform BoneComponentTransform = CurrentComponentSpacePose[BoneIdx];
+        FTransform BoneWorldTransform = ComponentWorldTransform.GetWorldTransform(BoneComponentTransform);
+
+        // PhysX Actor에 트랜스폼 설정
+        PxRigidDynamic* DynActor = Body->GetPhysicsActor()->is<PxRigidDynamic>();
+        if (DynActor)
+        {
+            FVector Pos = BoneWorldTransform.Translation;
+            FQuat Rot = BoneWorldTransform.Rotation;
+
+            // 쿼터니언 정규화 (PhysX 요구사항)
+            Rot.Normalize();
+
+            // NaN/Inf 체크
+            if (std::isfinite(Pos.X) && std::isfinite(Pos.Y) && std::isfinite(Pos.Z) &&
+                std::isfinite(Rot.X) && std::isfinite(Rot.Y) && std::isfinite(Rot.Z) && std::isfinite(Rot.W))
+            {
+                PxTransform PxNewPose(
+                    PxVec3(Pos.X, Pos.Y, Pos.Z),
+                    PxQuat(Rot.X, Rot.Y, Rot.Z, Rot.W)
+                );
+
+                // setKinematicTarget: 다음 시뮬레이션 스텝에서 이동하며 dynamic 객체와 충돌 처리
+                // (setGlobalPose는 텔레포트로, 다른 객체를 밀어내지 않고 통과함)
+                DynActor->setKinematicTarget(PxNewPose);
+            }
+        }
+    }
+}
+
 // ===== Cloth Section 감지 및 ClothComponent 관리 =====
 
 /**
@@ -1337,19 +1496,20 @@ bool USkeletalMeshComponent::HasClothSections() const
  * @brief 내부 ClothComponent 생성 및 초기화
  */
 void USkeletalMeshComponent::CreateInternalClothComponent()
-{ 
+{
 	// AActor에 새로운 컴포넌트 추가
 	InternalClothComponent = static_cast<UClothComponent*>(Owner->AddNewComponent(UClothComponent::StaticClass(), this));
 	if (!InternalClothComponent)
 	{
 		return;
-	}  
+	}
 	InternalClothComponent->SetSkeletalMesh(SkeletalMesh->GetPathFileName());
-  
+
 }
 
-/**	
+/**
  * @brief 내부 ClothComponent 정리
+ * @note 소멸자에서는 직접 호출하지 않음 (Owner 파괴 중 Cast 크래시 방지)
  */
 void USkeletalMeshComponent::DestroyInternalClothComponent()
 {
@@ -1360,6 +1520,5 @@ void USkeletalMeshComponent::DestroyInternalClothComponent()
 			Owner->RemoveOwnedComponent(InternalClothComponent);
 		}
 		InternalClothComponent = nullptr;
-
 	}
 }

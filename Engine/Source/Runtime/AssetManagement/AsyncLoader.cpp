@@ -19,27 +19,55 @@ FAsyncLoader::~FAsyncLoader()
 	Shutdown();
 }
 
-void FAsyncLoader::Initialize(ID3D11Device* InDevice)
+void FAsyncLoader::Initialize(ID3D11Device* InDevice, int32 NumWorkers)
 {
 	Device = InDevice;
 
-	bShutdownRequested = false;
-	bWorkerRunning = true;
-	WorkerThread = std::thread(&FAsyncLoader::WorkerThreadFunc, this);
+	// 워커 수 결정: 0이면 (CPU 코어 수 - 1), 최소 1개
+	if (NumWorkers <= 0)
+	{
+		NumWorkers = static_cast<int32>(std::thread::hardware_concurrency());
+		if (NumWorkers > 1)
+		{
+			--NumWorkers; // 메인 스레드를 위해 1개 예약
+		}
+	}
+	NumWorkers = std::max(1, NumWorkers);
 
-	UE_LOG("AsyncLoader: Initialized with worker thread");
+	bShutdownRequested = false;
+	ActiveWorkerCount = 0;
+
+	// 현재 로딩 중인 에셋 배열 초기화
+	{
+		std::lock_guard<std::mutex> Lock(CurrentAssetMutex);
+		CurrentLoadingAssets.resize(NumWorkers);
+	}
+
+	// 워커 스레드 풀 생성
+	WorkerThreads.reserve(NumWorkers);
+	for (int32 i = 0; i < NumWorkers; ++i)
+	{
+		WorkerThreads.emplace_back(&FAsyncLoader::WorkerThreadFunc, this, i);
+	}
+
+	UE_LOG("AsyncLoader: Initialized with %d worker threads", NumWorkers);
 }
 
 void FAsyncLoader::Shutdown()
 {
 	bShutdownRequested = true;
 	RequestCV.notify_all();
+	PauseCV.notify_all();
 
-	if (WorkerThread.joinable())
+	// 모든 워커 스레드 종료 대기
+	for (auto& Worker : WorkerThreads)
 	{
-		WorkerThread.join();
+		if (Worker.joinable())
+		{
+			Worker.join();
+		}
 	}
-	bWorkerRunning = false;
+	WorkerThreads.clear();
 
 	{
 		std::lock_guard<std::mutex> Lock(RequestMutex);
@@ -59,11 +87,18 @@ void FAsyncLoader::Shutdown()
 		HandleMap.clear();
 	}
 
+	{
+		std::lock_guard<std::mutex> Lock(CurrentAssetMutex);
+		CurrentLoadingAssets.clear();
+	}
+
 	UE_LOG("AsyncLoader: Shutdown complete");
 }
 
-void FAsyncLoader::WorkerThreadFunc()
+void FAsyncLoader::WorkerThreadFunc(int32 WorkerIndex)
 {
+	++ActiveWorkerCount;
+
 	while (!bShutdownRequested)
 	{
 		FAsyncLoadRequest Request;
@@ -101,9 +136,13 @@ void FAsyncLoader::WorkerThreadFunc()
 			continue;
 		}
 
+		// 현재 워커가 로딩 중인 에셋 기록
 		{
 			std::lock_guard<std::mutex> Lock(CurrentAssetMutex);
-			CurrentLoadingAsset = Request.FilePath;
+			if (WorkerIndex < static_cast<int32>(CurrentLoadingAssets.size()))
+			{
+				CurrentLoadingAssets[WorkerIndex] = Request.FilePath;
+			}
 		}
 
 		{
@@ -142,14 +181,20 @@ void FAsyncLoader::WorkerThreadFunc()
 		--PendingCount;
 		++CompletedCount;
 
+		// 현재 워커의 로딩 상태 클리어
 		{
 			std::lock_guard<std::mutex> Lock(CurrentAssetMutex);
-			CurrentLoadingAsset.clear();
+			if (WorkerIndex < static_cast<int32>(CurrentLoadingAssets.size()))
+			{
+				CurrentLoadingAssets[WorkerIndex].clear();
+			}
 		}
 
 		// 일시 정지 대기 중인 메인 스레드에 알림
 		PauseCV.notify_all();
 	}
+
+	--ActiveWorkerCount;
 }
 
 UResourceBase* FAsyncLoader::LoadResourceOnWorker(const FString& FilePath, EResourceType ResourceType)
@@ -273,7 +318,7 @@ std::shared_ptr<FStreamableHandle> FAsyncLoader::RequestAsyncLoad(
 		++TotalRequestedCount;
 	}
 
-	RequestCV.notify_one();
+	RequestCV.notify_all();  // 유휴 워커들을 깨워서 요청 처리
 
 	return Handle;
 }
@@ -357,21 +402,27 @@ void FAsyncLoader::ProcessCompletedResources()
 		}
 
 		// 콜백 리스트 전체 실행 후 정리
+		// 주의: 콜백 내에서 AsyncLoad를 호출할 수 있으므로 mutex 밖에서 실행해야 함
+		TArray<std::function<void(UResourceBase*)>> CallbacksToExecute;
 		{
 			std::lock_guard<std::mutex> Lock(HandleMutex);
 			auto* Handle = HandleMap.Find(Result.FilePath);
 			if (Handle && *Handle)
 			{
-				for (auto& Callback : (*Handle)->Callbacks)
-				{
-					if (Callback)
-					{
-						Callback(Result.Resource);
-					}
-				}
+				// 콜백 리스트 복사
+				CallbacksToExecute = (*Handle)->Callbacks;
 				(*Handle)->ClearCallbacks();
 				// 처리 완료 후 핸들 제거 (다음 요청은 ResourceManager에서 즉시 처리됨)
 				HandleMap.Remove(Result.FilePath);
+			}
+		}
+
+		// Mutex 해제 후 콜백 실행 (재진입 방지)
+		for (auto& Callback : CallbacksToExecute)
+		{
+			if (Callback)
+			{
+				Callback(Result.Resource);
 			}
 		}
 	}
@@ -380,21 +431,28 @@ void FAsyncLoader::ProcessCompletedResources()
 void FAsyncLoader::Pause()
 {
 	bPaused = true;
-	// Worker가 현재 작업 중이면 완료될 때까지 대기
+	// 모든 워커가 현재 작업을 완료할 때까지 대기
 	std::unique_lock<std::mutex> Lock(PauseMutex);
 	PauseCV.wait(Lock, [this]()
 	{
 		std::lock_guard<std::mutex> AssetLock(CurrentAssetMutex);
-		return CurrentLoadingAsset.empty();
+		for (const auto& Asset : CurrentLoadingAssets)
+		{
+			if (!Asset.empty())
+			{
+				return false; // 아직 작업 중인 워커가 있음
+			}
+		}
+		return true; // 모든 워커가 유휴 상태
 	});
-	UE_LOG("AsyncLoader: Paused");
+	UE_LOG("AsyncLoader: Paused (all %d workers idle)", static_cast<int32>(WorkerThreads.size()));
 }
 
 void FAsyncLoader::Resume()
 {
 	bPaused = false;
 	PauseCV.notify_all();
-	RequestCV.notify_one();  // Worker 깨우기
+	RequestCV.notify_all();  // 모든 워커 깨우기
 	UE_LOG("AsyncLoader: Resumed");
 }
 
@@ -452,9 +510,12 @@ TArray<FString> FAsyncLoader::GetCurrentlyLoadingAssets() const
 
 	{
 		std::lock_guard<std::mutex> Lock(CurrentAssetMutex);
-		if (!CurrentLoadingAsset.empty())
+		for (const auto& Asset : CurrentLoadingAssets)
 		{
-			Result.push_back(CurrentLoadingAsset);
+			if (!Asset.empty())
+			{
+				Result.push_back(Asset);
+			}
 		}
 	}
 

@@ -52,6 +52,7 @@ public:
 	// Getters
 	UFUNCTION(LuaBind, DisplayName = "GetAnimInstance")
 	UAnimInstance* GetAnimInstance() const { return AnimInstance; }
+	int32 GetBoneIndex(const FName& BoneName) const;  // 본 이름으로 인덱스 찾기
 	FTransform GetBoneLocalTransform(int32 BoneIndex) const;
 	FTransform GetBoneWorldTransform(int32 BoneIndex);
 
@@ -120,6 +121,7 @@ public:
 	FSingleAnimationPlayData AnimationData;
 
 	TArray<FBodyInstance*> Bodies;
+	TArray<int32> BodyToBoneIndex;  // Bodies와 병렬 배열: Bodies[i]에 해당하는 본 인덱스
 	TArray<FConstraintInstance*> Constraints;
 
 	// Override to create per-bone physics shapes
@@ -127,6 +129,7 @@ public:
 
 	// 내부 ClothComponent (Cloth Section이 있을 때 자동 생성)
 	class UClothComponent* InternalClothComponent = nullptr;
+	UClothComponent* GetInternalClothComponent() const { return InternalClothComponent; }
 	void OnDestroyPhysicsState();
 
 	// Physics 시뮬레이션 결과를 본 트랜스폼에 반영
@@ -143,6 +146,10 @@ public:
 	// PAE에서 시뮬레이션 시작 시 명시적 호출 필요
 	void CreateConstraints();
 
+	// ===== Kinematic Sync Functions =====
+	// 애니메이션 평가 후 본 트랜스폼을 물리 바디에 푸시 (per-bone kinematic bodies)
+	void UpdateKinematicBonesToPhysics();
+
 	//cloth
 
 protected:
@@ -157,6 +164,10 @@ protected:
 	void UpdateComponentSpaceTransforms();
 	void UpdateFinalSkinningMatrices();
 
+public:
+	// Cloth Section 감지 및 ClothComponent 관리 (PAE에서 명시적 정리 필요)
+	void DestroyInternalClothComponent();
+
 private:
 	UAnimInstance* AnimInstance;
 	float TestTime;
@@ -166,10 +177,9 @@ private:
 	int32 EditingBoneIndex = -1;      // 현재 편집 중인 본 인덱스 (-1이면 없음)
 	TMap<int32, FTransform> EditedBoneDeltas;  // 편집된 본의 델타 (BoneIndex -> Delta Transform)
 
-	// Cloth Section 감지 및 ClothComponent 관리
+	// Cloth Section 내부 관리
 	bool HasClothSections() const;
 	void CreateInternalClothComponent();
-	void DestroyInternalClothComponent();
 
 	// Render: skip cloth sections when internal cloth is active
 	void CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View) override;
