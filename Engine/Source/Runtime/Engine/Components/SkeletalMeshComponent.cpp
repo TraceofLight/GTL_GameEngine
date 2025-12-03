@@ -11,6 +11,7 @@
 #include "Source/Runtime/Engine/PhysicsEngine/BodyInstance.h"
 #include "Source/Runtime/Engine/PhysicsEngine/ConstraintInstance.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsConstraintSetup.h"
+#include "Source/Runtime/InputCore/InputManager.h"
 #include "SceneView.h"
 #include "MeshBatchElement.h"
 
@@ -212,6 +213,19 @@ void USkeletalMeshComponent::TriggerAnimNotify(const FString& NotifyName, float 
 
 void USkeletalMeshComponent::TickComponent(float DeltaTime)
 {
+    // PIE 모드에서 'R' 키로 bSimulatePhysics 토글 (래그돌 on/off)
+    if (GetWorld() && GetWorld()->bPie && !Bodies.IsEmpty())
+    {
+        UInputManager& InputMgr = UInputManager::GetInstance();
+        if (InputMgr.IsKeyPressed('R'))
+        {
+            bSimulatePhysics = !bSimulatePhysics;
+            SetAllBodiesSimulatePhysics(bSimulatePhysics);
+            UE_LOG("[SkeletalMeshComponent] Ragdoll %s (Press 'R' to toggle)\n",
+                   bSimulatePhysics ? "ENABLED" : "DISABLED");
+        }
+    }
+
     // Per-bone physics를 사용할 때는 base BodyInstance sync를 건너뛰어야 함
     // (PrimitiveComponent::TickComponent가 빈 BodyInstance를 sync하면 안 됨)
     if (bSimulatePhysics && !Bodies.IsEmpty())
