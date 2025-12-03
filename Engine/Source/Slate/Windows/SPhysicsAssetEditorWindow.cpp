@@ -6,6 +6,7 @@
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsAssetUtils.h"
 #include "Source/Runtime/Engine/PhysicsEngine/BodySetup.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsConstraintSetup.h"
+#include "Source/Runtime/Engine/PhysicsEngine/ConstraintInstance.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
@@ -2108,8 +2109,24 @@ void SPhysicsAssetPropertiesPanel::RenderConstraintProperties(PhysicsAssetViewer
         return;
     }
 
+    // 런타임 ConstraintInstance 찾기 (시뮬레이션 모드일 때만 유효)
+    FConstraintInstance* ConstraintInst = nullptr;
+    if (State->PreviewActor && State->bSimulating)
+    {
+        USkeletalMeshComponent* SkelComp = State->PreviewActor->GetSkeletalMeshComponent();
+        if (SkelComp && State->SelectedConstraintIndex < SkelComp->Constraints.Num())
+        {
+            ConstraintInst = SkelComp->Constraints[State->SelectedConstraintIndex];
+        }
+    }
+
     // Constraint 정보 표시
     ImGui::Text("Constraint %d", State->SelectedConstraintIndex);
+    if (ConstraintInst && ConstraintInst->IsValid())
+    {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "[Live]");
+    }
     ImGui::Separator();
 
     ImGui::Text("Body 1: %s", Constraint->ConstraintBone1.ToString().c_str());
@@ -2119,6 +2136,8 @@ void SPhysicsAssetPropertiesPanel::RenderConstraintProperties(PhysicsAssetViewer
     // Angular Limits
     if (ImGui::CollapsingHeader("Angular Limits", ImGuiTreeNodeFlags_DefaultOpen))
     {
+        bool bAngularChanged = false;
+
         // Swing1 (Y축)
         ImGui::Text("Swing 1 (Y-axis)");
         int Swing1Motion = (int)Constraint->Swing1Motion;
@@ -2126,10 +2145,14 @@ void SPhysicsAssetPropertiesPanel::RenderConstraintProperties(PhysicsAssetViewer
         if (ImGui::Combo("Swing1 Motion##S1", &Swing1Motion, MotionTypes, 3))
         {
             Constraint->Swing1Motion = (EAngularConstraintMotion)Swing1Motion;
+            bAngularChanged = true;
         }
         if (Constraint->Swing1Motion == EAngularConstraintMotion::Limited)
         {
-            ImGui::DragFloat("Swing1 Limit##S1Angle", &Constraint->Swing1LimitAngle, 1.0f, 0.0f, 180.0f, "%.1f deg");
+            if (ImGui::DragFloat("Swing1 Limit##S1Angle", &Constraint->Swing1LimitAngle, 1.0f, 0.0f, 180.0f, "%.1f deg"))
+            {
+                bAngularChanged = true;
+            }
         }
         ImGui::Spacing();
 
@@ -2139,10 +2162,14 @@ void SPhysicsAssetPropertiesPanel::RenderConstraintProperties(PhysicsAssetViewer
         if (ImGui::Combo("Swing2 Motion##S2", &Swing2Motion, MotionTypes, 3))
         {
             Constraint->Swing2Motion = (EAngularConstraintMotion)Swing2Motion;
+            bAngularChanged = true;
         }
         if (Constraint->Swing2Motion == EAngularConstraintMotion::Limited)
         {
-            ImGui::DragFloat("Swing2 Limit##S2Angle", &Constraint->Swing2LimitAngle, 1.0f, 0.0f, 180.0f, "%.1f deg");
+            if (ImGui::DragFloat("Swing2 Limit##S2Angle", &Constraint->Swing2LimitAngle, 1.0f, 0.0f, 180.0f, "%.1f deg"))
+            {
+                bAngularChanged = true;
+            }
         }
         ImGui::Spacing();
 
@@ -2152,34 +2179,48 @@ void SPhysicsAssetPropertiesPanel::RenderConstraintProperties(PhysicsAssetViewer
         if (ImGui::Combo("Twist Motion##T", &TwistMotion, MotionTypes, 3))
         {
             Constraint->TwistMotion = (EAngularConstraintMotion)TwistMotion;
+            bAngularChanged = true;
         }
         if (Constraint->TwistMotion == EAngularConstraintMotion::Limited)
         {
-            ImGui::DragFloat("Twist Limit##TAngle", &Constraint->TwistLimitAngle, 1.0f, 0.0f, 180.0f, "%.1f deg");
+            if (ImGui::DragFloat("Twist Limit##TAngle", &Constraint->TwistLimitAngle, 1.0f, 0.0f, 180.0f, "%.1f deg"))
+            {
+                bAngularChanged = true;
+            }
+        }
+
+        // 실시간 업데이트
+        if (bAngularChanged && ConstraintInst && ConstraintInst->IsValid())
+        {
+            ConstraintInst->SetAngularLimits(Constraint);
         }
     }
 
     // Linear Limits
     if (ImGui::CollapsingHeader("Linear Limits"))
     {
+        bool bLinearChanged = false;
         const char* LinearMotionTypes[] = { "Free", "Limited", "Locked" };
 
         int LinearXMotion = (int)Constraint->LinearXMotion;
         if (ImGui::Combo("X Motion##LX", &LinearXMotion, LinearMotionTypes, 3))
         {
             Constraint->LinearXMotion = (ELinearConstraintMotion)LinearXMotion;
+            bLinearChanged = true;
         }
 
         int LinearYMotion = (int)Constraint->LinearYMotion;
         if (ImGui::Combo("Y Motion##LY", &LinearYMotion, LinearMotionTypes, 3))
         {
             Constraint->LinearYMotion = (ELinearConstraintMotion)LinearYMotion;
+            bLinearChanged = true;
         }
 
         int LinearZMotion = (int)Constraint->LinearZMotion;
         if (ImGui::Combo("Z Motion##LZ", &LinearZMotion, LinearMotionTypes, 3))
         {
             Constraint->LinearZMotion = (ELinearConstraintMotion)LinearZMotion;
+            bLinearChanged = true;
         }
 
         // Linear Limit 값 (하나라도 Limited면 표시)
@@ -2187,41 +2228,94 @@ void SPhysicsAssetPropertiesPanel::RenderConstraintProperties(PhysicsAssetViewer
             Constraint->LinearYMotion == ELinearConstraintMotion::Limited ||
             Constraint->LinearZMotion == ELinearConstraintMotion::Limited)
         {
-            ImGui::DragFloat("Linear Limit##LL", &Constraint->LinearLimit, 0.1f, 0.0f, 1000.0f, "%.2f cm");
+            if (ImGui::DragFloat("Linear Limit##LL", &Constraint->LinearLimit, 0.1f, 0.0f, 1000.0f, "%.2f cm"))
+            {
+                bLinearChanged = true;
+            }
+        }
+
+        // 실시간 업데이트
+        if (bLinearChanged && ConstraintInst && ConstraintInst->IsValid())
+        {
+            ConstraintInst->SetLinearLimits(
+                Constraint->LinearXMotion, Constraint->LinearYMotion,
+                Constraint->LinearZMotion, Constraint->LinearLimit);
         }
     }
 
     // Soft Limits
     if (ImGui::CollapsingHeader("Soft Limits"))
     {
-        ImGui::Checkbox("Soft Swing Limit", &Constraint->bSoftSwingLimit);
+        bool bSoftSwingChanged = false;
+        bool bSoftTwistChanged = false;
+
+        if (ImGui::Checkbox("Soft Swing Limit", &Constraint->bSoftSwingLimit))
+        {
+            bSoftSwingChanged = true;
+        }
         if (Constraint->bSoftSwingLimit)
         {
-            ImGui::DragFloat("Swing Stiffness", &Constraint->SwingStiffness, 1.0f, 0.0f, 10000.0f);
-            ImGui::DragFloat("Swing Damping", &Constraint->SwingDamping, 1.0f, 0.0f, 10000.0f);
+            if (ImGui::DragFloat("Swing Stiffness", &Constraint->SwingStiffness, 1.0f, 0.0f, 10000.0f))
+                bSoftSwingChanged = true;
+            if (ImGui::DragFloat("Swing Damping", &Constraint->SwingDamping, 1.0f, 0.0f, 10000.0f))
+                bSoftSwingChanged = true;
         }
 
-        ImGui::Checkbox("Soft Twist Limit", &Constraint->bSoftTwistLimit);
+        if (ImGui::Checkbox("Soft Twist Limit", &Constraint->bSoftTwistLimit))
+        {
+            bSoftTwistChanged = true;
+        }
         if (Constraint->bSoftTwistLimit)
         {
-            ImGui::DragFloat("Twist Stiffness", &Constraint->TwistStiffness, 1.0f, 0.0f, 10000.0f);
-            ImGui::DragFloat("Twist Damping", &Constraint->TwistDamping, 1.0f, 0.0f, 10000.0f);
+            if (ImGui::DragFloat("Twist Stiffness", &Constraint->TwistStiffness, 1.0f, 0.0f, 10000.0f))
+                bSoftTwistChanged = true;
+            if (ImGui::DragFloat("Twist Damping", &Constraint->TwistDamping, 1.0f, 0.0f, 10000.0f))
+                bSoftTwistChanged = true;
+        }
+
+        // 실시간 업데이트
+        if (ConstraintInst && ConstraintInst->IsValid())
+        {
+            if (bSoftSwingChanged)
+                ConstraintInst->SetSoftSwingLimit(Constraint->bSoftSwingLimit, Constraint->SwingStiffness, Constraint->SwingDamping);
+            if (bSoftTwistChanged)
+                ConstraintInst->SetSoftTwistLimit(Constraint->bSoftTwistLimit, Constraint->TwistStiffness, Constraint->TwistDamping);
         }
     }
 
     // Break Settings
     if (ImGui::CollapsingHeader("Break Settings"))
     {
-        ImGui::Checkbox("Linear Breakable", &Constraint->bLinearBreakable);
+        bool bLinearBreakChanged = false;
+        bool bAngularBreakChanged = false;
+
+        if (ImGui::Checkbox("Linear Breakable", &Constraint->bLinearBreakable))
+        {
+            bLinearBreakChanged = true;
+        }
         if (Constraint->bLinearBreakable)
         {
-            ImGui::DragFloat("Linear Break Threshold", &Constraint->LinearBreakThreshold, 10.0f, 0.0f, 100000.0f, "%.1f");
+            if (ImGui::DragFloat("Linear Break Threshold", &Constraint->LinearBreakThreshold, 10.0f, 0.0f, 100000.0f, "%.1f"))
+                bLinearBreakChanged = true;
         }
 
-        ImGui::Checkbox("Angular Breakable", &Constraint->bAngularBreakable);
+        if (ImGui::Checkbox("Angular Breakable", &Constraint->bAngularBreakable))
+        {
+            bAngularBreakChanged = true;
+        }
         if (Constraint->bAngularBreakable)
         {
-            ImGui::DragFloat("Angular Break Threshold", &Constraint->AngularBreakThreshold, 10.0f, 0.0f, 100000.0f, "%.1f");
+            if (ImGui::DragFloat("Angular Break Threshold", &Constraint->AngularBreakThreshold, 10.0f, 0.0f, 100000.0f, "%.1f"))
+                bAngularBreakChanged = true;
+        }
+
+        // 실시간 업데이트
+        if (ConstraintInst && ConstraintInst->IsValid())
+        {
+            if (bLinearBreakChanged)
+                ConstraintInst->SetLinearBreakThreshold(Constraint->bLinearBreakable, Constraint->LinearBreakThreshold);
+            if (bAngularBreakChanged)
+                ConstraintInst->SetAngularBreakThreshold(Constraint->bAngularBreakable, Constraint->AngularBreakThreshold);
         }
     }
 }
