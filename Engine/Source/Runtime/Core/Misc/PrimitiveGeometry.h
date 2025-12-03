@@ -357,10 +357,14 @@ public:
 
         float TwistRad = TwistAngle * (PI / 180.0f);
 
-        // 호를 만드는 두 개의 링 (내부/외부)
-        float InnerRadius = Radius - Thickness * 0.5f;
-        float OuterRadius = Radius + Thickness * 0.5f;
+        // 부채꼴(Fan) 형태로 생성: 중심점에서 방사형으로 삼각형 생성
+        // 중심점 (인덱스 0)
+        FVector CenterPos(0, 0, 0);
+        OutMesh.Vertices.Add(CenterPos);
+        OutMesh.Normal.Add(FVector(-1, 0, 0));
+        OutMesh.Color.Add(Color);
 
+        // 외곽 버텍스들 (인덱스 1 ~ Slices+1)
         for (int32 i = 0; i <= Slices; ++i)
         {
             float t = static_cast<float>(i) / static_cast<float>(Slices);
@@ -369,36 +373,19 @@ public:
             float cosA = std::cos(Angle);
             float sinA = std::sin(Angle);
 
-            // 내부 링
-            FVector innerPos(0, cosA * InnerRadius, sinA * InnerRadius);
-            OutMesh.Vertices.Add(innerPos);
-            OutMesh.Normal.Add(FVector(-1, 0, 0));
-            OutMesh.Color.Add(Color);
-
-            // 외부 링
-            FVector outerPos(0, cosA * OuterRadius, sinA * OuterRadius);
-            OutMesh.Vertices.Add(outerPos);
+            FVector EdgePos(0, cosA * Radius, sinA * Radius);
+            OutMesh.Vertices.Add(EdgePos);
             OutMesh.Normal.Add(FVector(-1, 0, 0));
             OutMesh.Color.Add(Color);
         }
 
-        // 쿼드로 연결
+        // 삼각형으로 연결 (중심점 기준 Fan)
         for (int32 i = 0; i < Slices; ++i)
         {
-            int32 inner0 = i * 2;
-            int32 outer0 = i * 2 + 1;
-            int32 inner1 = (i + 1) * 2;
-            int32 outer1 = (i + 1) * 2 + 1;
-
-            // 삼각형 1
-            OutMesh.Indices.Add(inner0);
-            OutMesh.Indices.Add(outer0);
-            OutMesh.Indices.Add(inner1);
-
-            // 삼각형 2
-            OutMesh.Indices.Add(inner1);
-            OutMesh.Indices.Add(outer0);
-            OutMesh.Indices.Add(outer1);
+            // 중심점(0) -> 외곽점(i+1) -> 외곽점(i+2)
+            OutMesh.Indices.Add(0);
+            OutMesh.Indices.Add(i + 1);
+            OutMesh.Indices.Add(i + 2);
         }
     }
 

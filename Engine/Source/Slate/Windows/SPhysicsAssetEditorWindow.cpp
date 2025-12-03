@@ -1979,29 +1979,43 @@ void SPhysicsAssetPropertiesPanel::OnRender()
                     ImGui::TextDisabled("Load a skeletal mesh first");
                 }
 
-                // Clear All Bodies 버튼
-                bool bHasBodies = State->PhysicsAsset && State->PhysicsAsset->BodySetups.Num() > 0;
-                if (!bHasBodies)
+                // Clear All 버튼 (Bodies + Constraints 모두 삭제)
+                bool bHasAnything = State->PhysicsAsset &&
+                    (State->PhysicsAsset->BodySetups.Num() > 0 || State->PhysicsAsset->ConstraintSetups.Num() > 0);
+                if (!bHasAnything)
                 {
                     ImGui::BeginDisabled();
                 }
 
-                if (ImGui::Button("Clear All Bodies", ImVec2(-1, 0)))
+                if (ImGui::Button("Clear All", ImVec2(-1, 0)))
                 {
                     if (State->PhysicsAsset)
                     {
+                        // Bodies 삭제
                         State->PhysicsAsset->BodySetups.Empty();
                         State->PhysicsAsset->BoneNameToBodyIndex.clear();
+
+                        // Constraints도 함께 삭제 (Bodies 없으면 의미 없음)
+                        State->PhysicsAsset->ConstraintSetups.Empty();
+
                         State->ClearSelection();
+
+                        // Graph 동기화
+                        Owner->SyncGraphFromPhysicsAsset();
                     }
                 }
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("Clear all bodies and constraints");
+                }
 
-                if (!bHasBodies)
+                if (!bHasAnything)
                 {
                     ImGui::EndDisabled();
                 }
 
                 // Generate Ragdoll 버튼
+                bool bHasBodies = State->PhysicsAsset && State->PhysicsAsset->BodySetups.Num() > 0;
                 bool bCanGenerateRagdoll = bHasBodies && State->CurrentMesh;
                 if (!bCanGenerateRagdoll)
                 {
