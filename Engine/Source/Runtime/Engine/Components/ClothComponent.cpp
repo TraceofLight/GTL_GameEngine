@@ -1206,7 +1206,7 @@ void UClothComponent::BuildClothMesh()
 		//이미 fbx 파서에서 cloth는 true로 처리해줌 
 		if (!group.bEnableCloth)
 			continue;
-		ExtractClothSection(group, allVertices, allIndices); 
+		ExtractClothSectionOrdered(group, allVertices, allIndices); 
 	}
 	  
 	// 결과를 이전 데이터로 초기화
@@ -1263,12 +1263,59 @@ void UClothComponent::ExtractClothSection(const FGroupInfo& Group, const TArray<
 
 bool UClothComponent::ShouldFixVertex(const FSkinnedVertex& Vertex)
 { 
-	return false;
+    return false;
 }
 
 
 
 
+
+void UClothComponent::ExtractClothSectionOrdered(const FGroupInfo& Group, const TArray<FSkinnedVertex>& AllVertices, const TArray<uint32>& AllIndices)
+{
+    // 1) Collect section indices (keep original order)
+    TArray<uint32> SectionIndices;
+    SectionIndices.Reserve(Group.IndexCount);
+    for (uint32 i = 0; i < Group.IndexCount; ++i)
+    {
+        const uint32 GlobalIndex = AllIndices[Group.StartIndex + i];
+        SectionIndices.Add(GlobalIndex);
+    }
+
+    // 2) Build ordered-unique vertex list by first appearance and a Global->Local map
+    TArray<uint32> OrderedUniqueGlobals;
+    OrderedUniqueGlobals.Reserve(SectionIndices.Num());
+    TMap<uint32, uint32> GlobalToLocal;
+
+    for (uint32 GlobalIdx : SectionIndices)
+    {
+        if (!GlobalToLocal.Contains(GlobalIdx))
+        {
+            const uint32 NewLocal = (uint32)OrderedUniqueGlobals.Num();
+            GlobalToLocal.Add(GlobalIdx, NewLocal);
+            OrderedUniqueGlobals.Add(GlobalIdx);
+        }
+    }
+
+    // 3) Append particles in the same ordered-unique order for stable indexing
+    for (uint32 GlobalIdx : OrderedUniqueGlobals)
+    {
+        const auto& Vertex = AllVertices[GlobalIdx];
+        const float invMass = 1.0f; //ShouldFixVertex(Vertex) ? 0.0f : 1.0f;
+        ClothParticles.Add(physx::PxVec4(
+            Vertex.Position.X,
+            Vertex.Position.Y,
+            Vertex.Position.Z,
+            invMass
+        ));
+    }
+
+    // 4) Remap section indices to local (preserve triangle winding)
+    for (uint32 GlobalIdx : SectionIndices)
+    {
+        const uint32 LocalIdx = GlobalToLocal[GlobalIdx];
+        ClothIndices.Add(LocalIdx);
+    }
+}
 //void UClothComponent::BuildClothMesh()
 //{
 //	if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
