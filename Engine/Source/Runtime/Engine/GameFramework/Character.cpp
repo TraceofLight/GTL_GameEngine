@@ -165,25 +165,6 @@ void ACharacter::Tick(float DeltaSeconds)
 	// 게임 시작됨 - 정상 Tick (Lua Tick 포함)
 	Super::Tick(DeltaSeconds);
 
-	// 캐릭터가 Y=0 아래로 떨어지지 않도록 제한
-	FVector CurrentLocation = GetActorLocation();
-	if (CurrentLocation.Z < 0.0f)
-	{
-		CurrentLocation.Z = 0.0f;
-		SetActorLocation(CurrentLocation);
-
-		// 낙하 속도도 제거
-		if (CharacterMovement)
-		{
-			FVector Velocity = CharacterMovement->GetVelocity();
-			if (Velocity.Z < 0.0f)
-			{
-				Velocity.Z = 0.0f;
-				CharacterMovement->SetVelocity(Velocity);
-			}
-		}
-	}
-
 	// 카메라가 캐릭터를 따라가고 바라보도록 업데이트
 	if (CameraComponent)
 	{

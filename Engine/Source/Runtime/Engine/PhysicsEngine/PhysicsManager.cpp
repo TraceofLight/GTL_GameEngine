@@ -106,6 +106,11 @@ FPhysicsSceneHandle FPhysicsManager::CreateScene()
 	sceneDesc.simulationEventCallback = Handle.Callback;
 	sceneDesc.filterShader = CoreSimulationFilterShader;
 
+	// Kinematic 충돌 활성화 (기본값은 broadphase에서 kinematic 쌍을 필터링함)
+	// eKEEP: filter shader로 전달하여 충돌 처리
+	sceneDesc.kineKineFilteringMode = PxPairFilteringMode::eKEEP;
+	sceneDesc.staticKineFilteringMode = PxPairFilteringMode::eKEEP;
+
 	// Scene 생성
 	Handle.Scene = Physics->createScene(sceneDesc);
 

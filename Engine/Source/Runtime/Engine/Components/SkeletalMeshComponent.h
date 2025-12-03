@@ -120,6 +120,7 @@ public:
 	FSingleAnimationPlayData AnimationData;
 
 	TArray<FBodyInstance*> Bodies;
+	TArray<int32> BodyToBoneIndex;  // Bodies와 병렬 배열: Bodies[i]에 해당하는 본 인덱스
 	TArray<FConstraintInstance*> Constraints;
 
 	// Override to create per-bone physics shapes
@@ -142,6 +143,10 @@ public:
 	// Constraint 생성 (런타임 포즈 기반으로 Joint 위치 계산)
 	// PAE에서 시뮬레이션 시작 시 명시적 호출 필요
 	void CreateConstraints();
+
+	// ===== Kinematic Sync Functions =====
+	// 애니메이션 평가 후 본 트랜스폼을 물리 바디에 푸시 (per-bone kinematic bodies)
+	void UpdateKinematicBonesToPhysics();
 
 	//cloth
 
