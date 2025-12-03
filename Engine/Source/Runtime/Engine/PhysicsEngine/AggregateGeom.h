@@ -23,4 +23,7 @@ public:
     const FKShapeElem* GetElementByName(const FName& InName) const;
 
     FAABB CalcAABB(const FTransform& BoneTM, float Scale) const;
+
+    /** Serialize all shape elements to/from JSON */
+    void Serialize(bool bIsLoading, JSON& Json);
 };

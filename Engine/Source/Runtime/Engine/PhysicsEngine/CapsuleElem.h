@@ -48,4 +48,7 @@ public:
 	};
 
 	// FBoxShape CalcAABB(const FTransform& BoneTM, float Scale) const;
+
+	/** Serialize this capsule element to/from JSON */
+	virtual void Serialize(bool bIsLoading, JSON& Json) override;
 };

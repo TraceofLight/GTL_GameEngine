@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "AggregateGeom.h"
+#include "Source/Runtime/Core/Misc/JsonSerializer.h"
 
 static inline FVector AbsVec(const FVector& V)
 {
@@ -158,4 +159,77 @@ FAABB FKAggregateGeom::CalcAABB(const FTransform& BoneTM, float Scale) const
         return FAABB(FVector(0, 0, 0), FVector(0, 0, 0));
     }
     return FAABB(GlobalMin, GlobalMax);
+}
+
+void FKAggregateGeom::Serialize(bool bIsLoading, JSON& Json)
+{
+    if (bIsLoading)
+    {
+        // Clear existing data
+        SphereElems.Empty();
+        BoxElems.Empty();
+        SphylElems.Empty();
+
+        // Load SphereElems
+        if (Json.hasKey("SphereElems") && Json["SphereElems"].JSONType() == JSON::Class::Array)
+        {
+            for (JSON& ElemJson : Json["SphereElems"].ArrayRange())
+            {
+                FKSphereElem NewElem;
+                NewElem.Serialize(true, ElemJson);
+                SphereElems.Add(NewElem);
+            }
+        }
+
+        // Load BoxElems
+        if (Json.hasKey("BoxElems") && Json["BoxElems"].JSONType() == JSON::Class::Array)
+        {
+            for (JSON& ElemJson : Json["BoxElems"].ArrayRange())
+            {
+                FKBoxElem NewElem;
+                NewElem.Serialize(true, ElemJson);
+                BoxElems.Add(NewElem);
+            }
+        }
+
+        // Load CapsuleElems (SphylElems)
+        if (Json.hasKey("CapsuleElems") && Json["CapsuleElems"].JSONType() == JSON::Class::Array)
+        {
+            for (JSON& ElemJson : Json["CapsuleElems"].ArrayRange())
+            {
+                FKCapsuleElem NewElem;
+                NewElem.Serialize(true, ElemJson);
+                SphylElems.Add(NewElem);
+            }
+        }
+    }
+    else
+    {
+        // Save SphereElems
+        Json["SphereElems"] = JSON::Make(JSON::Class::Array);
+        for (FKSphereElem& Elem : SphereElems)
+        {
+            JSON ElemJson;
+            Elem.Serialize(false, ElemJson);
+            Json["SphereElems"].append(ElemJson);
+        }
+
+        // Save BoxElems
+        Json["BoxElems"] = JSON::Make(JSON::Class::Array);
+        for (FKBoxElem& Elem : BoxElems)
+        {
+            JSON ElemJson;
+            Elem.Serialize(false, ElemJson);
+            Json["BoxElems"].append(ElemJson);
+        }
+
+        // Save CapsuleElems (SphylElems)
+        Json["CapsuleElems"] = JSON::Make(JSON::Class::Array);
+        for (FKCapsuleElem& Elem : SphylElems)
+        {
+            JSON ElemJson;
+            Elem.Serialize(false, ElemJson);
+            Json["CapsuleElems"].append(ElemJson);
+        }
+    }
 }
