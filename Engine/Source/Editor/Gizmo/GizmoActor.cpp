@@ -402,6 +402,14 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 		return;
 	}
 
+	// 디버그: Shape 모드 상태 확인
+	{
+		char debugMsg[512];
+		sprintf_s(debugMsg, "[OnDrag] TargetType=%d, bIsShapeMode=%d, TargetBodySetup=%p, TargetBoneIndex=%d, TargetShapeIndex=%d, DraggingAxis=%u, CurrentMode=%d\n",
+			(int)TargetType, bIsShapeMode ? 1 : 0, (void*)TargetBodySetup, TargetBoneIndex, TargetShapeIndex, DraggingAxis, (int)CurrentMode);
+		OutputDebugStringA(debugMsg);
+	}
+
 	// MouseDeltaX/Y는 이제 드래그 시작점으로부터의 '총 변위(Total Offset)'입니다.
 	FVector2D MouseOffset(MouseDeltaX, MouseDeltaY);
 
@@ -474,6 +482,13 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 			}
 			else if (bIsShapeMode)
 			{
+				// 디버그: Translate Shape 분기 진입
+				{
+					char debugMsg[256];
+					sprintf_s(debugMsg, "[OnDrag Translate] Shape branch! NewLoc=(%.2f,%.2f,%.2f)\n",
+						NewLocation.X, NewLocation.Y, NewLocation.Z);
+					OutputDebugStringA(debugMsg);
+				}
 				// Shape의 새로운 월드 위치를 로컬 Center로 변환
 				FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
 				FVector NewLocalCenter = BoneWorldTransform.Rotation.Inverse().RotateVector(NewLocation - BoneWorldTransform.Translation);
@@ -527,6 +542,13 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 			}
 			else if (bIsShapeMode)
 			{
+				// 디버그: Scale Shape 분기 진입
+				{
+					char debugMsg[256];
+					sprintf_s(debugMsg, "[OnDrag Scale] Shape branch! ShapeType=%d, ShapeIndex=%d, DraggingAxis=%u, TotalMovement=%.3f\n",
+						(int)TargetShapeType, TargetShapeIndex, DraggingAxis, TotalMovement);
+					OutputDebugStringA(debugMsg);
+				}
 				// Shape의 크기 업데이트 (축에 따라 다른 속성)
 				switch (TargetShapeType)
 				{
@@ -579,6 +601,8 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 			}
 			else if (Target)
 			{
+				// 디버그: Scale Target (Actor/Component) 분기 진입
+				OutputDebugStringA("[OnDrag Scale] Target (Actor/Component) branch - NOT Shape!\n");
 				Target->SetWorldScale(NewScale);
 			}
 		}

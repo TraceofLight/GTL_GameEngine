@@ -23,17 +23,22 @@ namespace ed = ax::NodeEditor;
 // ============================================================================
 // Node Graph 구조체 (Body-Constraint 시각화용)
 // ============================================================================
+// Unreal 스타일 3-Column 레이아웃:
+// 각 Constraint마다 독립적인 행 (Row)으로 표시
+// [Parent Body] → [Constraint] → [Child Body]
+// Body 노드는 중복 표시 가능 (각 행마다 별도 노드)
+// ============================================================================
 
-// Body Node (Physics Body를 나타내는 노드)
+// Body Node (Physics Body를 나타내는 노드) - 행(Row) 내에서 사용
 struct FPAEBodyNode
 {
     ed::NodeId ID;
     int32 BodyIndex = -1;           // PhysicsAsset의 BodySetup 인덱스
     FString BoneName;               // 연결된 Bone 이름
-    std::vector<ed::PinId> InputPins;   // 입력 핀들 (다른 Body에서 오는 Constraint)
-    std::vector<ed::PinId> OutputPins;  // 출력 핀들 (다른 Body로 가는 Constraint)
+    ed::PinId OutputPin;            // 출력 핀 (Constraint로 연결, Parent용)
+    ed::PinId InputPin;             // 입력 핀 (Constraint에서 연결, Child용)
 
-    FPAEBodyNode() : ID(0) {}
+    FPAEBodyNode() : ID(0), OutputPin(0), InputPin(0) {}
 };
 
 // Constraint Node (Physics Constraint를 나타내는 노드)
@@ -43,13 +48,47 @@ struct FPAEConstraintNode
     int32 ConstraintIndex = -1;     // PhysicsAsset의 Constraint 인덱스
     ed::PinId InputPin;             // 입력 핀 (Parent Body에서 옴)
     ed::PinId OutputPin;            // 출력 핀 (Child Body로 감)
-    FString Bone1Name;              // 첫 번째 Bone 이름
-    FString Bone2Name;              // 두 번째 Bone 이름
+    FString Bone1Name;              // 첫 번째 Bone 이름 (Parent)
+    FString Bone2Name;              // 두 번째 Bone 이름 (Child)
 
     FPAEConstraintNode() : ID(0), InputPin(0), OutputPin(0) {}
 };
 
-// Constraint Link (두 Body를 연결하는 Constraint) - 이제는 Body <-> Constraint <-> Body 연결용
+// Constraint Row (Unreal 스타일: 한 행에 Parent Body - Constraint - Child Body)
+struct FPAEConstraintRow
+{
+    int32 RowIndex = -1;            // 행 번호
+    int32 ConstraintIndex = -1;     // PhysicsAsset의 Constraint 인덱스
+
+    // Parent Body (Column 0 - 왼쪽)
+    ed::NodeId ParentBodyNodeID;
+    ed::PinId ParentBodyOutputPin;
+    int32 ParentBodyIndex = -1;
+    FString ParentBoneName;
+
+    // Constraint (Column 1 - 중앙)
+    ed::NodeId ConstraintNodeID;
+    ed::PinId ConstraintInputPin;
+    ed::PinId ConstraintOutputPin;
+
+    // Child Body (Column 2 - 오른쪽)
+    ed::NodeId ChildBodyNodeID;
+    ed::PinId ChildBodyInputPin;
+    int32 ChildBodyIndex = -1;
+    FString ChildBoneName;
+
+    // Links
+    ed::LinkId Link1ID;             // Parent Body → Constraint
+    ed::LinkId Link2ID;             // Constraint → Child Body
+
+    FPAEConstraintRow()
+        : ParentBodyNodeID(0), ParentBodyOutputPin(0)
+        , ConstraintNodeID(0), ConstraintInputPin(0), ConstraintOutputPin(0)
+        , ChildBodyNodeID(0), ChildBodyInputPin(0)
+        , Link1ID(0), Link2ID(0) {}
+};
+
+// Constraint Link (두 Body를 연결하는 Constraint) - 레거시 호환용
 struct FPAEConstraintLink
 {
     ed::LinkId ID;
@@ -64,6 +103,10 @@ struct FPAEGraphState
 {
     ed::EditorContext* Context = nullptr;
 
+    // Unreal 스타일 Row 기반 데이터 (주요 데이터)
+    TArray<FPAEConstraintRow> ConstraintRows;
+
+    // 레거시 호환용 (기존 코드에서 참조)
     TArray<FPAEBodyNode> BodyNodes;
     TArray<FPAEConstraintNode> ConstraintNodes;
     TArray<FPAEConstraintLink> Links;
@@ -99,6 +142,7 @@ struct FPAEGraphState
 
     void Clear()
     {
+        ConstraintRows.Empty();
         BodyNodes.Empty();
         ConstraintNodes.Empty();
         Links.Empty();
