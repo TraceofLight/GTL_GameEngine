@@ -127,6 +127,8 @@ void UClothComponent::InitializeComponent()
 
     // Cloth 시뮬레이션은 스키닝을 대체하므로 스키닝 비활성화
     bSkinningMatricesDirty = false;
+
+	bClothInitialized = true;
 }
 
 void UClothComponent::BeginPlay()
@@ -153,7 +155,8 @@ void UClothComponent::TickComponent(float DeltaTime)
     if (!bClothInitialized)
     {
 		UE_LOG("[ClothComponent] Cloth is not initialized\n");
-        return;
+		InitializeComponent();
+		//return;
     }
 
     UpdateClothSimulation(DeltaTime);
@@ -475,6 +478,12 @@ void UClothComponent::ClearCollisionShapes()
 //	//cloth->setTriangles(triangleR, 0, cloth->getNumTriangles());
 //}
 
+void UClothComponent::DuplicateSubObjects()
+{
+	Super::DuplicateSubObjects();
+
+}
+
 void UClothComponent::InitializeNvCloth()
 {
 	// NvCloth 라이브러리 전역 초기화 (한 번만 수행)
@@ -491,6 +500,7 @@ void UClothComponent::InitializeNvCloth()
 		UE_LOG("[Cloth Error] Failed to create NvCloth factory!\n");
 	}
 }
+
 void UClothComponent::CreateClothFabric()
 {
 	ClothMeshDesc meshDesc;

@@ -197,6 +197,7 @@ protected:
 	float AccumulatedTime = 0.0f;
 	float SimulationFrequency = 60.0f;          // Hz
 
+	virtual void DuplicateSubObjects() override;
 private:
 	// Internal helpers
 	void InitializeNvCloth();
