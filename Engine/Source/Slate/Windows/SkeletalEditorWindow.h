@@ -11,6 +11,7 @@ class UAnimSequence;
 class ViewerState;
 struct ID3D11Device;
 class UTexture;
+class SViewportToolbarWidget;
 
 // Forward declarations for panel classes
 class SSkeletalToolbarPanel;
@@ -81,6 +82,9 @@ public:
 	ID3D11ShaderResourceView* GetPreviewShaderResourceView() const { return PreviewShaderResourceView; }
 
 private:
+	// ViewportPanel에서 ViewportToolbar 접근 허용
+	friend class SSkeletalViewportPanel;
+
 	// Bone Transform 헬퍼
 	void UpdateBoneTransformFromSkeleton(ViewerState* State);
 	void ApplyBoneTransform(ViewerState* State);
@@ -138,6 +142,9 @@ private:
 	// 렌더 타겟 관리 (내부용)
 	void CreateRenderTarget(uint32 Width, uint32 Height);
 	void ReleaseRenderTarget();
+
+	// 공용 뷰포트 툴바 위젯
+	SViewportToolbarWidget* ViewportToolbar = nullptr;
 };
 
 // ============================================================================
