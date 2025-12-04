@@ -45,7 +45,7 @@ public:
 		}
 
 		if (bInUseLog)
-			UE_LOG("[JsonSerializer] %s int64 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s int64 failed", InKey.c_str());
 
 		OutValue = InDefaultValue;
 		return false;
@@ -69,7 +69,7 @@ public:
 		}
 
 		if (bInUseLog)// ReadInt64가 실패했거나, 값의 범위가 벗어난 경우
-			UE_LOG("[JsonSerializer] %s int32 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s int32 failed", InKey.c_str());
 
 		OutValue = InDefaultValue;
 		return false;
@@ -92,7 +92,7 @@ public:
 		}
 
 		if (bInUseLog)
-			UE_LOG("[JsonSerializer] %s uint32 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s uint32 failed", InKey.c_str());
 
 		OutValue = InDefaultValue;
 		return false;
@@ -117,7 +117,7 @@ public:
 		}
 
 		if (bInUseLog)
-			UE_LOG("[JsonSerializer] %s float 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s float failed", InKey.c_str());
 
 		OutValue = InDefaultValue;
 		return false;
@@ -140,7 +140,7 @@ public:
 		}
 
 		if (bInUseLog)
-			UE_LOG("[JsonSerializer] %s Bool 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s bool failed", InKey.c_str());
 
 		OutValue = InDefaultValue;
 		return false;
@@ -165,7 +165,7 @@ public:
 		}
 
 		if (bInUseLog)
-			UE_LOG("[JsonSerializer] %s String 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s string failed", InKey.c_str());
 
 		OutValue = InDefaultValue;
 		return false;
@@ -188,7 +188,7 @@ public:
 		}
 
 		if (bInUseLog)
-			UE_LOG("[JsonSerializer] %s Object 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s object failed", InKey.c_str());
 
 		OutValue = InDefaultValue;
 		return false;
@@ -211,7 +211,7 @@ public:
 		}
 
 		if (bInUseLog)
-			UE_LOG("[JsonSerializer] %s Array 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s array failed", InKey.c_str());
 
 		OutValue = InDefaultValue;
 		return false;
@@ -239,7 +239,7 @@ public:
 			}
 		}
 		if (bInUseLog)
-			UE_LOG("[JsonSerializer] %s Array Float 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s array float failed", InKey.c_str());
 
 		OutValue = InDefaultValue;
 		return false;
@@ -271,7 +271,7 @@ public:
 			}
 		}
 		if (bInUseLog)
-			UE_LOG("[JsonSerializer] %s Vector 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s vector failed", InKey.c_str());
 
 		OutValue = InDefaultValue;
 		return false;
@@ -304,7 +304,7 @@ public:
 			}
 		}
 		if (bInUseLog)
-			UE_LOG("[JsonSerializer] %s Vector4 파싱에 실패했습니다 (기본값 사용)", InKey.c_str());
+			UE_LOG("Json: Read: %s vector4 failed", InKey.c_str());
 		OutValue = InDefaultValue;
 		return false;
 	}

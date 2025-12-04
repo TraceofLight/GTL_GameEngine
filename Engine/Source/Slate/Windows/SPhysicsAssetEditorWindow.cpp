@@ -657,7 +657,7 @@ void SPhysicsAssetEditorWindow::LoadPhysicsAsset(const FString& Path)
 
     if (!PhysAsset->LoadFromFile(Path))
     {
-        UE_LOG("[PAE] Failed to load physics asset: %s", Path.c_str());
+        UE_LOG("PAE: LoadAsset: Failed %s", Path.c_str());
         return;
     }
 
@@ -688,7 +688,7 @@ void SPhysicsAssetEditorWindow::LoadPhysicsAsset(const FString& Path)
     // 선택 상태 초기화
     ActiveState->ClearSelection();
 
-    UE_LOG("[PAE] Loaded physics asset: %s", Path.c_str());
+    UE_LOG("PAE: LoadAsset: %s", Path.c_str());
 }
 
 void SPhysicsAssetEditorWindow::SavePhysicsAsset(const FString& Path)
@@ -733,11 +733,11 @@ void SPhysicsAssetEditorWindow::SavePhysicsAsset(const FString& Path)
     if (ActiveState->PhysicsAsset->SaveToFile(Path))
     {
         ActiveState->LoadedPhysicsAssetPath = Path;
-        UE_LOG("[PAE] Saved physics asset: %s", Path.c_str());
+        UE_LOG("PAE: SaveAsset: %s", Path.c_str());
     }
     else
     {
-        UE_LOG("[PAE] Failed to save physics asset: %s", Path.c_str());
+        UE_LOG("PAE: SaveAsset: Failed %s", Path.c_str());
     }
 }
 
@@ -1063,7 +1063,7 @@ void SPhysicsAssetEditorWindow::StartSimulation()
     ActiveState->bSimulating = true;
     ActiveState->bSimulationPaused = false;
 
-    UE_LOG("[PAE] Simulation started with runtime pose-based constraints");
+    UE_LOG("PAE: StartSimulation: Started");
 }
 
 void SPhysicsAssetEditorWindow::StopSimulation()
@@ -1102,7 +1102,7 @@ void SPhysicsAssetEditorWindow::StopSimulation()
     ActiveState->bSimulating = false;
     ActiveState->bSimulationPaused = false;
 
-    UE_LOG("[PAE] Simulation stopped");
+    UE_LOG("PAE: StopSimulation: Stopped");
 }
 
 bool SPhysicsAssetEditorWindow::IsSimulating() const
@@ -1714,7 +1714,7 @@ void SPhysicsAssetBodyListPanel::RenderSkeletonBodyTree(PhysicsAssetViewerState*
 
                             PhysAsset->AddConstraintSetup(NewConstraint);
 
-                            UE_LOG("[PAE] Created constraint between '%s' and '%s'",
+                            UE_LOG("PAE: CreateConstraint: %s <-> %s",
                                    Setup->BoneName.ToString().c_str(),
                                    OtherBody->BoneName.ToString().c_str());
                         }
@@ -2047,7 +2047,7 @@ void SPhysicsAssetBodyListPanel::RenderConstraintList(PhysicsAssetViewerState* S
                     Owner->SyncGraphFromPhysicsAsset();
                 }
 
-                UE_LOG("[PAE] Created constraint between '%s' and '%s'",
+                UE_LOG("PAE: CreateConstraint: %s <-> %s",
                        Body1->BoneName.ToString().c_str(),
                        Body2->BoneName.ToString().c_str());
 
@@ -2143,7 +2143,7 @@ void SPhysicsAssetBodyListPanel::RenderConstraintList(PhysicsAssetViewerState* S
             Owner->SyncGraphFromPhysicsAsset();
         }
 
-        UE_LOG("[PAE] Deleted constraint %d", ConstraintToDelete);
+        UE_LOG("PAE: DeleteConstraint: %d", ConstraintToDelete);
     }
 }
 
@@ -2236,19 +2236,19 @@ void SPhysicsAssetPropertiesPanel::OnRender()
                         {
                             // Bodies 생성
                             FPhysicsAssetUtils::CreateFromSkeletalMesh(State->PhysicsAsset, State->CurrentMesh);
-                            UE_LOG("[PAE] Generated %d bodies", State->PhysicsAsset->BodySetups.Num());
+                            UE_LOG("PAE: GenerateBodies: %d bodies", State->PhysicsAsset->BodySetups.Num());
 
                             // 체크박스가 켜져 있으면 Constraints도 함께 생성
-                            UE_LOG("[PAE] bAlsoGenerateConstraints = %s", bAlsoGenerateConstraints ? "true" : "false");
+                            UE_LOG("PAE: GenerateBodies: bAlsoGenerateConstraints=%s", bAlsoGenerateConstraints ? "true" : "false");
                             if (bAlsoGenerateConstraints)
                             {
                                 State->PhysicsAsset->ConstraintSetups.Empty();
                                 FPhysicsAssetUtils::CreateConstraintsForRagdoll(State->PhysicsAsset, State->CurrentMesh);
-                                UE_LOG("[PAE] Auto-generated %d constraints (checkbox ON)", State->PhysicsAsset->ConstraintSetups.Num());
+                                UE_LOG("PAE: GenerateConstraints: %d constraints", State->PhysicsAsset->ConstraintSetups.Num());
                             }
                             else
                             {
-                                UE_LOG("[PAE] Skipping constraint generation (checkbox OFF)");
+                                UE_LOG("PAE: GenerateBodies: Skipping constraint generation");
                             }
 
                             // Graph 동기화
@@ -2315,7 +2315,7 @@ void SPhysicsAssetPropertiesPanel::OnRender()
                         // 기존 Constraints 지우고 새로 생성
                         State->PhysicsAsset->ConstraintSetups.Empty();
                         FPhysicsAssetUtils::CreateConstraintsForRagdoll(State->PhysicsAsset, State->CurrentMesh);
-                        UE_LOG("[PAE] Generated %d ragdoll constraints", State->PhysicsAsset->ConstraintSetups.Num());
+                        UE_LOG("PAE: GenerateRagdoll: %d constraints", State->PhysicsAsset->ConstraintSetups.Num());
 
                         // Graph 동기화
                         Owner->SyncGraphFromPhysicsAsset();
@@ -2982,7 +2982,7 @@ void SPhysicsAssetPropertiesPanel::RenderClothPaintProperties(PhysicsAssetViewer
         if (ClothComp)
         {
             ClothComp->InitializeVertexWeights();
-            UE_LOG("[ClothPaint] Weights initialized for %d vertices\n", ClothComp->GetClothVertexCount());
+            UE_LOG("ClothPaint: InitWeights: %d vertices", ClothComp->GetClothVertexCount());
         }
     }
     ImGui::SameLine();
@@ -2997,7 +2997,7 @@ void SPhysicsAssetPropertiesPanel::RenderClothPaintProperties(PhysicsAssetViewer
         if (ClothComp)
         {
             ClothComp->ApplyPaintedWeights();
-            UE_LOG("[ClothPaint] Applied weights to simulation\n");
+            UE_LOG("ClothPaint: ApplyWeights: Applied");
         }
     }
 
@@ -3011,7 +3011,7 @@ void SPhysicsAssetPropertiesPanel::RenderClothPaintProperties(PhysicsAssetViewer
                 ClothComp->SetVertexWeight(i, 1.0f);
             }
             ClothComp->ApplyPaintedWeights();
-            UE_LOG("[ClothPaint] Reset all %d weights to 1.0\n", VertexCount);
+            UE_LOG("ClothPaint: ResetWeights: %d to 1.0", VertexCount);
         }
     }
 
@@ -3025,7 +3025,7 @@ void SPhysicsAssetPropertiesPanel::RenderClothPaintProperties(PhysicsAssetViewer
                 ClothComp->SetVertexWeight(i, 0.0f);
             }
             ClothComp->ApplyPaintedWeights();
-            UE_LOG("[ClothPaint] Set all %d weights to 0.0 (fixed)\n", VertexCount);
+            UE_LOG("ClothPaint: SetWeights: %d to 0.0", VertexCount);
         }
     }
 }
@@ -3827,7 +3827,7 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                         // Graph 동기화
                         Owner->SyncGraphFromPhysicsAsset();
 
-                        UE_LOG("[PAE] Created constraint between '%s' and '%s'",
+                        UE_LOG("PAE: CreateConstraint: %s <-> %s",
                                Body1->BoneName.ToString().c_str(),
                                Body2->BoneName.ToString().c_str());
                     }
@@ -3866,7 +3866,7 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                     UPhysicsConstraintSetup* Constraint = PhysAsset->ConstraintSetups[ConstraintNode->ConstraintIndex];
                     if (Constraint)
                     {
-                        UE_LOG("[PAE] Deleting constraint between '%s' and '%s'",
+                        UE_LOG("PAE: DeleteConstraint: %s <-> %s",
                                Constraint->ConstraintBone1.ToString().c_str(),
                                Constraint->ConstraintBone2.ToString().c_str());
 
@@ -4178,7 +4178,7 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                             (Constraint->ConstraintBone1 == BoneNameToDelete ||
                              Constraint->ConstraintBone2 == BoneNameToDelete))
                         {
-                            UE_LOG("[PAE] Cascade deleting constraint: %s <-> %s",
+                            UE_LOG("PAE: CascadeDelete: Constraint %s <-> %s",
                                 Constraint->ConstraintBone1.ToString().c_str(),
                                 Constraint->ConstraintBone2.ToString().c_str());
                             ObjectFactory::DeleteObject(Constraint);
@@ -4187,7 +4187,7 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                     }
 
                     // Body 삭제
-                    UE_LOG("[PAE] Deleting body: %s", BoneNameToDelete.ToString().c_str());
+                    UE_LOG("PAE: DeleteBody: %s", BoneNameToDelete.ToString().c_str());
                     PhysAsset->BoneNameToBodyIndex.erase(BoneNameToDelete.ToString().c_str());
                     ObjectFactory::DeleteObject(BodyToDelete);
                     PhysAsset->BodySetups.erase(PhysAsset->BodySetups.begin() + BodyIndexToDelete);
@@ -4219,7 +4219,7 @@ void SPhysicsAssetGraphPanel::RenderNodeGraph(PhysicsAssetViewerState* State, FP
                 UPhysicsConstraintSetup* Constraint = PhysAsset->ConstraintSetups[ConstraintIndexToDelete];
                 if (Constraint)
                 {
-                    UE_LOG("[PAE] Deleting constraint: %s <-> %s",
+                    UE_LOG("PAE: DeleteConstraint: %s <-> %s",
                         Constraint->ConstraintBone1.ToString().c_str(),
                         Constraint->ConstraintBone2.ToString().c_str());
                     ObjectFactory::DeleteObject(Constraint);

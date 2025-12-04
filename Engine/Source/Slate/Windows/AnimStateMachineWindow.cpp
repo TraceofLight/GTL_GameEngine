@@ -230,7 +230,7 @@ void SAnimStateMachineWindow::LoadStateMachineFile(const char* FilePath)
     }
     else
     {
-        UE_LOG("[Error] Failed to load AnimStateMachine: %s", FilePath);
+        UE_LOG("StateMachine: Load: Failed %s", FilePath);
     }
 }
 
@@ -275,7 +275,7 @@ void SAnimStateMachineWindow::SaveCurrentStateMachine()
     }
     else
     {
-        UE_LOG("[Error] Failed to save StateMachine: %s", WideToUTF8(ActiveState->AssetPath).c_str());
+        UE_LOG("StateMachine: Save: Failed %s", WideToUTF8(ActiveState->AssetPath).c_str());
     }
 }
 
@@ -351,12 +351,12 @@ void SAnimStateMachineWindow::OnRender()
                         }
                         else
                         {
-                            UE_LOG("[error] StateMachine save failed.");
+                            UE_LOG("StateMachine: Save: Failed");
                         }
                     }
                     catch (const std::exception& Exception)
                     {
-                        UE_LOG("[error] StateMachine Save Error: %s", Exception.what());
+                        UE_LOG("StateMachine: Save: Exception %s", Exception.what());
                     }
                 }
             }
@@ -383,7 +383,7 @@ void SAnimStateMachineWindow::OnRender()
                 }
                 else
                 {
-                    UE_LOG("[Error] Failed to load AnimStateMachine: %S", FinalPathStr.c_str());
+                    UE_LOG("StateMachine: Load: Failed %s", FinalPathStr.c_str());
                 }
             }
         }
@@ -1184,7 +1184,7 @@ void SAnimStateMachineWindow::RenderRightPanel(float width, float height)
                             }
                             else
                             {
-                                UE_LOG("[Error] Failed to load BlendSpace2D from file: %s", WideToUTF8(AbsolutePath).c_str());
+                                UE_LOG("StateMachine: LoadBlendSpace: Failed %s", WideToUTF8(AbsolutePath).c_str());
                             }
                         }
                     }

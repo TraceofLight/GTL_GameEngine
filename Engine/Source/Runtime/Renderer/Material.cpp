@@ -36,7 +36,7 @@ void UMaterial::Load(const FString& InFilePath, ID3D11Device* InDevice)
 	{
 		// FBX 캐시에서 등록된 머티리얼 이름일 수 있음 (예: "james_body")
 		// 파일 확장자가 없는 경우 기본 머티리얼 셰이더 사용
-		UE_LOG("[warning] UMaterial::Load: '%s' is not a .dds or .hlsl file, using default shader", InFilePath.c_str());
+		UE_LOG("Material: Load: '%s' is not .dds or .hlsl, using default shader", InFilePath.c_str());
 		UMaterial* Default = UResourceManager::GetInstance().GetDefaultMaterial();
 		if (Default)
 		{

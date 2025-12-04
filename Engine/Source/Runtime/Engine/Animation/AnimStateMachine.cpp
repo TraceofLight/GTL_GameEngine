@@ -359,7 +359,7 @@ void UAnimStateMachine::Load(const FString& InFilePath, ID3D11Device* InDevice)
     JSON Root;
     if (!FJsonSerializer::LoadJsonFromFile(Root, UTF8ToWide(InFilePath)))
     {
-        UE_LOG("[UAnimStateMachine] Failed to load file: %s", InFilePath.c_str());
+        UE_LOG("AnimStateMachine: Load: Failed %s", InFilePath.c_str());
         return;
     }
 
@@ -394,23 +394,11 @@ void UAnimStateMachine::Load(const FString& InFilePath, ID3D11Device* InDevice)
             // 타입에 따라 노드 추가
             if (AssetType == EAnimAssetType::BlendSpace2D && !BlendSpacePathStr.empty())
             {
-                UE_LOG("[AnimStateMachine] Loading BlendSpace2D: %s", BlendSpacePathStr.c_str());
+                UE_LOG("AnimStateMachine: Load: BlendSpace2D %s", BlendSpacePathStr.c_str());
                 UBlendSpace2D* BlendSpace = UBlendSpace2D::LoadFromFile(BlendSpacePathStr);
                 if (BlendSpace)
                 {
-                    UE_LOG("[AnimStateMachine] BlendSpace2D loaded with %d samples", BlendSpace->GetNumSamples());
-                    for (int32 i = 0; i < BlendSpace->GetNumSamples(); ++i)
-                    {
-                        const FBlendSample& Sample = BlendSpace->Samples[i];
-                        if (Sample.Animation)
-                        {
-                            UE_LOG("[AnimStateMachine]   Sample[%d]: %s (OK)", i, Sample.Animation->GetFilePath().c_str());
-                        }
-                        else
-                        {
-                            UE_LOG("[AnimStateMachine]   Sample[%d]: NULL ANIMATION!", i);
-                        }
-                    }
+                    UE_LOG("AnimStateMachine: Load: BlendSpace2D %d samples", BlendSpace->GetNumSamples());
                 }
                 AddNodeWithBlendSpace(FName(NameStr), BlendSpace, bLoop);
             }
@@ -561,5 +549,5 @@ void UAnimStateMachine::Load(const FString& InFilePath, ID3D11Device* InDevice)
         }
     }
 
-    UE_LOG("[UAnimStateMachine] Loaded successfully: %s", InFilePath.c_str());
+    UE_LOG("AnimStateMachine: Load: %s", InFilePath.c_str());
 }

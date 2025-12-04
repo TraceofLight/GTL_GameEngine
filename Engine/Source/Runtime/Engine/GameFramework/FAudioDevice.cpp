@@ -22,21 +22,21 @@ bool FAudioDevice::Initialize()
 {
     if (pXAudio2)
     {
-        UE_LOG("[Audio] Already initialized");
+        UE_LOG("Audio: Init: Already initialized");
         return true;
     }
 
     HRESULT hr = XAudio2Create(&pXAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
     if (FAILED(hr) || !pXAudio2)
     {
-        UE_LOG("[Audio] XAudio2Create failed: 0x%08x", static_cast<UINT32>(hr));
+        UE_LOG("Audio: Init: XAudio2Create failed 0x%08x", static_cast<UINT32>(hr));
         return false;
     }
 
     hr = pXAudio2->CreateMasteringVoice(&pMasteringVoice);
     if (FAILED(hr) || !pMasteringVoice)
     {
-        UE_LOG("[Audio] CreateMasteringVoice failed: 0x%08x", static_cast<UINT32>(hr));
+        UE_LOG("Audio: Init: CreateMasteringVoice failed 0x%08x", static_cast<UINT32>(hr));
         pXAudio2->Release();
         pXAudio2 = nullptr;
         return false;
@@ -49,20 +49,20 @@ bool FAudioDevice::Initialize()
     if (SUCCEEDED(hr) && Mask != 0)
     {
         dwChannelMask = Mask;
-        UE_LOG("[Audio] Using mastering voice channel mask: 0x%08x", dwChannelMask);
+        UE_LOG("Audio: Init: Channel mask 0x%08x", dwChannelMask);
     }
     else
     {
         // Fallback to stereo if we can't get the mask
         dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-        UE_LOG("[Audio] Using fallback stereo mask: 0x%08x", dwChannelMask);
+        UE_LOG("Audio: Init: Fallback stereo mask 0x%08x", dwChannelMask);
     }
 
     // Initialize X3DAudio BEFORE using it
     hr = X3DAudioInitialize(dwChannelMask, X3DAUDIO_SPEED_OF_SOUND, X3DInstance);
     if (FAILED(hr))
     {
-        UE_LOG("[Audio] X3DAudioInitialize failed: 0x%08x", static_cast<UINT32>(hr));
+        UE_LOG("Audio: Init: X3DAudioInitialize failed 0x%08x", static_cast<UINT32>(hr));
         pMasteringVoice->DestroyVoice();
         pMasteringVoice = nullptr;
         pXAudio2->Release();
@@ -92,7 +92,7 @@ bool FAudioDevice::Initialize()
     // Set cone to nullptr
     Listener.pCone = nullptr;
 
-    UE_LOG("[Audio] XAudio2 initialized successfully. Output channels: %u, ChannelMask: 0x%08x",
+    UE_LOG("Audio: Init: Channels=%u, Mask=0x%08x",
         GetOutputChannelCount(), dwChannelMask);
 
     return true;
@@ -134,7 +134,7 @@ IXAudio2SourceVoice* FAudioDevice::PlaySound3D(USound* SoundToPlay, const FVecto
     HRESULT hr = pXAudio2->CreateSourceVoice(&voice, &fmt);
     if (FAILED(hr) || !voice)
     {
-        UE_LOG("[Audio] CreateSourceVoice failed: 0x%08x", static_cast<UINT32>(hr));
+        UE_LOG("Audio: PlaySound3D: CreateSourceVoice failed 0x%08x", static_cast<UINT32>(hr));
         return nullptr;
     }
 
@@ -173,7 +173,7 @@ IXAudio2SourceVoice* FAudioDevice::PlaySound3D(USound* SoundToPlay, const FVecto
     hr = voice->SubmitSourceBuffer(&buf);
     if (FAILED(hr))
     {
-        UE_LOG("[Audio] SubmitSourceBuffer failed: 0x%08x", static_cast<UINT32>(hr));
+        UE_LOG("Audio: PlaySound3D: SubmitSourceBuffer failed 0x%08x", static_cast<UINT32>(hr));
         voice->DestroyVoice();
         return nullptr;
     }
@@ -184,7 +184,7 @@ IXAudio2SourceVoice* FAudioDevice::PlaySound3D(USound* SoundToPlay, const FVecto
     hr = voice->Start(0);
     if (FAILED(hr))
     {
-        UE_LOG("[Audio] Start voice failed: 0x%08x", static_cast<UINT32>(hr));
+        UE_LOG("Audio: PlaySound3D: Start failed 0x%08x", static_cast<UINT32>(hr));
         voice->DestroyVoice();
         return nullptr;
     }
@@ -207,7 +207,7 @@ void FAudioDevice::SetListenerPosition(const FVector& Position, const FVector& F
     // Check if X3DAudio is initialized
     if (dwChannelMask == 0)
     {
-        UE_LOG("[Audio] X3DAudio not initialized, skipping 3D positioning");
+        UE_LOG("Audio: UpdatePosition: X3DAudio not initialized");
         return;
     }
 
@@ -324,7 +324,7 @@ void FAudioDevice::SetListenerPosition(const FVector& Position, const FVector& F
     }
     catch (...)
     {
-        UE_LOG("[Audio] X3DAudioCalculate exception caught!");
+        UE_LOG("Audio: UpdatePosition: X3DAudioCalculate exception");
         return;
     }
 
@@ -338,7 +338,7 @@ void FAudioDevice::SetListenerPosition(const FVector& Position, const FVector& F
 
     if (FAILED(hr))
     {
-        UE_LOG("[Audio] SetOutputMatrix failed: 0x%08x", static_cast<UINT32>(hr));
+        UE_LOG("Audio: UpdatePosition: SetOutputMatrix failed 0x%08x", static_cast<UINT32>(hr));
         return;
     }
 

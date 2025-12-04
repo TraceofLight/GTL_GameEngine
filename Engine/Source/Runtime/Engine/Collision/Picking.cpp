@@ -271,7 +271,7 @@ AActor* CPickingSystem::PerformPicking(const TArray<AActor*>& Actors, ACameraAct
 	}
 	else
 	{
-		UE_LOG("[Pick] No hit (Speed=FAST)\n");
+		UE_LOG("Pick: Fast: No hit");
 		return nullptr;
 	}
 }
@@ -328,7 +328,7 @@ AActor* CPickingSystem::PerformViewportPicking(const TArray<AActor*>& Actors,
 	}
 	else
 	{
-		UE_LOG("[Viewport Pick] No hit\n");
+		UE_LOG("Pick: Viewport: No hit");
 		return nullptr;
 	}
 }

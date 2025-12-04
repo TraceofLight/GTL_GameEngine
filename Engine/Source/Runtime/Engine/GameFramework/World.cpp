@@ -157,7 +157,7 @@ bool UWorld::LoadLevelFromFile(const FWideString& Path)
 	}
 	else
 	{
-		UE_LOG("[error] MainToolbar: Failed To Load Level From: %s", WideToUTF8(Path).c_str());
+		UE_LOG("World: LoadLevel: Failed %s", WideToUTF8(Path).c_str());
 		return false;
 	}
 
@@ -726,14 +726,14 @@ AActor* UWorld::SpawnActor(UClass* Class, const FTransform& Transform)
 {
 	if (bIsTearingDown)
 	{
-		UE_LOG("[warning] 월드 삭제 시 새로운 액터를 추가할 수 없습니다.");
+		UE_LOG("World: SpawnActor: World is tearing down");
 		return nullptr;
 	}
 
 	// 유효성 검사: Class가 유효하고 AActor를 상속했는지 확인
 	if (!Class || !Class->IsChildOf(AActor::StaticClass()))
 	{
-		UE_LOG("SpawnActor failed: Invalid class provided.");
+		UE_LOG("World: SpawnActor: Invalid class");
 		return nullptr;
 	}
 
@@ -741,7 +741,7 @@ AActor* UWorld::SpawnActor(UClass* Class, const FTransform& Transform)
 	AActor* NewActor = Cast<AActor>(ObjectFactory::NewObject(Class));
 	if (!NewActor)
 	{
-		UE_LOG("SpawnActor failed: ObjectFactory could not create an instance of");
+		UE_LOG("World: SpawnActor: Failed to create instance");
 		return nullptr;
 	}
 
@@ -763,7 +763,7 @@ AActor* UWorld::SpawnPrefabActor(const FWideString& PrefabPath)
 {
 	if (bIsTearingDown)
 	{
-		UE_LOG("[warning] 월드 삭제 시 새로운 액터를 추가할 수 없습니다.");
+		UE_LOG("World: SpawnPrefab: World is tearing down");
 		return nullptr;
 	}
 
@@ -784,7 +784,7 @@ AActor* UWorld::SpawnPrefabActor(const FWideString& PrefabPath)
 			// 유효성 검사: Class가 유효하고 AActor를 상속했는지 확인
 			if (!NewClass || !NewClass->IsChildOf(AActor::StaticClass()))
 			{
-				UE_LOG("[error] SpawnActor failed: Invalid class provided.");
+				UE_LOG("World: SpawnPrefab: Invalid class");
 				return nullptr;
 			}
 
@@ -792,7 +792,7 @@ AActor* UWorld::SpawnPrefabActor(const FWideString& PrefabPath)
 			AActor* NewActor = Cast<AActor>(ObjectFactory::NewObject(NewClass));
 			if (!NewActor)
 			{
-				UE_LOG("[error] SpawnActor failed: ObjectFactory could not create an instance of");
+				UE_LOG("World: SpawnPrefab: Failed to create instance");
 				return nullptr;
 			}
 
@@ -812,7 +812,7 @@ AActor* UWorld::SpawnPrefabActor(const FWideString& PrefabPath)
 	}
 	else
 	{
-		UE_LOG("[error] 존재하지 않는 Prefab 경로입니다. - %s", WideToUTF8(PrefabPath).c_str());
+		UE_LOG("World: SpawnPrefab: File not found %s", WideToUTF8(PrefabPath).c_str());
 	}
 
 	return nullptr;

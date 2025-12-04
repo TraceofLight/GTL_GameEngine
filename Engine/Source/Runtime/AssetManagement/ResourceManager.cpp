@@ -451,12 +451,60 @@ void UResourceManager::CreateBoxWireframeMesh(const FVector& Min, const FVector&
 
 void UResourceManager::CreateDefaultShader()
 {
-    // 템플릿 Load 멤버함수 호출해서 Resources[UShader의 typeIndex][shader 파일 이름]에 UShader 포인터 할당
-    Load<UShader>("Shaders/Primitives/Primitive.hlsl");
-    Load<UShader>("Shaders/UI/Gizmo.hlsl");
-    Load<UShader>("Shaders/UI/TextBillboard.hlsl");
-    Load<UShader>("Shaders/UI/Billboard.hlsl");
-    Load<UShader>("Shaders/Materials/Fireball.hlsl");
+    // 병렬 컴파일할 셰이더 목록
+    TArray<FString> ShaderPaths = {
+        // UI / Primitives
+        "Shaders/Primitives/Primitive.hlsl",
+        "Shaders/UI/Gizmo.hlsl",
+        "Shaders/UI/TextBillboard.hlsl",
+        "Shaders/UI/Billboard.hlsl",
+        "Shaders/UI/ShaderLine.hlsl",
+        "Shaders/Materials/Fireball.hlsl",
+        "Shaders/Sky/Sky.hlsl",
+
+        // Shadow
+        "Shaders/Shadows/DepthOnly_VS.hlsl",
+        "Shaders/Shadows/DepthOnly_PS.hlsl",
+
+        // Utility
+        "Shaders/Utility/FullScreenTriangle_VS.hlsl",
+        "Shaders/Utility/Blit_PS.hlsl",
+        "Shaders/Utility/SceneDepth_PS.hlsl",
+
+        // PostProcess
+        "Shaders/PostProcess/DoF_PS.hlsl",
+        "Shaders/PostProcess/FadeInOut_PS.hlsl",
+        "Shaders/PostProcess/FXAA_PS.hlsl",
+        "Shaders/PostProcess/GammaCorrection_PS.hlsl",
+        "Shaders/PostProcess/HeightFog_PS.hlsl",
+        "Shaders/PostProcess/Vignette_PS.hlsl",
+        "Shaders/PostProcess/TileDebugVisualization_PS.hlsl",
+    };
+
+    // 병렬 컴파일 시작
+    TArray<std::future<UShader*>> Futures;
+    Futures.reserve(ShaderPaths.Num());
+
+    for (const FString& Path : ShaderPaths)
+    {
+        Futures.push_back(std::async(std::launch::async, [this, Path]() {
+            return Load<UShader>(Path);
+        }));
+    }
+
+    // 모든 컴파일 완료 대기
+    int32 CompiledCount = 0;
+    for (auto& Future : Futures)
+    {
+        UShader* Shader = Future.get();
+        if (Shader)
+        {
+            ++CompiledCount;
+        }
+    }
+
+    UE_LOG("ResourceManager: ShaderCompile: %d/%d complete",
+           CompiledCount, static_cast<int32>(ShaderPaths.Num()));
 }
 
 void UResourceManager::CreateDefaultMaterial()
@@ -1144,7 +1192,7 @@ void UResourceManager::CreateDefaultStaticMesh()
 			}
 			else
 			{
-				UE_LOG("[warning] ResourceManager: Failed to load Default StaticMesh");
+				UE_LOG("ResourceManager: CreateDefaultMesh: Failed");
 			}
 		},
 		EAssetLoadPriority::High);

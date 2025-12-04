@@ -5,7 +5,7 @@ sol::object LuaComponentProxy::Index(sol::this_state LuaState, LuaComponentProxy
 {
     if (!Self.Instance)
     {
-        UE_LOG("[LuaProxy] Index: Instance is null for key '%s'\n", Key);
+        UE_LOG("LuaProxy: Index: Instance null for '%s'", Key);
         return sol::nil;
     }
 
@@ -16,8 +16,7 @@ sol::object LuaComponentProxy::Index(sol::this_state LuaState, LuaComponentProxy
 
     if (!BindTable.valid())
     {
-        UE_LOG("[LuaProxy] Index: BindTable invalid for class %p, key '%s'\n",
-            Self.Class, Key);
+        UE_LOG("LuaProxy: Index: BindTable invalid for '%s'", Key);
         return sol::nil;
     }
 
@@ -25,8 +24,7 @@ sol::object LuaComponentProxy::Index(sol::this_state LuaState, LuaComponentProxy
 
     if (!Result.valid())
     {
-        UE_LOG("[LuaProxy] Index: Key '%s' not found in BindTable for class %p\n",
-            Key, Self.Class);
+        UE_LOG("LuaProxy: Index: Key '%s' not found", Key);
         return sol::nil;
     }
 
@@ -38,8 +36,7 @@ sol::object LuaComponentProxy::Index(sol::this_state LuaState, LuaComponentProxy
 
         if (isProperty && *isProperty)
         {
-            UE_LOG("[LuaProxy] Index: Property '%s' found for class %p\n",
-                Key, Self.Class);
+            UE_LOG("LuaProxy: Index: Property '%s' found", Key);
 
             // It's a property - get the getter function and call it
             sol::object getterObj = propDesc["get"];
@@ -51,17 +48,17 @@ sol::object LuaComponentProxy::Index(sol::this_state LuaState, LuaComponentProxy
                 if (!pfr.valid())
                 {
                     sol::error err = pfr;
-                    UE_LOG("[LuaProxy] Index: Property '%s' getter error: %s\n", Key, err.what());
+                    UE_LOG("LuaProxy: Index: Getter error '%s': %s", Key, err.what());
                     return sol::nil;
                 }
 
-                UE_LOG("[LuaProxy] Index: Property '%s' getter succeeded\n", Key);
+                UE_LOG("LuaProxy: Index: Getter succeeded '%s'", Key);
                 // Get the first return value as sol::object
                 return pfr.get<sol::object>();
             }
             else
             {
-                UE_LOG("[LuaProxy] Index: Property '%s' has no getter\n", Key);
+                UE_LOG("LuaProxy: Index: No getter for '%s'", Key);
             }
             return sol::nil;
         }
@@ -99,7 +96,7 @@ void LuaComponentProxy::NewIndex(LuaComponentProxy& Self, const char* Key, sol::
             sol::optional<bool> readOnly = propDesc["read_only"];
             if (readOnly && *readOnly)
             {
-                UE_LOG("[LuaProxy] Attempted to set read-only property: %s\n", Key);
+                UE_LOG("LuaProxy: NewIndex: Read-only property '%s'", Key);
                 return;
             }
 
@@ -111,7 +108,7 @@ void LuaComponentProxy::NewIndex(LuaComponentProxy& Self, const char* Key, sol::
                 if (!result.valid())
                 {
                     sol::error err = result;
-                    UE_LOG("[LuaProxy] Error setting property %s: %s\n", Key, err.what());
+                    UE_LOG("LuaProxy: NewIndex: Setter error '%s': %s", Key, err.what());
                 }
             }
             return;

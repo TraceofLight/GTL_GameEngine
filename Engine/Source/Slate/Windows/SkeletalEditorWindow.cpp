@@ -656,11 +656,11 @@ void SSkeletalEditorWindow::LoadSkeletalMesh(const FString& Path)
 		// 바닥판과 카메라 위치 설정 (AABB 기반)
 		SetupFloorAndCamera(ActiveState);
 
-		UE_LOG("[SkeletalEditor] Loaded: %s", Path.c_str());
+		UE_LOG("SkeletalEditor: Load: %s", Path.c_str());
 	}
 	else
 	{
-		UE_LOG("[SkeletalEditor] Failed to load: %s", Path.c_str());
+		UE_LOG("SkeletalEditor: Load: Failed %s", Path.c_str());
 	}
 }
 

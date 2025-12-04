@@ -63,7 +63,7 @@ void ULuaScriptComponent::BeginPlay()
 	}
 
 	if (!LuaVM->LoadScriptInto(Env, ScriptFilePath)) {
-		UE_LOG("[Lua][error] failed to run: %s\n", ScriptFilePath.c_str());
+		UE_LOG("Lua: Run: Failed %s", ScriptFilePath.c_str());
 #ifdef _EDITOR
 		GEngine.EndPIE();
 #endif
@@ -83,7 +83,7 @@ void ULuaScriptComponent::BeginPlay()
 		auto Result = FuncBeginPlay();
 		if (!Result.valid())
 		{
-			sol::error Err = Result; UE_LOG("[Lua][error] %s\n", Err.what());
+			sol::error Err = Result; UE_LOG("Lua: Error: %s", Err.what());
 #ifdef _EDITOR
 			GEngine.EndPIE();
 #endif
@@ -111,7 +111,7 @@ void ULuaScriptComponent::OnBeginOverlap(UPrimitiveComponent* MyComp, UPrimitive
 			auto Result = FuncOnBeginOverlap(OtherGameObject);
 			if (!Result.valid())
 			{
-				sol::error Err = Result; UE_LOG("[Lua][error] %s\n", Err.what());
+				sol::error Err = Result; UE_LOG("Lua: Error: %s", Err.what());
 #ifdef _EDITOR
 				GEngine.EndPIE();
 #endif
@@ -139,7 +139,7 @@ void ULuaScriptComponent::OnEndOverlap(UPrimitiveComponent* MyComp, UPrimitiveCo
 			auto Result = FuncOnEndOverlap(OtherGameObject);
 			if (!Result.valid())
 			{
-				sol::error Err = Result; UE_LOG("[Lua][error] %s\n", Err.what());
+				sol::error Err = Result; UE_LOG("Lua: Error: %s", Err.what());
 #ifdef _EDITOR
 				GEngine.EndPIE();
 #endif
@@ -166,7 +166,7 @@ void ULuaScriptComponent::OnHit(UPrimitiveComponent* MyComp, UPrimitiveComponent
 			auto Result = FuncOnHit(OtherGameObject);
 			if (!Result.valid())
 			{
-				sol::error Err = Result; UE_LOG("[Lua][error] %s\n", Err.what());
+				sol::error Err = Result; UE_LOG("Lua: Error: %s", Err.what());
 #ifdef _EDITOR
 				GEngine.EndPIE();
 #endif
@@ -179,7 +179,7 @@ void ULuaScriptComponent::TickComponent(float DeltaTime)
 {
 	if (FuncTick.valid()) {
 		auto Result = FuncTick(DeltaTime);
-		if (!Result.valid()) { sol::error Err = Result; UE_LOG("[Lua][error] %s\n", Err.what()); }
+		if (!Result.valid()) { sol::error Err = Result; UE_LOG("Lua: Error: %s", Err.what()); }
 	}
 }
 
@@ -190,7 +190,7 @@ void ULuaScriptComponent::EndPlay()
 		auto Result = FuncEndPlay();
 		if (!Result.valid())
 		{
-			sol::error Err = Result; UE_LOG("[Lua][error] %s\n", Err.what());
+			sol::error Err = Result; UE_LOG("Lua: Error: %s", Err.what());
 #ifdef _EDITOR
 			GEngine.EndPIE();
 #endif

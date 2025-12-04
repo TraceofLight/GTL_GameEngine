@@ -25,7 +25,7 @@ bool USound::LoadWavFromFile(const FWideString& FilePath)
     std::ifstream fs(std::filesystem::path(FilePath), std::ios::binary);
     if (!fs.is_open())
     {
-        UE_LOG("[Audio] Failed to open WAV: %s", WideToUTF8(FilePath).c_str());
+        UE_LOG("Sound: LoadWAV: Failed to open %s", WideToUTF8(FilePath).c_str());
         return false;
     }
 
@@ -33,7 +33,7 @@ bool USound::LoadWavFromFile(const FWideString& FilePath)
     if (!ReadExact(fs, &hdr, sizeof(hdr))) return false;
     if (memcmp(hdr.id, "RIFF", 4) != 0 || memcmp(hdr.wave, "WAVE", 4) != 0)
     {
-        UE_LOG("[Audio] Not a RIFF/WAVE file: %s", WideToUTF8(FilePath).c_str());
+        UE_LOG("Sound: LoadWAV: Not RIFF/WAVE %s", WideToUTF8(FilePath).c_str());
         return false;
     }
 
@@ -66,7 +66,7 @@ bool USound::LoadWavFromFile(const FWideString& FilePath)
 
             if (WaveFormat.wFormatTag != WAVE_FORMAT_PCM)
             {
-                UE_LOG("[Audio] Only PCM WAV supported. Tag=%u", (uint32)WaveFormat.wFormatTag);
+                UE_LOG("Sound: LoadWAV: Only PCM supported, Tag=%u", (uint32)WaveFormat.wFormatTag);
                 return false;
             }
             haveFmt = true;
@@ -91,7 +91,7 @@ bool USound::LoadWavFromFile(const FWideString& FilePath)
 
     if (!haveFmt || !haveData)
     {
-        UE_LOG("[Audio] WAV missing fmt or data chunk: %s", WideToUTF8(FilePath).c_str());
+        UE_LOG("Sound: LoadWAV: Missing fmt/data chunk %s", WideToUTF8(FilePath).c_str());
         return false;
     }
 

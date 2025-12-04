@@ -38,24 +38,6 @@ SViewportToolbarWidget::~SViewportToolbarWidget()
 	IconViewMode_Wireframe = nullptr;
 	IconViewMode_BufferVis = nullptr;
 	IconShowFlag = nullptr;
-	IconRevert = nullptr;
-	IconStats = nullptr;
-	IconHide = nullptr;
-	IconBVH = nullptr;
-	IconGrid = nullptr;
-	IconDecal = nullptr;
-	IconStaticMesh = nullptr;
-	IconSkeletalMesh = nullptr;
-	IconBillboard = nullptr;
-	IconEditorIcon = nullptr;
-	IconFog = nullptr;
-	IconCollision = nullptr;
-	IconAntiAliasing = nullptr;
-	IconTile = nullptr;
-	IconShadow = nullptr;
-	IconShadowAA = nullptr;
-	IconSkinning = nullptr;
-	IconParticle = nullptr;
 	IconSingleToMultiViewport = nullptr;
 	IconMultiToSingleViewport = nullptr;
 }
@@ -87,10 +69,10 @@ void SViewportToolbarWidget::LoadIcons(ID3D11Device* InDevice)
 	IconScale->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_Scale.png", InDevice);
 
 	IconWorldSpace = NewObject<UTexture>();
-	IconWorldSpace->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_WorldSpace.png", InDevice);
+	IconWorldSpace->Load(GDataDir + "/Default/Icon/WorldSpace.dds", InDevice, false);
 
 	IconLocalSpace = NewObject<UTexture>();
-	IconLocalSpace->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_LocalSpace.png", InDevice);
+	IconLocalSpace->Load(GDataDir + "/Default/Icon/LocalSpace.dds", InDevice, false);
 
 	// 카메라/뷰포트 모드 아이콘
 	IconCamera = NewObject<UTexture>();
@@ -138,7 +120,7 @@ void SViewportToolbarWidget::LoadIcons(ID3D11Device* InDevice)
 	IconViewMode_Unlit->Load(GDataDir + "/Default/Icon/Viewport_ViewMode_Unlit.png", InDevice);
 
 	IconViewMode_Wireframe = NewObject<UTexture>();
-	IconViewMode_Wireframe->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_WorldSpace.png", InDevice);
+	IconViewMode_Wireframe->Load(GDataDir + "/Default/Icon/Viewport_ViewMode_BufferVis.png", InDevice);  // Wireframe 전용 아이콘 없음, BufferVis 사용
 
 	IconViewMode_BufferVis = NewObject<UTexture>();
 	IconViewMode_BufferVis->Load(GDataDir + "/Default/Icon/Viewport_ViewMode_BufferVis.png", InDevice);
@@ -146,60 +128,6 @@ void SViewportToolbarWidget::LoadIcons(ID3D11Device* InDevice)
 	// ShowFlag 아이콘
 	IconShowFlag = NewObject<UTexture>();
 	IconShowFlag->Load(GDataDir + "/Default/Icon/Viewport_ShowFlag.png", InDevice);
-
-	IconRevert = NewObject<UTexture>();
-	IconRevert->Load(GDataDir + "/Default/Icon/Viewport_Revert.png", InDevice);
-
-	IconStats = NewObject<UTexture>();
-	IconStats->Load(GDataDir + "/Default/Icon/Viewport_Stats.png", InDevice);
-
-	IconHide = NewObject<UTexture>();
-	IconHide->Load(GDataDir + "/Default/Icon/Viewport_Hide.png", InDevice);
-
-	IconBVH = NewObject<UTexture>();
-	IconBVH->Load(GDataDir + "/Default/Icon/ShowFlag_BVH.png", InDevice);
-
-	IconGrid = NewObject<UTexture>();
-	IconGrid->Load(GDataDir + "/Default/Icon/ShowFlag_Grid.png", InDevice);
-
-	IconDecal = NewObject<UTexture>();
-	IconDecal->Load(GDataDir + "/Default/Icon/ShowFlag_Decal.png", InDevice);
-
-	IconStaticMesh = NewObject<UTexture>();
-	IconStaticMesh->Load(GDataDir + "/Default/Icon/ShowFlag_StaticMesh.png", InDevice);
-
-	IconSkeletalMesh = NewObject<UTexture>();
-	IconSkeletalMesh->Load(GDataDir + "/Default/Icon/ShowFlag_SkeletalMesh.png", InDevice);
-
-	IconBillboard = NewObject<UTexture>();
-	IconBillboard->Load(GDataDir + "/Default/Icon/ShowFlag_Billboard.png", InDevice);
-
-	IconEditorIcon = NewObject<UTexture>();
-	IconEditorIcon->Load(GDataDir + "/Default/Icon/ShowFlag_EditorIcon.png", InDevice);
-
-	IconFog = NewObject<UTexture>();
-	IconFog->Load(GDataDir + "/Default/Icon/ShowFlag_Fog.png", InDevice);
-
-	IconCollision = NewObject<UTexture>();
-	IconCollision->Load(GDataDir + "/Default/Icon/ShowFlag_Collision.png", InDevice);
-
-	IconAntiAliasing = NewObject<UTexture>();
-	IconAntiAliasing->Load(GDataDir + "/Default/Icon/ShowFlag_AntiAliasing.png", InDevice);
-
-	IconTile = NewObject<UTexture>();
-	IconTile->Load(GDataDir + "/Default/Icon/ShowFlag_Tile.png", InDevice);
-
-	IconShadow = NewObject<UTexture>();
-	IconShadow->Load(GDataDir + "/Default/Icon/ShowFlag_Shadow.png", InDevice);
-
-	IconShadowAA = NewObject<UTexture>();
-	IconShadowAA->Load(GDataDir + "/Default/Icon/ShowFlag_ShadowAA.png", InDevice);
-
-	IconSkinning = NewObject<UTexture>();
-	IconSkinning->Load(GDataDir + "/Default/Icon/ShowFlag_Skinning.png", InDevice);
-
-	IconParticle = NewObject<UTexture>();
-	IconParticle->Load(GDataDir + "/Default/Icon/ShowFlag_Particle.png", InDevice);
 
 	// 뷰포트 레이아웃 아이콘
 	IconSingleToMultiViewport = NewObject<UTexture>();
@@ -415,7 +343,7 @@ void SViewportToolbarWidget::RenderGizmoSpaceButton(AGizmoActor* GizmoActor)
 	EGizmoSpace CurrentGizmoSpace = GizmoActor ? GizmoActor->GetSpace() : EGizmoSpace::World;
 	bool bIsWorldSpace = (CurrentGizmoSpace == EGizmoSpace::World);
 	UTexture* CurrentIcon = bIsWorldSpace ? IconWorldSpace : IconLocalSpace;
-	const char* TooltipText = bIsWorldSpace ? "World Space [Tab]" : "Local Space [Tab]";
+	const char* TooltipText = bIsWorldSpace ? "World Space [Ctrl+`]" : "Local Space [Ctrl+`]";
 
 	if (CurrentIcon && CurrentIcon->GetShaderResourceView())
 	{

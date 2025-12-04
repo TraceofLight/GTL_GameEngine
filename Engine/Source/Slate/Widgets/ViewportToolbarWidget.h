@@ -90,24 +90,6 @@ private:
 
 	// ShowFlag 아이콘
 	UTexture* IconShowFlag = nullptr;
-	UTexture* IconRevert = nullptr;
-	UTexture* IconStats = nullptr;
-	UTexture* IconHide = nullptr;
-	UTexture* IconBVH = nullptr;
-	UTexture* IconGrid = nullptr;
-	UTexture* IconDecal = nullptr;
-	UTexture* IconStaticMesh = nullptr;
-	UTexture* IconSkeletalMesh = nullptr;
-	UTexture* IconBillboard = nullptr;
-	UTexture* IconEditorIcon = nullptr;
-	UTexture* IconFog = nullptr;
-	UTexture* IconCollision = nullptr;
-	UTexture* IconAntiAliasing = nullptr;
-	UTexture* IconTile = nullptr;
-	UTexture* IconShadow = nullptr;
-	UTexture* IconShadowAA = nullptr;
-	UTexture* IconSkinning = nullptr;
-	UTexture* IconParticle = nullptr;
 
 	// 뷰포트 레이아웃 아이콘
 	UTexture* IconSingleToMultiViewport = nullptr;

@@ -72,7 +72,7 @@ void UAnimInstance::UpdateAnimation(float DeltaSeconds)
 	static int32 LogCounter = 0;
 	if (LogCounter++ % 60 == 0) // Log every 60 frames
 	{
-		UE_LOG("[AnimInstance] UpdateAnimation: DeltaTime=%.3f, CurrentTime=%.2f, PlayRate=%.2f",
+		UE_LOG("Anim: Update: DeltaTime=%.3f, Time=%.2f, Rate=%.2f",
 			DeltaSeconds, CurrentTime, PlayRate);
 	}
 

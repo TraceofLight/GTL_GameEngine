@@ -22,7 +22,7 @@ bool UBodySetup::EnsureCooked()
     // PhysX not ready yet?
     if (!PHYSICS.GetPhysics() || !PHYSICS.GetCooking())
     {
-        UE_LOG("[BodySetup] EnsureCooked: PhysX not initialized yet, deferring");
+        UE_LOG("BodySetup: EnsureCooked: PhysX not initialized");
         return false;
     }
 
@@ -43,7 +43,7 @@ bool UBodySetup::EnsureCooked()
         bSuccess = PhysicsCooking::CookConvex(CookSourceVertices, ConvexMesh, true);
         if (bSuccess)
         {
-            UE_LOG("[BodySetup] Cooked convex mesh: %u verts -> convex", CookSourceVertices.Num());
+            UE_LOG("BodySetup: Cooked convex: %u verts", CookSourceVertices.Num());
         }
     }
     else if (CollisionTraceFlag == ECollisionTraceFlag::UseSimpleAndComplex)
@@ -52,7 +52,7 @@ bool UBodySetup::EnsureCooked()
         bSuccess = PhysicsCooking::CookTriangleMesh(CookSourceVertices, CookSourceIndices, TriMesh);
         if (bSuccess)
         {
-            UE_LOG("[BodySetup] Cooked triangle mesh: %u verts, %u tris",
+            UE_LOG("BodySetup: Cooked trimesh: %u verts, %u tris",
                    CookSourceVertices.Num(), CookSourceIndices.Num() / 3);
         }
     }

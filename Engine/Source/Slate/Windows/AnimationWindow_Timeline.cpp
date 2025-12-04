@@ -609,16 +609,16 @@ void SAnimationWindow::TimelineRecord(FAnimationTabState* State)
                     }
                 }
 
-                UE_LOG("[PreviewWindow] Recording saved: %s (%d frames)", SavePath.c_str(), NumFrames);
+                UE_LOG("Animation: Recording: Saved %s (%d frames)", SavePath.c_str(), NumFrames);
             }
             else
             {
-                UE_LOG("[PreviewWindow] Recording save failed");
+                UE_LOG("Animation: Recording: Save failed");
             }
         }
         else
         {
-            UE_LOG("[PreviewWindow] Recording stopped: No frames or filename empty");
+            UE_LOG("Animation: Recording: Stopped (no frames or filename empty)");
         }
     }
     else

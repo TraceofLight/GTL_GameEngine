@@ -1310,7 +1310,7 @@ void SAnimationWindow::SaveCurrentAnimation()
 	}
 	else
 	{
-		UE_LOG("[Error] Failed to save Animation: %s", ActiveState->FilePath.c_str());
+		UE_LOG("Animation: Save: Failed %s", ActiveState->FilePath.c_str());
 	}
 }
 

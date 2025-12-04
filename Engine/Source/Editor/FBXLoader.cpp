@@ -292,7 +292,7 @@ FSkeletalMeshData* UFbxLoader::LoadFbxMeshAsset(const FString& FilePath)
     if (!Importer->Initialize(FbxPathAcp.c_str(), -1, SdkManager->GetIOSettings()))
     {
         UE_LOG("Call to FbxImporter::Initialize() Failed\n");
-        UE_LOG("[FbxImporter::Initialize()] Error Reports: %s\n\n", Importer->GetStatus().GetErrorString());
+        UE_LOG("FBX: Initialize: %s", Importer->GetStatus().GetErrorString());
         return nullptr;
     }
 

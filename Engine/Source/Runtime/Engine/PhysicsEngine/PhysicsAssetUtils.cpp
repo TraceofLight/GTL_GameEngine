@@ -204,7 +204,7 @@ static void CalcBoneVertInfos(const USkeletalMesh* SkeletalMesh, TArray<FBoneVer
         }
     }
 
-    UE_LOG("[PhysicsAssetUtils] CalcBoneVertInfos: Processed %d vertices for %d bones", Vertices.Num(), NumBones);
+    UE_LOG("PhysicsAssetUtils: CalcBoneVertInfos: %d vertices for %d bones", Vertices.Num(), NumBones);
 }
 
 FMatrix ComputeCovarianceMatrix(const FBoneVertInfo& VertInfo)
@@ -278,7 +278,7 @@ bool FPhysicsAssetUtils::CreateCollisionFromBoneInternal(UBodySetup* BodySetup, 
 
     if (Info.Positions.Num() == 0)
     {
-        UE_LOG("[PhysicsAssetUtils] CreateCollisionFromBoneInternal: No vertex data for bone '%s'", BoneName.c_str());
+        UE_LOG("PhysicsAssetUtils: CreateCollision: No vertex data for '%s'", BoneName.c_str());
         return false;
     }
 
@@ -343,7 +343,7 @@ bool FPhysicsAssetUtils::CreateCollisionFromBoneInternal(UBodySetup* BodySetup, 
     float MaxExtent = FMath::Max(FMath::Max(BoxExtent.X, BoxExtent.Y), BoxExtent.Z);
     if (MaxExtent < MinPrimSize)
     {
-        UE_LOG("[PhysicsAssetUtils] CreateCollisionFromBoneInternal: Bone '%s' too small", BoneName.c_str());
+        UE_LOG("PhysicsAssetUtils: CreateCollision: Bone '%s' too small", BoneName.c_str());
         return false;
     }
 
@@ -433,10 +433,8 @@ bool FPhysicsAssetUtils::CreateCollisionFromBoneInternal(UBodySetup* BodySetup, 
 
     BodySetup->AggGeom.SphylElems.Add(Capsule);
 
-    UE_LOG("[PhysicsAssetUtils] Bone '%s': Capsule R=%.3f, L=%.3f, Center=(%.2f,%.2f,%.2f), Rot=(%.1f,%.1f,%.1f)",
-           BoneName.c_str(), Capsule.Radius, Capsule.Length,
-           Capsule.Center.X, Capsule.Center.Y, Capsule.Center.Z,
-           Capsule.Rotation.X, Capsule.Rotation.Y, Capsule.Rotation.Z);
+    UE_LOG("PhysicsAssetUtils: CreateCapsule: '%s' R=%.3f L=%.3f",
+           BoneName.c_str(), Capsule.Radius, Capsule.Length);
 
     return true;
 }
@@ -445,13 +443,13 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMesh(UPhysicsAsset* PhysicsAsset, con
 {
     if (!PhysicsAsset)
     {
-        UE_LOG("[PhysicsAssetUtils] CreateFromSkeletalMesh: PhysicsAsset is null");
+        UE_LOG("PhysicsAssetUtils: CreateFromSkeletalMesh: PhysicsAsset is null");
         return false;
     }
 
     if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
     {
-        UE_LOG("[PhysicsAssetUtils] CreateFromSkeletalMesh: Invalid skeletal mesh or skeleton");
+        UE_LOG("PhysicsAssetUtils: CreateFromSkeletalMesh: Invalid mesh or skeleton");
         return false;
     }
 
@@ -543,7 +541,7 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMeshInternal(UPhysicsAsset* PhysicsAs
                     BoneToMergedData.Remove(BoneIdx);
                 }
 
-                UE_LOG("[PhysicsAssetUtils] Merging bone '%s' (size=%.3f) into parent '%s'",
+                UE_LOG("PhysicsAssetUtils: MergeBone: '%s' (%.3f) -> '%s'",
                        Bones[BoneIdx].Name.c_str(), MyMergedSize, Bones[ParentIndex].Name.c_str());
             }
         }
@@ -702,20 +700,19 @@ bool FPhysicsAssetUtils::CreateFromSkeletalMeshInternal(UPhysicsAsset* PhysicsAs
 
             NewSetup->AggGeom.SphylElems.Add(Capsule);
 
-            UE_LOG("[PhysicsAssetUtils] Bone '%s' (fallback): Capsule R=%.3f, L=%.3f, Center=(%.2f,%.2f,%.2f)",
-                   Bone.Name.c_str(), Capsule.Radius, Capsule.Length,
-                   LocalCenter.X, LocalCenter.Y, LocalCenter.Z);
+            UE_LOG("PhysicsAsset: Build: Bone '%s' Capsule R=%.3f L=%.3f",
+                   Bone.Name.c_str(), Capsule.Radius, Capsule.Length);
         }
         else if (MergedData && !MergedData->MergedBoneIndices.IsEmpty())
         {
-            UE_LOG("[PhysicsAssetUtils] Bone '%s' (merged %d bones): collision created from vertex data",
+            UE_LOG("PhysicsAsset: Build: Bone '%s' merged %d bones",
                    Bone.Name.c_str(), MergedData->MergedBoneIndices.Num());
         }
 
         PhysicsAsset->AddBodySetup(NewSetup);
     }
 
-    UE_LOG("[PhysicsAssetUtils] Built %d body setups from skeleton with %d bones",
+    UE_LOG("PhysicsAsset: Build: %d bodies from %d bones",
            PhysicsAsset->BodySetups.Num(), NumBones);
 
     return PhysicsAsset->BodySetups.Num() > 0;
@@ -731,7 +728,7 @@ UBodySetup* FPhysicsAssetUtils::CreateBodySetupForBone(UPhysicsAsset* PhysicsAss
     // Check if body already exists for this bone
     if (PhysicsAsset->FindBodySetupByBoneName(BoneName))
     {
-        UE_LOG("[PhysicsAssetUtils] Body already exists for bone '%s'", BoneName.ToString().c_str());
+        UE_LOG("PhysicsAsset: CreateBody: Already exists '%s'", BoneName.ToString().c_str());
         return nullptr;
     }
 
@@ -749,13 +746,13 @@ bool FPhysicsAssetUtils::CreateConstraintsForRagdoll(UPhysicsAsset* PhysicsAsset
 {
 	if (!PhysicsAsset)
 	{
-		UE_LOG("[PhysicsAssetUtils] CreateConstraintsForRagdoll: PhysicsAsset is null");
+		UE_LOG("PhysicsAsset: CreateConstraints: PhysicsAsset is null");
 		return false;
 	}
 
 	if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
 	{
-		UE_LOG("[PhysicsAssetUtils] CreateConstraintsForRagdoll: Invalid skeletal mesh or skeleton");
+		UE_LOG("PhysicsAsset: CreateConstraints: Invalid skeletal mesh");
 		return false;
 	}
 

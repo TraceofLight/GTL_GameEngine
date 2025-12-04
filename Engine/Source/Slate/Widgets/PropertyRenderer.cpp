@@ -1348,7 +1348,7 @@ bool UPropertyRenderer::RenderScriptFileProperty(const FProperty& Property, void
 			// 3. 템플릿 파일 존재 여부 확인
 			if (!fs::exists(UTF8ToWide(TemplatePath)))
 			{
-				UE_LOG("[error] 템플릿 파일(template.lua)을 찾을 수 없습니다.");
+				UE_LOG("PropertyRenderer: CreateLuaScript: Template file not found");
 			}
 			// 4. 생성할 파일이 이미 존재하는지 중복 체크
 			else if (fs::exists(UTF8ToWide(RelativePath)))

@@ -627,7 +627,7 @@ void SBlendSpace2DWindow::SaveCurrentBlendSpace()
 	}
 	else
 	{
-		UE_LOG("[Error] Failed to save BlendSpace: %s", ActiveState->FilePath.c_str());
+		UE_LOG("BlendSpace: Save: Failed %s", ActiveState->FilePath.c_str());
 	}
 }
 
@@ -2528,7 +2528,7 @@ void SBlendSpace2DWindow::HandleKeyboardInput(FBlendSpace2DTabState* State)
 			}
 
 			State->BlendSpace->SaveToFile(State->FilePath);
-			UE_LOG("[BlendSpace2D] Saved to: %s", State->FilePath.c_str());
+			UE_LOG("BlendSpace: Save: %s", State->FilePath.c_str());
 		}
 	}
 

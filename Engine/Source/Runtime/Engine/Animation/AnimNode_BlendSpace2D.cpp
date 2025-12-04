@@ -104,7 +104,7 @@ void FAnimNode_BlendSpace2D::SetBlendParameter(FVector2D InParameter)
 	static int32 SetParamCounter = 0;
 	if (SetParamCounter++ % 30 == 0)
 	{
-		UE_LOG("[BlendSpace2D] SetBlendParameter: (%.2f, %.2f)",
+		UE_LOG("BlendSpace2D: SetBlendParameter: (%.2f, %.2f)",
 			InParameter.X, InParameter.Y);
 	}
 }
@@ -194,7 +194,7 @@ void FAnimNode_BlendSpace2D::Update(float DeltaSeconds)
 	static int32 ParamLogCounter = 0;
 	if (ParamLogCounter++ % 30 == 0)
 	{
-		UE_LOG("[BlendSpace2D] Update: BlendParameter=(%.2f, %.2f)",
+		UE_LOG("BlendSpace2D: Update: BlendParameter=(%.2f, %.2f)",
 			BlendParameter.X, BlendParameter.Y);
 	}
 
@@ -449,7 +449,7 @@ void FAnimNode_BlendSpace2D::Update(float DeltaSeconds)
 	static int32 TimeLogCounter = 0;
 	if (TimeLogCounter++ % 60 == 0)
 	{
-		UE_LOG("[BlendSpace2D] Update: NormalizedTime=%.3f, DeltaSeconds=%.4f, Leader=%d (Weight=%.3f)",
+		UE_LOG("BlendSpace2D: Update: NormalizedTime=%.3f, DeltaSeconds=%.4f, Leader=%d (Weight=%.3f)",
 			NormalizedTime, DeltaSeconds, ReferenceSampleIndex, MaxWeight);
 		for (int32 i = 0; i < SampleIndices.Num() && i < 3; ++i)
 		{
@@ -589,7 +589,7 @@ void FAnimNode_BlendSpace2D::CalculateBlendParameterFromMovement()
 	static int32 LogCounter = 0;
 	if (LogCounter++ % 60 == 0)
 	{
-		UE_LOG("[BlendSpace2D] Speed=%.1f, Angle=%.1f", Speed, Angle);
+		UE_LOG("BlendSpace2D: Speed=%.1f, Angle=%.1f", Speed, Angle);
 	}
 }
 
@@ -646,7 +646,7 @@ void FAnimNode_BlendSpace2D::SyncFollowersWithMarkers(int32 LeaderIndex, float L
 				// Follower의 시간을 해당 Marker로 설정
 				SampleAnimTimes[i] = FollowerMarker->Time;
 
-				UE_LOG("[BlendSpace2D] Synced Sample[%d] to Marker '%s' at Time=%.3f",
+				UE_LOG("BlendSpace2D: Synced Sample[%d] to Marker '%s' at Time=%.3f",
 					i, RecentMarker.MarkerName.c_str(), FollowerMarker->Time);
 			}
 			else

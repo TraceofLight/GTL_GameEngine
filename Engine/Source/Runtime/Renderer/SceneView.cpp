@@ -9,7 +9,7 @@ FSceneView::FSceneView(FMinimalViewInfo* InMinimalViewInfo, URenderSettings* InR
 {
 	if (!InMinimalViewInfo || !RenderSettings)
 	{
-		UE_LOG("[error] [FSceneView::FSceneView()]: InMinimalViewInfo 또는 RenderSettings가 없습니다.");
+		UE_LOG("SceneView: Ctor: InMinimalViewInfo or RenderSettings is null");
 		return;
 	}
 
@@ -49,7 +49,7 @@ FSceneView::FSceneView(UCameraComponent* InCamera, FViewport* InViewport, URende
 {
 	if (!InCamera || !InViewport || !RenderSettings)
 	{
-		UE_LOG("[FSceneView::FSceneView()]: CameraActor 또는 Viewport 또는 RenderSettings가 없습니다.");
+		UE_LOG("SceneView: Ctor: CameraActor or Viewport or RenderSettings is null");
 		return;
 	}
 

@@ -63,7 +63,7 @@ void FAnimNode_StateMachine::Update(float DeltaSeconds)
 			static int32 LogCounter = 0;
 			if (LogCounter++ % 30 == 0)
 			{
-				UE_LOG("[StateMachine] BlendSpace2D Parameters: %s=%.2f, %s=%.2f",
+				UE_LOG("StateMachine: BlendSpace2D Parameters: %s=%.2f, %s=%.2f",
 					BS->XAxisName.c_str(), X, BS->YAxisName.c_str(), Y);
 			}
 
@@ -74,7 +74,7 @@ void FAnimNode_StateMachine::Update(float DeltaSeconds)
 			static int32 WarnCounter = 0;
 			if (WarnCounter++ % 60 == 0)
 			{
-				UE_LOG("[StateMachine] Warning: OwnerAnimInstance is nullptr!");
+				UE_LOG("StateMachine: Warning: OwnerAnimInstance is nullptr!");
 			}
 		}
 
@@ -549,11 +549,11 @@ void FAnimNode_StateMachine::TriggerStateEntryNotifies(const FAnimStateNode* Nod
 		return;
 	}
 
-	UE_LOG("[StateMachine] TriggerStateEntryNotifies: State=%s, Count=%d", Node->StateName.ToString().c_str(), Node->StateEntryNotifies.Num());
+	UE_LOG("StateMachine: TriggerStateEntryNotifies: State=%s, Count=%d", Node->StateName.ToString().c_str(), Node->StateEntryNotifies.Num());
 
 	for (const FAnimNotifyEvent& Notify : Node->StateEntryNotifies)
 	{
-		UE_LOG("[StateMachine]   - Triggering Entry Notify: %s", Notify.NotifyName.ToString().c_str());
+		UE_LOG("StateMachine:   - Triggering Entry Notify: %s", Notify.NotifyName.ToString().c_str());
 		OwnerAnimInstance->TriggerNotify(Notify, MeshComp);
 	}
 }

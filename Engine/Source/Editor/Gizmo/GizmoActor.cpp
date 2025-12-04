@@ -1051,8 +1051,8 @@ void AGizmoActor::ProcessGizmoModeSwitch()
 		return;
 	}
 
-	// Q 키: Select 모드
-	if (InputManager->IsKeyPressed('Q'))
+	// Q 키 또는 ESC 키: Select 모드
+	if (InputManager->IsKeyPressed('Q') || InputManager->IsKeyPressed(VK_ESCAPE))
 	{
 		SetMode(EGizmoMode::Select);
 	}
@@ -1079,8 +1079,8 @@ void AGizmoActor::ProcessGizmoModeSwitch()
 		EGizmoMode NewGizmoMode = static_cast<EGizmoMode>(GizmoModeIndex);
 		NextMode(NewGizmoMode);
 	}
-	// Tab 키로 월드-로컬 모드 전환
-	if (InputManager->IsKeyPressed(VK_TAB))
+	// Ctrl + ` 키로 월드-로컬 모드 전환
+	if (InputManager->IsKeyDown(VK_CONTROL) && InputManager->IsKeyPressed(VK_OEM_3))
 	{
 		if (GetSpace() == EGizmoSpace::World)
 		{

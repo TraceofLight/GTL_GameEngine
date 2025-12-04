@@ -36,7 +36,7 @@ void AGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	UE_LOG("[GameMode] BeginPlay");
+	UE_LOG("GameMode: BeginPlay");
 
 	// 카메라 블렌드 프리셋 라이브러리 초기화
 	//UCameraBlendPresetLibrary* PresetLibrary = UCameraBlendPresetLibrary::GetInstance();
@@ -75,7 +75,7 @@ void AGameModeBase::BeginPlay()
 			if (NewGameState)
 			{
 				GameState = NewGameState;
-				UE_LOG("[GameMode] GameState 자동 생성됨");
+				UE_LOG("GameMode: BeginPlay: GameState created");
 			}
 		}
 	}
@@ -246,14 +246,14 @@ void AGameModeBase::DuplicateSubObjects()
 
 void AGameModeBase::InitPlayer()
 {
-	UE_LOG("[GameMode] Initializing Player...");
+	UE_LOG("GameMode: InitPlayer");
 
 	// 1. PlayerController 생성
 	PlayerController = SpawnPlayerController();
 
 	if (!PlayerController)
 	{
-		UE_LOG("[GameMode] ERROR: Failed to spawn PlayerController!");
+		UE_LOG("GameMode: InitPlayer: Failed to spawn PlayerController");
 		return;
 	}
 
@@ -262,16 +262,13 @@ void AGameModeBase::InitPlayer()
 
 	if (ExistingVehicle)
 	{
-		UE_LOG("[GameMode] Found existing Vehicle in level, possessing it...");
+		UE_LOG("GameMode: InitPlayer: Found existing Vehicle, possessing");
 		PlayerController->Possess(ExistingVehicle);
-		UE_LOG("[GameMode] Player initialized with existing Vehicle!");
-		UE_LOG("  PlayerController: %s", PlayerController->GetName().c_str());
-		UE_LOG("  Vehicle: %s", ExistingVehicle->GetName().c_str());
 		return;
 	}
 
 	// 3. Vehicle을 찾지 못했으면 기본 Pawn 스폰
-	UE_LOG("[GameMode] No Vehicle found, spawning default Pawn...");
+	UE_LOG("GameMode: InitPlayer: Spawning default Pawn");
 
 	FTransform SpawnTransform;
 	SpawnTransform.Translation = PlayerSpawnLocation;
@@ -280,15 +277,9 @@ void AGameModeBase::InitPlayer()
 
 	APawn* SpawnedPawn = SpawnDefaultPawnFor(PlayerController, SpawnTransform);
 
-	if (SpawnedPawn)
+	if (!SpawnedPawn)
 	{
-		UE_LOG("[GameMode] Player initialized successfully!");
-		UE_LOG("  PlayerController: %s", PlayerController->GetName().c_str());
-		UE_LOG("  Pawn: %s", SpawnedPawn->GetName().c_str());
-	}
-	else
-	{
-		UE_LOG("[GameMode] ERROR: Failed to spawn Pawn!");
+		UE_LOG("GameMode: InitPlayer: Failed to spawn Pawn");
 	}
 }
 
@@ -305,7 +296,7 @@ APlayerController* AGameModeBase::SpawnPlayerController()
 
 	if (NewController)
 	{
-		UE_LOG("[GameMode] PlayerController spawned: %s", NewController->GetName().c_str());
+		UE_LOG("GameMode: SpawnPlayerController: %s", NewController->GetName().c_str());
 	}
 
 	return NewController;
@@ -323,7 +314,7 @@ APawn* AGameModeBase::SpawnDefaultPawnFor(APlayerController* NewPlayer, const FT
 
 	if (!PawnClass)
 	{
-		UE_LOG("[GameMode] ERROR: No DefaultPawnClass set!");
+		UE_LOG("GameMode: SpawnDefaultPawn: No DefaultPawnClass");
 		return nullptr;
 	}
 
@@ -334,7 +325,7 @@ APawn* AGameModeBase::SpawnDefaultPawnFor(APlayerController* NewPlayer, const FT
 
 	if (NewPawn)
 	{
-		UE_LOG("[GameMode] Pawn spawned: %s at (%.1f, %.1f, %.1f)",
+		UE_LOG("GameMode: SpawnDefaultPawn: %s at (%.1f, %.1f, %.1f)",
 			   NewPawn->GetName().c_str(),
 			   SpawnTransform.Translation.X,
 			   SpawnTransform.Translation.Y,
@@ -359,7 +350,7 @@ void AGameModeBase::RestartPlayer(APlayerController* Player)
 		return;
 	}
 
-	UE_LOG("[GameMode] Restarting player...");
+	UE_LOG("GameMode: RestartPlayer");
 
 	// 기존 Pawn 제거
 	APawn* OldPawn = Player->GetPawn();
@@ -383,7 +374,7 @@ void AGameModeBase::RestartPlayer(APlayerController* Player)
 	{
 		// PIE 모드에서 런타임 스폰된 Pawn은 BeginPlay를 수동으로 호출해야 함
 		NewPawn->BeginPlay();
-		UE_LOG("[GameMode] Player restarted!");
+		UE_LOG("GameMode: RestartPlayer: Done");
 	}
 }
 
@@ -412,7 +403,7 @@ APawn* AGameModeBase::FindExistingVehicleInLevel()
 		AVehicleActor* Vehicle = Cast<AVehicleActor>(Actor);
 		if (Vehicle)
 		{
-			UE_LOG("[GameMode] Found VehicleActor: %s", Vehicle->GetName().c_str());
+			UE_LOG("GameMode: FindVehicle: %s", Vehicle->GetName().c_str());
 			return Vehicle;
 		}
 	}

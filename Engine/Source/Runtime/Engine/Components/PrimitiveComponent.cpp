@@ -130,7 +130,7 @@ void UPrimitiveComponent::SetMaterialByName(uint32 InElementIndex, const FString
             }
             else
             {
-                UE_LOG("[warning] SetMaterialByName: Failed to load material '%s' for slot %u",
+                UE_LOG("Primitive: SetMaterial: Failed to load '%s' for slot %u",
                     InMaterialName.c_str(), InElementIndex);
             }
         },

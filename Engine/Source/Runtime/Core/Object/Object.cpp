@@ -295,7 +295,7 @@ void UObject::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 			// Array 직렬화는 InnerType에 따라 처리
 			if (Prop.InnerType == EPropertyType::Unknown)
 			{
-				UE_LOG("[AutoSerialize] Array property '%s' has Unknown InnerType, skipping.", Prop.Name);
+				UE_LOG("Serialize: Array '%s' has Unknown InnerType", Prop.Name);
 				break;
 			}
 

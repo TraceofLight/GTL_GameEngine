@@ -61,7 +61,7 @@ void APlayerCameraManager::BeginPlay()
 	CurrentViewCamera = GetWorld()->FindComponent<UCameraComponent>();
 	if (!CurrentViewCamera)
 	{
-		UE_LOG("[warning] 현재 월드에 카메라가 없습니다. (Editor에서만 Editor 전용 카메라로 Fallback 처리됨)");
+		UE_LOG("CameraManager: BeginPlay: No camera in world");
 	}
 }
 
@@ -83,7 +83,7 @@ void APlayerCameraManager::Destroy()
 		}
 	}
 
-	UE_LOG("[warning] PlayerCameraManager는 삭제할 수 없습니다. (새로운 매니저를 만들고 삭제하면 가능)");
+	UE_LOG("CameraManager: Destroy: Cannot delete, create new manager first");
 }
 
 // 만약 현재 월드에 카메라가 없었으면 이 카메라가 View로 등록됨
@@ -105,7 +105,7 @@ void APlayerCameraManager::UnregisterView(UCameraComponent* UnregisterViewTarget
 
 		if (!CurrentViewCamera)
 		{
-			UE_LOG("[warning] 현재 월드에 카메라가 없습니다. (Editor에서만 Editor 전용 카메라로 Fallback 처리됨)");
+			UE_LOG("CameraManager: UnregisterView: No camera in world");
 		}
 	}
 }

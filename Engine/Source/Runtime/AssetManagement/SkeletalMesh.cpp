@@ -136,7 +136,7 @@ UPhysicsAsset* USkeletalMesh::GetPhysicsAsset()
     if (PhysicsAsset)
     {
         FPhysicsAssetUtils::CreateFromSkeletalMesh(PhysicsAsset, this);
-        UE_LOG("[SkeletalMesh] Built PhysicsAsset with %d bodies for %s",
+        UE_LOG("SkeletalMesh: BuildPhysicsAsset: %d bodies for %s",
                PhysicsAsset->BodySetups.Num(), GetPathFileName().c_str());
     }
 

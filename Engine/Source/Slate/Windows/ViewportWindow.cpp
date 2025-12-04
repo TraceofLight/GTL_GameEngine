@@ -459,10 +459,10 @@ void SViewportWindow::LoadToolbarIcons(ID3D11Device* Device)
 	IconScale->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_Scale.png", Device);
 
 	IconWorldSpace = NewObject<UTexture>();
-	IconWorldSpace->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_WorldSpace.png", Device);
+	IconWorldSpace->Load(GDataDir + "/Default/Icon/WorldSpace.dds", Device);
 
 	IconLocalSpace = NewObject<UTexture>();
-	IconLocalSpace->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_LocalSpace.png", Device);
+	IconLocalSpace->Load(GDataDir + "/Default/Icon/LocalSpace.dds", Device);
 
 	// 뷰포트 모드 아이콘 텍스처 로드
 	IconCamera = NewObject<UTexture>();
@@ -510,7 +510,7 @@ void SViewportWindow::LoadToolbarIcons(ID3D11Device* Device)
 	IconViewMode_Unlit->Load(GDataDir + "/Default/Icon/Viewport_ViewMode_Unlit.png", Device);
 
 	IconViewMode_Wireframe = NewObject<UTexture>();
-	IconViewMode_Wireframe->Load(GDataDir + "/Default/Icon/Viewport_Toolbar_WorldSpace.png", Device);
+	IconViewMode_Wireframe->Load(GDataDir + "/Default/Icon/Icon_ViewMode_Wireframe.png", Device);
 
 	IconViewMode_BufferVis = NewObject<UTexture>();
 	IconViewMode_BufferVis->Load(GDataDir + "/Default/Icon/Viewport_ViewMode_BufferVis.png", Device);
@@ -745,7 +745,7 @@ void SViewportWindow::RenderGizmoSpaceButton()
 	// 현재 스페이스에 따라 적절한 아이콘 표시
 	bool bIsWorldSpace = (CurrentGizmoSpace == EGizmoSpace::World);
 	UTexture* CurrentIcon = bIsWorldSpace ? IconWorldSpace : IconLocalSpace;
-	const char* TooltipText = bIsWorldSpace ? "월드 스페이스 좌표 [Tab]" : "로컬 스페이스 좌표 [Tab]";
+	const char* TooltipText = bIsWorldSpace ? "월드 스페이스 좌표 [Ctrl+`]" : "로컬 스페이스 좌표 [Ctrl+`]";
 
 	// 선택 상태 tint (월드/로컬 모두 동일하게 흰색)
 	ImVec4 TintColor = ImVec4(1, 1, 1, 1);

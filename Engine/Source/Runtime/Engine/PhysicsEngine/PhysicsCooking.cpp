@@ -42,7 +42,7 @@ bool PhysicsCooking::CookTriangleMesh(const TArray<FVector>& Vertices,
     PxDefaultMemoryOutputStream cooked;
     if (!Cooking->cookTriangleMesh(desc, cooked))
     {
-        UE_LOG("[PhysXCooking] cookTriangleMesh failed");
+        UE_LOG("PhysX: CookTriMesh: Failed");
         return false;
     }
 
@@ -50,7 +50,7 @@ bool PhysicsCooking::CookTriangleMesh(const TArray<FVector>& Vertices,
     PxTriangleMesh* mesh = Physics->createTriangleMesh(input);
     if (!mesh)
     {
-        UE_LOG("[PhysXCooking] createTriangleMesh failed");
+        UE_LOG("PhysX: CreateTriMesh: Failed");
         return false;
     }
 
@@ -83,7 +83,7 @@ bool PhysicsCooking::CookConvex(const TArray<FVector>& Vertices,
     PxDefaultMemoryOutputStream cooked;
     if (!Cooking->cookConvexMesh(desc, cooked))
     {
-        UE_LOG("[PhysXCooking] cookConvexMesh failed");
+        UE_LOG("PhysX: CookConvex: Failed");
         return false;
     }
 
@@ -91,7 +91,7 @@ bool PhysicsCooking::CookConvex(const TArray<FVector>& Vertices,
     PxConvexMesh* mesh = Physics->createConvexMesh(input);
     if (!mesh)
     {
-        UE_LOG("[PhysXCooking] createConvexMesh failed");
+        UE_LOG("PhysX: CreateConvex: Failed");
         return false;
     }
 

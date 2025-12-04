@@ -53,7 +53,7 @@ namespace
 			case physx::PxErrorCode::ePERF_WARNING:      errorCodeStr = "PerfWarning"; break;
 			}
 
-			UE_LOG("[NvCloth %s] %s (%s:%d)\n", errorCodeStr, message, file, line);
+			UE_LOG("NvCloth: %s: %s (%s:%d)", errorCodeStr, message, file, line);
 		}
 	};
 
@@ -89,7 +89,7 @@ void FClothManager::Shutdown()
 	// 4. Solver 삭제
 	if (solver)
 	{
-		UE_LOG("[ClothComponent] Deleting solver\n");
+		UE_LOG("ClothManager: Shutdown: Deleting solver");
 		NV_CLOTH_DELETE(solver);
 		solver = nullptr;
 	}
@@ -98,7 +98,7 @@ void FClothManager::Shutdown()
 	// 6. Factory 해제
 	if (factory)
 	{
-		UE_LOG("[ClothComponent] Destroying factory\n");
+		UE_LOG("ClothManager: Shutdown: Destroying factory");
 		NvClothDestroyFactory(factory);
 		factory = nullptr;
 
@@ -120,7 +120,7 @@ void FClothManager::CreateFactory()
 	factory = NvClothCreateFactoryCPU();
 	if (factory == nullptr)
 	{
-		UE_LOG("[Cloth Error] Failed to create NvCloth factory!\n");
+		UE_LOG("ClothManager: CreateFactory: Failed");
 	}
 }
 

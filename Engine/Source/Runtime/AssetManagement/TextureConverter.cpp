@@ -21,7 +21,7 @@ bool FTextureConverter::ConvertToDDS(
 
 	if (!std::filesystem::exists(SourceFile))
 	{
-		UE_LOG("[TextureConverter] Source file not found: %s", SourcePath.c_str());
+		UE_LOG("TextureConverter: Convert: Source not found %s", SourcePath.c_str());
 		return false;
 	}
 
@@ -55,7 +55,7 @@ bool FTextureConverter::ConvertToDDS(
 
 	if (FAILED(hr))
 	{
-		UE_LOG("[TextureConverter] Failed to load source image: %s (HRESULT: 0x%08X)",
+		UE_LOG("TextureConverter: Convert: Failed to load %s (0x%08X)",
 		       SourcePath.c_str(), hr);
 		return false;
 	}
@@ -72,7 +72,7 @@ bool FTextureConverter::ConvertToDDS(
 
 		if (width != alignedWidth || height != alignedHeight)
 		{
-			UE_LOG("[TextureConverter] Resizing %s from %dx%d to %dx%d for block compression",
+			UE_LOG("TextureConverter: Convert: Resizing %s %dx%d -> %dx%d",
 			       SourcePath.c_str(), (int)width, (int)height,
 			       (int)alignedWidth, (int)alignedHeight);
 
@@ -87,7 +87,7 @@ bool FTextureConverter::ConvertToDDS(
 			}
 			else
 			{
-				UE_LOG("[TextureConverter] Warning: Resize failed, continuing with original size");
+				UE_LOG("TextureConverter: Convert: Resize failed, using original");
 			}
 		}
 	}
@@ -116,7 +116,7 @@ bool FTextureConverter::ConvertToDDS(
 
 		if (FAILED(hr))
 		{
-			UE_LOG("[TextureConverter] Compression failed: %s (HRESULT: 0x%08X)",
+			UE_LOG("TextureConverter: Convert: Compression failed %s (0x%08X)",
 			       SourcePath.c_str(), hr);
 			return false;
 		}
@@ -138,12 +138,12 @@ bool FTextureConverter::ConvertToDDS(
 
 	if (FAILED(hr))
 	{
-		UE_LOG("[TextureConverter] Failed to save DDS file: %s (HRESULT: 0x%08X)",
+		UE_LOG("TextureConverter: Convert: Save failed %s (0x%08X)",
 		       FinalOutputPath.c_str(), hr);
 		return false;
 	}
 
-	UE_LOG("[TextureConverter] Successfully converted: %s -> %s",
+	UE_LOG("TextureConverter: Convert: %s -> %s",
 	       SourcePath.c_str(), FinalOutputPath.c_str());
 	return true;
 }
@@ -248,7 +248,7 @@ void FTextureConverter::EnsureCacheDirectoryExists(const FString& CachePath)
 
 		if (ec)
 		{
-			UE_LOG("[TextureConverter] Failed to create cache directory: %s",
+			UE_LOG("TextureConverter: EnsureDir: Failed %s",
 			       WideToUTF8(Directory.wstring()).c_str());
 		}
 	}

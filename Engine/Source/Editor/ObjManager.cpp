@@ -755,11 +755,11 @@ bool FObjImporter::LoadObjModel(const FString& InFileName, FObjInfo* const OutOb
 	FileIn.close();
 
 	// Material 파싱 시작
-	UE_LOG("[ObjImporter::LoadObjModel] MTL file path: %s", MtlFileName.c_str());
+	UE_LOG("OBJ: LoadModel: MTL path %s", MtlFileName.c_str());
 
 	if (MtlFileName.empty())
 	{
-		UE_LOG("[ObjImporter::LoadObjModel] MTL file path is empty - loading without materials");
+		UE_LOG("OBJ: LoadModel: MTL empty, loading without materials");
 		OutObjInfo->bHasMtl = false;
 		return true;
 	}
@@ -772,12 +772,12 @@ bool FObjImporter::LoadObjModel(const FString& InFileName, FObjInfo* const OutOb
 	// 경고를 로깅하고, 머티리얼이 없는 모델로 처리를 계속합니다.
 	if (!FileIn)
 	{
-		UE_LOG("[ObjImporter::LoadObjModel] ERROR: Material file '%s' not found for obj '%s'. Loading model without materials.", MtlFileName.c_str(), InFileName.c_str());
+		UE_LOG("OBJ: LoadModel: MTL '%s' not found for '%s'", MtlFileName.c_str(), InFileName.c_str());
 		OutObjInfo->bHasMtl = false;
 		return true;
 	}
 
-	UE_LOG("[ObjImporter::LoadObjModel] MTL file opened successfully, parsing materials...");
+	UE_LOG("OBJ: LoadModel: Parsing materials...");
 
 	uint32 MatCount = 0;
 
@@ -798,7 +798,7 @@ bool FObjImporter::LoadObjModel(const FString& InFileName, FObjInfo* const OutOb
 			TempMatInfo.MaterialName = line.substr(7);
 			OutMaterialInfos.push_back(TempMatInfo);
 			++MatCount;
-			UE_LOG("[ObjImporter::LoadObjModel] Found material: %s", TempMatInfo.MaterialName.c_str());
+			UE_LOG("OBJ: LoadModel: Material '%s'", TempMatInfo.MaterialName.c_str());
 		}
 		else if (MatCount > 0)
 		{

@@ -18,6 +18,8 @@
 #include <queue>
 #include <functional>
 #include <chrono>
+#include <mutex>
+#include <future>
 
 // --- 전방 선언 ---
 class UStaticMesh;
@@ -177,6 +179,9 @@ private:
 
 	// 모든 로드 완료 시 콜백
 	TArray<std::function<void()>> OnAllLoadsCompleteCallbacks;
+
+	// 리소스 맵 접근 동기화 (병렬 셰이더 컴파일용)
+	mutable std::mutex ResourceMutex;
 };
 
 //-----definition
@@ -184,6 +189,8 @@ private:
 template<typename T>
 bool UResourceManager::Add(const FString& InFilePath, UObject* InObject)
 {
+	std::lock_guard<std::mutex> Lock(ResourceMutex);
+
 	// 경로 정규화: 모든 백슬래시를 슬래시로 변환하여 일관성 유지
 	FString NormalizedPath = NormalizePath(InFilePath);
 
@@ -202,6 +209,8 @@ bool UResourceManager::Add(const FString& InFilePath, UObject* InObject)
 template<typename T>
 T* UResourceManager::Get(const FString& InFilePath)
 {
+	std::lock_guard<std::mutex> Lock(ResourceMutex);
+
 	// 경로 정규화: 모든 백슬래시를 슬래시로 변환하여 일관성 유지
 	FString NormalizedPath = NormalizePath(InFilePath);
 
@@ -225,28 +234,44 @@ inline T* UResourceManager::Load(const FString& InFilePath, Args && ...InArgs)
 
 	// 경로 정규화: 모든 백슬래시를 슬래시로 변환하여 일관성 유지
 	FString NormalizedPath = NormalizePath(InFilePath);
-
 	uint8 typeIndex = static_cast<uint8>(GetResourceType<T>());
-	auto iter = Resources[typeIndex].find(NormalizedPath);
-	if (iter != Resources[typeIndex].end())
-	{
-		if constexpr (std::is_same_v<T, UShader>)
-		{
-			UShader* Shader = static_cast<UShader*>((*iter).second);
-			Shader->GetOrCompileShaderVariant(std::forward<Args>(InArgs)...);	// 매크로에 해당하는 셰이더를 별도로 컴파일 하기 위해
-			return Shader;
-		}
 
-		return static_cast<T*>((*iter).second);
-	}
-	else//없으면 해당 리소스의 Load실행
+	// 1. 캐시 확인 (mutex 보호)
 	{
-		T* Resource = NewObject<T>();
-		Resource->Load(NormalizedPath, Device, std::forward<Args>(InArgs)...);
-		Resource->SetFilePath(NormalizedPath);
-		Resources[typeIndex][NormalizedPath] = Resource;
-		return Resource;
+		std::lock_guard<std::mutex> Lock(ResourceMutex);
+		auto iter = Resources[typeIndex].find(NormalizedPath);
+		if (iter != Resources[typeIndex].end())
+		{
+			if constexpr (std::is_same_v<T, UShader>)
+			{
+				UShader* Shader = static_cast<UShader*>((*iter).second);
+				Shader->GetOrCompileShaderVariant(std::forward<Args>(InArgs)...);
+				return Shader;
+			}
+			return static_cast<T*>((*iter).second);
+		}
 	}
+
+	// 2. 캐시 미스: 리소스 생성 및 로드 (mutex 외부에서 수행 - 병렬화 가능)
+	T* Resource = NewObject<T>();
+	Resource->Load(NormalizedPath, Device, std::forward<Args>(InArgs)...);
+	Resource->SetFilePath(NormalizedPath);
+
+	// 3. 캐시에 등록 (mutex 보호)
+	{
+		std::lock_guard<std::mutex> Lock(ResourceMutex);
+		// Double-check: 다른 스레드가 먼저 등록했을 수 있음
+		auto iter = Resources[typeIndex].find(NormalizedPath);
+		if (iter != Resources[typeIndex].end())
+		{
+			// 이미 등록됨 - 새로 생성한 것은 삭제
+			ObjectFactory::DeleteObject(Resource);
+			return static_cast<T*>((*iter).second);
+		}
+		Resources[typeIndex][NormalizedPath] = Resource;
+	}
+
+	return Resource;
 }
 
 template <typename T, typename ... Args>
@@ -272,22 +297,26 @@ void UResourceManager::Reload(const FString& InFilePath, Args&&... InArgs)
 	FString NormalizedPath = NormalizePath(InFilePath);
 	uint8 typeIndex = static_cast<uint8>(GetResourceType<T>());
 
-	// 2. 캐시에서 찾기
-	auto iter = Resources[typeIndex].find(NormalizedPath);
-
-	// 3. 있다면, 해당 포인터의 내용물을 파일 데이터로 덮어쓰기 (In-Place Update)
-	if (iter != Resources[typeIndex].end())
+	// 2. 캐시에서 찾기 (mutex 보호)
+	T* Resource = nullptr;
 	{
-		T* Resource = static_cast<T*>(iter->second);
+		std::lock_guard<std::mutex> Lock(ResourceMutex);
+		auto iter = Resources[typeIndex].find(NormalizedPath);
+		if (iter != Resources[typeIndex].end())
+		{
+			Resource = static_cast<T*>(iter->second);
+		}
+	}
 
-		// 기존 메모리 주소(Resource)는 유지한 채로 내용물만 디스크에서 다시 읽어옴
+	// 3. 있다면, 해당 포인터의 내용물을 파일 데이터로 덮어쓰기 (mutex 외부)
+	if (Resource)
+	{
 		Resource->Load(NormalizedPath, Device, std::forward<Args>(InArgs)...);
-
-		UE_LOG("[ResourceManager] Force Reloaded: %s", NormalizedPath.c_str());
+		UE_LOG("ResourceManager: ForceReload: %s", NormalizedPath.c_str());
 	}
 	else
 	{
-		// 없다면 그냥 Load를 호출해서 새로 생성
+		// 없다면 그냥 Load를 호출해서 새로 생성 (Load 내부에 mutex 있음)
 		Load<T>(InFilePath, std::forward<Args>(InArgs)...);
 	}
 }
@@ -311,29 +340,39 @@ inline UShader* UResourceManager::Load(const FString& InFilePath, TArray<FShader
 {
 	// 경로 정규화: 모든 백슬래시를 슬래시로 변환하여 일관성 유지
 	FString NormalizedPath = NormalizePath(InFilePath);
-
-	// 2. 경로 리소스 맵 검색
 	uint8 typeIndex = static_cast<uint8>(EResourceType::Shader);
-	auto iter = Resources[typeIndex].find(NormalizedPath);
-	if (iter != Resources[typeIndex].end())
+
+	// 1. 캐시 확인 (mutex 보호)
 	{
-		UShader* Shader = static_cast<UShader*>((*iter).second);
-
-		Shader->GetOrCompileShaderVariant(InMacros);
-
-		return Shader;
+		std::lock_guard<std::mutex> Lock(ResourceMutex);
+		auto iter = Resources[typeIndex].find(NormalizedPath);
+		if (iter != Resources[typeIndex].end())
+		{
+			UShader* Shader = static_cast<UShader*>((*iter).second);
+			Shader->GetOrCompileShaderVariant(InMacros);
+			return Shader;
+		}
 	}
-	else
-	{
-		// 3. 캐시에 없으면 새로 생성하여 로드
-		UShader* Resource = NewObject<UShader>();
-		// UShader::Load는 이제 매크로 인자를 받도록 수정되어야 함
-		Resource->Load(NormalizedPath, Device, InMacros);
-		Resource->SetFilePath(NormalizedPath); // 이름 저장
 
+	// 2. 캐시 미스: 리소스 생성 및 로드 (mutex 외부 - 병렬화 가능)
+	UShader* Resource = NewObject<UShader>();
+	Resource->Load(NormalizedPath, Device, InMacros);
+	Resource->SetFilePath(NormalizedPath);
+
+	// 3. 캐시에 등록 (mutex 보호)
+	{
+		std::lock_guard<std::mutex> Lock(ResourceMutex);
+		// Double-check: 다른 스레드가 먼저 등록했을 수 있음
+		auto iter = Resources[typeIndex].find(NormalizedPath);
+		if (iter != Resources[typeIndex].end())
+		{
+			ObjectFactory::DeleteObject(Resource);
+			return static_cast<UShader*>((*iter).second);
+		}
 		Resources[typeIndex][NormalizedPath] = Resource;
-		return Resource;
 	}
+
+	return Resource;
 }
 
 template<typename T>
@@ -371,6 +410,8 @@ EResourceType UResourceManager::GetResourceType()
 template<typename T>
 TArray<T*> UResourceManager::GetAll()
 {
+	std::lock_guard<std::mutex> Lock(ResourceMutex);
+
 	TArray<T*> Result;
 	uint8 TypeIndex = static_cast<uint8>(GetResourceType<T>());
 	if (TypeIndex >= Resources.size())
@@ -392,6 +433,8 @@ TArray<T*> UResourceManager::GetAll()
 template<typename T>
 TArray<FString> UResourceManager::GetAllFilePaths()
 {
+	std::lock_guard<std::mutex> Lock(ResourceMutex);
+
 	TArray<FString> Paths;
 	uint8 TypeIndex = static_cast<uint8>(GetResourceType<T>());
 	if (TypeIndex >= Resources.size())

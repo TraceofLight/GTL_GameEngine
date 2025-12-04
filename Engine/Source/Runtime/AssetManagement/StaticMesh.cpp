@@ -95,7 +95,7 @@ void UStaticMesh::EnsureBodySetupBuilt()
         Box.Z = Half.Z;
         BodySetup->AggGeom.BoxElems.Add(Box);
 
-        UE_LOG("[StaticMesh] Prepared collision data for mesh: %s (%zu verts, cooking deferred)",
+        UE_LOG("StaticMesh: PrepareCollision: %s (%zu verts)",
                GetAssetPathFileName().c_str(), BodySetup->CookSourceVertices.Num());
     }
     else

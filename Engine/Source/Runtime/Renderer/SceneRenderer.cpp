@@ -314,7 +314,7 @@ void FSceneRenderer::RenderSceneDepthPath()
 	D3D11_VIEWPORT vpBefore;
 	UINT numVP = 1;
 	RHIDevice->GetDeviceContext()->RSGetViewports(&numVP, &vpBefore);
-	UE_LOG("[RenderSceneDepthPath] BEFORE OMSetRenderTargets(Scene): Viewport(%.1f x %.1f) at (%.1f, %.1f)",
+	UE_LOG("SceneRenderer: RenderSceneDepth: Before Scene RTV (%.1f x %.1f) at (%.1f, %.1f)",
 		vpBefore.Width, vpBefore.Height, vpBefore.TopLeftX, vpBefore.TopLeftY);
 
 	// 1. Scene RTV와 Depth Buffer Clear
@@ -323,7 +323,7 @@ void FSceneRenderer::RenderSceneDepthPath()
 	// ✅ 디버그: SceneRTV 전환 후 viewport 확인
 	D3D11_VIEWPORT vpAfter;
 	RHIDevice->GetDeviceContext()->RSGetViewports(&numVP, &vpAfter);
-	UE_LOG("[RenderSceneDepthPath] AFTER OMSetRenderTargets(Scene): Viewport(%.1f x %.1f) at (%.1f, %.1f)",
+	UE_LOG("SceneRenderer: RenderSceneDepth: After Scene RTV (%.1f x %.1f) at (%.1f, %.1f)",
 		vpAfter.Width, vpAfter.Height, vpAfter.TopLeftX, vpAfter.TopLeftY);
 
 	const float* BackgroundColorPtr = View->RenderSettings->GetBackgroundColor();
@@ -336,7 +336,7 @@ void FSceneRenderer::RenderSceneDepthPath()
 
 	// ✅ 디버그: BackBuffer 전환 전 viewport 확인
 	RHIDevice->GetDeviceContext()->RSGetViewports(&numVP, &vpBefore);
-	UE_LOG("[RenderSceneDepthPath] BEFORE OMSetRenderTargets(BackBuffer): Viewport(%.1f x %.1f)",
+	UE_LOG("SceneRenderer: RenderSceneDepth: Before BackBuffer (%.1f x %.1f)",
 		vpBefore.Width, vpBefore.Height);
 
 	// 3. BackBuffer Clear
@@ -345,7 +345,7 @@ void FSceneRenderer::RenderSceneDepthPath()
 
 	// ✅ 디버그: BackBuffer 전환 후 viewport 확인
 	RHIDevice->GetDeviceContext()->RSGetViewports(&numVP, &vpAfter);
-	UE_LOG("[RenderSceneDepthPath] AFTER OMSetRenderTargets(BackBuffer): Viewport(%.1f x %.1f)",
+	UE_LOG("SceneRenderer: RenderSceneDepth: After BackBuffer (%.1f x %.1f)",
 		vpAfter.Width, vpAfter.Height);
 
 	// 4. SceneDepth Post 프로세싱 처리

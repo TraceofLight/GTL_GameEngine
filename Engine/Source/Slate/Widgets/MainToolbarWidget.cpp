@@ -610,12 +610,12 @@ void UMainToolbarWidget::OnSaveScene()
         }
         else
         {
-            UE_LOG("[error] MainToolbar: Scene saved failed: %s", SelectedPath.generic_u8string().c_str());
+            UE_LOG("MainToolbar: SaveScene: Failed %s", SelectedPath.generic_u8string().c_str());
         }
     }
     catch (const std::exception& Exception)
     {
-        UE_LOG("[error] MainToolbar: Save Error: %s", Exception.what());
+        UE_LOG("MainToolbar: SaveScene: Exception %s", Exception.what());
     }
 }
 
@@ -667,7 +667,7 @@ void UMainToolbarWidget::OnLoadScene()
         }
         else
         {
-            UE_LOG("[error] MainToolbar: Failed To Load Level From: %s", SelectedPath.generic_u8string().c_str());
+            UE_LOG("MainToolbar: LoadScene: Failed %s", SelectedPath.generic_u8string().c_str());
             return;
         }
         CurrentWorld->SetLevel(std::move(NewLevel));
@@ -676,7 +676,7 @@ void UMainToolbarWidget::OnLoadScene()
     }
     catch (const std::exception& Exception)
     {
-        UE_LOG("[error] MainToolbar: Load Error: %s", Exception.what());
+        UE_LOG("MainToolbar: LoadScene: Exception %s", Exception.what());
     }
 }
 

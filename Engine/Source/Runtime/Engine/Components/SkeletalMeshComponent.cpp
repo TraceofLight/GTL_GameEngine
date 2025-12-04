@@ -94,7 +94,7 @@ void USkeletalMeshComponent::InitializeComponent()
 				{
 					// 이미 존재하는 ClothComponent 재사용
 					InternalClothComponent = ExistingCloth;
-					UE_LOG("[SkeletalMeshComponent::InitializeComponent] Reusing existing ClothComponent from OwnedComponents");
+					UE_LOG("Skeletal: InitializeComponent: Reusing existing ClothComponent");
 					break;
 				}
 			}
@@ -104,7 +104,7 @@ void USkeletalMeshComponent::InitializeComponent()
 		if (!InternalClothComponent)
 		{
 			CreateInternalClothComponent();
-			UE_LOG("[SkeletalMeshComponent::InitializeComponent] InternalClothComponent created");
+			UE_LOG("Skeletal: InitializeComponent: ClothComponent created");
 		}
 	}
 }
@@ -182,25 +182,10 @@ void USkeletalMeshComponent::BeginPlay()
 	}
 
 	// PhysicsAsset에 ClothVertexWeights가 있으면 InternalClothComponent에 적용
-	UE_LOG("[SkeletalMeshComponent::BeginPlay] Checking cloth weights transfer:");
-	UE_LOG("  - UsedPhysicsAsset: %p", UsedPhysicsAsset);
-	UE_LOG("  - InternalClothComponent: %p", InternalClothComponent);
-	if (UsedPhysicsAsset)
-	{
-		UE_LOG("  - ClothVertexWeights count: %d", (int)UsedPhysicsAsset->ClothVertexWeights.size());
-	}
-
 	if (UsedPhysicsAsset && InternalClothComponent && !UsedPhysicsAsset->ClothVertexWeights.empty())
 	{
 		InternalClothComponent->LoadWeightsFromPhysicsAsset(UsedPhysicsAsset->ClothVertexWeights);
-		UE_LOG("[SkeletalMeshComponent::BeginPlay] SUCCESS: Applied ClothVertexWeights from PhysicsAsset");
-	}
-	else
-	{
-		UE_LOG("[SkeletalMeshComponent::BeginPlay] FAILED to apply cloth weights - conditions not met!");
-		if (!UsedPhysicsAsset) UE_LOG("  -> UsedPhysicsAsset is NULL");
-		if (!InternalClothComponent) UE_LOG("  -> InternalClothComponent is NULL");
-		if (UsedPhysicsAsset && UsedPhysicsAsset->ClothVertexWeights.empty()) UE_LOG("  -> ClothVertexWeights is EMPTY");
+		UE_LOG("Skeletal: BeginPlay: Applied ClothVertexWeights from PhysicsAsset");
 	}
 }
 
@@ -281,8 +266,7 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
         {
             bSimulatePhysics = !bSimulatePhysics;
             SetAllBodiesSimulatePhysics(bSimulatePhysics);
-            UE_LOG("[SkeletalMeshComponent] Ragdoll %s (Press 'R' to toggle)\n",
-                   bSimulatePhysics ? "ENABLED" : "DISABLED");
+            UE_LOG("Skeletal: Ragdoll: %s", bSimulatePhysics ? "ENABLED" : "DISABLED");
         }
     }
 
@@ -730,7 +714,7 @@ void USkeletalMeshComponent::SetBlendSpace2D(UBlendSpace2D* InBlendSpace)
     {
         AnimInstance = NewObject<UAnimInstance>();
         AnimInstance->Initialize(this);
-        UE_LOG("[SkeletalMeshComponent] AnimInstance created for BlendSpace2D");
+        UE_LOG("Skeletal: SetBlendSpace: AnimInstance created");
     }
 
     if (AnimInstance)
@@ -911,7 +895,7 @@ void USkeletalMeshComponent::SetPhysicsAsset(const FString& PathFileName)
 
         PhysicsAsset = LoadedAsset;
         PhysicsAssetPath = PathFileName;
-        UE_LOG("[SkeletalMeshComponent] Loaded PhysicsAsset: %s", PathFileName.c_str());
+        UE_LOG("Skeletal: LoadPhysicsAsset: %s", PathFileName.c_str());
 
         // 새 Physics 상태 생성
         OnCreatePhysicsState();
@@ -920,7 +904,7 @@ void USkeletalMeshComponent::SetPhysicsAsset(const FString& PathFileName)
         if (InternalClothComponent && !LoadedAsset->ClothVertexWeights.empty())
         {
             InternalClothComponent->LoadWeightsFromPhysicsAsset(LoadedAsset->ClothVertexWeights);
-            UE_LOG("[SkeletalMeshComponent] Applied ClothVertexWeights from PhysicsAsset");
+            UE_LOG("Skeletal: LoadPhysicsAsset: Applied ClothVertexWeights");
         }
     }
     else
@@ -931,7 +915,7 @@ void USkeletalMeshComponent::SetPhysicsAsset(const FString& PathFileName)
         }
         PhysicsAsset = nullptr;
         PhysicsAssetPath.clear();
-        UE_LOG("[SkeletalMeshComponent] Failed to load PhysicsAsset: %s", PathFileName.c_str());
+        UE_LOG("Skeletal: LoadPhysicsAsset: Failed %s", PathFileName.c_str());
     }
 }
 

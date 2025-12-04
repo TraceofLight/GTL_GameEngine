@@ -411,7 +411,7 @@ void UEditorEngine::MainLoop()
                 INPUT.ReleaseCursor();
             }
 
-            UE_LOG("[info] END PIE");
+            UE_LOG("Editor: EndPIE");
 
             bChangedPieToEditor = false;
         }
@@ -486,7 +486,7 @@ void UEditorEngine::Shutdown()
 
 void UEditorEngine::StartPIE()
 {
-    UE_LOG("[info] START PIE");
+    UE_LOG("Editor: StartPIE");
 
     // 비동기 로딩 완료 대기
     FAsyncLoader& AsyncLoader = FAsyncLoader::Get();

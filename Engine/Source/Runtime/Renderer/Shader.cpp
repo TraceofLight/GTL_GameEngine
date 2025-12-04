@@ -36,7 +36,7 @@ static bool CompileShaderInternal(
 			// wstring을 UTF-8로 안전하게 변환 (한글 경로 지원)
 			FString NarrowPath = WideToUTF8(InFilePath);
 
-			UE_LOG("[error] Shader '%s' compile error: %s", NarrowPath.c_str(), Msg);
+			UE_LOG("Shader: Compile: Failed %s - %s", NarrowPath.c_str(), Msg);
 			ErrorBlob->Release();
 		}
 		if (*OutBlob) { (*OutBlob)->Release(); }
@@ -180,7 +180,7 @@ FShaderVariant* UShader::GetOrCompileShaderVariant(const TArray<FShaderMacro>& I
 	}
 
 	// 5. 컴파일 실패
-	UE_LOG("[error] GetOrCompileShaderVariant: Failed to compile '%s' variant for key '%s'", GetFilePath().c_str(), GenerateMacrosToString(InMacros).c_str());
+	UE_LOG("Shader: GetOrCompileVariant: Failed %s (key: %s)", GetFilePath().c_str(), GenerateMacrosToString(InMacros).c_str());
 
 	// 컴파일에 실패했더라도, 향후 동일한 요청이 왔을 때
 	// 다시 컴파일을 시도하지 않도록 '비어있는' Variant를 맵에 추가할 수 있습니다.

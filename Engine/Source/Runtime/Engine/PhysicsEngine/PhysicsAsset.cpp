@@ -227,7 +227,7 @@ void UPhysicsAsset::Serialize(bool bIsLoading, JSON& Json)
 			}
 		}
 
-		UE_LOG("[PhysicsAsset] Loaded: %d bodies, %d constraints, %d cloth weights from '%s'",
+		UE_LOG("PhysicsAsset: Loaded: %d bodies, %d constraints, %d cloth from '%s'",
 			   BodySetups.Num(), ConstraintSetups.Num(), (int)ClothVertexWeights.size(), SourceSkeletalPath.c_str());
 	}
 	else
@@ -266,7 +266,7 @@ void UPhysicsAsset::Serialize(bool bIsLoading, JSON& Json)
 			Json["ClothVertexWeights"][std::to_string(Pair.first)] = Pair.second;
 		}
 
-		UE_LOG("[PhysicsAsset] Saved: %d bodies, %d constraints, %d cloth weights",
+		UE_LOG("PhysicsAsset: Saved: %d bodies, %d constraints, %d cloth",
 			   BodySetups.Num(), ConstraintSetups.Num(), (int)ClothVertexWeights.size());
 	}
 }
@@ -282,11 +282,11 @@ bool UPhysicsAsset::SaveToFile(const FString& FilePath) const
 	FWideString WidePath = UTF8ToWide(FilePath);
 	if (FJsonSerializer::SaveJsonToFile(Root, WidePath))
 	{
-		UE_LOG("[PhysicsAsset] Saved to file: %s", FilePath.c_str());
+		UE_LOG("PhysicsAsset: SaveToFile: %s", FilePath.c_str());
 		return true;
 	}
 
-	UE_LOG("[PhysicsAsset] Failed to save file: %s", FilePath.c_str());
+	UE_LOG("PhysicsAsset: SaveToFile: Failed %s", FilePath.c_str());
 	return false;
 }
 
@@ -297,7 +297,7 @@ bool UPhysicsAsset::LoadFromFile(const FString& FilePath)
 
 	if (!FJsonSerializer::LoadJsonFromFile(Root, WidePath))
 	{
-		UE_LOG("[PhysicsAsset] Failed to load file: %s", FilePath.c_str());
+		UE_LOG("PhysicsAsset: LoadFromFile: Failed %s", FilePath.c_str());
 		return false;
 	}
 
@@ -307,6 +307,6 @@ bool UPhysicsAsset::LoadFromFile(const FString& FilePath)
 	// 파일 경로 저장 (PropertyRenderer에서 사용)
 	AssetFilePath = FilePath;
 
-	UE_LOG("[PhysicsAsset] Loaded from file: %s", FilePath.c_str());
+	UE_LOG("PhysicsAsset: LoadFromFile: %s", FilePath.c_str());
 	return true;
 }

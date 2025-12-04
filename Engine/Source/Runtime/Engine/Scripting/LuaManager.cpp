@@ -177,7 +177,7 @@ FLuaManager::FLuaManager()
                 output += "[" + std::string(sol::type_name(arg.lua_state(), t)) + "]";
             }
         }
-        UE_LOG("[Lua] %s\n", output.c_str());
+        UE_LOG("Lua: Print: %s", output.c_str());
     });
 
     // GlobalConfig는 전역 table
@@ -391,7 +391,7 @@ FLuaManager::FLuaManager()
 
     // Debug: 등록된 Lua 바인더 개수 출력
     const auto& Builders = FLuaBindRegistry::Get().GetBuilders();
-    UE_LOG("[LuaManager] Registered %d Lua binders\n", Builders.size());
+    UE_LOG("Lua: Init: Registered %d binders", Builders.size());
 }
 
 FLuaManager::~FLuaManager()
@@ -432,7 +432,7 @@ void FLuaManager::ExposeAllComponentsToLua()
         [this](sol::object Obj, const FString& ClassName)
         {
            if (!Obj.is<FGameObject&>()) {
-                UE_LOG("[Lua][error] Error: Expected GameObject\n");
+                UE_LOG("Lua: AddComponent: Expected GameObject");
                 return sol::make_object(*Lua, sol::nil);
             }
 
@@ -450,7 +450,7 @@ void FLuaManager::ExposeAllComponentsToLua()
         [this](sol::object Obj, const FString& ClassName)
         {
             if (!Obj.is<FGameObject&>()) {
-                UE_LOG("[Lua][error] Error: Expected GameObject\n");
+                UE_LOG("Lua: GetComponent: Expected GameObject");
                 return sol::make_object(*Lua, sol::nil);
             }
 
@@ -625,12 +625,12 @@ void FLuaManager::ExposeGlobalFunctions()
 
 bool FLuaManager::LoadScriptInto(sol::environment& Env, const FString& Path) {
     auto Chunk = Lua->load_file(Path);
-    if (!Chunk.valid()) { sol::error Err = Chunk; UE_LOG("[Lua][error] %s", Err.what()); return false; }
+    if (!Chunk.valid()) { sol::error Err = Chunk; UE_LOG("Lua: LoadScript: %s", Err.what()); return false; }
 
     sol::protected_function ProtectedFunc = Chunk;
     sol::set_environment(Env, ProtectedFunc);
     auto Result = ProtectedFunc();
-    if (!Result.valid()) { sol::error Err = Result; UE_LOG("[Lua][error] %s", Err.what()); return false; }
+    if (!Result.valid()) { sol::error Err = Result; UE_LOG("Lua: ExecuteScript: %s", Err.what()); return false; }
     return true;
 }
 
@@ -677,14 +677,14 @@ bool FLuaManager::ExecuteNotify(const FString& NotifyClassName, const FString& P
     sol::optional<sol::table> AnimNotifyTable = (*Lua)["AnimNotify"];
     if (!AnimNotifyTable)
     {
-        UE_LOG("[LuaManager] AnimNotify table not found!");
+        UE_LOG("Lua: ExecuteNotify: AnimNotify table not found");
         return false;
     }
 
     sol::optional<sol::table> NotifyClassOpt = (*AnimNotifyTable)[NotifyClassName];
     if (!NotifyClassOpt)
     {
-        UE_LOG("[LuaManager] Notify class '%s' not found in AnimNotify table", NotifyClassName.c_str());
+        UE_LOG("Lua: ExecuteNotify: Class '%s' not found", NotifyClassName.c_str());
         return false;
     }
 
@@ -731,7 +731,7 @@ bool FLuaManager::ExecuteNotify(const FString& NotifyClassName, const FString& P
             }
             catch (const std::exception& e)
             {
-                UE_LOG("[LuaManager] Failed to parse PropertyData for Notify '%s': %s", NotifyClassName.c_str(), e.what());
+                UE_LOG("Lua: ExecuteNotify: Failed to parse PropertyData '%s': %s", NotifyClassName.c_str(), e.what());
             }
         }
 
@@ -747,7 +747,7 @@ bool FLuaManager::ExecuteNotify(const FString& NotifyClassName, const FString& P
                 if (!Result.valid())
                 {
                     sol::error Err = Result;
-                    UE_LOG("[LuaManager] NotifyBegin failed for '%s': %s", NotifyClassName.c_str(), Err.what());
+                    UE_LOG("Lua: NotifyBegin: Failed '%s': %s", NotifyClassName.c_str(), Err.what());
                     return false;
                 }
             }
@@ -764,7 +764,7 @@ bool FLuaManager::ExecuteNotify(const FString& NotifyClassName, const FString& P
                 if (!Result.valid())
                 {
                     sol::error Err = Result;
-                    UE_LOG("[LuaManager] Notify failed for '%s': %s", NotifyClassName.c_str(), Err.what());
+                    UE_LOG("Lua: Notify: Failed '%s': %s", NotifyClassName.c_str(), Err.what());
                     return false;
                 }
             }
@@ -774,7 +774,7 @@ bool FLuaManager::ExecuteNotify(const FString& NotifyClassName, const FString& P
     }
     catch (const sol::error& e)
     {
-        UE_LOG("[LuaManager] Exception in ExecuteNotify for '%s': %s", NotifyClassName.c_str(), e.what());
+        UE_LOG("Lua: ExecuteNotify: Exception '%s': %s", NotifyClassName.c_str(), e.what());
         return false;
     }
 }
@@ -794,7 +794,7 @@ bool FLuaManager::ExecuteNotifyStateBegin(const FString& NotifyClassName, const 
         if (!LoadResult.valid())
         {
             sol::error Err = LoadResult;
-            UE_LOG("[LuaManager] Failed to load NotifyState script '%s': %s", NotifyPath.c_str(), Err.what());
+            UE_LOG("Lua: LoadNotifyState: Failed '%s': %s", NotifyPath.c_str(), Err.what());
             return false;
         }
 
@@ -802,14 +802,14 @@ bool FLuaManager::ExecuteNotifyStateBegin(const FString& NotifyClassName, const 
         if (!ExecResult.valid())
         {
             sol::error Err = ExecResult;
-            UE_LOG("[LuaManager] Failed to execute NotifyState script '%s': %s", NotifyPath.c_str(), Err.what());
+            UE_LOG("Lua: ExecuteNotifyState: Failed '%s': %s", NotifyPath.c_str(), Err.what());
             return false;
         }
 
         sol::table NotifyClass = ExecResult;
         if (!NotifyClass.valid())
         {
-            UE_LOG("[LuaManager] NotifyState script '%s' did not return a table", NotifyPath.c_str());
+            UE_LOG("Lua: ExecuteNotifyState: Script '%s' did not return a table", NotifyPath.c_str());
             return false;
         }
 
@@ -830,7 +830,7 @@ bool FLuaManager::ExecuteNotifyStateBegin(const FString& NotifyClassName, const 
             }
             catch (const sol::error& e)
             {
-                UE_LOG("[LuaManager] Failed to parse PropertyData for NotifyState '%s': %s", NotifyClassName.c_str(), e.what());
+                UE_LOG("Lua: NotifyState: Failed to parse PropertyData '%s': %s", NotifyClassName.c_str(), e.what());
             }
         }
 
@@ -848,7 +848,7 @@ bool FLuaManager::ExecuteNotifyStateBegin(const FString& NotifyClassName, const 
             if (!Result.valid())
             {
                 sol::error Err = Result;
-                UE_LOG("[LuaManager] NotifyBegin failed for '%s': %s", NotifyClassName.c_str(), Err.what());
+                UE_LOG("Lua: NotifyBegin: Failed '%s': %s", NotifyClassName.c_str(), Err.what());
                 return false;
             }
         }
@@ -857,7 +857,7 @@ bool FLuaManager::ExecuteNotifyStateBegin(const FString& NotifyClassName, const 
     }
     catch (const sol::error& e)
     {
-        UE_LOG("[LuaManager] Exception in ExecuteNotifyStateBegin for '%s': %s", NotifyClassName.c_str(), e.what());
+        UE_LOG("Lua: ExecuteNotifyStateBegin: Exception '%s': %s", NotifyClassName.c_str(), e.what());
         return false;
     }
 }
@@ -900,7 +900,7 @@ bool FLuaManager::ExecuteNotifyStateTick(const FString& NotifyClassName, const F
             if (!Result.valid())
             {
                 sol::error Err = Result;
-                UE_LOG("[LuaManager] NotifyTick failed for '%s': %s", NotifyClassName.c_str(), Err.what());
+                UE_LOG("Lua: NotifyTick: Failed '%s': %s", NotifyClassName.c_str(), Err.what());
                 return false;
             }
         }
@@ -951,7 +951,7 @@ bool FLuaManager::ExecuteNotifyStateEnd(const FString& NotifyClassName, const FS
             if (!Result.valid())
             {
                 sol::error Err = Result;
-                UE_LOG("[LuaManager] NotifyEnd failed for '%s': %s", NotifyClassName.c_str(), Err.what());
+                UE_LOG("Lua: NotifyEnd: Failed '%s': %s", NotifyClassName.c_str(), Err.what());
                 NotifyStateInstanceCache.erase(It);
                 return false;
             }
@@ -1009,7 +1009,7 @@ void FLuaManager::LoadNotifyClasses()
 
     if (!std::filesystem::exists(WNotifyDir))
     {
-        UE_LOG("[LuaManager] Notify directory not found: %s", NotifyDir.c_str());
+        UE_LOG("Lua: LoadNotifyClasses: Directory not found %s", NotifyDir.c_str());
         return;
     }
 
@@ -1038,7 +1038,7 @@ void FLuaManager::LoadNotifyClasses()
         if (!Result.valid())
         {
             sol::error Err = Result;
-            UE_LOG("[LuaManager] Failed to load notify: %s - %s", FilePath.c_str(), Err.what());
+            UE_LOG("Lua: LoadNotify: Failed %s - %s", FilePath.c_str(), Err.what());
             continue;
         }
 
@@ -1047,13 +1047,13 @@ void FLuaManager::LoadNotifyClasses()
             sol::table NotifyClass = Result;
             AnimNotifyTable[FileName] = NotifyClass;
             ++LoadedCount;
-            UE_LOG("[LuaManager] Loaded notify: %s", FileName.c_str());
+            UE_LOG("Lua: LoadNotify: %s", FileName.c_str());
         }
         else
         {
-            UE_LOG("[LuaManager] Notify script did not return a table: %s", FilePath.c_str());
+            UE_LOG("Lua: LoadNotify: Script did not return a table %s", FilePath.c_str());
         }
     }
 
-    UE_LOG("[LuaManager] Loaded %d notify classes from %s", LoadedCount, NotifyDir.c_str());
+    UE_LOG("Lua: LoadNotifyClasses: %d classes from %s", LoadedCount, NotifyDir.c_str());
 }

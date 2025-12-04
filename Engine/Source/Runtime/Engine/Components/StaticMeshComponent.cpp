@@ -231,7 +231,7 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 		}
 		else
 		{
-			UE_LOG("[warning] StaticMeshComponent: Failed to load %s, keeping default cube", PathFileName.c_str());
+			UE_LOG("StaticMesh: SetMesh: Failed to load %s", PathFileName.c_str());
         }
     }, EAssetLoadPriority::Normal);
 }

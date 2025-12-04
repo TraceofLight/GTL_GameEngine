@@ -98,13 +98,13 @@ void UClothComponent::TickComponent(float DeltaTime)
 
     if (!bClothEnabled)
     {
-		UE_LOG("[ClothComponent] Cloth is disabled\n");
+		UE_LOG("Cloth: BeginPlay: Disabled");
         return;
     }
 
     if (!bClothInitialized)
     {
-		UE_LOG("[ClothComponent] Cloth is not initialized\n");
+		UE_LOG("Cloth: BeginPlay: Not initialized");
 		InitializeComponent();
     }
 
@@ -235,7 +235,7 @@ void UClothComponent::SetupClothFromMesh()
 
 	if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
 	{
-		UE_LOG("[Cloth Error]: No SkeletalMesh or SkeletalMeshData");
+		UE_LOG("Cloth: Initialize: No SkeletalMesh or SkeletalMeshData");
 		return;
 	}
 
@@ -275,21 +275,21 @@ void UClothComponent::ReleaseCloth()
 	// 2. Cloth 삭제
 	if (cloth)
 	{
-		UE_LOG("[ClothComponent] Deleting cloth\n");
+		UE_LOG("Cloth: Release: Deleting cloth");
 		NV_CLOTH_DELETE(cloth);
 		cloth = nullptr;
 	}
 	// 3. Phases 삭제
 	if (phases)
 	{
-		UE_LOG("[ClothComponent] Deleting phases\n");
+		UE_LOG("Cloth: Release: Deleting phases");
 		delete[] phases;
 		phases = nullptr;
 	}
 	// 5. Fabric 해제
 	if (fabric)
 	{
-		UE_LOG("[ClothComponent] Releasing fabric\n");
+		UE_LOG("Cloth: Release: Releasing fabric");
 		fabric->decRefCount();
 		fabric = nullptr;
 	}
@@ -336,7 +336,7 @@ void UClothComponent::CreateOrResizeClothGPUBuffer(uint32 Float3Count)
 
 	ID3D11Device* Device = URenderManager::GetInstance().GetRenderer()->GetRHIDevice()->GetDevice();
 	HRESULT hr = Device->CreateBuffer(&desc, nullptr, &ClothGPUBuffer);
-	if (FAILED(hr)) { UE_LOG("[Cloth] CreateBuffer failed"); return; }
+	if (FAILED(hr)) { UE_LOG("Cloth: CreateGPUBuffer: Failed"); return; }
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
@@ -345,7 +345,7 @@ void UClothComponent::CreateOrResizeClothGPUBuffer(uint32 Float3Count)
 	srvDesc.Buffer.NumElements = Float3Count;
 
 	hr = Device->CreateShaderResourceView(ClothGPUBuffer, &srvDesc, &ClothGPUSRV);
-	if (FAILED(hr)) { UE_LOG("[Cloth] Create SRV failed"); ReleaseClothGPUBuffer(); return; }
+	if (FAILED(hr)) { UE_LOG("Cloth: CreateSRV: Failed"); ReleaseClothGPUBuffer(); return; }
 
 	ClothGPUBufferSize = Float3Count;
 }
@@ -852,14 +852,14 @@ void UClothComponent::UpdateClothSimulation(float DeltaTime)
 {
 	if (!cloth)
 	{
-		UE_LOG("[ClothComponent] UpdateClothSimulation: cloth is null\n");
+		UE_LOG("Cloth: UpdateSimulation: Cloth is null");
 		return;
 	}
 
 	static int frameCount = 0;
 	if (frameCount++ % 60 == 0)  // 1초마다 로그
 	{
-		UE_LOG("[ClothComponent] UpdateClothSimulation running (frame %d)\n", frameCount);
+		UE_LOG("Cloth: UpdateSimulation: Frame %d", frameCount);
 	}
 
 	// 캐릭터와 부착된 정점 갱신
@@ -882,7 +882,7 @@ void UClothComponent::UpdateClothSimulation(float DeltaTime)
 		static bool warned = false;
 		if (!warned)
 		{
-			UE_LOG("[ClothComponent] WARNING: Renderer is null, cannot draw debug spheres\n");
+			UE_LOG("Cloth: UpdateSimulation: Renderer is null");
 			warned = true;
 		}
 		return;
@@ -891,7 +891,7 @@ void UClothComponent::UpdateClothSimulation(float DeltaTime)
 	static int debugFrameCount = 0;
 	if (debugFrameCount++ % 60 == 0)
 	{
-		UE_LOG("[ClothComponent] Drawing debug spheres for %d particles\n", PreviousParticles.Num());
+		UE_LOG("Cloth: DebugDraw: %d particles", PreviousParticles.Num());
 	}
 
 	if (Renderer)
@@ -1142,8 +1142,11 @@ void UClothComponent::RecalculateNormals()
 			uint32 idx1 = indices[Group.StartIndex + i + 1];
 			uint32 idx2 = indices[Group.StartIndex + i + 2];
 
-			if (idx0 >= SkinnedVertices.Num() || idx1 >= SkinnedVertices.Num() || idx2 >= SkinnedVertices.Num())
+			const uint32 NumVertices = static_cast<uint32>(SkinnedVertices.Num());
+			if (idx0 >= NumVertices || idx1 >= NumVertices || idx2 >= NumVertices)
+			{
 				continue;
+			}
 
 			const FVector& v0 = SkinnedVertices[idx0].pos;
 			const FVector& v1 = SkinnedVertices[idx1].pos;
@@ -1174,7 +1177,7 @@ void UClothComponent::SaveOriginalState()
 {
 	if (!cloth || ClothParticles.Num() == 0)
 	{
-		UE_LOG("[ClothComponent] SaveOriginalState: Cannot save, cloth not initialized\n");
+		UE_LOG("Cloth: SaveOriginalState: Not initialized");
 		return;
 	}
 
@@ -1188,13 +1191,13 @@ void UClothComponent::RestoreOriginalState()
 {
 	if (!bHasSavedOriginalState || CacheOriginalParticles.Num() == 0)
 	{
-		UE_LOG("[ClothComponent] RestoreOriginalState: No saved state to restore\n");
+		UE_LOG("Cloth: RestoreOriginalState: No saved state");
 		return;
 	}
 
 	if (!cloth)
 	{
-		UE_LOG("[ClothComponent] RestoreOriginalState: Cloth not initialized\n");
+		UE_LOG("Cloth: RestoreOriginalState: Not initialized");
 		return;
 	}
 
@@ -1409,7 +1412,7 @@ void UClothComponent::ExtractClothSectionOrdered(const FGroupInfo& Group, const 
     }
     if (MergedCount > 0)
     {
-        UE_LOG("[ClothComponent] ExtractClothSectionOrdered: Merged %d positions with multiple global vertices (UV seams)", MergedCount);
+        UE_LOG("Cloth: ExtractSection: Merged %d UV seam positions", MergedCount);
     }
 }
 //void UClothComponent::BuildClothMesh()
@@ -1567,7 +1570,7 @@ void UClothComponent::ApplyPaintedWeights()
 		nv::cloth::MappedRange<physx::PxVec4> currentParticles = cloth->getCurrentParticles();
 		nv::cloth::MappedRange<physx::PxVec4> previousParticles = cloth->getPreviousParticles();
 
-		UE_LOG("[ClothComponent] ApplyPaintedWeights: Applying to cloth instance (current=%d, previous=%d, weights=%d)",
+		UE_LOG("Cloth: ApplyPaintedWeights: current=%d, previous=%d, weights=%d",
 			   (int)currentParticles.size(), (int)previousParticles.size(), ClothVertexWeights.Num());
 
 		int32 fixedCount = 0;
@@ -1588,11 +1591,11 @@ void UClothComponent::ApplyPaintedWeights()
 				fixedCount++;
 			}
 		}
-		UE_LOG("[ClothComponent] ApplyPaintedWeights: %d vertices set as fixed (invMass=0)", fixedCount);
+		UE_LOG("Cloth: ApplyPaintedWeights: %d fixed vertices", fixedCount);
 	}
 	else
 	{
-		UE_LOG("[ClothComponent] WARNING: cloth instance is NULL! Weights only applied to ClothParticles array, not to simulation!");
+		UE_LOG("Cloth: ApplyPaintedWeights: Cloth instance NULL, weights not applied to simulation");
 	}
 
 	// PreviousParticles에도 반영
@@ -1602,26 +1605,26 @@ void UClothComponent::ApplyPaintedWeights()
 	}
 
 	bClothWeightsDirty = false;
-	UE_LOG("[ClothComponent] Applied painted weights to %d vertices\n", ClothVertexWeights.Num());
+	UE_LOG("Cloth: ApplyPaintedWeights: Applied to %d vertices", ClothVertexWeights.Num());
 }
 
 void UClothComponent::LoadWeightsFromPhysicsAsset(const TMap<uint32, float>& InClothVertexWeights)
 {
 	if (InClothVertexWeights.empty())
 	{
-		UE_LOG("[ClothComponent] No cloth weights in PhysicsAsset");
+		UE_LOG("Cloth: LoadWeights: No weights in PhysicsAsset");
 		return;
 	}
 
 	// ClothVertexToMeshVertex 매핑이 비어있으면 먼저 BuildClothMesh 호출
 	if (ClothVertexToMeshVertex.Num() == 0)
 	{
-		UE_LOG("[ClothComponent] ClothVertexToMeshVertex empty - building cloth mesh first...");
+		UE_LOG("Cloth: LoadWeights: Building cloth mesh first");
 		BuildClothMesh();
 
 		if (ClothVertexToMeshVertex.Num() == 0)
 		{
-			UE_LOG("[ClothComponent] ERROR: ClothVertexToMeshVertex still empty after BuildClothMesh, cannot load weights");
+			UE_LOG("Cloth: LoadWeights: ClothVertexToMeshVertex still empty, cannot load");
 			return;
 		}
 	}
@@ -1635,18 +1638,18 @@ void UClothComponent::LoadWeightsFromPhysicsAsset(const TMap<uint32, float>& InC
 	int32 AppliedCount = 0;
 	int32 FixedCount = 0;
 
-	UE_LOG("[ClothComponent] Loading weights: ClothParticles=%d, ClothVertexToMeshVertex=%d, Input entries=%d",
+	UE_LOG("Cloth: LoadWeights: Particles=%d, VertexMap=%d, Input=%d",
 		   ClothParticles.Num(), ClothVertexToMeshVertex.Num(), (int)InClothVertexWeights.size());
 
 	// 디버그: ClothVertexToMeshVertex의 첫 10개 인덱스 출력
-	UE_LOG("[ClothComponent] First 10 ClothVertexToMeshVertex mappings:");
+	UE_LOG("Cloth: LoadWeights: First 10 ClothVertexToMeshVertex mappings");
 	for (int32 i = 0; i < FMath::Min(10, ClothVertexToMeshVertex.Num()); ++i)
 	{
 		UE_LOG("  Cloth[%d] -> Mesh[%d]", i, ClothVertexToMeshVertex[i]);
 	}
 
 	// 디버그: PhysicsAsset의 첫 10개 weight 엔트리 출력
-	UE_LOG("[ClothComponent] First 10 PhysicsAsset weight entries:");
+	UE_LOG("Cloth: LoadWeights: First 10 PhysicsAsset weight entries");
 	int32 debugCount = 0;
 	for (const auto& Pair : InClothVertexWeights)
 	{
@@ -1692,14 +1695,14 @@ void UClothComponent::LoadWeightsFromPhysicsAsset(const TMap<uint32, float>& InC
 		}
 	}
 
-	UE_LOG("[ClothComponent] LoadWeightsFromPhysicsAsset: Applied %d weights (%d fixed vertices), NotFound=%d from %d entries",
+	UE_LOG("Cloth: LoadWeights: Applied=%d, Fixed=%d, NotFound=%d, Total=%d",
 		   AppliedCount, FixedCount, NotFoundCount, (int)InClothVertexWeights.size());
 
 	// 이제 올바른 invMass 값이 설정된 ClothParticles로 cloth instance 생성/재생성
 	// 기존 cloth가 있으면 제거
 	if (cloth)
 	{
-		UE_LOG("[ClothComponent] Recreating cloth instance with correct invMass values...");
+		UE_LOG("Cloth: LoadWeights: Recreating cloth instance");
 		FClothManager::GetInstance().GetSolver()->removeCloth(cloth);
 		NV_CLOTH_DELETE(cloth);
 		cloth = nullptr;
@@ -1730,14 +1733,14 @@ void UClothComponent::LoadWeightsFromPhysicsAsset(const TMap<uint32, float>& InC
 		bClothWeightsDirty = true;
 		ApplyPaintedWeights();
 
-		UE_LOG("[ClothComponent] Cloth instance recreated with %d fixed vertices", FixedCount);
+		UE_LOG("Cloth: LoadWeights: Recreated with %d fixed vertices", FixedCount);
 	}
 	else
 	{
-		UE_LOG("[ClothComponent] ERROR: Failed to create cloth instance!");
+		UE_LOG("Cloth: LoadWeights: Failed to create cloth instance");
 	}
 
 	bClothInitialized = true;
-	UE_LOG("[ClothComponent] Loaded %d weights from PhysicsAsset (total: %d entries)",
+	UE_LOG("Cloth: LoadWeights: Loaded %d/%d from PhysicsAsset",
 		   AppliedCount, (int)InClothVertexWeights.size());
 }
