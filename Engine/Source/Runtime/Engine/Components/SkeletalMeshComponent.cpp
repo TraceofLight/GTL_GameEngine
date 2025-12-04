@@ -455,21 +455,26 @@ void USkeletalMeshComponent::OnSkeletalMeshLoaded()
 
     ForceRecomputePose();
 
-        // Cloth Section 감지 로그만 출력
-        // 실제 ClothComponent 생성은 InitializeComponent에서 처리
-        // (Serialize 시점에는 Owner가 완전히 초기화되지 않아 크래시 발생 가능)
-        if (HasClothSections())
-        {
-            UE_LOG("SkeletalMeshComponent: Cloth sections detected. ClothComponent will be created in InitializeComponent.\n");
-        }
-    }
-    else
+    // Cloth Section 감지 로그만 출력
+    // 실제 ClothComponent 생성은 InitializeComponent에서 처리
+    // (Serialize 시점에는 Owner가 완전히 초기화되지 않아 크래시 발생 가능)
+    if (HasClothSections())
     {
-        // 메시 로드 실패 시 버퍼 비우기
-        CurrentLocalSpacePose.Empty();
-        CurrentComponentSpacePose.Empty();
-        TempFinalSkinningMatrices.Empty();
-        TempFinalSkinningNormalMatrices.Empty();
+        UE_LOG("SkeletalMeshComponent: Cloth sections detected. ClothComponent will be created in InitializeComponent.\n");
+    }
+}
+
+/**
+ * @brief 본 이름으로 본 인덱스 찾기
+ * @param BoneName 찾을 본 이름
+ * @return 본 인덱스 (찾지 못하면 -1)
+ */
+int32 USkeletalMeshComponent::GetBoneIndex(const FName& BoneName) const
+{
+	if (!SkeletalMesh)
+	{
+		return -1;
+	}
 
 	const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
 	if (!Skeleton)
