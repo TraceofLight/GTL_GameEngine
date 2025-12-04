@@ -12,6 +12,7 @@
 #include "Source/Runtime/AssetManagement/SkeletalMesh.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
 #include "Source/Editor/PlatformProcess.h"
+#include "Source/Slate/Widgets/ViewportToolbarWidget.h"
 #include "SelectionManager.h"
 #include "FViewport.h"
 #include "FViewportClient.h"
@@ -30,6 +31,13 @@ SSkeletalEditorWindow::~SSkeletalEditorWindow()
 {
 	// 렌더 타겟 해제
 	ReleaseRenderTarget();
+
+	// 뷰포트 툴바 해제
+	if (ViewportToolbar)
+	{
+		delete ViewportToolbar;
+		ViewportToolbar = nullptr;
+	}
 
 	// 스플리터/패널 정리
 	if (MainSplitter)
@@ -99,6 +107,10 @@ bool SSkeletalEditorWindow::Initialize(float StartX, float StartY, float Width, 
 
 	// 스플리터 초기 Rect 설정
 	ContentSplitter->SetRect(StartX, StartY + 40, StartX + Width, StartY + Height);
+
+	// 뷰포트 툴바 위젯 생성 및 초기화
+	ViewportToolbar = new SViewportToolbarWidget();
+	ViewportToolbar->Initialize(InDevice);
 
 	bIsOpen = true;
 	bRequestFocus = true;
@@ -1060,7 +1072,18 @@ void SSkeletalViewportPanel::OnRender()
 		ViewerState* State = Owner->GetActiveState();
 		if (State)
 		{
+			// ================================================================
+			// 공용 뷰포트 툴바 렌더링
+			// ================================================================
+			AGizmoActor* GizmoActor = State->World ? State->World->GetGizmoActor() : nullptr;
+			if (Owner->ViewportToolbar)
+			{
+				Owner->ViewportToolbar->Render(State->Client, GizmoActor, false);
+			}
+
+			// ================================================================
 			// 뷰포트 영역
+			// ================================================================
 			ImVec2 vpMin = ImGui::GetCursorScreenPos();
 			ImVec2 vpSize = ImGui::GetContentRegionAvail();
 
@@ -1793,3 +1816,4 @@ void SSkeletalEditorWindow::SetupFloorAndCamera(ViewerState* State)
 	}
 	SkeletalViewerBootstrap::SetupFloorAndCamera(State->PreviewActor, State->FloorActor, State->Client);
 }
+

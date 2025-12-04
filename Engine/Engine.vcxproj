@@ -584,6 +584,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Slate\Widgets\PlaybackControls.cpp" />
     <ClCompile Include="Source\Slate\Widgets\SceneManagerWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\TargetActorTransformWidget.cpp" />
+    <ClCompile Include="Source\Slate\Widgets\ViewportToolbarWidget.cpp" />
     <ClCompile Include="Source\Slate\Widgets\Widget.cpp" />
     <ClCompile Include="Source\Slate\Windows\BlendSpace2DWindow.cpp" />
     <ClCompile Include="Source\Slate\Windows\ConsoleWindow.cpp" />
@@ -979,6 +980,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Slate\Widgets\PlaybackControls.h" />
     <ClInclude Include="Source\Slate\Widgets\SceneManagerWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\TargetActorTransformWidget.h" />
+    <ClInclude Include="Source\Slate\Widgets\ViewportToolbarWidget.h" />
     <ClInclude Include="Source\Slate\Widgets\Widget.h" />
     <ClInclude Include="Source\Slate\Windows\BlendSpace2DWindow.h" />
     <ClInclude Include="Source\Slate\Windows\ConsoleWindow.h" />
