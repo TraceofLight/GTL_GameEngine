@@ -204,6 +204,7 @@ class SPhysicsAssetViewportPanel;
 class SPhysicsAssetBodyListPanel;
 class SPhysicsAssetPropertiesPanel;
 class SPhysicsAssetGraphPanel;
+class SViewportToolbarWidget;
 
 /**
  * @brief Physics Asset Editor Window
@@ -253,6 +254,7 @@ public:
     PhysicsAssetViewerState* GetActiveState() const { return ActiveState; }
     UWorld* GetWorld() const { return World; }
     ID3D11Device* GetDevice() const { return Device; }
+    SViewportToolbarWidget* GetViewportToolbar() const { return ViewportToolbar; }
 
     // 뷰포트 영역 (입력 처리용)
     FRect GetViewportRect() const { return ViewportRect; }
@@ -331,6 +333,10 @@ private:
 
     void CreateRenderTarget(uint32 Width, uint32 Height);
     void ReleaseRenderTarget();
+
+protected:
+    // 뷰포트 툴바 (패널에서 접근 필요)
+    SViewportToolbarWidget* ViewportToolbar = nullptr;
 };
 
 // ============================================================================

@@ -307,6 +307,10 @@ void UMainToolbarWidget::RenderActorSpawnButton()
     // 팝업 크기 제한 설정
     ImGui::SetNextWindowSizeConstraints(ImVec2(200, 0), ImVec2(400, 300));
 
+    // 팝업 스타일 설정 (BeginPopup 이전에 설정해야 적용됨)
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+
     if (ImGui::BeginPopup("ActorSpawnPopup"))
     {
         // 버튼 색상 스타일 설정 (테마에 맞게)
@@ -376,8 +380,6 @@ void UMainToolbarWidget::RenderActorSpawnButton()
             ImGui::Separator();
         }
 
-        ImGui::PopStyleColor(6);
-
         // 액터 리스트
         ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "액터 선택");
         ImGui::Separator();
@@ -402,9 +404,15 @@ void UMainToolbarWidget::RenderActorSpawnButton()
                 ImGui::PopID();
             }
         }
+
+        ImGui::PopStyleColor(6);
         ImGui::EndPopup();
     }
 
+    // 팝업 스타일 복원 (BeginPopup 이전에 Push했으므로 여기서 Pop)
+    ImGui::PopStyleVar(2);
+
+    // 외부 버튼 스타일 복원
     ImGui::PopStyleColor(3);
     ImGui::PopStyleVar(2);
 }

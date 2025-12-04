@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "SPhysicsAssetEditorWindow.h"
+#include "Source/Slate/Widgets/ViewportToolbarWidget.h"
 #include "Source/Runtime/Engine/PhysicsAssetViewer/PhysicsAssetViewerState.h"
 #include "Source/Runtime/Engine/PhysicsAssetViewer/PhysicsAssetViewerBootstrap.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsAsset.h"
@@ -39,6 +40,12 @@ SPhysicsAssetEditorWindow::SPhysicsAssetEditorWindow()
 
 SPhysicsAssetEditorWindow::~SPhysicsAssetEditorWindow()
 {
+    if (ViewportToolbar)
+    {
+        delete ViewportToolbar;
+        ViewportToolbar = nullptr;
+    }
+
     ReleaseRenderTarget();
 
     // Graph State 정리
@@ -125,6 +132,10 @@ bool SPhysicsAssetEditorWindow::Initialize(float StartX, float StartY, float Wid
 
     // 스플리터 초기 Rect 설정
     MainSplitter->SetRect(StartX, StartY, StartX + Width, StartY + Height);
+
+    // ViewportToolbar 초기화
+    ViewportToolbar = new SViewportToolbarWidget();
+    ViewportToolbar->Initialize(InDevice);
 
     bIsOpen = true;
 
@@ -1254,6 +1265,18 @@ void SPhysicsAssetViewportPanel::OnRender()
 
     if (ImGui::Begin("##PhysicsAssetViewport", nullptr, WindowFlags))
     {
+        // Viewport Toolbar 렌더링
+        SViewportToolbarWidget* Toolbar = Owner->GetViewportToolbar();
+        if (Toolbar)
+        {
+            AGizmoActor* GizmoActor = nullptr;
+            if (State->Client && State->Client->GetWorld())
+            {
+                GizmoActor = State->Client->GetWorld()->GetGizmoActor();
+            }
+            Toolbar->Render(State->Client, GizmoActor, false);
+        }
+
         ImVec2 AvailSize = ImGui::GetContentRegionAvail();
         uint32 Width = static_cast<uint32>(AvailSize.x);
         uint32 Height = static_cast<uint32>(AvailSize.y);

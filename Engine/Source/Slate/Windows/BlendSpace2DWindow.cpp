@@ -6,6 +6,7 @@
 #include "FViewportClient.h"
 #include "FSkeletalViewerViewportClient.h"
 #include "Source/Slate/Widgets/PlaybackControls.h"
+#include "Source/Slate/Widgets/ViewportToolbarWidget.h"
 #include "Source/Runtime/Engine/GameFramework/CameraActor.h"
 #include "Source/Runtime/Engine/GameFramework/SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/GameFramework/StaticMeshActor.h"
@@ -107,6 +108,12 @@ SBlendSpace2DWindow::SBlendSpace2DWindow()
 
 SBlendSpace2DWindow::~SBlendSpace2DWindow()
 {
+	if (ViewportToolbar)
+	{
+		delete ViewportToolbar;
+		ViewportToolbar = nullptr;
+	}
+
 	ReleaseRenderTarget();
 
 	// SSplitter 해제 (역순 - 리프 노드부터)
@@ -226,6 +233,10 @@ bool SBlendSpace2DWindow::Initialize(float StartX, float StartY, float Width, fl
 	MainSplitter->SetRightOrBottom(CenterRightSplitter);
 	MainSplitter->SetSplitRatio(0.2f);  // Details 20%, CenterRight 80%
 	MainSplitter->LoadFromConfig("BS2DWindow_Main");
+
+	// ViewportToolbar 초기화
+	ViewportToolbar = new SViewportToolbarWidget();
+	ViewportToolbar->Initialize(InDevice);
 
 	bRequestFocus = true;
 	bIsOpen = true;
@@ -1155,6 +1166,17 @@ void SBlendSpace2DWindow::RenderViewportPanel()
 	ImGui::SetCursorScreenPos(ImVec2(ViewportRect.Left, ViewportRect.Top));
 	ImGui::BeginChild("ViewportPanel", ImVec2(ViewportRect.GetWidth(), ViewportRect.GetHeight()), true, ImGuiWindowFlags_NoScrollbar);
 	{
+		// Viewport Toolbar 렌더링
+		if (ViewportToolbar)
+		{
+			AGizmoActor* GizmoActor = nullptr;
+			if (ActiveState->Client && ActiveState->Client->GetWorld())
+			{
+				GizmoActor = ActiveState->Client->GetWorld()->GetGizmoActor();
+			}
+			ViewportToolbar->Render(ActiveState->Client, GizmoActor, false);
+		}
+
 		// 뷰포트 렌더링 영역
 		ImVec2 ViewportSize = ImGui::GetContentRegionAvail();
 		uint32 NewWidth = static_cast<uint32>(ViewportSize.x);

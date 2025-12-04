@@ -14,6 +14,11 @@ import sys
 import os
 from pathlib import Path
 import subprocess
+import io
+
+# Configure stdout for UTF-8 encoding (Windows console compatibility)
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 # Add current script directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

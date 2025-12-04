@@ -1,7 +1,6 @@
 #pragma once
-#include "Object.h"
-#include "PoseContext.h"
-#include"UAnimStateMachine.generated.h"
+#include "UAnimStateMachine.generated.h"
+
 class APawn;
 class ACharacter;
 class UCharacterMovementComponent;

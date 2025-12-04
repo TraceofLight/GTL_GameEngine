@@ -8,6 +8,7 @@
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
 #include "Source/Runtime/Engine/Animation/AnimSingleNodeInstance.h"
 #include "Source/Editor/FBXLoader.h"
+#include "Source/Slate/Widgets/ViewportToolbarWidget.h"
 
 // ============================================================================
 // Viewport Panel 렌더링
@@ -44,6 +45,17 @@ void SAnimationWindow::RenderViewportPanel()
 
 	if (ImGui::Begin("##AnimViewport", nullptr, flags))
 	{
+		// Viewport Toolbar 렌더링
+		if (ViewportToolbar)
+		{
+			AGizmoActor* GizmoActor = nullptr;
+			if (State->Client && State->Client->GetWorld())
+			{
+				GizmoActor = State->Client->GetWorld()->GetGizmoActor();
+			}
+			ViewportToolbar->Render(State->Client, GizmoActor, false);
+		}
+
 		ImVec2 ContentSize = ImGui::GetContentRegionAvail();
 		uint32 NewWidth = static_cast<uint32>(ContentSize.x);
 		uint32 NewHeight = static_cast<uint32>(ContentSize.y);

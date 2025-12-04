@@ -1215,6 +1215,10 @@ void SParticleViewportPanel::OnRender()
 		{
 			ImGui::OpenPopup("ViewPopup");
 		}
+
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+
 		if (ImGui::BeginPopup("ViewPopup"))
 		{
 			if (State)
@@ -1243,8 +1247,11 @@ void SParticleViewportPanel::OnRender()
 				ImGui::MenuItem("Geometry", nullptr, &State->bShowGeometry);
 				ImGui::MenuItem("Geometry Properties", nullptr, &State->bShowGeometryProperties);
 			}
+
 			ImGui::EndPopup();
 		}
+
+		ImGui::PopStyleVar(2);
 
 		ImGui::SameLine();
 
@@ -1255,6 +1262,10 @@ void SParticleViewportPanel::OnRender()
 		{
 			ImGui::OpenPopup("TimePopup");
 		}
+
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+
 		if (ImGui::BeginPopup("TimePopup"))
 		{
 			if (State)
@@ -1291,8 +1302,11 @@ void SParticleViewportPanel::OnRender()
 					ImGui::EndMenu();
 				}
 			}
+
 			ImGui::EndPopup();
 		}
+
+		ImGui::PopStyleVar(2);
 
 		// 뷰포트 렌더링 영역
 		ImGui::BeginChild("ParticleViewportRenderArea", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollbar);

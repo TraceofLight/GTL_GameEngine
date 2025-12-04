@@ -7,6 +7,7 @@
 #include "FSkeletalViewerViewportClient.h"
 #include "SelectionManager.h"
 #include "USlateManager.h"
+#include "Source/Slate/Widgets/ViewportToolbarWidget.h"
 #include "Source/Editor/PlatformProcess.h"
 #include "Source/Editor/Gizmo/GizmoActor.h"
 #include "Source/Editor/FBXLoader.h"
@@ -65,6 +66,12 @@ SAnimationWindow::SAnimationWindow()
 
 SAnimationWindow::~SAnimationWindow()
 {
+	if (ViewportToolbar)
+	{
+		delete ViewportToolbar;
+		ViewportToolbar = nullptr;
+	}
+
 	ReleaseRenderTarget();
 
 	// SSplitter 해제 (역순)
@@ -128,6 +135,10 @@ bool SAnimationWindow::Initialize(float StartX, float StartY, float Width, float
 	IconGoToEndOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Go_To_End_24x_OFF.png");
 	IconLoop = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Loop_24x.png");
 	IconLoopOff = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/Loop_24x_OFF.png");
+
+	// ViewportToolbar 초기화
+	ViewportToolbar = new SViewportToolbarWidget();
+	ViewportToolbar->Initialize(InDevice);
 
 	ScanNotifyLibrary();
 

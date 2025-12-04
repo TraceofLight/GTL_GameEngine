@@ -11,6 +11,7 @@ class AGizmoActor;
 class ASkeletalMeshActor;
 class SSplitterH;
 class SSplitterV;
+class SViewportToolbarWidget;
 struct ID3D11Device;
 struct ImDrawList;
 
@@ -289,4 +290,7 @@ private:
 	ID3D11DepthStencilView* PreviewDepthStencilView = nullptr;
 	uint32 PreviewRenderTargetWidth = 0;
 	uint32 PreviewRenderTargetHeight = 0;
+
+	// === 뷰포트 툴바 ===
+	SViewportToolbarWidget* ViewportToolbar = nullptr;
 };

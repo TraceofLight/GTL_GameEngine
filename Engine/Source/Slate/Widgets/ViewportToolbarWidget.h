@@ -5,6 +5,7 @@ class FViewport;
 class FViewportClient;
 class UTexture;
 class AGizmoActor;
+class SViewportWindow;
 struct ID3D11Device;
 
 /**
@@ -30,24 +31,31 @@ public:
 	// 툴바 렌더링
 	// @param ViewportClient 현재 뷰포트 클라이언트
 	// @param GizmoActor 기즈모 액터 (nullptr이면 기즈모 버튼 비활성화)
+	// @param bShowCameraDropdown 카메라 옵션 드롭다운 표시 여부
 	// @param bShowLayoutSwitch 뷰포트 레이아웃 전환 버튼 표시 여부
-	void Render(FViewportClient* ViewportClient, AGizmoActor* GizmoActor, bool bShowLayoutSwitch = false);
+	// @param ViewportType 뷰포트 타입 (카메라 드롭다운용)
+	// @param ViewportName 뷰포트 이름 (카메라 드롭다운용)
+	// @param OwnerViewport 소유 뷰포트 윈도우 (레이아웃 스위치용, nullptr이면 스위치 버튼 비활성화)
+	void Render(FViewportClient* ViewportClient, AGizmoActor* GizmoActor,
+		bool bShowCameraDropdown = false, bool bShowLayoutSwitch = false,
+		EViewportType ViewportType = EViewportType::Perspective, const char* ViewportName = "Perspective",
+		SViewportWindow* OwnerViewport = nullptr);
 
 	// 툴바 높이 반환
 	float GetToolbarHeight() const { return ToolbarHeight; }
 
 private:
 	// 각 섹션 렌더링
-	void RenderGizmoModeButtons(AGizmoActor* GizmoActor);
-	void RenderGizmoSpaceButton(AGizmoActor* GizmoActor);
-	void RenderCameraOptionDropdownMenu(FViewportClient* ViewportClient);
+	void RenderGizmoModeButtons(AGizmoActor* GizmoActor) const;
+	void RenderGizmoSpaceButton(AGizmoActor* GizmoActor) const;
+	void RenderCameraOptionDropdownMenu(const FViewportClient* ViewportClient, EViewportType ViewportType, const char* ViewportName, SViewportWindow* OwnerViewport);
 	void RenderCameraSpeedButton(FViewportClient* ViewportClient);
-	void RenderViewModeDropdownMenu(FViewportClient* ViewportClient);
-	void RenderShowFlagDropdownMenu(FViewportClient* ViewportClient);
-	void RenderViewportLayoutSwitchButton();
+	void RenderViewModeDropdownMenu(FViewportClient* ViewportClient) const;
+	void RenderShowFlagDropdownMenu(const FViewportClient* ViewportClient) const;
+	void RenderViewportLayoutSwitchButton(SViewportWindow* OwnerViewport);
 
 	// 헬퍼 함수
-	float CalculateCameraSpeed(FViewportClient* ViewportClient) const;
+	float CalculateCameraSpeed(const FViewportClient* ViewportClient) const;
 
 	// 아이콘 로드
 	void LoadIcons(ID3D11Device* Device);
@@ -90,6 +98,24 @@ private:
 
 	// ShowFlag 아이콘
 	UTexture* IconShowFlag = nullptr;
+	UTexture* IconRevert = nullptr;
+	UTexture* IconStats = nullptr;
+	UTexture* IconHide = nullptr;
+	UTexture* IconBVH = nullptr;
+	UTexture* IconGrid = nullptr;
+	UTexture* IconDecal = nullptr;
+	UTexture* IconStaticMesh = nullptr;
+	UTexture* IconSkeletalMesh = nullptr;
+	UTexture* IconBillboard = nullptr;
+	UTexture* IconEditorIcon = nullptr;
+	UTexture* IconFog = nullptr;
+	UTexture* IconCollision = nullptr;
+	UTexture* IconAntiAliasing = nullptr;
+	UTexture* IconTile = nullptr;
+	UTexture* IconShadow = nullptr;
+	UTexture* IconShadowAA = nullptr;
+	UTexture* IconSkinning = nullptr;
+	UTexture* IconParticle = nullptr;
 
 	// 뷰포트 레이아웃 아이콘
 	UTexture* IconSingleToMultiViewport = nullptr;
