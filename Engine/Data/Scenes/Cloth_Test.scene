@@ -1,0 +1,231 @@
+{
+  "Actors" : {
+    "1247" : {
+      "ObjectName" : "스켈레탈 메시_0",
+      "OwnedComponents" : [{
+          "AnimBlueprintPath" : "",
+          "AnimToPlayPath" : "",
+          "AnimationMode" : 1,
+          "Id" : 1249,
+          "MaterialSlots" : [{
+              "Type" : "None"
+            }, {
+              "AssetPath" : "Arissa_MAT",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "Cloth_arissa:cloak_geo",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "Cloth_arissa:skirt_geo",
+              "Type" : "UMaterial"
+            }],
+          "ObjectName" : "USkeletalMeshComponent_1",
+          "ParentId" : 0,
+          "PhysicsAssetPath" : "Data/SkeletalMesh/Arissa.physicsasset",
+          "RelativeLocation" : [-2.928758, 0.038585, 0.538593],
+          "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+          "RelativeScale" : [1.000000, 1.000000, 1.000000],
+          "SavedPlayRate" : 1.000000,
+          "SavedPosition" : 0.000000,
+          "SkeletalMesh" : "Data/SkeletalMesh/Arissa.fbx",
+          "SkeletalMeshPath" : "Data/SkeletalMesh/Arissa.fbx",
+          "Type" : "USkeletalMeshComponent",
+          "bBlockComponent" : false,
+          "bCastShadows" : true,
+          "bGenerateOverlapEvents" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bSavedLooping" : true,
+          "bSavedPlaying" : true,
+          "bSimulatePhysics" : false,
+          "bTickEnabled" : true
+        }, {
+          "Id" : 1306,
+          "MaterialSlots" : [{
+              "Type" : "None"
+            }, {
+              "AssetPath" : "Arissa_MAT",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "Cloth_arissa:cloak_geo",
+              "Type" : "UMaterial"
+            }, {
+              "AssetPath" : "Cloth_arissa:skirt_geo",
+              "Type" : "UMaterial"
+            }],
+          "ObjectName" : "UClothComponent_1",
+          "ParentId" : 1249,
+          "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+          "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+          "RelativeScale" : [1.000000, 1.000000, 1.000000],
+          "SkeletalMesh" : "Data/SkeletalMesh/Arissa.fbx",
+          "SkeletalMeshPath" : "Data/SkeletalMesh/Arissa.fbx",
+          "Type" : "UClothComponent",
+          "bBlockComponent" : false,
+          "bCastShadows" : true,
+          "bGenerateOverlapEvents" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bSimulatePhysics" : false,
+          "bTickEnabled" : true
+        }],
+      "RootComponentId" : 1249,
+      "Tag" : "",
+      "Type" : "ASkeletalMeshActor",
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bTickInEditor" : false
+    },
+    "1307" : {
+      "ObjectName" : "DirectionalLight",
+      "OwnedComponents" : [{
+          "CascadedAreaColorDebugValue" : 0.000000,
+          "CascadedAreaShadowDebugValue" : -1,
+          "CascadedCount" : 4,
+          "CascadedLinearBlendingValue" : 0.500000,
+          "CascadedOverlapValue" : 0.200000,
+          "Id" : 1309,
+          "Intensity" : 1.000000,
+          "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
+          "ObjectName" : "UDirectionalLightComponent_1",
+          "ParentId" : 0,
+          "RelativeLocation" : [0.000000, 0.000000, 3.000000],
+          "RelativeRotationEuler" : [-62.900280, 16.769619, -62.900280],
+          "RelativeScale" : [1.000000, 1.000000, 1.000000],
+          "ShadowBias" : 0.000010,
+          "ShadowResolutionScale" : 2048,
+          "ShadowSharpen" : 0.500000,
+          "ShadowSlopeBias" : 0.000010,
+          "Temperature" : 6500.000000,
+          "Type" : "UDirectionalLightComponent",
+          "bCascaded" : true,
+          "bCastShadows" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bTickEnabled" : true
+        }],
+      "RootComponentId" : 1309,
+      "Tag" : "",
+      "Type" : "ADirectionalLightActor",
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bTickInEditor" : false
+    },
+    "1310" : {
+      "ObjectName" : "AmbientLight",
+      "OwnedComponents" : [{
+          "Id" : 1312,
+          "Intensity" : 0.100000,
+          "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
+          "ObjectName" : "UAmbientLightComponent_1",
+          "ParentId" : 0,
+          "RelativeLocation" : [0.000000, 0.000000, 6.000000],
+          "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+          "RelativeScale" : [1.000000, 1.000000, 1.000000],
+          "ShadowBias" : 0.000010,
+          "ShadowResolutionScale" : 1024,
+          "ShadowSharpen" : 0.500000,
+          "ShadowSlopeBias" : 0.000010,
+          "Temperature" : 6500.000000,
+          "Type" : "UAmbientLightComponent",
+          "bCastShadows" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bTickEnabled" : true
+        }],
+      "RootComponentId" : 1312,
+      "Tag" : "",
+      "Type" : "AAmbientLightActor",
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bTickInEditor" : false
+    },
+    "1313" : {
+      "ObjectName" : "Floor",
+      "OwnedComponents" : [{
+          "Id" : 1315,
+          "MaterialSlots" : [{
+              "AssetPath" : "texture",
+              "Type" : "UMaterial"
+            }],
+          "ObjectName" : "UStaticMeshComponent_1",
+          "ParentId" : 0,
+          "RelativeLocation" : [0.000000, 0.000000, 0.100000],
+          "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+          "RelativeScale" : [20.000000, 20.000000, 0.200000],
+          "StaticMesh" : "Data/Default/StaticMesh/Cube.obj",
+          "Type" : "UStaticMeshComponent",
+          "bBlockComponent" : false,
+          "bCastShadows" : true,
+          "bGenerateOverlapEvents" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bSimulatePhysics" : false,
+          "bTickEnabled" : true
+        }],
+      "RootComponentId" : 1315,
+      "Tag" : "",
+      "Type" : "AStaticMeshActor",
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bTickInEditor" : false
+    },
+    "1316" : {
+      "GroundColor" : [0.300000, 0.250000, 0.200000, 1.000000],
+      "HorizonColor" : [0.647100, 0.823500, 0.945100, 1.000000],
+      "HorizonFalloff" : 3.000000,
+      "ManualSunDirection" : [0.000000, 0.500000, 0.866000],
+      "ObjectName" : "SkySphere",
+      "OverallBrightness" : 1.000000,
+      "OwnedComponents" : [{
+          "GroundColor" : [0.300000, 0.250000, 0.200000, 1.000000],
+          "HorizonColor" : [0.647100, 0.823500, 0.945100, 1.000000],
+          "HorizonFalloff" : 3.000000,
+          "Id" : 1319,
+          "ObjectName" : "USkySphereComponent_1",
+          "OverallBrightness" : 1.000000,
+          "ParentId" : 0,
+          "RelativeLocation" : [0.000000, 0.000000, 9.000000],
+          "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+          "RelativeScale" : [1.000000, 1.000000, 1.000000],
+          "SunColor" : [1.000000, 0.950000, 0.800000, 5.000000],
+          "SunDirection" : [-0.436168, 0.852356, 0.288524],
+          "SunDiskSize" : 0.001000,
+          "Type" : "USkySphereComponent",
+          "ZenithColor" : [0.034300, 0.123600, 0.400000, 1.000000],
+          "bAutoUpdateSunDirection" : true,
+          "bBlockComponent" : false,
+          "bGenerateOverlapEvents" : true,
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bIsVisible" : true,
+          "bSimulatePhysics" : false,
+          "bTickEnabled" : true
+        }],
+      "RootComponentId" : 1319,
+      "SunColor" : [1.000000, 0.950000, 0.800000, 5.000000],
+      "SunDiskSize" : 0.001000,
+      "Tag" : "",
+      "Type" : "ASkySphereActor",
+      "ZenithColor" : [0.034300, 0.123600, 0.400000, 1.000000],
+      "bActorHiddenInGame" : false,
+      "bActorIsActive" : true,
+      "bAutoUpdateSunDirection" : true,
+      "bTickInEditor" : true
+    }
+  },
+  "NextUUID" : 1449,
+  "PerspectiveCamera" : {
+    "FOV" : [90.000000],
+    "FarClip" : [50000.000000],
+    "Location" : [-5.792607, 0.258072, 3.134467],
+    "NearClip" : [0.100000],
+    "Rotation" : [0.000000, 23.600029, 0.800315]
+  },
+  "Version" : 1
+}
