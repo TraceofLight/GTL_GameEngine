@@ -11,6 +11,7 @@
 #include "Source/Runtime/Engine/PhysicsEngine/BodyInstance.h"
 #include "Source/Runtime/Engine/PhysicsEngine/ConstraintInstance.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsConstraintSetup.h"
+#include "Source/Runtime/InputCore/InputManager.h"
 #include "SceneView.h"
 #include "MeshBatchElement.h"
 
@@ -272,6 +273,19 @@ void USkeletalMeshComponent::TriggerAnimNotify(const FString& NotifyName, float 
 
 void USkeletalMeshComponent::TickComponent(float DeltaTime)
 {
+    // PIE 모드에서 'R' 키로 bSimulatePhysics 토글 (래그돌 on/off)
+    if (GetWorld() && GetWorld()->bPie && !Bodies.IsEmpty())
+    {
+        UInputManager& InputMgr = UInputManager::GetInstance();
+        if (InputMgr.IsKeyPressed('R'))
+        {
+            bSimulatePhysics = !bSimulatePhysics;
+            SetAllBodiesSimulatePhysics(bSimulatePhysics);
+            UE_LOG("[SkeletalMeshComponent] Ragdoll %s (Press 'R' to toggle)\n",
+                   bSimulatePhysics ? "ENABLED" : "DISABLED");
+        }
+    }
+
     // Per-bone physics를 사용할 때는 base BodyInstance sync를 건너뛰어야 함
     // (PrimitiveComponent::TickComponent가 빈 BodyInstance를 sync하면 안 됨)
     if (bSimulatePhysics && !Bodies.IsEmpty())
@@ -394,38 +408,52 @@ void USkeletalMeshComponent::TickComponent(float DeltaTime)
 
 void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
 {
+    // 비동기 로드 시작 - 완료 시 OnSkeletalMeshLoaded 호출됨
     Super::SetSkeletalMesh(PathFileName);
+}
 
-    if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshData())
+void USkeletalMeshComponent::OnSkeletalMeshLoaded()
+{
+    Super::OnSkeletalMeshLoaded();
+
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshData())
     {
-        const FSkeleton& Skeleton = SkeletalMesh->GetSkeletalMeshData()->Skeleton;
-        const int32 NumBones = Skeleton.Bones.Num();
+        // 메시 로드 실패 시 버퍼 비우기
+        CurrentLocalSpacePose.Empty();
+        CurrentComponentSpacePose.Empty();
+        TempFinalSkinningMatrices.Empty();
+        TempFinalSkinningNormalMatrices.Empty();
+        return;
+    }
 
-        CurrentLocalSpacePose.SetNum(NumBones);
-        CurrentComponentSpacePose.SetNum(NumBones);
-        TempFinalSkinningMatrices.SetNum(NumBones);
-        TempFinalSkinningNormalMatrices.SetNum(NumBones);
+    const FSkeleton& Skeleton = SkeletalMesh->GetSkeletalMeshData()->Skeleton;
+    const int32 NumBones = Skeleton.Bones.Num();
 
-        for (int32 i = 0; i < NumBones; ++i)
+    CurrentLocalSpacePose.SetNum(NumBones);
+    CurrentComponentSpacePose.SetNum(NumBones);
+    TempFinalSkinningMatrices.SetNum(NumBones);
+    TempFinalSkinningNormalMatrices.SetNum(NumBones);
+
+    for (int32 i = 0; i < NumBones; ++i)
+    {
+        const FBone& ThisBone = Skeleton.Bones[i];
+        const int32 ParentIndex = ThisBone.ParentIndex;
+        FMatrix LocalBindMatrix;
+
+        if (ParentIndex == -1) // 루트 본
         {
-            const FBone& ThisBone = Skeleton.Bones[i];
-            const int32 ParentIndex = ThisBone.ParentIndex;
-            FMatrix LocalBindMatrix;
-
-            if (ParentIndex == -1) // 루트 본
-            {
-                LocalBindMatrix = ThisBone.BindPose;
-            }
-            else // 자식 본
-            {
-                const FMatrix& ParentInverseBindPose = Skeleton.Bones[ParentIndex].InverseBindPose;
-                LocalBindMatrix = ThisBone.BindPose * ParentInverseBindPose;
-            }
-            // 계산된 로컬 행렬을 로컬 트랜스폼으로 변환
-            CurrentLocalSpacePose[i] = FTransform(LocalBindMatrix);
+            LocalBindMatrix = ThisBone.BindPose;
         }
+        else // 자식 본
+        {
+            const FMatrix& ParentInverseBindPose = Skeleton.Bones[ParentIndex].InverseBindPose;
+            LocalBindMatrix = ThisBone.BindPose * ParentInverseBindPose;
+        }
+        // 계산된 로컬 행렬을 로컬 트랜스폼으로 변환
+        CurrentLocalSpacePose[i] = FTransform(LocalBindMatrix);
+    }
 
-        ForceRecomputePose();
+    ForceRecomputePose();
 
         // Cloth Section 감지 로그만 출력
         // 실제 ClothComponent 생성은 InitializeComponent에서 처리
@@ -443,9 +471,19 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
         TempFinalSkinningMatrices.Empty();
         TempFinalSkinningNormalMatrices.Empty();
 
-        // ClothComponent 제거 
-       //DestroyInternalClothComponent();
-    }
+	const FSkeleton* Skeleton = SkeletalMesh->GetSkeleton();
+	if (!Skeleton)
+	{
+		return -1;
+	}
+
+	auto It = Skeleton->BoneNameToIndex.find(BoneName.ToString());
+	if (It != Skeleton->BoneNameToIndex.end())
+	{
+		return It->second;
+	}
+
+	return -1;
 }
 
 /**
@@ -715,6 +753,38 @@ void USkeletalMeshComponent::DuplicateSubObjects()
     // AnimationMode에 따라 AnimInstance는 BeginPlay에서 재생성됨
     // AnimationData와 AnimBlueprint는 얕은 복사로 이미 복사되었음
 
+    // PIE 복제 시 Pose 배열 초기화 (TArray는 얕은 복사로 빈 배열이 됨)
+    if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshData())
+    {
+        const FSkeleton& Skeleton = SkeletalMesh->GetSkeletalMeshData()->Skeleton;
+        const int32 NumBones = Skeleton.Bones.Num();
+
+        CurrentLocalSpacePose.SetNum(NumBones);
+        CurrentComponentSpacePose.SetNum(NumBones);
+        TempFinalSkinningMatrices.SetNum(NumBones);
+        TempFinalSkinningNormalMatrices.SetNum(NumBones);
+
+        for (int32 i = 0; i < NumBones; ++i)
+        {
+            const FBone& ThisBone = Skeleton.Bones[i];
+            const int32 ParentIndex = ThisBone.ParentIndex;
+            FMatrix LocalBindMatrix;
+
+            if (ParentIndex == -1)
+            {
+                LocalBindMatrix = ThisBone.BindPose;
+            }
+            else
+            {
+                const FMatrix& ParentInverseBindPose = Skeleton.Bones[ParentIndex].InverseBindPose;
+                LocalBindMatrix = ThisBone.BindPose * ParentInverseBindPose;
+            }
+            CurrentLocalSpacePose[i] = FTransform(LocalBindMatrix);
+        }
+
+        ForceRecomputePose();
+    }
+
     // InternalClothComponent는 shallow copy로 에디터 월드의 포인터를 가지고 있으므로
     // PIE 월드에서 새로 생성해야 함
     // 주의: DuplicateSubObjects() 시점에는 Owner가 아직 제대로 설정되지 않아
@@ -914,11 +984,27 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
 {
     Super::OnCreatePhysicsState();
 
+    // CRITICAL: AVehicleActor는 PhysicsAsset을 사용하지 않음
+    // PhysX Vehicle은 단일 RigidDynamic에 모든 Shape을 붙여야 함
+    AActor* OwnerActor = GetOwner();
+    if (OwnerActor && OwnerActor->GetClass()->Name &&
+        strcmp(OwnerActor->GetClass()->Name, "AVehicleActor") == 0)
+    {
+        return;
+    }
+
     if (!SkeletalMesh || !SkeletalMesh->GetSkeleton())
     {
         UE_LOG("Physics: SkeletalMeshComponent::OnCreatePhysicsState: No skeletal mesh");
         return;
     }
+
+	// 비동기 로드 중이면 CurrentComponentSpacePose가 아직 초기화되지 않았을 수 있음
+	if (CurrentComponentSpacePose.IsEmpty())
+	{
+		UE_LOG("Physics: SkeletalMeshComponent::OnCreatePhysicsState: Pose not initialized yet (async load in progress?)");
+		return;
+	}
 
     if (!PHYSICS.GetPhysics())
     {
@@ -971,6 +1057,15 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
             continue;
         }
 
+        // CurrentComponentSpacePose가 초기화되지 않았으면 스킵
+        if (CurrentComponentSpacePose.IsEmpty() || BoneIdx >= CurrentComponentSpacePose.Num())
+        {
+            UE_LOG("Physics: OnCreatePhysicsState: CurrentComponentSpacePose not initialized (BoneIdx=%d, Size=%d)",
+                   BoneIdx, CurrentComponentSpacePose.Num());
+            Bodies.Add(nullptr);
+            continue;
+        }
+
         FMatrix BoneWorldMatrix = CurrentComponentSpacePose[BoneIdx].ToMatrix() * GetWorldMatrix();
 
         FBodyInstance* BoneBody = new FBodyInstance(this);
@@ -987,8 +1082,9 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         if (Actor)
         {
             PxFilterData FilterData;
-            FilterData.word0 = 1;  // Collision group
-            FilterData.word1 = 1;  // Collision mask
+            // Ragdoll bodies use DYNAMIC collision group
+            FilterData.word0 = ECollisionGroup::Dynamic;
+            FilterData.word1 = ECollisionGroup::GroundAndDynamic;
             FilterData.word2 = static_cast<PxU32>(reinterpret_cast<uintptr_t>(this) & 0xFFFFFFFF);  // Ragdoll Owner ID
             FilterData.word3 = 0;
 
@@ -1558,15 +1654,15 @@ bool USkeletalMeshComponent::HasClothSections() const
  * @brief 내부 ClothComponent 생성 및 초기화
  */
 void USkeletalMeshComponent::CreateInternalClothComponent()
-{ 
+{
 	// AActor에 새로운 컴포넌트 추가
 	InternalClothComponent = static_cast<UClothComponent*>(Owner->AddNewComponent(UClothComponent::StaticClass(), this));
 	if (!InternalClothComponent)
 	{
 		return;
-	}  
+	}
 	InternalClothComponent->SetSkeletalMesh(SkeletalMesh->GetPathFileName());
-  
+
 }
 
 /**

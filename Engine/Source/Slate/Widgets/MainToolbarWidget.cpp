@@ -53,7 +53,7 @@ void UMainToolbarWidget::RenderToolbar()
 {
     // 툴바 윈도우 설정
     const float HeaderHeight = 54.0f;  // 상단패딩(4) + 메뉴바(22) + 레벨탭(28)
-    const float ToolbarHeight = 40.0f;
+    const float ToolbarHeight = 32.0f;  // 상단 2px + 버튼 28px + 하단 2px
     ImVec2 ToolbarPos(0, HeaderHeight);  // 메뉴바+레벨탭 아래에 배치
     ImVec2 ToolbarSize(ImGui::GetIO().DisplaySize.x, ToolbarHeight);
 
@@ -75,10 +75,10 @@ void UMainToolbarWidget::RenderToolbar()
 
     ImGui::Begin("##MainToolbar", nullptr, flags);
     {
-        // 수직 중앙 정렬
-        float cursorY = (ToolbarHeight - IconSize) / 2.0f;
+        // 수직 정렬 (상단 패딩 줄이고 하단 패딩 증가)
+        float cursorY = 2.0f;  // 상단 2px
         ImGui::SetCursorPosY(cursorY);
-        ImGui::SetCursorPosX(8.0f); // 왼쪽 여백 (원래대로)
+        ImGui::SetCursorPosX(8.0f); // 왼쪽 여백
 
         // Scene 관리 버튼들
         RenderSceneButtons();
@@ -86,7 +86,7 @@ void UMainToolbarWidget::RenderToolbar()
         // 구분선
         ImGui::SameLine(0, 12.0f);
         ImVec2 separatorStart = ImGui::GetCursorScreenPos();
-        separatorStart.y += 4.0f;  // 5픽셀 아래로 이동
+        separatorStart.y += 2.0f;
         ImGui::GetWindowDrawList()->AddLine(
             separatorStart,
             ImVec2(separatorStart.x, separatorStart.y + IconSize),
@@ -105,7 +105,7 @@ void UMainToolbarWidget::RenderToolbar()
         // 구분선
         ImGui::SameLine(0, 12.0f);
         separatorStart = ImGui::GetCursorScreenPos();
-        separatorStart.y += 4.0f;  // 5픽셀 아래로 이동
+        separatorStart.y += 2.0f;
         ImGui::GetWindowDrawList()->AddLine(
             separatorStart,
             ImVec2(separatorStart.x, separatorStart.y + IconSize),
@@ -117,6 +117,18 @@ void UMainToolbarWidget::RenderToolbar()
         // PIE 제어 버튼들
         ImGui::SameLine(0, 12.0f);
         RenderPIEButtons();
+
+        // 툴바 하단 구분선
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImVec2 windowPos = ImGui::GetWindowPos();
+        ImVec2 windowSize = ImGui::GetWindowSize();
+        float bottomY = windowPos.y + windowSize.y - 1.0f;
+        drawList->AddLine(
+            ImVec2(windowPos.x, bottomY),
+            ImVec2(windowPos.x + windowSize.x, bottomY),
+            ImGui::GetColorU32(ImVec4(0.20f, 0.20f, 0.22f, 1.0f)),
+            1.0f
+        );
     }
     ImGui::End();
     ImGui::PopStyleVar(2);   // WindowBorderSize, WindowPadding
@@ -233,8 +245,8 @@ void UMainToolbarWidget::RenderActorSpawnButton()
         ImVec2 buttonStartPos = ImGui::GetCursorScreenPos();
 
         // 아이콘+텍스트를 포함하는 투명 버튼 (전체 영역)
-        const float ButtonWidth = IconSize + 20.0f;  // 아이콘 + 화살표 공간
-        const float ButtonHeight = IconSize + 9.0f;
+        const float ButtonWidth = IconSize + 22.0f;  // 좌측 패딩 + 아이콘 + 화살표 공간
+        const float ButtonHeight = IconSize + 8.0f;  // 다른 ImageButton과 높이 통일 (FramePadding 4*2)
 
         if (ImGui::Button("##AddActorBtnInvisible", ImVec2(ButtonWidth, ButtonHeight)))
         {
@@ -245,10 +257,10 @@ void UMainToolbarWidget::RenderActorSpawnButton()
         // 버튼 위에 아이콘과 텍스트를 오버레이
         ImDrawList* drawList = ImGui::GetWindowDrawList();
 
-        // 아이콘 그리기
+        // 아이콘 그리기 (좌측 패딩 추가)
         ImVec2 iconPos = buttonStartPos;
-        iconPos.x += 4.0f;
-        iconPos.y += 4.0f;
+        iconPos.x += 4.0f;  // 좌측 패딩
+        iconPos.y += (ButtonHeight - IconSize) / 2.0f;
         drawList->AddImage(
             (void*)IconAddActor->GetShaderResourceView(),
             iconPos,
@@ -257,8 +269,8 @@ void UMainToolbarWidget::RenderActorSpawnButton()
 
         // 화살표 그리기
         ImVec2 arrowPos = buttonStartPos;
-        arrowPos.x += IconSize + 5.0f;
-        arrowPos.y += (ButtonHeight - 20.0f) / 2.0f;
+        arrowPos.x += IconSize + 6.0f;  // 아이콘 패딩에 맞춰 조정
+        arrowPos.y += (ButtonHeight - 14.0f) / 2.0f;
 
         ImVec4 textColor = bIsHovered ? ImVec4(1.0f, 1.0f, 1.0f, 1.0f) : ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
         drawList->AddText(arrowPos, ImGui::GetColorU32(textColor), "∨");

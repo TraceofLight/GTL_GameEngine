@@ -43,6 +43,11 @@ public:
 	void SetSkeletalMesh(const FString& PathFileName) override;
 	void HandleAnimNotify(const FAnimNotifyEvent& Notify);
 
+protected:
+	void OnSkeletalMeshLoaded() override;
+
+public:
+
 	UFUNCTION(LuaBind)
 	void TriggerAnimNotify(const FString& NotifyName, float TriggerTime, float Duration);
 
@@ -53,6 +58,7 @@ public:
 	// Getters
 	UFUNCTION(LuaBind, DisplayName = "GetAnimInstance")
 	UAnimInstance* GetAnimInstance() const { return AnimInstance; }
+	int32 GetBoneIndex(const FName& BoneName) const;  // 본 이름으로 인덱스 찾기
 	FTransform GetBoneLocalTransform(int32 BoneIndex) const;
 	FTransform GetBoneWorldTransform(int32 BoneIndex);
 

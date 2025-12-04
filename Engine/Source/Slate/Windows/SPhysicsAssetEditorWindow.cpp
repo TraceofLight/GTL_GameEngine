@@ -104,21 +104,24 @@ bool SPhysicsAssetEditorWindow::Initialize(float StartX, float StartY, float Wid
 
     // 좌측: BodyList(상) | Graph(하)
     LeftSplitter = new SSplitterV();
+    LeftSplitter->SetLeftOrTop(BodyListPanel);
+    LeftSplitter->SetRightOrBottom(GraphPanelWidget);
     LeftSplitter->SetSplitRatio(0.5f);
-    LeftSplitter->SideLT = BodyListPanel;
-    LeftSplitter->SideRB = GraphPanelWidget;
+    LeftSplitter->LoadFromConfig("PAEWindow_Left");
 
     // 내부: Viewport(좌) | Properties(우)
     InnerSplitter = new SSplitterH();
-    InnerSplitter->SetSplitRatio(0.80f);  // Viewport 80%, Properties 20%
-    InnerSplitter->SideLT = ViewportPanelWidget;
-    InnerSplitter->SideRB = PropertiesPanelWidget;
+    InnerSplitter->SetLeftOrTop(ViewportPanelWidget);
+    InnerSplitter->SetRightOrBottom(PropertiesPanelWidget);
+    InnerSplitter->SetSplitRatio(0.75f);  // Viewport 75%, Properties 25%
+    InnerSplitter->LoadFromConfig("PAEWindow_Inner");
 
     // 메인: Left(좌) | Inner(우)
     MainSplitter = new SSplitterH();
+    MainSplitter->SetLeftOrTop(LeftSplitter);
+    MainSplitter->SetRightOrBottom(InnerSplitter);
     MainSplitter->SetSplitRatio(0.30f);  // Left 30%, Rest 70%
-    MainSplitter->SideLT = LeftSplitter;
-    MainSplitter->SideRB = InnerSplitter;
+    MainSplitter->LoadFromConfig("PAEWindow_Main");
 
     // 스플리터 초기 Rect 설정
     MainSplitter->SetRect(StartX, StartY, StartX + Width, StartY + Height);
@@ -196,29 +199,52 @@ void SPhysicsAssetEditorWindow::RenderEmbedded(const FRect& ContentRect)
         MainSplitter->OnRender();
 
         // 패널 Rect 캐시 (입력 처리용)
-        if (MainSplitter->GetLeftOrTop())
+        // LeftSplitter: BodyList(상) | Graph(하)
+        if (LeftSplitter)
         {
-            ViewportRect = MainSplitter->GetLeftOrTop()->GetRect();
+            if (LeftSplitter->GetLeftOrTop())
+            {
+                BodyListRect = LeftSplitter->GetLeftOrTop()->GetRect();
+            }
+            if (LeftSplitter->GetRightOrBottom())
+            {
+                GraphRect = LeftSplitter->GetRightOrBottom()->GetRect();
+            }
+        }
+        // InnerSplitter: Viewport(좌) | Properties(우)
+        if (InnerSplitter)
+        {
+            if (InnerSplitter->GetLeftOrTop())
+            {
+                ViewportRect = InnerSplitter->GetLeftOrTop()->GetRect();
+            }
+            if (InnerSplitter->GetRightOrBottom())
+            {
+                PropertiesRect = InnerSplitter->GetRightOrBottom()->GetRect();
+            }
         }
     }
 
     // 패널 윈도우들을 앞으로 가져오기 (DynamicEditorWindow 뒤에 가려지는 문제 해결)
+    // Content Browser가 열려있으면 z-order 유지를 위해 front로 가져오지 않음
     if (!SLATE.IsContentBrowserVisible())
     {
         ImGuiWindow* ViewportWin = ImGui::FindWindowByName("##PhysicsAssetViewport");
         ImGuiWindow* BodyListWin = ImGui::FindWindowByName("Bodies##PhysicsAssetBodyList");
         ImGuiWindow* PropertiesWin = ImGui::FindWindowByName("Properties##PhysicsAssetProperties");
+        ImGuiWindow* GraphWin = ImGui::FindWindowByName("Constraint Graph##PhysicsAssetGraph");
 
         if (ViewportWin) ImGui::BringWindowToDisplayFront(ViewportWin);
         if (BodyListWin) ImGui::BringWindowToDisplayFront(BodyListWin);
         if (PropertiesWin) ImGui::BringWindowToDisplayFront(PropertiesWin);
+        if (GraphWin) ImGui::BringWindowToDisplayFront(GraphWin);
     }
 
     // 팝업들도 패널 위로 가져오기
     ImGuiContext* g = ImGui::GetCurrentContext();
     if (g && g->OpenPopupStack.Size > 0)
     {
-        for (int i = 0; i < g->OpenPopupStack.Size; ++i)
+        for (int32 i = 0; i < g->OpenPopupStack.Size; ++i)
         {
             ImGuiPopupData& PopupData = g->OpenPopupStack[i];
             if (PopupData.Window)
@@ -252,13 +278,22 @@ void SPhysicsAssetEditorWindow::OnUpdate(float DeltaSeconds)
         }
     }
 
-    // Bone Line 업데이트 (bShowBones가 활성화된 경우)
-    if (ActiveState->bShowBones && ActiveState->PreviewActor && ActiveState->CurrentMesh)
+    // Floor/Camera 설정 (메쉬 로드 완료 후 한 번만 실행)
+    if (ActiveState->bNeedsFloorSetup && ActiveState->PreviewActor)
     {
-        // 시뮬레이션 중이면 매 프레임 본 라인 갱신
-        if (ActiveState->bSimulating && !ActiveState->bSimulationPaused)
+        // 비동기 로드 완료 확인 (SkeletalMeshComponent가 실제 메쉬를 가지고 있는지)
+        if (auto* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent())
         {
-            ActiveState->PreviewActor->RebuildBoneLines(-1, true, false);
+            if (SkelComp->GetSkeletalMesh())
+            {
+                PhysicsAssetViewerBootstrap::SetupFloorAndCamera(
+                    ActiveState->PreviewActor,
+                    ActiveState->FloorActor,
+                    ActiveState->Client
+                );
+                ActiveState->bNeedsFloorSetup = false;
+                ActiveState->LastSetupMeshPath = ActiveState->LoadedMeshPath;
+            }
         }
     }
 }
@@ -581,21 +616,18 @@ void SPhysicsAssetEditorWindow::LoadSkeletalMesh(const FString& Path)
             SkelComp->SetVisibility(ActiveState->bShowMesh);
         }
 
-        // 본 라인 초기화
+        // 본 라인 비활성화 (PAE에서는 사용하지 않음)
         if (auto* LineComp = ActiveState->PreviewActor->GetBoneLineComponent())
         {
             LineComp->ClearLines();
-            LineComp->SetLineVisible(ActiveState->bShowBones);
-            if (ActiveState->bShowBones)
-            {
-                ActiveState->PreviewActor->RebuildBoneLines(-1, false, true);
-            }
+            LineComp->SetLineVisible(false);
         }
     }
 
     // State 업데이트
     ActiveState->CurrentMesh = Mesh;
     ActiveState->LoadedMeshPath = Path;
+    ActiveState->bNeedsFloorSetup = true;  // Floor/Camera 설정 필요 표시
 
     // 기존 Physics Asset이 있으면 유지, 없으면 새로 생성
     if (!ActiveState->PhysicsAsset)
@@ -828,18 +860,16 @@ void SPhysicsAssetEditorWindow::RenderToolbar()
                         }
                     }
                 }
-                // Show Bones 체크박스 - 변경 시 즉시 적용
-                if (ImGui::Checkbox("Show Bones", &ActiveState->bShowBones))
+                // Show Cloth 체크박스 - 변경 시 즉시 적용
+                if (ImGui::Checkbox("Show Cloth", &ActiveState->bShowCloth))
                 {
                     if (ActiveState->PreviewActor)
                     {
-                        if (auto* LineComp = ActiveState->PreviewActor->GetBoneLineComponent())
+                        if (auto* SkelComp = ActiveState->PreviewActor->GetSkeletalMeshComponent())
                         {
-                            LineComp->SetLineVisible(ActiveState->bShowBones);
-                            if (ActiveState->bShowBones)
+                            if (auto* ClothComp = SkelComp->GetInternalClothComponent())
                             {
-                                // 본 라인 초기화/갱신
-                                ActiveState->PreviewActor->RebuildBoneLines(-1, false, true);
+                                ClothComp->SetVisibility(ActiveState->bShowCloth);
                             }
                         }
                     }
@@ -1208,13 +1238,19 @@ void SPhysicsAssetViewportPanel::OnRender()
     PhysicsAssetViewerState* State = Owner->GetActiveState();
     if (!State) return;
 
-    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-                                    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoResize |
+                                    ImGuiWindowFlags_NoMove |
+                                    ImGuiWindowFlags_NoCollapse |
+                                    ImGuiWindowFlags_NoSavedSettings |
+                                    ImGuiWindowFlags_NoTitleBar |
+                                    ImGuiWindowFlags_NoScrollbar |
+                                    ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
     ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.1f, 0.1f, 1.0f));
 
     if (ImGui::Begin("##PhysicsAssetViewport", nullptr, WindowFlags))
     {
@@ -1346,6 +1382,7 @@ void SPhysicsAssetViewportPanel::OnRender()
         ContentRect.UpdateMinMax();
     }
     ImGui::End();
+    ImGui::PopStyleColor();
     ImGui::PopStyleVar();
 }
 
@@ -1366,7 +1403,11 @@ void SPhysicsAssetBodyListPanel::OnRender()
 
     PhysicsAssetViewerState* State = Owner->GetActiveState();
 
-    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoResize |
+                                    ImGuiWindowFlags_NoMove |
+                                    ImGuiWindowFlags_NoCollapse |
+                                    ImGuiWindowFlags_NoSavedSettings |
+                                    ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
     ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
@@ -2056,7 +2097,11 @@ void SPhysicsAssetPropertiesPanel::OnRender()
 
     PhysicsAssetViewerState* State = Owner->GetActiveState();
 
-    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoResize |
+                                    ImGuiWindowFlags_NoMove |
+                                    ImGuiWindowFlags_NoCollapse |
+                                    ImGuiWindowFlags_NoSavedSettings |
+                                    ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
     ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
@@ -2298,17 +2343,16 @@ void SPhysicsAssetPropertiesPanel::OnRender()
                         }
                     }
                 }
-                // Show Bones 체크박스 - 변경 시 즉시 적용
-                if (ImGui::Checkbox("Show Bones", &State->bShowBones))
+                // Show Cloth 체크박스 - 변경 시 즉시 적용
+                if (ImGui::Checkbox("Show Cloth", &State->bShowCloth))
                 {
                     if (State->PreviewActor)
                     {
-                        if (auto* LineComp = State->PreviewActor->GetBoneLineComponent())
+                        if (auto* SkelComp = State->PreviewActor->GetSkeletalMeshComponent())
                         {
-                            LineComp->SetLineVisible(State->bShowBones);
-                            if (State->bShowBones)
+                            if (auto* ClothComp = SkelComp->GetInternalClothComponent())
                             {
-                                State->PreviewActor->RebuildBoneLines(-1, false, true);
+                                ClothComp->SetVisibility(State->bShowCloth);
                             }
                         }
                     }
@@ -2940,12 +2984,18 @@ void SPhysicsAssetGraphPanel::OnRender()
     PhysicsAssetViewerState* State = Owner->GetActiveState();
     FPAEGraphState* GraphState = Owner->GraphState;
 
-    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoResize |
+                                    ImGuiWindowFlags_NoMove |
+                                    ImGuiWindowFlags_NoCollapse |
+                                    ImGuiWindowFlags_NoSavedSettings |
+                                    ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     ImGui::SetNextWindowPos(ImVec2(Rect.Left, Rect.Top));
     ImGui::SetNextWindowSize(ImVec2(Rect.GetWidth(), Rect.GetHeight()));
 
-    if (ImGui::Begin("Graph##PhysicsAssetGraph", nullptr, WindowFlags))
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.12f, 0.12f, 0.12f, 1.0f));
+
+    if (ImGui::Begin("Constraint Graph##PhysicsAssetGraph", nullptr, WindowFlags))
     {
         if (!State || !State->CurrentMesh)
         {
@@ -2962,6 +3012,7 @@ void SPhysicsAssetGraphPanel::OnRender()
         }
     }
     ImGui::End();
+    ImGui::PopStyleColor();
 }
 
 // 노드 그리기 헬퍼 함수

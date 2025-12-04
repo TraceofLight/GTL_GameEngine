@@ -2,6 +2,8 @@
 #include "PhysicsManager.h"
 
 // 필터 셰이더
+// filterData.word0 = 자신의 충돌 그룹 (CHASSIS, WHEEL, GROUND 등)
+// filterData.word1 = 충돌할 대상 그룹 마스크
 // filterData.word2 = Ragdoll Owner ID (같은 래그돌 내 Body들은 동일한 ID)
 static PxFilterFlags CoreSimulationFilterShader(
 	PxFilterObjectAttributes attributes0, PxFilterData filterData0,
@@ -11,6 +13,13 @@ static PxFilterFlags CoreSimulationFilterShader(
 	// 같은 래그돌 내 Body들 간 Self-Collision 무시
 	// word2가 0이 아니고 같으면 = 같은 래그돌 소속
 	if (filterData0.word2 != 0 && filterData0.word2 == filterData1.word2)
+	{
+		return PxFilterFlag::eSUPPRESS;
+	}
+
+	// 충돌 그룹/마스크 체크 (word0: 자신의 그룹, word1: 충돌 대상 마스크)
+	// 양방향 모두 충돌 허용해야 실제 충돌 발생
+	if ((filterData0.word0 & filterData1.word1) == 0 || (filterData1.word0 & filterData0.word1) == 0)
 	{
 		return PxFilterFlag::eSUPPRESS;
 	}
@@ -98,7 +107,7 @@ FPhysicsSceneHandle FPhysicsManager::CreateScene()
 
 	// Scene 설정
 	PxSceneDesc sceneDesc(Physics->getTolerancesScale());
-	sceneDesc.gravity = PxVec3(0.0f, 0.0f, -9.81f); // Z-Up 기준 중력
+	sceneDesc.gravity = PxVec3(0.0f, 0.0f, -49.05f); // Z-Up 기준 중력 (5배 강화)
 	sceneDesc.cpuDispatcher = Dispatcher;
 
 	// 이 Scene 전용 콜백 생성
@@ -217,8 +226,8 @@ void FPhysicsManager::InitVehicleSDK()
 		return;
 	}
 
-	// 좌표계 설정: Z-Up, Y-Forward (프로젝트 좌표계에 맞춤)
-	PxVehicleSetBasisVectors(PxVec3(0, 0, 1), PxVec3(0, 1, 0));
+	// 좌표계 설정: Z-Up, X-Forward (프로젝트 좌표계에 맞춤)
+	PxVehicleSetBasisVectors(PxVec3(0, 0, 1), PxVec3(1, 0, 0));
 
 	// 업데이트 모드: 속도 변화 방식 (더 안정적)
 	PxVehicleSetUpdateMode(PxVehicleUpdateMode::eVELOCITY_CHANGE);
@@ -227,7 +236,6 @@ void FPhysicsManager::InitVehicleSDK()
 	SetupFrictionPairs();
 
 	bVehicleSDKInitialized = true;
-	UE_LOG("Physics: InitVehicleSDK: Vehicle SDK initialized");
 }
 
 void FPhysicsManager::ShutdownVehicleSDK()

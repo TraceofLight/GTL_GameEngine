@@ -123,7 +123,7 @@ bool SDynamicEditorWindow::Initialize(float StartX, float StartY, float Width, f
 	// Mode 아이콘 로드
 	IconModeSkeletal = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/SkeletalMeshActor_64.dds");
 	IconModeAnimation = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/AnimSequence_64.dds");
-	IconModeAnimGraph = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/StateMachine_512.png");
+	IconModeAnimGraph = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/StateMachine_512.dds");
 	IconModeBlendSpace = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/BlendSpace_64.dds");
 	IconModePhysicsAsset = UResourceManager::GetInstance().Load<UTexture>("Data/Default/Icon/PhysicsAsset_64x.dds");
 
@@ -214,11 +214,12 @@ void SDynamicEditorWindow::DestroyTab(FEditorTabState* State)
 		delete State->Client;
 		State->Client = nullptr;
 	}
-	if (State->World)
+	// World가 이미 삭제되었는지 확인 (엔진 종료 시 DeleteAll에서 먼저 삭제될 수 있음)
+	if (State->World && ObjectFactory::IsValidObject(State->World))
 	{
 		ObjectFactory::DeleteObject(State->World);
-		State->World = nullptr;
 	}
+	State->World = nullptr;
 
 	delete State;
 }

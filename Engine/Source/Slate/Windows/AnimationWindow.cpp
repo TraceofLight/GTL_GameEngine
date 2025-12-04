@@ -271,11 +271,12 @@ void SAnimationWindow::DestroyTabState(FAnimationTabState* State)
 		delete State->Client;
 		State->Client = nullptr;
 	}
-	if (State->World)
+	// World가 이미 삭제되었는지 확인 (엔진 종료 시 DeleteAll에서 먼저 삭제될 수 있음)
+	if (State->World && ObjectFactory::IsValidObject(State->World))
 	{
 		ObjectFactory::DeleteObject(State->World);
-		State->World = nullptr;
 	}
+	State->World = nullptr;
 
 	delete State;
 }

@@ -453,19 +453,22 @@ void FViewportClient::MouseWheel(float DeltaSeconds)
 		return;
 	}
 
-	// 우클릭 드래그 중일 때: 카메라 속도 조절
+	// 우클릭 드래그 중일 때: 카메라 속도 스칼라 조절
 	if (bIsMouseRightButtonDown || PerspectiveCameraInput)
 	{
+		// 속도 스칼라 조절 (휠 업: 증가, 휠 다운: 감소)
+		float ScalarMultiplier = (WheelDelta > 0) ? 1.15f : (1.0f / 1.15f);
+		float OldScalar = CameraSpeedScalar;
+		float NewScalar = OldScalar * ScalarMultiplier;
+
+		// 스칼라 범위 제한 (0.25 ~ 128.0)
+		NewScalar = std::max(0.25f, std::min(128.0f, NewScalar));
+		CameraSpeedScalar = NewScalar;
+
+		// 현재 속도에 비례하여 새 속도 계산
 		float CurrentSpeed = Camera->GetCameraSpeed();
-
-		// 속도 배율 계산 (휠 업: 증가, 휠 다운: 감소)
-		// 로그 스케일로 부드럽게 조절
-		float SpeedMultiplier = (WheelDelta > 0) ? 1.15f : (1.0f / 1.15f);
-		float NewSpeed = CurrentSpeed * SpeedMultiplier;
-
-		// 속도 범위 제한 (0.1 ~ 100)
+		float NewSpeed = CurrentSpeed * (NewScalar / OldScalar);
 		NewSpeed = std::max(0.1f, std::min(100.0f, NewSpeed));
-
 		Camera->SetCameraSpeed(NewSpeed);
 	}
 	else if (ViewportType == EViewportType::Perspective)

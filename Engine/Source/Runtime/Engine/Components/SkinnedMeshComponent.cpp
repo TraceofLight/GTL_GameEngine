@@ -278,19 +278,45 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
          this->UpdateSkinningMatrices(IdentityMatrices, IdentityMatrices);
 
          const TArray<FGroupInfo>& GroupInfos = LoadedMesh->GetMeshGroupInfo();
-         this->MaterialSlots.resize(GroupInfos.size());
-         for (size_t i = 0; i < GroupInfos.size(); ++i)
+         const size_t NumSlots = GroupInfos.size();
+         this->MaterialSlots.resize(NumSlots);
+         this->MaterialSlotOverrides.resize(NumSlots, false);
+
+         for (size_t i = 0; i < NumSlots; ++i)
          {
-            this->SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
+            const FString& MatName = GroupInfos[i].InitialMaterialName;
+            if (!MatName.empty())
+            {
+               this->SetMaterialByName(static_cast<int32>(i), MatName);
+            }
+            else
+            {
+               // 머티리얼 이름이 비어있으면 기본 머티리얼 사용
+               this->SetMaterialInternal(static_cast<int32>(i), UResourceManager::GetInstance().GetDefaultMaterial(), true);
+            }
          }
 
          this->MarkWorldPartitionDirty();
+
+         // 비동기 로드 완료 후 파생 클래스 초기화 호출 (Pose, Cloth 등)
+         this->OnSkeletalMeshLoaded();
+
+         // 비동기 로드 완료 후 Physics Body 재생성 (BeginPlay 시점에 생성 못했을 수 있음)
+         if (this->IsRegistered() && this->GetWorld() && this->GetWorld()->bPie)
+         {
+            this->RecreatePhysicsBody();
+         }
       }
       else
       {
          UE_LOG("SkinnedMeshComponent: SetSkeletalMesh: Failed to load %s", PathFileName.c_str());
       }
    }, EAssetLoadPriority::Normal);
+}
+
+void USkinnedMeshComponent::OnSkeletalMeshLoaded()
+{
+   // 기본 구현: 파생 클래스에서 오버라이드하여 추가 초기화 수행 (Pose, Cloth 등)
 }
 
 void USkinnedMeshComponent::PerformSkinning()

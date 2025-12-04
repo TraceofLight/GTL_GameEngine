@@ -61,7 +61,7 @@ public:
     bool bShowBodies = true;
     bool bShowConstraints = true;
     bool bShowMesh = true;
-    bool bShowBones = false;  // Skeleton Bone 라인 렌더링
+    bool bShowCloth = true;  // Cloth 메시 렌더링
 
     // Simulation
     bool bSimulating = false;
@@ -91,6 +91,10 @@ public:
     // Gizmo
     AGizmoActor* GizmoActor = nullptr;
     bool bIsGizmoDragging = false;
+
+    // Floor/Camera 설정 플래그 (메쉬 로드 후 한 번만 설정)
+    bool bNeedsFloorSetup = false;
+    FString LastSetupMeshPath;
 
     // 헬퍼 메서드
     UBodySetup* GetSelectedBodySetup() const;

@@ -99,10 +99,21 @@ void APlayerController::OnPossess(APawn* InPawn)
 			InPawn->SetupPlayerInputComponent(InputComp);
 		}
 
-		// PlayerCameraManager 생성 (OnPossess가 BeginPlay보다 먼저 호출됨)
+		// PlayerCameraManager 설정 (OnPossess가 BeginPlay보다 먼저 호출됨)
+		// World의 PlayerCameraManager가 있으면 사용, 없으면 생성 후 World에도 설정
 		if (!PlayerCameraManager && World && World->bPie)
 		{
-			PlayerCameraManager = World->SpawnActor<APlayerCameraManager>();
+			if (World->GetPlayerCameraManager())
+			{
+				// World에 이미 있으면 그것을 사용
+				PlayerCameraManager = World->GetPlayerCameraManager();
+			}
+			else
+			{
+				// 없으면 새로 생성하고 World에도 설정
+				PlayerCameraManager = World->SpawnActor<APlayerCameraManager>();
+				World->SetPlayerCameraManager(PlayerCameraManager);
+			}
 		}
 
 		// PlayerCameraManager의 ViewTarget 설정

@@ -314,8 +314,11 @@ private:
     SPhysicsAssetPropertiesPanel* PropertiesPanelWidget = nullptr;
     SPhysicsAssetGraphPanel* GraphPanelWidget = nullptr;         // Node Graph (하단)
 
-    // 뷰포트 영역 캐시 (실제 3D 렌더링 영역)
+    // 패널 영역 캐시 (입력 처리용)
     FRect ViewportRect;
+    FRect BodyListRect;
+    FRect GraphRect;
+    FRect PropertiesRect;
 
     // Render Target
     ID3D11Texture2D* PreviewRenderTargetTexture = nullptr;

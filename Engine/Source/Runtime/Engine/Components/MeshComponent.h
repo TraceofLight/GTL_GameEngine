@@ -39,6 +39,10 @@ public:
     UMaterialInterface* GetMaterial(uint32 InSectionIndex) const override;
     void SetMaterial(uint32 InElementIndex, UMaterialInterface* InNewMaterial) override;
 
+    // bIsInitialSetup: true이면 초기 머티리얼 설정으로 간주하여 MaterialSlotOverrides 플래그를 설정하지 않음
+    // 비동기 로드 콜백에서 호출 시 true로 전달하여 사용자 오버라이드와 구분
+    void SetMaterialInternal(uint32 InElementIndex, UMaterialInterface* InNewMaterial, bool bIsInitialSetup);
+
     UMaterialInstanceDynamic* CreateAndSetMaterialInstanceDynamic(uint32 ElementIndex);
 
     const TArray<UMaterialInterface*>& GetMaterialSlots() const { return MaterialSlots; }

@@ -193,6 +193,12 @@ UMaterialInterface* UMeshComponent::GetMaterial(uint32 InSectionIndex) const
 
 void UMeshComponent::SetMaterial(uint32 InElementIndex, UMaterialInterface* InNewMaterial)
 {
+	// 사용자가 직접 SetMaterial을 호출하면 오버라이드 플래그 설정
+	SetMaterialInternal(InElementIndex, InNewMaterial, false);
+}
+
+void UMeshComponent::SetMaterialInternal(uint32 InElementIndex, UMaterialInterface* InNewMaterial, bool bIsInitialSetup)
+{
 	if (InElementIndex >= static_cast<uint32>(MaterialSlots.Num()))
 	{
 		UE_LOG("out of range InMaterialSlotIndex: %d", InElementIndex);
@@ -239,8 +245,9 @@ void UMeshComponent::SetMaterial(uint32 InElementIndex, UMaterialInterface* InNe
 	// 6. 새 머티리얼을 슬롯에 할당합니다.
 	MaterialSlots[InElementIndex] = InNewMaterial;
 
-	// 7. 사용자 오버라이드 플래그 설정 (비동기 로드 후에도 이 머티리얼 유지)
-	if (InElementIndex < static_cast<uint32>(MaterialSlotOverrides.Num()))
+	// 7. 사용자 오버라이드 플래그 설정 (비동기 로드 완료 후에도 이 머티리얼 유지)
+	//    bIsInitialSetup이 true이면 초기 머티리얼 설정이므로 플래그를 설정하지 않음
+	if (!bIsInitialSetup && InElementIndex < static_cast<uint32>(MaterialSlotOverrides.Num()))
 	{
 		MaterialSlotOverrides[InElementIndex] = true;
 	}

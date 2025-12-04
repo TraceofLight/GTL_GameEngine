@@ -103,7 +103,7 @@ private:
     UTexture* IconPrefab = nullptr;
 
     // 아이콘 설정
-    float IconSize = 25.0f;
+    float IconSize = 20.0f;
 
     // 명령 큐
     EToolbarCommand PendingCommand = EToolbarCommand::None;

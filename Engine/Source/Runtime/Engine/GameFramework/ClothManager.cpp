@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "ClothManager.h"
- 
+
 using namespace physx;
 using namespace nv::cloth;
 
@@ -65,7 +65,7 @@ namespace
 	public:
 		void operator()(const char* exp, const char* file, int line, bool& ignore) override
 		{
-			UE_LOG("[NvCloth Assert] %s (%s:%d)\n", exp, file, line);
+			// UE_LOG("[NvCloth Assert] %s (%s:%d)\n", exp, file, line);
 		}
 	};
 
@@ -85,7 +85,7 @@ void FClothManager::Initialize()
 }
 
 void FClothManager::Shutdown()
-{ 
+{
 	// 4. Solver 삭제
 	if (solver)
 	{
@@ -94,7 +94,7 @@ void FClothManager::Shutdown()
 		solver = nullptr;
 	}
 
-	
+
 	// 6. Factory 해제
 	if (factory)
 	{
@@ -125,7 +125,7 @@ void FClothManager::CreateFactory()
 }
 
 void FClothManager::ClothSimulation(float DeltaSeconds)
-{	
+{
 	solver->beginSimulation(DeltaSeconds);
 
 	for (int i = 0; i < solver->getSimulationChunkCount(); ++i)
