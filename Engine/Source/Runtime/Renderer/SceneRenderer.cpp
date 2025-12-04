@@ -1751,6 +1751,15 @@ void FSceneRenderer::RenderOverayEditorPrimitivesPass()
 
 	// 수집된 배치를 그립니다.
 	DrawMeshBatches(MeshBatchElements, true);
+
+	// 확장 기즈모 렌더링 (평면, 구체, Rotation 시각화)
+	if (AGizmoActor* GizmoActor = World->GetGizmoActor())
+	{
+		if (ACameraActor* Camera = World->GetEditorCameraActor())
+		{
+			GizmoActor->RenderGizmoExtensions(OwnerRenderer, Camera);
+		}
+	}
 }
 
 void FSceneRenderer::RenderFinalOverlayLines()

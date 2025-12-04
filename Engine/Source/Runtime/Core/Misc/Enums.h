@@ -24,6 +24,18 @@ enum class EGizmoSpace : uint8
     Local
 };
 
+enum class EGizmoDirection : uint8
+{
+    None = 0,
+    Forward = 1,    // X축
+    Right = 2,      // Y축
+    Up = 4,         // Z축
+    XY_Plane = 8,   // Z축 수직 평면 (X, Y 두 축 동시 제어)
+    XZ_Plane = 16,  // Y축 수직 평면 (X, Z 두 축 동시 제어)
+    YZ_Plane = 32,  // X축 수직 평면 (Y, Z 두 축 동시 제어)
+    Center = 64     // 중심점 (Translation: 카메라 평면 드래그, Scale: 균일 스케일)
+};
+
 enum class EAnimationMode : uint8
 {
     AnimationBlueprint,    // AnimBlueprint 사용 (복잡한 로직, State Machine 등)

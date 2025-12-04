@@ -4,6 +4,7 @@
 #include "Gizmo/GizmoArrowComponent.h"
 #include "Gizmo/GizmoScaleComponent.h"
 #include "Gizmo/GizmoRotateComponent.h"
+#include "Gizmo/GizmoGeometry.h"
 #include "RenderSettings.h"
 #include "CameraActor.h"
 #include "SelectionManager.h"
@@ -22,12 +23,91 @@
 
 IMPLEMENT_CLASS(AGizmoActor)
 
+// ────────────────────────────────────────────────────────
+// FGizmoBatchRenderer 구현
+// ────────────────────────────────────────────────────────
+
+void FGizmoBatchRenderer::AddMesh(const TArray<FNormalVertex>& InVertices, const TArray<uint32>& InIndices,
+                                   const FVector4& InColor, const FVector& InLocation,
+                                   const FQuat& InRotation, const FVector& InScale)
+{
+	FBatchedMesh Mesh;
+	Mesh.Vertices = InVertices;
+	Mesh.Indices = InIndices;
+	Mesh.Color = InColor;
+	Mesh.Location = InLocation;
+	Mesh.Rotation = InRotation;
+	Mesh.Scale = InScale;
+	Mesh.bAlwaysVisible = true;
+
+	// Vertex color를 Batch Color로 덮어쓰기 (호버링 색상 적용)
+	for (FNormalVertex& Vtx : Mesh.Vertices)
+	{
+		Vtx.color = InColor;
+	}
+
+	Meshes.Add(Mesh);
+}
+
+void FGizmoBatchRenderer::FlushAndRender(URenderer* Renderer)
+{
+	if (!Renderer || Meshes.Num() == 0)
+	{
+		Clear();
+		return;
+	}
+
+	// 배치 렌더링 시작
+	Renderer->BeginPrimitiveBatch();
+
+	for (const FBatchedMesh& Mesh : Meshes)
+	{
+		// FNormalVertex 배열을 FMeshData로 변환
+		FMeshData MeshData;
+		MeshData.Vertices.Reserve(Mesh.Vertices.Num());
+		MeshData.Normal.Reserve(Mesh.Vertices.Num());
+		MeshData.UV.Reserve(Mesh.Vertices.Num());
+		MeshData.Color.Reserve(Mesh.Vertices.Num());
+
+		for (const FNormalVertex& Vtx : Mesh.Vertices)
+		{
+			MeshData.Vertices.Add(Vtx.pos);
+			MeshData.Normal.Add(Vtx.normal);
+			MeshData.UV.Add(Vtx.tex);
+			MeshData.Color.Add(Vtx.color);
+		}
+
+		MeshData.Indices = Mesh.Indices;
+
+		// 월드 변환 행렬 생성
+		FMatrix WorldMatrix = FMatrix::FromTRS(Mesh.Location, Mesh.Rotation, Mesh.Scale);
+
+		// 프리미티브 추가
+		Renderer->AddPrimitiveData(MeshData, WorldMatrix);
+	}
+
+	// 배치 렌더링 종료
+	Renderer->EndPrimitiveBatch();
+
+	Clear();
+}
+
+void FGizmoBatchRenderer::Clear()
+{
+	Meshes.Empty();
+}
+
+// ────────────────────────────────────────────────────────
+// AGizmoActor 구현
+// ────────────────────────────────────────────────────────
+
 AGizmoActor::AGizmoActor()
 {
 	ObjectName = "Gizmo Actor";
 
 	const float GizmoTotalSize = 1.5f;
 	const float STGizmoTotalSize = 7.0f;    // Scale, Translation Gizmo
+	const float RotationGizmoSize = 1.5f;   // Rotation Gizmo (크기는 동일, 두께만 증가)
 
 	//======= Arrow Component 생성 =======
 	RootComponent = CreateDefaultSubobject<USceneComponent>("DefaultSceneComponent");
@@ -84,9 +164,9 @@ AGizmoActor::AGizmoActor()
 	RotateY->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
 	RotateZ->SetupAttachment(RootComponent, EAttachmentRule::KeepRelative);
 
-	RotateX->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-	RotateY->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
-	RotateZ->SetDefaultScale({ GizmoTotalSize, GizmoTotalSize, GizmoTotalSize });
+	RotateX->SetDefaultScale({ RotationGizmoSize, RotationGizmoSize, RotationGizmoSize });
+	RotateY->SetDefaultScale({ RotationGizmoSize, RotationGizmoSize, RotationGizmoSize });
+	RotateZ->SetDefaultScale({ RotationGizmoSize, RotationGizmoSize, RotationGizmoSize });
 
 	RotateX->SetRenderPriority(100);
 	RotateY->SetRenderPriority(100);
@@ -231,6 +311,16 @@ AGizmoActor::~AGizmoActor()
 void AGizmoActor::SetMode(EGizmoMode NewMode)
 {
 	CurrentMode = NewMode;
+
+	// 모드 변경 시 기즈모 회전 업데이트 (Scale 모드는 항상 로컬 회전 적용)
+	if (SelectionManager)
+	{
+		USceneComponent* SelectedComp = SelectionManager->GetSelectedComponent();
+		if (SelectedComp)
+		{
+			SetSpaceWorldMatrix(CurrentSpace, SelectedComp);
+		}
+	}
 }
 
 EGizmoMode AGizmoActor::GetMode()
@@ -240,6 +330,12 @@ EGizmoMode AGizmoActor::GetMode()
 
 void AGizmoActor::SetSpaceWorldMatrix(EGizmoSpace NewSpace, USceneComponent* SelectedComponent)
 {
+	// Scale 모드는 무조건 Local 공간만 사용
+	if (CurrentMode == EGizmoMode::Scale)
+	{
+		NewSpace = EGizmoSpace::Local;
+	}
+
 	SetSpace(NewSpace);
 
 	// Bone 타겟인 경우
@@ -371,7 +467,7 @@ static FVector2D GetStableAxisDirection(const FVector& WorldAxis, const ACameraA
 	FVector2D ScreenDirection = FVector2D(RightDot, -UpDot);
 
 	// 안전한 정규화 (최소 길이 보장)
-	float Length = ScreenDirection.Length();
+	float Length = std::sqrt(ScreenDirection.X * ScreenDirection.X + ScreenDirection.Y * ScreenDirection.Y);
 	if (Length > 0.001f)
 	{
 		return ScreenDirection * (1.0f / Length);
@@ -420,7 +516,192 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 	case EGizmoMode::Translate:
 	case EGizmoMode::Scale:
 	{
-		// --- 드래그 시작 시점의 축 계산 ---
+		// === 평면 드래그 또는 중심 구체 드래그 처리 ===
+		if (DraggingAxis == 8 || DraggingAxis == 16 || DraggingAxis == 32 || DraggingAxis == 64)
+		{
+			// 레이 생성
+			FVector2D ViewportSize(Viewport ? static_cast<float>(Viewport->GetSizeX()) : UInputManager::GetInstance().GetScreenSize().X,
+			                       Viewport ? static_cast<float>(Viewport->GetSizeY()) : UInputManager::GetInstance().GetScreenSize().Y);
+			FVector2D ViewportOffset(Viewport ? static_cast<float>(Viewport->GetStartX()) : 0.0f,
+			                          Viewport ? static_cast<float>(Viewport->GetStartY()) : 0.0f);
+
+			// 현재 마우스 위치 = 드래그 시작 위치 + 오프셋
+			FVector2D CurrentMousePos = DragStartPosition + MouseOffset;
+
+			FMatrix View = Camera->GetViewMatrix();
+			float aspect = ViewportSize.X / ViewportSize.Y;
+			FMatrix Proj = Camera->GetProjectionMatrix(aspect, Viewport);
+
+			FVector CameraPos = Camera->GetActorLocation();
+			FVector CameraRight = Camera->GetRight();
+			FVector CameraUp = Camera->GetUp();
+			FVector CameraForward = Camera->GetForward();
+
+			FRay Ray = MakeRayFromViewport(View, Proj, CameraPos, CameraRight, CameraUp, CameraForward,
+			                                CurrentMousePos + ViewportOffset, ViewportSize, ViewportOffset);
+
+			// 평면 정의
+			FVector PlaneNormal;
+			FVector PlanePoint = DragStartLocation;
+
+			if (DraggingAxis == 64) // 중심 구체: 카메라 평면
+			{
+				PlaneNormal = CameraForward;
+			}
+			else // 평면 드래그
+			{
+				FQuat BaseRot = (CurrentSpace == EGizmoSpace::Local) ? DragStartRotation : FQuat::Identity();
+
+				if (DraggingAxis == 8)      // XY 평면
+				{
+					PlaneNormal = BaseRot.RotateVector(FVector(0, 0, 1)); // Z축
+				}
+				else if (DraggingAxis == 16) // XZ 평면
+				{
+					PlaneNormal = BaseRot.RotateVector(FVector(0, 1, 0)); // Y축
+				}
+				else if (DraggingAxis == 32) // YZ 평면
+				{
+					PlaneNormal = BaseRot.RotateVector(FVector(1, 0, 0)); // X축
+				}
+			}
+
+			// 레이-평면 교차 검사
+			float T;
+			if (IntersectRayPlane(Ray, PlanePoint, PlaneNormal, T))
+			{
+				FVector HitPoint = Ray.Origin + Ray.Direction * T;
+
+				if (CurrentMode == EGizmoMode::Translate)
+				{
+					// Translation: 드래그 시작 지점 대비 변위 계산 (축 드래그와 동일한 패턴)
+					FVector Delta = HitPoint - DragImpactPoint;
+					FVector NewLocation = DragStartLocation + Delta;
+
+					if (bIsBoneMode)
+					{
+						FTransform NewWorldTransform;
+						NewWorldTransform.Translation = NewLocation;
+						NewWorldTransform.Rotation = DragStartRotation;
+						NewWorldTransform.Scale3D = DragStartScale;
+						TargetSkeletalMeshComponent->SetBoneWorldTransform(TargetBoneIndex, NewWorldTransform);
+					}
+					else if (bIsShapeMode)
+					{
+						// Shape의 새로운 월드 위치를 로컬 Center로 변환
+						FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
+						FVector NewLocalCenter = BoneWorldTransform.Rotation.Inverse().RotateVector(NewLocation - BoneWorldTransform.Translation);
+
+						// Shape의 Center 업데이트
+						switch (TargetShapeType)
+						{
+						case EAggCollisionShape::Sphere:
+							if (TargetShapeIndex < TargetBodySetup->AggGeom.SphereElems.Num())
+								TargetBodySetup->AggGeom.SphereElems[TargetShapeIndex].Center = NewLocalCenter;
+							break;
+						case EAggCollisionShape::Box:
+							if (TargetShapeIndex < TargetBodySetup->AggGeom.BoxElems.Num())
+								TargetBodySetup->AggGeom.BoxElems[TargetShapeIndex].Center = NewLocalCenter;
+							break;
+						case EAggCollisionShape::Capsule:
+							if (TargetShapeIndex < TargetBodySetup->AggGeom.SphylElems.Num())
+								TargetBodySetup->AggGeom.SphylElems[TargetShapeIndex].Center = NewLocalCenter;
+							break;
+						default:
+							break;
+						}
+					}
+					else if (Target)
+					{
+						Target->SetWorldLocation(NewLocation);
+					}
+				}
+				else if (CurrentMode == EGizmoMode::Scale)
+				{
+					// Scale: 드래그 시작 지점 대비 변위 계산 (평면에서의 실제 이동량)
+					FVector Delta = HitPoint - DragImpactPoint;
+					FQuat BaseRot = (CurrentSpace == EGizmoSpace::Local) ? DragStartRotation : FQuat::Identity();
+
+					FVector NewScale = DragStartScale;
+
+					if (DraggingAxis == 64) // 중심 구체: 균등 스케일
+					{
+						// 카메라 평면에서의 이동 거리를 스케일로 변환
+						float DeltaLength = Delta.Size();
+						FVector ToCamera = CameraPos - DragStartLocation;
+						float Sign = (FVector::Dot(Delta, ToCamera) > 0.0f) ? 1.0f : -1.0f;
+						float ScaleFactor = 1.0f + Sign * DeltaLength * 0.01f; // 스케일 속도 조절
+						NewScale = DragStartScale * ScaleFactor;
+					}
+					else // 평면 드래그: 두 축 스케일
+					{
+						FVector Axis0, Axis1;
+
+						if (DraggingAxis == 8)      // XY 평면
+						{
+							Axis0 = BaseRot.RotateVector(FVector(1, 0, 0));
+							Axis1 = BaseRot.RotateVector(FVector(0, 1, 0));
+						}
+						else if (DraggingAxis == 16) // XZ 평면
+						{
+							Axis0 = BaseRot.RotateVector(FVector(1, 0, 0));
+							Axis1 = BaseRot.RotateVector(FVector(0, 0, 1));
+						}
+						else if (DraggingAxis == 32) // YZ 평면
+						{
+							Axis0 = BaseRot.RotateVector(FVector(0, 1, 0));
+							Axis1 = BaseRot.RotateVector(FVector(0, 0, 1));
+						}
+
+						// 각 축에 대한 델타 계산
+						float Delta0 = FVector::Dot(Delta, Axis0);
+						float Delta1 = FVector::Dot(Delta, Axis1);
+
+						// 스케일 증가량 계산 (0.01 = 속도 조절)
+						float ScaleFactor0 = 1.0f + Delta0 * 0.01f;
+						float ScaleFactor1 = 1.0f + Delta1 * 0.01f;
+
+						// Local 공간에서 스케일 적용
+						FVector LocalScale = NewScale;
+						if (DraggingAxis == 8)      // XY
+						{
+							LocalScale.X *= ScaleFactor0;
+							LocalScale.Y *= ScaleFactor1;
+						}
+						else if (DraggingAxis == 16) // XZ
+						{
+							LocalScale.X *= ScaleFactor0;
+							LocalScale.Z *= ScaleFactor1;
+						}
+						else if (DraggingAxis == 32) // YZ
+						{
+							LocalScale.Y *= ScaleFactor0;
+							LocalScale.Z *= ScaleFactor1;
+						}
+
+						NewScale = LocalScale;
+					}
+
+					// 스케일 적용
+					if (bIsBoneMode)
+					{
+						FTransform NewWorldTransform;
+						NewWorldTransform.Translation = DragStartLocation;
+						NewWorldTransform.Rotation = DragStartRotation;
+						NewWorldTransform.Scale3D = NewScale;
+						TargetSkeletalMeshComponent->SetBoneWorldTransform(TargetBoneIndex, NewWorldTransform);
+					}
+					else if (Target)
+					{
+						Target->SetRelativeScale(NewScale);
+					}
+				}
+			}
+
+			return; // 평면/구체 드래그는 여기서 종료
+		}
+
+		// --- 드래그 시작 시점의 축 계산 (기존 축 드래그) ---
 		FVector Axis{};
 		if (CurrentSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
 		{
@@ -622,14 +903,16 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 
 		// 총 회전 각도 계산
 		float TotalAngle = ProjectedAmount * RotationSpeed;
+		// 게이지 표시용 각도 저장 (±2π 범위로 정규화, 음수는 역방향 게이지)
+	CurrentRotationAngle = std::fmod(TotalAngle, 2.0f * PI);
 
 		// 회전의 기준이 될 로컬 축 벡터
 		FVector LocalAxisVector;
 		switch (DraggingAxis)
 		{
-		case 1: LocalAxisVector = FVector(1, 0, 0); break;
-		case 2: LocalAxisVector = FVector(0, 1, 0); break;
-		case 3: LocalAxisVector = FVector(0, 0, 1); break;
+		case 1: LocalAxisVector = FVector(1, 0, 0); break;  // X축
+		case 2: LocalAxisVector = FVector(0, 1, 0); break;  // Y축
+		case 4: LocalAxisVector = FVector(0, 0, 1); break;  // Z축 (Picking 시스템 매칭)
 		default: LocalAxisVector = FVector(1, 0, 0);
 		}
 
@@ -981,9 +1264,9 @@ void AGizmoActor::ProcessGizmoDragging(ACameraActor* Camera, FViewport* Viewport
 			FVector LocalAxisVector(0.f);
 			switch (DraggingAxis)
 			{
-			case 1: LocalAxisVector = FVector(1, 0, 0); break;
-			case 2: LocalAxisVector = FVector(0, 1, 0); break;
-			case 3: LocalAxisVector = FVector(0, 0, 1); break;
+			case 1: LocalAxisVector = FVector(1, 0, 0); break;  // X축
+			case 2: LocalAxisVector = FVector(0, 1, 0); break;  // Y축
+			case 4: LocalAxisVector = FVector(0, 0, 1); break;  // Z축 (Picking 시스템 매칭)
 			}
 
 			if (CurrentSpace == EGizmoSpace::World)
@@ -1239,9 +1522,9 @@ bool AGizmoActor::StartDrag(ACameraActor* Camera, FViewport* Viewport, float Mou
 		FVector LocalAxisVector(0.f);
 		switch (DraggingAxis)
 		{
-		case 1: LocalAxisVector = FVector(1, 0, 0); break;
-		case 2: LocalAxisVector = FVector(0, 1, 0); break;
-		case 3: LocalAxisVector = FVector(0, 0, 1); break;
+		case 1: LocalAxisVector = FVector(1, 0, 0); break;  // X축
+		case 2: LocalAxisVector = FVector(0, 1, 0); break;  // Y축
+		case 4: LocalAxisVector = FVector(0, 0, 1); break;  // Z축 (Picking 시스템 매칭)
 		}
 
 		if (CurrentSpace == EGizmoSpace::World)
@@ -1291,6 +1574,7 @@ void AGizmoActor::EndDrag()
 	bDuplicatedThisDrag = false;  // 복사 플래그 리셋
 	DraggingAxis = 0;
 	DragCamera = nullptr;
+	CurrentRotationAngle = 0.0f;  // 회전 각도 리셋
 	GizmoAxis = 0; // 하이라이트 해제
 
 	// InputManager에 기즈모 드래그 종료 알림
@@ -1311,26 +1595,65 @@ void AGizmoActor::UpdateComponentVisibility()
 	bool bHasSelection = (SelectionManager && SelectionManager->GetSelectedComponent()) ||
 	                     bHasBoneTarget || bHasShapeTarget || bHasConstraintTarget;
 
+	// bRender 플래그 설정 (RenderGizmoExtensions 실행 조건)
+	bRender = bHasSelection;
+
 	// 드래그 중일 때는 고정된 축(DraggingAxis)을, 아닐 때는 호버 축(GizmoAxis)을 사용
 	uint32 HighlightAxis = bIsDragging ? DraggingAxis : GizmoAxis;
 
 	// Arrow Components (Translate 모드)
 	bool bShowArrows = bHasSelection && (CurrentMode == EGizmoMode::Translate);
-	if (ArrowX) { ArrowX->SetActive(bShowArrows); ArrowX->SetHighlighted(HighlightAxis == 1, 1); }
-	if (ArrowY) { ArrowY->SetActive(bShowArrows); ArrowY->SetHighlighted(HighlightAxis == 2, 2); }
-	if (ArrowZ) { ArrowZ->SetActive(bShowArrows); ArrowZ->SetHighlighted(HighlightAxis == 3, 3); }
+	if (ArrowX) { ArrowX->SetActive(bShowArrows); ArrowX->SetHighlighted(ShouldHighlightAxis(HighlightAxis, 1), 1); }
+	if (ArrowY) { ArrowY->SetActive(bShowArrows); ArrowY->SetHighlighted(ShouldHighlightAxis(HighlightAxis, 2), 2); }
+	if (ArrowZ) { ArrowZ->SetActive(bShowArrows); ArrowZ->SetHighlighted(ShouldHighlightAxis(HighlightAxis, 4), 4); }
 
-	// Rotate Components (Rotate 모드)
-	bool bShowRotates = bHasSelection && (CurrentMode == EGizmoMode::Rotate);
-	if (RotateX) { RotateX->SetActive(bShowRotates); RotateX->SetHighlighted(HighlightAxis == 1, 1); }
-	if (RotateY) { RotateY->SetActive(bShowRotates); RotateY->SetHighlighted(HighlightAxis == 2, 2); }
-	if (RotateZ) { RotateZ->SetActive(bShowRotates); RotateZ->SetHighlighted(HighlightAxis == 3, 3); }
+	// Rotate Components (Rotate 모드) - QuarterRing procedural rendering 사용, old components 비활성화
+	bool bShowRotates = false;  // QuarterRing 시스템으로 대체됨
+	if (RotateX) { RotateX->SetActive(bShowRotates); RotateX->SetHighlighted(false, 1); }
+	if (RotateY) { RotateY->SetActive(bShowRotates); RotateY->SetHighlighted(false, 2); }
+	if (RotateZ) { RotateZ->SetActive(bShowRotates); RotateZ->SetHighlighted(false, 3); }
 
 	// Scale Components (Scale 모드)
 	bool bShowScales = bHasSelection && (CurrentMode == EGizmoMode::Scale);
-	if (ScaleX) { ScaleX->SetActive(bShowScales); ScaleX->SetHighlighted(HighlightAxis == 1, 1); }
-	if (ScaleY) { ScaleY->SetActive(bShowScales); ScaleY->SetHighlighted(HighlightAxis == 2, 2); }
-	if (ScaleZ) { ScaleZ->SetActive(bShowScales); ScaleZ->SetHighlighted(HighlightAxis == 3, 3); }
+	if (ScaleX) { ScaleX->SetActive(bShowScales); ScaleX->SetHighlighted(ShouldHighlightAxis(HighlightAxis, 1), 1); }
+	if (ScaleY) { ScaleY->SetActive(bShowScales); ScaleY->SetHighlighted(ShouldHighlightAxis(HighlightAxis, 2), 2); }
+	if (ScaleZ) { ScaleZ->SetActive(bShowScales); ScaleZ->SetHighlighted(ShouldHighlightAxis(HighlightAxis, 4), 4); }
+}
+
+bool AGizmoActor::ShouldHighlightAxis(uint32 HighlightValue, uint32 AxisDirection) const
+{
+	if (HighlightValue == 0)
+	{
+		return false;
+	}
+
+	// 정확히 일치하면 하이라이트
+	if (HighlightValue == AxisDirection)
+	{
+		return true;
+	}
+
+	// 평면 기즈모 선택 시 해당 축들도 하이라이트
+	if (HighlightValue == 8)  // XY 평면
+	{
+		return (AxisDirection == 1 || AxisDirection == 2);  // X축, Y축
+	}
+	if (HighlightValue == 16) // XZ 평면
+	{
+		return (AxisDirection == 1 || AxisDirection == 4);  // X축, Z축
+	}
+	if (HighlightValue == 32) // YZ 평면
+	{
+		return (AxisDirection == 2 || AxisDirection == 4);  // Y축, Z축
+	}
+
+	// Scale 모드에서 중심 구체 선택 시 모든 축 하이라이트
+	if (HighlightValue == 64 && CurrentMode == EGizmoMode::Scale)
+	{
+		return (AxisDirection == 1 || AxisDirection == 2 || AxisDirection == 4);  // 모든 축
+	}
+
+	return false;
 }
 
 void AGizmoActor::OnDrag(USceneComponent* SelectedComponent, uint32 GizmoAxis, float MouseDeltaX, float MouseDeltaY, const ACameraActor* Camera)
@@ -1502,4 +1825,806 @@ void AGizmoActor::ClearShapeTarget()
 	TargetBoneIndex = -1;
 	TargetShapeType = static_cast<EAggCollisionShape::Type>(0);
 	TargetShapeIndex = -1;
+}
+
+// ────────────────────────────────────────────────────────
+// 평면 기즈모 렌더링
+// ────────────────────────────────────────────────────────
+
+void AGizmoActor::RenderTranslatePlanes(const FVector& GizmoLocation, const FQuat& BaseRot, float RenderScale, URenderer* Renderer)
+{
+	const float CornerPos = 0.3f * RenderScale;
+	const float HandleRadius = 0.02f * RenderScale;
+	constexpr int32 NumSegments = 8;
+
+	// 기즈모 축 색상 (X=빨강, Y=초록, Z=파랑)
+	const FVector4 GizmoColor[3] = {
+		FVector4(1.0f, 0.0f, 0.0f, 1.0f),  // X: 빨강
+		FVector4(0.0f, 1.0f, 0.0f, 1.0f),  // Y: 초록
+		FVector4(0.0f, 0.0f, 1.0f, 1.0f)   // Z: 파랑
+	};
+
+	// 평면 정보 구조체
+	struct FPlaneInfo
+	{
+		EGizmoDirection Direction;
+		FVector Tangent1;
+		FVector Tangent2;
+	};
+
+	FPlaneInfo Planes[3] = {
+		{EGizmoDirection::XY_Plane, {1, 0, 0}, {0, 1, 0}},
+		{EGizmoDirection::XZ_Plane, {1, 0, 0}, {0, 0, 1}},
+		{EGizmoDirection::YZ_Plane, {0, 1, 0}, {0, 0, 1}}
+	};
+
+	FGizmoBatchRenderer Batch;
+
+	for (const FPlaneInfo& PlaneInfo : Planes)
+	{
+		FVector T1 = PlaneInfo.Tangent1;
+		FVector T2 = PlaneInfo.Tangent2;
+		FVector PlaneNormal = FVector::Cross(T1, T2);
+		PlaneNormal = PlaneNormal.GetNormalized();
+
+		// 각 평면의 두 선분에 사용할 색상 인덱스
+		EGizmoDirection Seg1Color, Seg2Color;
+		if (PlaneInfo.Direction == EGizmoDirection::XY_Plane)
+		{
+			Seg1Color = EGizmoDirection::Forward;  // X
+			Seg2Color = EGizmoDirection::Right;    // Y
+		}
+		else if (PlaneInfo.Direction == EGizmoDirection::XZ_Plane)
+		{
+			Seg1Color = EGizmoDirection::Forward;  // X
+			Seg2Color = EGizmoDirection::Up;       // Z
+		}
+		else  // YZ_Plane
+		{
+			Seg1Color = EGizmoDirection::Right;    // Y
+			Seg2Color = EGizmoDirection::Up;       // Z
+		}
+
+		// 평면이 선택되었는지 확인
+		bool bIsPlaneSelected = (static_cast<uint32>(PlaneInfo.Direction) == GizmoAxis);
+
+		// 색상 계산 (비트 플래그 값에서 인덱스로 변환)
+		auto DirectionToAxisIndex = [](EGizmoDirection Dir) -> int32
+		{
+			switch (Dir)
+			{
+			case EGizmoDirection::Forward: return 0;  // X (비트 1)
+			case EGizmoDirection::Right:   return 1;  // Y (비트 2)
+			case EGizmoDirection::Up:      return 2;  // Z (비트 4)
+			default:                       return 0;
+			}
+		};
+
+		FVector4 Seg1ColorFinal, Seg2ColorFinal;
+		if (bIsPlaneSelected && bIsDragging)
+		{
+			Seg1ColorFinal = Seg2ColorFinal = FVector4(0.8f, 0.8f, 0.0f, 1.0f);  // 드래그 중: 짙은 노란색
+		}
+		else if (bIsPlaneSelected)
+		{
+			Seg1ColorFinal = Seg2ColorFinal = FVector4(1.0f, 1.0f, 0.0f, 1.0f);  // 호버 중: 밝은 노란색
+		}
+		else
+		{
+			Seg1ColorFinal = GizmoColor[DirectionToAxisIndex(Seg1Color)];
+			Seg2ColorFinal = GizmoColor[DirectionToAxisIndex(Seg2Color)];
+		}
+
+		// 선분 1 메쉬 생성 (T1 방향 선분)
+		{
+			TArray<FNormalVertex> Vertices;
+			TArray<uint32> Indices;
+
+			FVector Start1 = T1 * CornerPos;
+			FVector End1 = T1 * CornerPos + T2 * CornerPos;
+			FVector Dir1 = End1 - Start1;
+			Dir1 = Dir1.GetNormalized();
+			FVector Perp1_1 = FVector::Cross(Dir1, PlaneNormal);
+			Perp1_1 = Perp1_1.GetNormalized();
+			FVector Perp1_2 = FVector::Cross(Dir1, Perp1_1);
+			Perp1_2 = Perp1_2.GetNormalized();
+
+			for (int32 i = 0; i < NumSegments; ++i)
+			{
+				float Angle = static_cast<float>(i) / NumSegments * 2.0f * PI;
+				FVector Offset = (Perp1_1 * std::cosf(Angle) + Perp1_2 * std::sinf(Angle)) * HandleRadius;
+
+				FNormalVertex Vtx1, Vtx2;
+				Vtx1.pos = Start1 + Offset;
+				Vtx1.normal = Offset.GetNormalized();
+				Vtx1.color = Seg1ColorFinal;
+				Vtx1.tex = FVector2D(0, 0);
+				Vtx1.Tangent = FVector4(1, 0, 0, 1);
+
+				Vtx2.pos = End1 + Offset;
+				Vtx2.normal = Offset.GetNormalized();
+				Vtx2.color = Seg1ColorFinal;
+				Vtx2.tex = FVector2D(0, 0);
+				Vtx2.Tangent = FVector4(1, 0, 0, 1);
+
+				Vertices.Add(Vtx1);
+				Vertices.Add(Vtx2);
+			}
+
+			for (int32 i = 0; i < NumSegments; ++i)
+			{
+				int32 Next = (i + 1) % NumSegments;
+				Indices.Add(i * 2 + 0);
+				Indices.Add(i * 2 + 1);
+				Indices.Add(Next * 2 + 0);
+				Indices.Add(Next * 2 + 0);
+				Indices.Add(i * 2 + 1);
+				Indices.Add(Next * 2 + 1);
+			}
+
+			Batch.AddMesh(Vertices, Indices, Seg1ColorFinal, GizmoLocation, BaseRot);
+		}
+
+		// 선분 2 메쉬 생성 (T2 방향 선분)
+		{
+			TArray<FNormalVertex> Vertices;
+			TArray<uint32> Indices;
+
+			FVector Start2 = T2 * CornerPos;
+			FVector End2 = T1 * CornerPos + T2 * CornerPos;
+			FVector Dir2 = End2 - Start2;
+			Dir2 = Dir2.GetNormalized();
+			FVector Perp2_1 = FVector::Cross(Dir2, PlaneNormal);
+			Perp2_1 = Perp2_1.GetNormalized();
+			FVector Perp2_2 = FVector::Cross(Dir2, Perp2_1);
+			Perp2_2 = Perp2_2.GetNormalized();
+
+			for (int32 i = 0; i < NumSegments; ++i)
+			{
+				float Angle = static_cast<float>(i) / NumSegments * 2.0f * PI;
+				FVector Offset = (Perp2_1 * std::cosf(Angle) + Perp2_2 * std::sinf(Angle)) * HandleRadius;
+
+				FNormalVertex Vtx1, Vtx2;
+				Vtx1.pos = Start2 + Offset;
+				Vtx1.normal = Offset.GetNormalized();
+				Vtx1.color = Seg2ColorFinal;
+				Vtx1.tex = FVector2D(0, 0);
+				Vtx1.Tangent = FVector4(1, 0, 0, 1);
+
+				Vtx2.pos = End2 + Offset;
+				Vtx2.normal = Offset.GetNormalized();
+				Vtx2.color = Seg2ColorFinal;
+				Vtx2.tex = FVector2D(0, 0);
+				Vtx2.Tangent = FVector4(1, 0, 0, 1);
+
+				Vertices.Add(Vtx1);
+				Vertices.Add(Vtx2);
+			}
+
+			for (int32 i = 0; i < NumSegments; ++i)
+			{
+				int32 Next = (i + 1) % NumSegments;
+				Indices.Add(i * 2 + 0);
+				Indices.Add(i * 2 + 1);
+				Indices.Add(Next * 2 + 0);
+				Indices.Add(Next * 2 + 0);
+				Indices.Add(i * 2 + 1);
+				Indices.Add(Next * 2 + 1);
+			}
+
+			Batch.AddMesh(Vertices, Indices, Seg2ColorFinal, GizmoLocation, BaseRot);
+		}
+	}
+
+	// 모든 메쉬를 일괄 렌더링 (TODO: FlushAndRender 구현 필요)
+	Batch.FlushAndRender(Renderer);
+}
+
+void AGizmoActor::RenderScalePlanes(const FVector& GizmoLocation, const FQuat& BaseRot, float RenderScale, URenderer* Renderer)
+{
+	const float MidPoint = 0.4f * RenderScale;
+	const float HandleRadius = 0.02f * RenderScale;
+	constexpr int32 NumSegments = 8;
+
+	// 기즈모 축 색상 (X=빨강, Y=초록, Z=파랑)
+	const FVector4 GizmoColor[3] = {
+		FVector4(1.0f, 0.0f, 0.0f, 1.0f),  // X: 빨강
+		FVector4(0.0f, 1.0f, 0.0f, 1.0f),  // Y: 초록
+		FVector4(0.0f, 0.0f, 1.0f, 1.0f)   // Z: 파랑
+	};
+
+	// 평면 정보 구조체
+	struct FPlaneInfo
+	{
+		EGizmoDirection Direction;
+		FVector Tangent1;
+		FVector Tangent2;
+	};
+
+	FPlaneInfo Planes[3] = {
+		{EGizmoDirection::XY_Plane, {1, 0, 0}, {0, 1, 0}},
+		{EGizmoDirection::XZ_Plane, {1, 0, 0}, {0, 0, 1}},
+		{EGizmoDirection::YZ_Plane, {0, 1, 0}, {0, 0, 1}}
+	};
+
+	FGizmoBatchRenderer Batch;
+
+	for (const FPlaneInfo& PlaneInfo : Planes)
+	{
+		FVector T1 = PlaneInfo.Tangent1;
+		FVector T2 = PlaneInfo.Tangent2;
+
+		FVector Point1 = T1 * MidPoint;
+		FVector Point2 = T2 * MidPoint;
+		FVector MidCenter = (Point1 + Point2) * 0.5f;
+
+		FVector PlaneNormal = FVector::Cross(T1, T2);
+		PlaneNormal = PlaneNormal.GetNormalized();
+
+		// 각 평면의 두 선분에 사용할 색상 인덱스
+		EGizmoDirection Seg1Color, Seg2Color;
+		if (PlaneInfo.Direction == EGizmoDirection::XY_Plane)
+		{
+			Seg1Color = EGizmoDirection::Forward;  // X
+			Seg2Color = EGizmoDirection::Right;    // Y
+		}
+		else if (PlaneInfo.Direction == EGizmoDirection::XZ_Plane)
+		{
+			Seg1Color = EGizmoDirection::Forward;  // X
+			Seg2Color = EGizmoDirection::Up;       // Z
+		}
+		else  // YZ_Plane
+		{
+			Seg1Color = EGizmoDirection::Right;    // Y
+			Seg2Color = EGizmoDirection::Up;       // Z
+		}
+
+		// 평면이 선택되었는지 확인 (평면 자체 또는 Center 선택 시 하이라이팅)
+		bool bIsPlaneSelected = (static_cast<uint32>(PlaneInfo.Direction) == GizmoAxis);
+		bool bIsCenterSelected = (static_cast<uint32>(EGizmoDirection::Center) == GizmoAxis);
+
+		// 색상 계산 (비트 플래그 값에서 인덱스로 변환)
+		auto DirectionToAxisIndex = [](EGizmoDirection Dir) -> int32
+		{
+			switch (Dir)
+			{
+			case EGizmoDirection::Forward: return 0;  // X (비트 1)
+			case EGizmoDirection::Right:   return 1;  // Y (비트 2)
+			case EGizmoDirection::Up:      return 2;  // Z (비트 4)
+			default:                       return 0;
+			}
+		};
+
+		FVector4 Seg1ColorFinal, Seg2ColorFinal;
+		if ((bIsPlaneSelected || bIsCenterSelected) && bIsDragging)
+		{
+			Seg1ColorFinal = Seg2ColorFinal = FVector4(0.8f, 0.8f, 0.0f, 1.0f);  // 드래그 중: 짙은 노란색
+		}
+		else if (bIsPlaneSelected || bIsCenterSelected)
+		{
+			Seg1ColorFinal = Seg2ColorFinal = FVector4(1.0f, 1.0f, 0.0f, 1.0f);  // 호버 중: 밝은 노란색
+		}
+		else
+		{
+			Seg1ColorFinal = GizmoColor[DirectionToAxisIndex(Seg1Color)];
+			Seg2ColorFinal = GizmoColor[DirectionToAxisIndex(Seg2Color)];
+		}
+
+		// 선분 1 메쉬 생성 (Point1 → MidCenter 대각선)
+		{
+			TArray<FNormalVertex> Vertices;
+			TArray<uint32> Indices;
+
+			FVector Start = Point1;
+			FVector End = MidCenter;
+			FVector DiagDir = End - Start;
+			DiagDir = DiagDir.GetNormalized();
+			FVector Perp1 = FVector::Cross(DiagDir, PlaneNormal);
+			Perp1 = Perp1.GetNormalized();
+			FVector Perp2 = FVector::Cross(DiagDir, Perp1);
+			Perp2 = Perp2.GetNormalized();
+
+			for (int32 i = 0; i < NumSegments; ++i)
+			{
+				float Angle = static_cast<float>(i) / NumSegments * 2.0f * PI;
+				FVector Offset = (Perp1 * std::cosf(Angle) + Perp2 * std::sinf(Angle)) * HandleRadius;
+
+				FNormalVertex Vtx1, Vtx2;
+				Vtx1.pos = Start + Offset;
+				Vtx1.normal = Offset.GetNormalized();
+				Vtx1.color = Seg1ColorFinal;
+				Vtx1.tex = FVector2D(0, 0);
+				Vtx1.Tangent = FVector4(1, 0, 0, 1);
+
+				Vtx2.pos = End + Offset;
+				Vtx2.normal = Offset.GetNormalized();
+				Vtx2.color = Seg1ColorFinal;
+				Vtx2.tex = FVector2D(0, 0);
+				Vtx2.Tangent = FVector4(1, 0, 0, 1);
+
+				Vertices.Add(Vtx1);
+				Vertices.Add(Vtx2);
+			}
+
+			for (int32 i = 0; i < NumSegments; ++i)
+			{
+				int32 Next = (i + 1) % NumSegments;
+				Indices.Add(i * 2 + 0);
+				Indices.Add(i * 2 + 1);
+				Indices.Add(Next * 2 + 0);
+				Indices.Add(Next * 2 + 0);
+				Indices.Add(i * 2 + 1);
+				Indices.Add(Next * 2 + 1);
+			}
+
+			Batch.AddMesh(Vertices, Indices, Seg1ColorFinal, GizmoLocation, BaseRot);
+		}
+
+		// 선분 2 메쉬 생성 (MidCenter → Point2 대각선)
+		{
+			TArray<FNormalVertex> Vertices;
+			TArray<uint32> Indices;
+
+			FVector Start = MidCenter;
+			FVector End = Point2;
+			FVector DiagDir = End - Start;
+			DiagDir = DiagDir.GetNormalized();
+			FVector Perp1 = FVector::Cross(DiagDir, PlaneNormal);
+			Perp1 = Perp1.GetNormalized();
+			FVector Perp2 = FVector::Cross(DiagDir, Perp1);
+			Perp2 = Perp2.GetNormalized();
+
+			for (int32 i = 0; i < NumSegments; ++i)
+			{
+				float Angle = static_cast<float>(i) / NumSegments * 2.0f * PI;
+				FVector Offset = (Perp1 * std::cosf(Angle) + Perp2 * std::sinf(Angle)) * HandleRadius;
+
+				FNormalVertex Vtx1, Vtx2;
+				Vtx1.pos = Start + Offset;
+				Vtx1.normal = Offset.GetNormalized();
+				Vtx1.color = Seg2ColorFinal;
+				Vtx1.tex = FVector2D(0, 0);
+				Vtx1.Tangent = FVector4(1, 0, 0, 1);
+
+				Vtx2.pos = End + Offset;
+				Vtx2.normal = Offset.GetNormalized();
+				Vtx2.color = Seg2ColorFinal;
+				Vtx2.tex = FVector2D(0, 0);
+				Vtx2.Tangent = FVector4(1, 0, 0, 1);
+
+				Vertices.Add(Vtx1);
+				Vertices.Add(Vtx2);
+			}
+
+			for (int32 i = 0; i < NumSegments; ++i)
+			{
+				int32 Next = (i + 1) % NumSegments;
+				Indices.Add(i * 2 + 0);
+				Indices.Add(i * 2 + 1);
+				Indices.Add(Next * 2 + 0);
+				Indices.Add(Next * 2 + 0);
+				Indices.Add(i * 2 + 1);
+				Indices.Add(Next * 2 + 1);
+			}
+
+			Batch.AddMesh(Vertices, Indices, Seg2ColorFinal, GizmoLocation, BaseRot);
+		}
+	}
+
+	// 모든 메쉬를 일괄 렌더링 (TODO: FlushAndRender 구현 필요)
+	Batch.FlushAndRender(Renderer);
+}
+
+void AGizmoActor::RenderCenterSphere(const FVector& GizmoLocation, float RenderScale, URenderer* Renderer)
+{
+	const float SphereRadius = 0.08f * RenderScale;  // 평면(0.3)보다 작지만 적당한 크기
+	constexpr int32 NumSegments = 16;
+	constexpr int32 NumRings = 8;
+
+	TArray<FNormalVertex> Vertices;
+	TArray<uint32> Indices;
+
+	// UV Sphere 생성
+	for (int32 Ring = 0; Ring <= NumRings; ++Ring)
+	{
+		float Phi = static_cast<float>(Ring) / NumRings * PI;
+		float SinPhi = std::sinf(Phi);
+		float CosPhi = std::cosf(Phi);
+
+		for (int32 Seg = 0; Seg <= NumSegments; ++Seg)
+		{
+			float Theta = static_cast<float>(Seg) / NumSegments * 2.0f * PI;
+			float SinTheta = std::sinf(Theta);
+			float CosTheta = std::cosf(Theta);
+
+			FVector Pos(SinPhi * CosTheta, SinPhi * SinTheta, CosPhi);
+			FVector Normal = Pos;
+			Normal = Normal.GetNormalized();
+			Pos = Pos * SphereRadius;
+
+			FNormalVertex Vtx;
+			Vtx.pos = Pos;
+			Vtx.normal = Normal;
+			Vtx.color = FVector4(1, 1, 1, 1);  // 기본 색상은 흰색 (나중에 하이라이팅 로직 추가 예정)
+			Vtx.tex = FVector2D(0, 0);
+			Vtx.Tangent = FVector4(1, 0, 0, 1);
+
+			Vertices.Add(Vtx);
+		}
+	}
+
+	// 인덱스 생성
+	for (int32 Ring = 0; Ring < NumRings; ++Ring)
+	{
+		for (int32 Seg = 0; Seg < NumSegments; ++Seg)
+		{
+			int32 Current = Ring * (NumSegments + 1) + Seg;
+			int32 Next = Current + NumSegments + 1;
+
+			Indices.Add(Current);
+			Indices.Add(Next);
+			Indices.Add(Current + 1);
+
+			Indices.Add(Current + 1);
+			Indices.Add(Next);
+			Indices.Add(Next + 1);
+		}
+	}
+
+	// 중심 구체 색상: 흰색 또는 하이라이트
+	bool bIsCenterSelected = (static_cast<uint32>(EGizmoDirection::Center) == GizmoAxis);
+	FVector4 SphereColor;
+	if (bIsCenterSelected && bIsDragging)
+	{
+		SphereColor = FVector4(0.8f, 0.8f, 0.0f, 1.0f);  // 드래그 중: 짙은 노란색
+	}
+	else if (bIsCenterSelected)
+	{
+		SphereColor = FVector4(1.0f, 1.0f, 0.0f, 1.0f);  // 호버 중: 밝은 노란색
+	}
+	else
+	{
+		SphereColor = FVector4(1.0f, 1.0f, 1.0f, 1.0f);  // 기본: 흰색
+	}
+
+	// 배칭에 추가 및 즉시 렌더링
+	FGizmoBatchRenderer Batch;
+	Batch.AddMesh(Vertices, Indices, SphereColor, GizmoLocation);
+	Batch.FlushAndRender(Renderer);
+}
+
+void AGizmoActor::RenderRotationCircles(const FVector& GizmoLocation, const FQuat& BaseRot, const FVector4& AxisColor,
+                                         const FVector& BaseAxis0, const FVector& BaseAxis1, float RenderScale, URenderer* Renderer)
+{
+	// Rotation 링 충돌 설정
+	const float InnerRadius = 0.75f * RenderScale;
+	const float OuterRadius = 0.85f * RenderScale;
+	const float Thickness = 0.05f * RenderScale;  // 링 두께 증가 (0.02 → 0.05)
+	const float SnapAngleDegrees = 10.0f;  // 기본 스냅 각도
+
+	// BaseRot으로 회전된 월드 축
+	FVector RenderWorldAxis0 = BaseRot.RotateVector(BaseAxis0);
+	FVector RenderWorldAxis1 = BaseRot.RotateVector(BaseAxis1);
+
+	FGizmoBatchRenderer Batch;
+
+	// 1. Inner circle: 두꺼운 축 색상 선
+	{
+		TArray<FNormalVertex> InnerVertices;
+		TArray<uint32> InnerIndices;
+
+		const float InnerLineThickness = Thickness * 2.0f;
+		FGizmoGeometry::GenerateCircleLineMesh(RenderWorldAxis0, RenderWorldAxis1,
+		                                       InnerRadius, InnerLineThickness, InnerVertices, InnerIndices);
+
+		if (!InnerIndices.IsEmpty())
+		{
+			Batch.AddMesh(InnerVertices, InnerIndices, AxisColor, GizmoLocation);
+		}
+	}
+
+	// 2. Outer circle: 얇은 노란색 선
+	{
+		TArray<FNormalVertex> OuterVertices;
+		TArray<uint32> OuterIndices;
+
+		const float OuterLineThickness = Thickness * 1.0f;
+		FGizmoGeometry::GenerateCircleLineMesh(RenderWorldAxis0, RenderWorldAxis1,
+		                                       OuterRadius, OuterLineThickness, OuterVertices, OuterIndices);
+
+		if (!OuterIndices.IsEmpty())
+		{
+			FVector4 YellowColor(1.0f, 1.0f, 0.0f, 1.0f);
+			Batch.AddMesh(OuterVertices, OuterIndices, YellowColor, GizmoLocation);
+		}
+	}
+
+	// 3. 각도 눈금 렌더링 (스냅 각도마다 작은 눈금, 90도마다 큰 눈금)
+	{
+		TArray<FNormalVertex> TickVertices;
+		TArray<uint32> TickIndices;
+
+		FGizmoGeometry::GenerateAngleTickMarks(RenderWorldAxis0, RenderWorldAxis1,
+		                                        InnerRadius, OuterRadius, Thickness, SnapAngleDegrees,
+		                                        TickVertices, TickIndices);
+
+		if (!TickIndices.IsEmpty())
+		{
+			FVector4 YellowColor(1.0f, 1.0f, 0.0f, 1.0f);
+			Batch.AddMesh(TickVertices, TickIndices, YellowColor, GizmoLocation);
+		}
+	}
+
+	// 4. 회전 각도 Arc 렌더링 (현재 회전 각도 표시)
+	float DisplayAngle = CurrentRotationAngle;
+
+	// X축과 Y축은 각도 반전
+	const bool bIsXAxis = (std::abs(BaseAxis0.X) < 0.1f && std::abs(BaseAxis0.Y) < 0.1f && std::abs(BaseAxis0.Z) > 0.9f &&
+	                       std::abs(BaseAxis1.X) < 0.1f && std::abs(BaseAxis1.Y) > 0.9f && std::abs(BaseAxis1.Z) < 0.1f);
+	const bool bIsYAxis = (std::abs(BaseAxis0.X) > 0.9f && std::abs(BaseAxis0.Y) < 0.1f && std::abs(BaseAxis0.Z) < 0.1f &&
+	                       std::abs(BaseAxis1.X) < 0.1f && std::abs(BaseAxis1.Y) < 0.1f && std::abs(BaseAxis1.Z) > 0.9f);
+	if (bIsXAxis || bIsYAxis)
+	{
+		DisplayAngle = -DisplayAngle;
+	}
+
+	if (std::abs(DisplayAngle) > 0.001f)
+	{
+		TArray<FNormalVertex> ArcVertices;
+		TArray<uint32> ArcIndices;
+
+		// Arc를 약간 더 두껍게 (링보다 살짝 크게)
+		const float ArcInnerRadius = InnerRadius * 0.98f;
+		const float ArcOuterRadius = OuterRadius * 1.02f;
+
+		// Arc 시작 방향: World 모드는 (0,0,0), Local 모드는 BaseAxis0
+		FVector StartDir = (CurrentSpace == EGizmoSpace::World) ? FVector(0, 0, 0) : BaseRot.RotateVector(BaseAxis0);
+
+		FGizmoGeometry::GenerateRotationArcMesh(RenderWorldAxis0, RenderWorldAxis1,
+		                                         ArcInnerRadius, ArcOuterRadius, Thickness,
+		                                         DisplayAngle, StartDir, ArcVertices, ArcIndices);
+
+		if (!ArcIndices.IsEmpty())
+		{
+			FVector4 WhiteColor(1.0f, 1.0f, 1.0f, 1.0f);  // 흰색 아크 게이지
+			Batch.AddMesh(ArcVertices, ArcIndices, WhiteColor, GizmoLocation);
+		}
+	}
+
+	// 모든 메쉬를 일괄 렌더링
+	Batch.FlushAndRender(Renderer);
+}
+
+// ────────────────────────────────────────────────────────
+// 확장 기즈모 렌더링 (평면, 구체, Rotation 시각화)
+// ────────────────────────────────────────────────────────
+void AGizmoActor::RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camera)
+{
+	if (!Renderer || !Camera || !bRender)
+	{
+		return;
+	}
+
+	// 기즈모 위치 계산
+	FVector GizmoLocation = GetActorLocation();
+
+	// Screen-constant scale 계산 (ViewZ 기반)
+	const FMatrix& ViewMatrix = Camera->GetViewMatrix();
+	const FMatrix& ProjectionMatrix = Camera->GetProjectionMatrix();
+	const uint32 ViewportWidth = Renderer->GetCurrentViewportWidth();
+	const uint32 ViewportHeight = Renderer->GetCurrentViewportHeight();
+
+	FVector CameraPos = Camera->GetActorLocation();
+	FVector CameraForward = Camera->GetForward();
+	FVector ToGizmo = GizmoLocation - CameraPos;
+	float ViewZ = FVector::Dot(ToGizmo, CameraForward);
+
+	if (ViewZ <= 0.0f)
+	{
+		return; // 카메라 뒤에 있음
+	}
+
+	// FOV 보정 (ProjectionMatrix[1][1] = cot(FOV_Y/2))
+	float ProjYY = ProjectionMatrix.M[1][1];
+	constexpr float TargetPixels = 128.0f; // 기준 스크린 크기 (픽셀)
+	float RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportHeight * 0.5f);
+
+	// 기본 회전 (World/Local 공간)
+	FQuat BaseRot = FQuat::Identity();
+	if (CurrentSpace == EGizmoSpace::Local)
+	{
+		if (bIsDragging)
+		{
+			// 드래그 중에는 시작 시점의 회전에 고정 (기즈모가 같이 회전하지 않도록)
+			BaseRot = DragStartRotation;
+		}
+		else if (SelectionManager)
+		{
+			USceneComponent* SelectedComp = SelectionManager->GetSelectedComponent();
+			if (SelectedComp)
+			{
+				BaseRot = SelectedComp->GetWorldRotation();
+			}
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════
+	// 평면 기즈모 렌더링 (하이라이팅되지 않은 경우 먼저 렌더링)
+	// ═══════════════════════════════════════════════════════
+	bool bAnyPlaneHighlighted = false; // TODO: 피킹 시스템 구현 후 실제 하이라이팅 체크
+
+	if (!bAnyPlaneHighlighted)
+	{
+		if (CurrentMode == EGizmoMode::Translate)
+		{
+			RenderTranslatePlanes(GizmoLocation, BaseRot, RenderScale, Renderer);
+		}
+		else if (CurrentMode == EGizmoMode::Scale)
+		{
+			RenderScalePlanes(GizmoLocation, BaseRot, RenderScale, Renderer);
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════
+	// Rotation 기즈모 렌더링
+	// ═══════════════════════════════════════════════════════
+	if (CurrentMode == EGizmoMode::Rotate)
+	{
+		// 유휴 상태: QuarterRing 렌더링 (카메라 플립 판정 포함)
+		if (!bIsDragging)
+		{
+			// BaseAxis 정의
+			const FVector BaseAxis0[3] = {
+				FVector(0, 0, 1),  // X축: Z→Y
+				FVector(1, 0, 0),  // Y축: X→Z
+				FVector(1, 0, 0)   // Z축: X→Y
+			};
+			const FVector BaseAxis1[3] = {
+				FVector(0, 1, 0),  // X축: Y
+				FVector(0, 0, 1),  // Y축: Z
+				FVector(0, 1, 0)   // Z축: Y
+			};
+
+			// X축 QuarterRing (빨강)
+			RenderRotationQuarterRing(GizmoLocation, BaseRot, 1,
+			                           BaseAxis0[0], BaseAxis1[0], RenderScale, Renderer, Camera);
+
+			// Y축 QuarterRing (초록)
+			RenderRotationQuarterRing(GizmoLocation, BaseRot, 2,
+			                           BaseAxis0[1], BaseAxis1[1], RenderScale, Renderer, Camera);
+
+			// Z축 QuarterRing (파랑)
+			RenderRotationQuarterRing(GizmoLocation, BaseRot, 4,
+			                           BaseAxis0[2], BaseAxis1[2], RenderScale, Renderer, Camera);
+		}
+	}
+
+	// 드래그 중: 360도 링 + 각도 표시
+	if (CurrentMode == EGizmoMode::Rotate && bIsDragging && DraggingAxis != 0)
+	{
+		FVector AxisX(1, 0, 0), AxisY(0, 1, 0), AxisZ(0, 0, 1);
+		FVector LocalAxis0, LocalAxis1;  // 로컬 축 (RenderRotationCircles에서 BaseRot로 회전)
+		FVector4 AxisColor;
+
+		if (DraggingAxis == 1) // X축
+		{
+			LocalAxis0 = AxisZ;  // (0,0,1) - QuarterRing BaseAxis0[0]과 일치
+			LocalAxis1 = AxisY;  // (0,1,0) - QuarterRing BaseAxis1[0]과 일치
+			AxisColor = FVector4(1, 0, 0, 1);
+		}
+		else if (DraggingAxis == 2) // Y축
+		{
+			LocalAxis0 = AxisX;  // (1,0,0) - QuarterRing BaseAxis0[1]과 일치
+			LocalAxis1 = AxisZ;  // (0,0,1) - QuarterRing BaseAxis1[1]과 일치
+			AxisColor = FVector4(0, 1, 0, 1);
+		}
+		else if (DraggingAxis == 4) // Z축
+		{
+			LocalAxis0 = AxisX;  // (1,0,0) - QuarterRing BaseAxis0[2]와 일치
+			LocalAxis1 = AxisY;  // (0,1,0) - QuarterRing BaseAxis1[2]와 일치
+			AxisColor = FVector4(0, 0, 1, 1);
+		}
+		else
+		{
+			return;
+		}
+
+		RenderRotationCircles(GizmoLocation, BaseRot, AxisColor, LocalAxis0, LocalAxis1, RenderScale, Renderer);
+
+	}
+
+	// ═══════════════════════════════════════════════════════
+	// 중심 구체 렌더링
+	// ═══════════════════════════════════════════════════════
+	if (CurrentMode == EGizmoMode::Translate || CurrentMode == EGizmoMode::Scale)
+	{
+		RenderCenterSphere(GizmoLocation, RenderScale, Renderer);
+	}
+
+	// ═══════════════════════════════════════════════════════
+	// 평면 기즈모가 하이라이팅된 경우 마지막에 렌더링 (축 위에 보이도록)
+	// ═══════════════════════════════════════════════════════
+	if (bAnyPlaneHighlighted)
+	{
+		if (CurrentMode == EGizmoMode::Translate)
+		{
+			RenderTranslatePlanes(GizmoLocation, BaseRot, RenderScale, Renderer);
+		}
+		else if (CurrentMode == EGizmoMode::Scale)
+		{
+			RenderScalePlanes(GizmoLocation, BaseRot, RenderScale, Renderer);
+		}
+	}
+}
+
+// ────────────────────────────────────────────────────────
+// Rotation QuarterRing 렌더링 (비드래그 시 기본 시각화)
+// ────────────────────────────────────────────────────────
+void AGizmoActor::RenderRotationQuarterRing(const FVector& GizmoLocation, const FQuat& BaseRot, uint32 Direction,
+                                             const FVector& BaseAxis0, const FVector& BaseAxis1, float RenderScale,
+                                             URenderer* Renderer, ACameraActor* Camera)
+{
+	if (!Renderer || !Camera)
+	{
+		return;
+	}
+
+	// Rotation 링 충돌 설정
+	const float InnerRadius = 0.75f * RenderScale;
+	const float OuterRadius = 0.85f * RenderScale;
+	const float Thickness = 0.05f * RenderScale;
+
+	// 카메라 정보
+	const FVector CameraPos = Camera->GetActorLocation();
+	const FVector DirectionToWidget = (GizmoLocation - CameraPos).GetNormalized();
+
+	// 월드 공간 축 계산
+	FVector WorldAxis0 = BaseRot.RotateVector(BaseAxis0);
+	FVector WorldAxis1 = BaseRot.RotateVector(BaseAxis1);
+
+	// 플립 판정 (Unreal 표준)
+	const bool bMirrorAxis0 = (FVector::Dot(WorldAxis0, DirectionToWidget) <= 0.0f);
+	const bool bMirrorAxis1 = (FVector::Dot(WorldAxis1, DirectionToWidget) <= 0.0f);
+
+	const FVector RenderWorldAxis0 = bMirrorAxis0 ? WorldAxis0 : -WorldAxis0;
+	const FVector RenderWorldAxis1 = bMirrorAxis1 ? WorldAxis1 : -WorldAxis1;
+
+	TArray<FNormalVertex> Vertices;
+	TArray<uint32> Indices;
+
+	FGizmoGeometry::GenerateQuarterRingMesh(RenderWorldAxis0, RenderWorldAxis1,
+	                                         InnerRadius, OuterRadius, Thickness,
+	                                         Vertices, Indices);
+
+	// 색상 결정 (Direction에 따라: Picking 시스템 매칭)
+	FVector4 RingColor(1, 0, 0, 1);  // 기본 빨강
+	if (Direction == 1)  // X축
+	{
+		RingColor = FVector4(1, 0, 0, 1);  // 빨강
+	}
+	else if (Direction == 2)  // Y축
+	{
+		RingColor = FVector4(0, 1, 0, 1);  // 초록
+	}
+	else if (Direction == 4)  // Z축
+	{
+		RingColor = FVector4(0, 0, 1, 1);  // 파랑
+	}
+
+	// 하이라이팅: 선택된 축만 노란색으로 표시
+	// 호버링이 없을 때는 기본 색상 유지
+	bool bIsHighlighted = (GizmoAxis != 0 && GizmoAxis == Direction);
+	if (bIsDragging && bIsHighlighted)
+	{
+		RingColor = FVector4(0.8f, 0.8f, 0.0f, 1.0f);  // 드래그 중: 짙은 노란색
+	}
+	else if (bIsHighlighted)
+	{
+		RingColor = FVector4(1.0f, 1.0f, 0.0f, 1.0f);  // 호버 중: 밝은 노란색
+	}
+
+	// 배칭 렌더링
+	FGizmoBatchRenderer Batch;
+	Batch.AddMesh(Vertices, Indices, RingColor, GizmoLocation);
+	Batch.FlushAndRender(Renderer);
 }

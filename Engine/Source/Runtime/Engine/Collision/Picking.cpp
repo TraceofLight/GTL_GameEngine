@@ -22,6 +22,7 @@
 #include"stdio.h"
 #include "WorldPartitionManager.h"
 #include "PlatformTime.h"
+#include "World.h"
 
 FRay MakeRayFromMouse(const FMatrix& InView,
 	const FMatrix& InProj)
@@ -160,9 +161,9 @@ bool IntersectRaySphere(const FRay& InRay, const FVector& InCenter, float InRadi
 {
 	// Solve ||(RayOrigin + T*RayDir) - Center||^2 = Radius^2
 	const FVector OriginToCenter = InRay.Origin - InCenter;
-	const float QuadraticA = FVector::Dot(InRay.Direction, InRay.Direction); // Typically 1 for normalized ray
-	const float QuadraticB = 2.0f * FVector::Dot(OriginToCenter, InRay.Direction);
-	const float QuadraticC = FVector::Dot(OriginToCenter, OriginToCenter) - InRadius * InRadius;
+	const float QuadraticA = FVector::FVector::Dot(InRay.Direction, InRay.Direction); // Typically 1 for normalized ray
+	const float QuadraticB = 2.0f * FVector::FVector::Dot(OriginToCenter, InRay.Direction);
+	const float QuadraticC = FVector::FVector::Dot(OriginToCenter, OriginToCenter) - InRadius * InRadius;
 
 	const float Discriminant = QuadraticB * QuadraticB - 4.0f * QuadraticA * QuadraticC;
 	if (Discriminant < 0.0f)
@@ -186,6 +187,33 @@ bool IntersectRaySphere(const FRay& InRay, const FVector& InCenter, float InRadi
 	return true;
 }
 
+bool IntersectRayPlane(const FRay& InRay, const FVector& InPlanePoint, const FVector& InPlaneNormal, float& OutT)
+{
+	// 평면 방정식: FVector::Dot(P - PlanePoint, PlaneNormal) = 0
+	// 레이 방정식: P = RayOrigin + t * RayDirection
+	// 교차점: t = -FVector::Dot(RayOrigin - PlanePoint, PlaneNormal) / FVector::Dot(RayDirection, PlaneNormal)
+
+	const float Denominator = FVector::Dot(InRay.Direction, InPlaneNormal);
+
+	// 레이가 평면과 평행한 경우 (또는 거의 평행)
+	if (std::abs(Denominator) < KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+
+	const FVector OriginToPlane = InPlanePoint - InRay.Origin;
+	const float T = FVector::Dot(OriginToPlane, InPlaneNormal) / Denominator;
+
+	// 레이가 평면의 뒷면을 향하는 경우 (T < 0)
+	if (T <= 0.0f)
+	{
+		return false;
+	}
+
+	OutT = T;
+	return true;
+}
+
 // 삼각형을 이루는 3개의 점 
 bool IntersectRayTriangleMT(const FRay& InRay, const FVector& InA, const FVector& InB, const FVector& InC, float& OutT)
 {
@@ -198,7 +226,7 @@ bool IntersectRayTriangleMT(const FRay& InRay, const FVector& InA, const FVector
 	// 레이 방향과 , 삼각형 Edge와 수직한 벡터
 	const FVector Perpendicular = FVector::Cross(InRay.Direction, Edge2);
 	// 내적 했을때 0이라면, 세 벡터는 한 평면 안에 같이 있는 것이다. 
-	const float Determinant = FVector::Dot(Edge1, Perpendicular);
+	const float Determinant = FVector::FVector::Dot(Edge1, Perpendicular);
 
 	// 거의 0이면 평행 상태에 있다고 판단 
 	if (Determinant > -Epsilon && Determinant < Epsilon)
@@ -206,16 +234,16 @@ bool IntersectRayTriangleMT(const FRay& InRay, const FVector& InA, const FVector
 
 	const float InvDeterminant = 1.0f / Determinant;
 	const FVector OriginToA = InRay.Origin - InA;
-	const float U = InvDeterminant * FVector::Dot(OriginToA, Perpendicular);
+	const float U = InvDeterminant * FVector::FVector::Dot(OriginToA, Perpendicular);
 	if (U < -Epsilon || U > 1.0f + Epsilon)
 		return false;
 
 	const FVector CrossQ = FVector::Cross(OriginToA, Edge1);
-	const float V = InvDeterminant * FVector::Dot(InRay.Direction, CrossQ);
+	const float V = InvDeterminant * FVector::FVector::Dot(InRay.Direction, CrossQ);
 	if (V < -Epsilon || (U + V) > 1.0f + Epsilon)
 		return false;
 
-	const float Distance = InvDeterminant * FVector::Dot(Edge2, CrossQ);
+	const float Distance = InvDeterminant * FVector::FVector::Dot(Edge2, CrossQ);
 
 	if (Distance > Epsilon) // ray intersection
 	{
@@ -513,49 +541,259 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 		}
 		break;
 	case EGizmoMode::Rotate:
-		if (UStaticMeshComponent* RotateX = Cast<UStaticMeshComponent>(GizmoTransActor->GetRotateX()))
+	{
+		// 기즈모 위치
+		FVector GizmoLocation = GizmoTransActor->GetActorLocation();
+
+		// Screen-constant scale 계산
+		FVector ToGizmo = GizmoLocation - CameraWorldPos;
+		float ViewZ = FVector::Dot(ToGizmo, CameraForward);
+
+		if (ViewZ > 0.0f)
 		{
-			if (CheckGizmoComponentPicking(RotateX, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
+			float ProjYY = Proj.M[1][1];
+			constexpr float TargetPixels = 128.0f;
+			float RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportSize.Y * 0.5f);
+
+			// Rotation 링 충돌 설정
+			const float InnerRadius = 0.75f * RenderScale;
+			const float OuterRadius = 0.85f * RenderScale;
+
+			// Local/World 회전
+			FQuat BaseRot = FQuat::Identity();
+			if (GizmoTransActor->GetSpace() == EGizmoSpace::Local)
 			{
-				if (HitDistance < ClosestDistance)
+				// SelectionManager에서 선택된 컴포넌트의 회전 가져오기
+				if (GWorld && GWorld->GetSelectionManager())
 				{
-					ClosestDistance = HitDistance;
-					ClosestAxis = 1;
-					OutImpactPoint = TempImpactPoint;
+					USceneComponent* SelectedComp = GWorld->GetSelectionManager()->GetSelectedComponent();
+					if (SelectedComp)
+					{
+						BaseRot = SelectedComp->GetWorldRotation();
+					}
 				}
 			}
-		}
 
-		// Y축 화살표 검사
-		if (UStaticMeshComponent* RotateY = Cast<UStaticMeshComponent>(GizmoTransActor->GetRotateY()))
-		{
-			if (CheckGizmoComponentPicking(RotateY, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
-			{
-				if (HitDistance < ClosestDistance)
-				{
-					ClosestDistance = HitDistance;
-					ClosestAxis = 2;
-					OutImpactPoint = TempImpactPoint;
-				}
-			}
-		}
+			// 축 정의 (X=Forward, Y=Right, Z=Up)
+			FVector GizmoAxes[3] = {
+				BaseRot.RotateVector(FVector(1, 0, 0)),  // X축
+				BaseRot.RotateVector(FVector(0, 1, 0)),  // Y축
+				BaseRot.RotateVector(FVector(0, 0, 1))   // Z축
+			};
 
-		// Z축 화살표 검사
-		if (UStaticMeshComponent* RotateZ = Cast<UStaticMeshComponent>(GizmoTransActor->GetRotateZ()))
-		{
-			if (CheckGizmoComponentPicking(RotateZ, Ray, ViewportSize.X, ViewportSize.Y, View, Proj, HitDistance, TempImpactPoint))
+			// BaseAxis 정의 (QuarterRing 각도 범위 체크용)
+			const FVector BaseAxis0[3] = {
+				FVector(0, 0, 1),  // X축 링: Z→Y
+				FVector(1, 0, 0),  // Y축 링: X→Z
+				FVector(1, 0, 0)   // Z축 링: X→Y
+			};
+			const FVector BaseAxis1[3] = {
+				FVector(0, 1, 0),  // X축 링: Y
+				FVector(0, 0, 1),  // Y축 링: Z
+				FVector(0, 1, 0)   // Z축 링: Y
+			};
+
+			// 각 축 링 피킹
+			for (int32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
 			{
-				if (HitDistance < ClosestDistance)
+				// 레이-평면 충돌 검사
+				FVector PlaneNormal = GizmoAxes[AxisIndex];
+				if (IntersectRayPlane(Ray, GizmoLocation, PlaneNormal, HitDistance))
 				{
-					ClosestDistance = HitDistance;
-					ClosestAxis = 3;
-					OutImpactPoint = TempImpactPoint;
+					FVector CollisionPoint = Ray.Origin + Ray.Direction * HitDistance;
+					FVector RadiusVector = CollisionPoint - GizmoLocation;
+					float Distance = RadiusVector.Size();
+
+					// 반지름 범위 체크
+					if (Distance >= InnerRadius && Distance <= OuterRadius)
+					{
+						// QuarterRing 각도 범위 체크
+						FVector ToHit = CollisionPoint - GizmoLocation;
+						FVector Projected = ToHit - (PlaneNormal * FVector::Dot(ToHit, PlaneNormal));
+						float ProjLen = Projected.Size();
+
+						if (ProjLen > 0.001f)
+						{
+							Projected = Projected.GetNormalized();
+
+							// Local 모드면 회전 적용
+							FVector WorldBaseAxis0 = BaseRot.RotateVector(BaseAxis0[AxisIndex]);
+							FVector WorldBaseAxis1 = BaseRot.RotateVector(BaseAxis1[AxisIndex]);
+
+							// 카메라 방향에 따른 플립 판정
+							FVector DirectionToWidget = (GizmoLocation - CameraWorldPos).GetNormalized();
+							bool bMirrorAxis0 = (FVector::Dot(WorldBaseAxis0, DirectionToWidget) <= 0.0f);
+							bool bMirrorAxis1 = (FVector::Dot(WorldBaseAxis1, DirectionToWidget) <= 0.0f);
+
+							FVector RenderAxis0 = bMirrorAxis0 ? WorldBaseAxis0 : -WorldBaseAxis0;
+							FVector RenderAxis1 = bMirrorAxis1 ? WorldBaseAxis1 : -WorldBaseAxis1;
+
+							// QuarterRing 각도 범위: [0, 90도]
+							float Dot0 = FVector::Dot(Projected, RenderAxis0);
+							float Dot1 = FVector::Dot(Projected, RenderAxis1);
+
+							// 90도 범위 내에 있는지 확인 (둘 다 양수)
+							if (Dot0 >= -0.01f && Dot1 >= -0.01f)
+							{
+								if (HitDistance < ClosestDistance)
+								{
+									ClosestDistance = HitDistance;
+									ClosestAxis = (AxisIndex == 0) ? 1 : (AxisIndex == 1) ? 2 : 4;
+									OutImpactPoint = CollisionPoint;
+								}
+							}
+						}
+					}
 				}
 			}
 		}
 		break;
+	}
 	default:
 		break;
+	}
+
+	// ═════════════════════════════════════════════════════════════
+	// 평면 기즈모 및 중심 구체 피킹 (Translate/Scale 모드만)
+	// ═════════════════════════════════════════════════════════════
+	if (GizmoTransActor->GetMode() == EGizmoMode::Translate || GizmoTransActor->GetMode() == EGizmoMode::Scale)
+	{
+		// 기즈모 위치
+		FVector GizmoLocation = GizmoTransActor->GetActorLocation();
+
+		// Screen-constant scale 계산
+		FVector CameraPos = CameraWorldPos;
+		FVector ToGizmo = GizmoLocation - CameraPos;
+		float ViewZ = FVector::Dot(ToGizmo, CameraForward);
+
+		if (ViewZ > 0.0f)
+		{
+			float ProjYY = Proj.M[1][1];
+			constexpr float TargetPixels = 128.0f;
+			float RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportSize.Y * 0.5f);
+
+			// Local/World 회전
+			FQuat BaseRot = FQuat::Identity();
+			if (GizmoTransActor->GetSpace() == EGizmoSpace::Local)
+			{
+				// SelectionManager에서 선택된 컴포넌트의 회전 가져오기
+				if (GWorld && GWorld->GetSelectionManager())
+				{
+					USceneComponent* SelectedComp = GWorld->GetSelectionManager()->GetSelectedComponent();
+					if (SelectedComp)
+					{
+						BaseRot = SelectedComp->GetWorldRotation();
+					}
+				}
+			}
+
+			// ──────────────────────────────────────────────
+			// 평면 기즈모 피킹 (중심 구체보다 우선)
+			// ──────────────────────────────────────────────
+			constexpr float PlaneSize = 0.3f; // 평면 크기 (RenderTranslatePlanes의 CornerPos와 일치)
+			const float PlaneExtent = PlaneSize * RenderScale;
+			bool bPlaneHit = false;  // 평면이 hit되었는지 추적
+
+			// XY 평면 (Z축 수직)
+			{
+				FVector PlaneNormal = BaseRot.RotateVector(FVector(0, 0, 1)); // Z축
+				if (IntersectRayPlane(Ray, GizmoLocation, PlaneNormal, HitDistance))
+				{
+					FVector HitPoint = Ray.Origin + Ray.Direction * HitDistance;
+					FVector LocalHit = HitPoint - GizmoLocation;
+
+					// 로컬 좌표로 변환
+					FVector Axis0 = BaseRot.RotateVector(FVector(1, 0, 0)); // X축
+					FVector Axis1 = BaseRot.RotateVector(FVector(0, 1, 0)); // Y축
+					float ProjAxis0 = FVector::Dot(LocalHit, Axis0);
+					float ProjAxis1 = FVector::Dot(LocalHit, Axis1);
+
+					// 평면 영역 내에 있는지 확인 (코너 영역)
+					if (ProjAxis0 >= 0.0f && ProjAxis0 <= PlaneExtent &&
+						ProjAxis1 >= 0.0f && ProjAxis1 <= PlaneExtent)
+					{
+						if (HitDistance < ClosestDistance)
+						{
+							ClosestDistance = HitDistance;
+							ClosestAxis = 8; // XY_Plane
+							OutImpactPoint = HitPoint;
+							bPlaneHit = true;
+						}
+					}
+				}
+			}
+
+			// XZ 평면 (Y축 수직)
+			{
+				FVector PlaneNormal = BaseRot.RotateVector(FVector(0, 1, 0)); // Y축
+				if (IntersectRayPlane(Ray, GizmoLocation, PlaneNormal, HitDistance))
+				{
+					FVector HitPoint = Ray.Origin + Ray.Direction * HitDistance;
+					FVector LocalHit = HitPoint - GizmoLocation;
+
+					FVector Axis0 = BaseRot.RotateVector(FVector(1, 0, 0)); // X축
+					FVector Axis2 = BaseRot.RotateVector(FVector(0, 0, 1)); // Z축
+					float ProjAxis0 = FVector::Dot(LocalHit, Axis0);
+					float ProjAxis2 = FVector::Dot(LocalHit, Axis2);
+
+					if (ProjAxis0 >= 0.0f && ProjAxis0 <= PlaneExtent &&
+						ProjAxis2 >= 0.0f && ProjAxis2 <= PlaneExtent)
+					{
+						if (HitDistance < ClosestDistance)
+						{
+							ClosestDistance = HitDistance;
+							ClosestAxis = 16; // XZ_Plane
+							OutImpactPoint = HitPoint;
+							bPlaneHit = true;
+						}
+					}
+				}
+			}
+
+			// YZ 평면 (X축 수직)
+			{
+				FVector PlaneNormal = BaseRot.RotateVector(FVector(1, 0, 0)); // X축
+				if (IntersectRayPlane(Ray, GizmoLocation, PlaneNormal, HitDistance))
+				{
+					FVector HitPoint = Ray.Origin + Ray.Direction * HitDistance;
+					FVector LocalHit = HitPoint - GizmoLocation;
+
+					FVector Axis1 = BaseRot.RotateVector(FVector(0, 1, 0)); // Y축
+					FVector Axis2 = BaseRot.RotateVector(FVector(0, 0, 1)); // Z축
+					float ProjAxis1 = FVector::Dot(LocalHit, Axis1);
+					float ProjAxis2 = FVector::Dot(LocalHit, Axis2);
+
+					if (ProjAxis1 >= 0.0f && ProjAxis1 <= PlaneExtent &&
+						ProjAxis2 >= 0.0f && ProjAxis2 <= PlaneExtent)
+					{
+						if (HitDistance < ClosestDistance)
+						{
+							ClosestDistance = HitDistance;
+							ClosestAxis = 32; // YZ_Plane
+							OutImpactPoint = HitPoint;
+							bPlaneHit = true;
+						}
+					}
+				}
+			}
+
+			// ──────────────────────────────────────────────
+			// 중심 구체 피킹 (평면 영역 밖일 때만)
+			// ──────────────────────────────────────────────
+			if (!bPlaneHit)
+			{
+				const float SphereRadius = 0.08f * RenderScale;  // 평면(0.3)보다 작지만 적당한 크기
+				if (IntersectRaySphere(Ray, GizmoLocation, SphereRadius, HitDistance))
+				{
+					if (HitDistance < ClosestDistance)
+					{
+						ClosestDistance = HitDistance;
+						ClosestAxis = 64; // Center
+						OutImpactPoint = Ray.Origin + Ray.Direction * HitDistance;
+					}
+				}
+			}
+		}
 	}
 
 	return ClosestAxis;

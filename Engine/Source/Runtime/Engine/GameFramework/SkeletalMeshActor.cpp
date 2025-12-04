@@ -274,7 +274,7 @@ void ASkeletalMeshActor::BuildBoneLinesCache()
         const FVector Center = JointPos[i];
         const int32 parent = Bones[i].ParentIndex;
 
-        // 사각 피라미드로 본 연결 표시 (FutureEngine 스타일)
+        // 사각 피라미드로 본 연결 표시
         if (parent >= 0)
         {
             const FVector ParentPos = JointPos[parent];

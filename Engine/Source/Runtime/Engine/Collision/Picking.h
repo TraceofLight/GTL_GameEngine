@@ -46,6 +46,11 @@ FRay MakeRayFromViewport(const FMatrix& InView,
 // Returns true and the closest positive T if the ray hits the sphere.
 bool IntersectRaySphere(const FRay& InRay, const FVector& InCenter, float InRadius, float& OutT);
 
+// Ray-plane intersection.
+// Returns true and the T value if the ray hits the plane.
+// Plane is defined by a point on the plane and the plane normal.
+bool IntersectRayPlane(const FRay& InRay, const FVector& InPlanePoint, const FVector& InPlaneNormal, float& OutT);
+
 // Möller–Trumbore ray-triangle intersection.
 // Returns true if hit and outputs closest positive T along the ray.
 bool IntersectRayTriangleMT(const FRay& InRay,

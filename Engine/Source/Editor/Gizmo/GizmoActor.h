@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "Actor.h"
 #include "Enums.h"
+#include "VertexData.h"
 
 class UGizmoArrowComponent;
 class UGizmoScaleComponent;
@@ -18,6 +19,44 @@ class UPhysicsConstraintSetup;
 class UBodySetup;
 struct FKShapeElem;
 namespace EAggCollisionShape { enum Type : int; }
+
+/**
+ * @brief Gizmo 렌더링용 배칭 구조체
+ * - 여러 메쉬를 한 번에 수집하고 일괄 렌더링
+ * - 버퍼 생성/해제 보일러플레이트 제거
+ */
+struct FGizmoBatchRenderer
+{
+    struct FBatchedMesh
+    {
+        TArray<FNormalVertex> Vertices;
+        TArray<uint32> Indices;
+        FVector4 Color;
+        FVector Location;
+        FQuat Rotation;
+        FVector Scale;
+        bool bAlwaysVisible;
+
+        FBatchedMesh()
+            : Color(1, 1, 1, 1)
+            , Location(0, 0, 0)
+            , Rotation(FQuat::Identity())
+            , Scale(1, 1, 1)
+            , bAlwaysVisible(true)
+        {}
+    };
+
+    TArray<FBatchedMesh> Meshes;
+
+    void AddMesh(const TArray<FNormalVertex>& InVertices, const TArray<uint32>& InIndices,
+                 const FVector4& InColor, const FVector& InLocation,
+                 const FQuat& InRotation = FQuat::Identity(),
+                 const FVector& InScale = FVector(1, 1, 1));
+
+    void FlushAndRender(class URenderer* Renderer);
+
+    void Clear();
+};
 
 // Gizmo 타겟 타입
 enum class EGizmoTargetType : uint8
@@ -107,9 +146,12 @@ public:
     void ProcessGizmoInteraction(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
     void ProcessGizmoModeSwitch();
 
-    // 명시적 드래그 시작 (FutureEngine 방식 - Window에서 직접 호출)
+    // 명시적 드래그 시작
     bool StartDrag(ACameraActor* Camera, FViewport* Viewport, float MousePositionX, float MousePositionY);
     void EndDrag();
+
+    // 확장 기즈모 렌더링 (평면, 구체, Rotation 시각화)
+    void RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camera);
 
     // 어차피 gizmo가 게임모드에서 안나오니까 할 필요 없을지도?
     // ───── 복사 관련 ────────────────────────────
@@ -173,6 +215,20 @@ protected:
     void UpdateComponentVisibility();
 
 private:
+    // 평면 기즈모 렌더링 함수
+    void RenderTranslatePlanes(const FVector& GizmoLocation, const FQuat& BaseRot, float RenderScale, class URenderer* Renderer);
+    void RenderScalePlanes(const FVector& GizmoLocation, const FQuat& BaseRot, float RenderScale, class URenderer* Renderer);
+    void RenderCenterSphere(const FVector& GizmoLocation, float RenderScale, class URenderer* Renderer);
+
+    // Rotation 기즈모 렌더링 함수
+    void RenderRotationCircles(const FVector& GizmoLocation, const FQuat& BaseRot, const FVector4& AxisColor,
+                                const FVector& BaseAxis0, const FVector& BaseAxis1, float RenderScale, class URenderer* Renderer);
+    void RenderRotationQuarterRing(const FVector& GizmoLocation, const FQuat& BaseRot, uint32 Direction,
+                                    const FVector& BaseAxis0, const FVector& BaseAxis1, float RenderScale, class URenderer* Renderer, ACameraActor* Camera);
+
+    // 하이라이트 헬퍼 함수
+    bool ShouldHighlightAxis(uint32 HighlightValue, uint32 AxisDirection) const;
+
     // 드래그 시작 시점의 타겟 트랜스폼
     FQuat DragStartRotation;
     FVector DragStartLocation;
@@ -196,6 +252,9 @@ private:
 
     // 드래그가 시작될 때 고정된 축 (0 = 드래그 중 아님)
     uint32 DraggingAxis = 0;
+
+    // Rotation 드래그 시 현재 회전 각도 (라디안)
+    float CurrentRotationAngle = 0.0f;
 
     // 호버 시 3D 충돌 지점 (PickingSystem이 채워줌)
     FVector HoverImpactPoint;

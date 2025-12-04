@@ -364,6 +364,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClCompile Include="Source\Editor\FbxLoader.cpp" />
     <ClCompile Include="Source\Editor\Gizmo\GizmoActor.cpp" />
     <ClCompile Include="Source\Editor\Gizmo\GizmoArrowComponent.cpp" />
+    <ClCompile Include="Source\Editor\Gizmo\GizmoGeometry.cpp" />
     <ClCompile Include="Source\Editor\Gizmo\GizmoRotateComponent.cpp" />
     <ClCompile Include="Source\Editor\Gizmo\GizmoScaleComponent.cpp" />
     <ClCompile Include="Source\Editor\Grid\GridActor.cpp" />
@@ -730,6 +731,7 @@ powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SymbolServer\Upload
     <ClInclude Include="Source\Editor\FbxLoader.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoActor.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoArrowComponent.h" />
+    <ClInclude Include="Source\Editor\Gizmo\GizmoGeometry.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoRotateComponent.h" />
     <ClInclude Include="Source\Editor\Gizmo\GizmoScaleComponent.h" />
     <ClInclude Include="Source\Editor\Grid\Grid.h" />
