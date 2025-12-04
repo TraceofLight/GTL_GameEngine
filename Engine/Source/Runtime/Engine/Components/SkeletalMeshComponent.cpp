@@ -455,12 +455,13 @@ void USkeletalMeshComponent::OnSkeletalMeshLoaded()
 
     ForceRecomputePose();
 
-    // Cloth Section 감지 로그만 출력
-    // 실제 ClothComponent 생성은 InitializeComponent에서 처리
-    // (Serialize 시점에는 Owner가 완전히 초기화되지 않아 크래시 발생 가능)
-    if (HasClothSections())
+    // Cloth Section이 있고 ClothComponent가 없으면 생성
+    // - Serialize 시점: Owner가 유효하지 않아 생성 불가 → InitializeComponent에서 처리
+    // - Runtime (SetSkeletalMesh 호출): Owner가 유효하므로 여기서 생성
+    if (HasClothSections() && !InternalClothComponent && GetOwner())
     {
-        UE_LOG("SkeletalMeshComponent: Cloth sections detected. ClothComponent will be created in InitializeComponent.\n");
+        UE_LOG("SkeletalMeshComponent: Cloth sections detected. Creating ClothComponent now.\n");
+        CreateInternalClothComponent();
     }
 }
 
@@ -1107,9 +1108,9 @@ void USkeletalMeshComponent::OnCreatePhysicsState()
         }
 
         // bSimulatePhysics가 false면 Kinematic으로 설정 (애니메이션 따라감)
-        if (!bSimulatePhysics)
+        if (!bSimulatePhysics && Actor)
         {
-            PxRigidDynamic* DynActor = BoneBody->GetPhysicsActor()->is<PxRigidDynamic>();
+            PxRigidDynamic* DynActor = Actor->is<PxRigidDynamic>();
             if (DynActor)
             {
                 DynActor->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, true);
@@ -1660,6 +1661,12 @@ bool USkeletalMeshComponent::HasClothSections() const
  */
 void USkeletalMeshComponent::CreateInternalClothComponent()
 {
+	// Owner가 없으면 컴포넌트 생성 불가
+	if (!Owner || !SkeletalMesh)
+	{
+		return;
+	}
+
 	// AActor에 새로운 컴포넌트 추가
 	InternalClothComponent = static_cast<UClothComponent*>(Owner->AddNewComponent(UClothComponent::StaticClass(), this));
 	if (!InternalClothComponent)
@@ -1667,7 +1674,6 @@ void USkeletalMeshComponent::CreateInternalClothComponent()
 		return;
 	}
 	InternalClothComponent->SetSkeletalMesh(SkeletalMesh->GetPathFileName());
-
 }
 
 /**

@@ -45,6 +45,12 @@ void FBodyInstance::AddToScene(PxScene* Scene)
     if (PhysicsActor && Scene)
     {
         Scene->addActor(*PhysicsActor);
+
+        // Scene에 추가된 후 Dynamic Actor를 깨움
+        if (PxRigidDynamic* Dyn = PhysicsActor->is<PxRigidDynamic>())
+        {
+            Dyn->wakeUp();
+        }
     }
 }
 
@@ -171,8 +177,9 @@ void FBodyInstance::CreateShapesFromBodySetup()
         }
     }
 
-    // If dynamic, compute mass/inertia and set damping for stability
-    if (PhysicsActor && PhysicsActor->is<PxRigidDynamic>())
+    // If dynamic and has shapes, compute mass/inertia and set damping for stability
+    // Shape가 없으면 updateMassAndInertia가 실패하고 wakeUp도 의미없음
+    if (PhysicsActor && PhysicsActor->is<PxRigidDynamic>() && !Shapes.IsEmpty())
     {
         PxRigidDynamic* Dyn = PhysicsActor->is<PxRigidDynamic>();
 
@@ -198,7 +205,8 @@ void FBodyInstance::CreateShapesFromBodySetup()
         // Solver Iteration 증가 - Joint 안정성 향상
         Dyn->setSolverIterationCounts(8, 4);  // positionIters, velocityIters
 
-        Dyn->wakeUp();
+        // wakeUp은 Scene에 추가된 후에만 호출 가능 - AddToScene에서 처리하도록 변경
+        // Dyn->wakeUp();
     }
 
     // 충돌 필터 설정
