@@ -23,6 +23,7 @@ public:
     void SetShowGPU(bool b) { bShowGPU = b; }
     void SetShowSkinning(bool b) { bShowSkinning = b; }
     void SetShowParticles(bool b) { bShowParticles = b; }
+    void SetShowPhysicsAsset(bool b) { bShowPhysicsAsset = b; }
     void ToggleFPS() { bShowFPS = !bShowFPS; }
     void ToggleMemory() { bShowMemory = !bShowMemory; }
     void TogglePicking() { bShowPicking = !bShowPicking; }
@@ -33,6 +34,7 @@ public:
     void ToggleGPU() { bShowGPU = !bShowGPU; }
     void ToggleSkinning() { bShowSkinning = !bShowSkinning; }
     void ToggleParticles() { bShowParticles = !bShowParticles; }
+    void TogglePhysicsAsset() { bShowPhysicsAsset = !bShowPhysicsAsset; }
     bool IsFPSVisible() const { return bShowFPS; }
     bool IsMemoryVisible() const { return bShowMemory; }
     bool IsPickingVisible() const { return bShowPicking; }
@@ -43,8 +45,19 @@ public:
     bool IsGPUVisible() const { return bShowGPU; }
     bool IsSkinningVisible() const { return bShowSkinning; }
     bool IsParticlesVisible() const { return bShowParticles; }
+    bool IsPhysicsAssetVisible() const { return bShowPhysicsAsset; }
 
     void SetGPUTimer(FGPUTimer* InGPUTimer) { GPUTimer = InGPUTimer; }
+
+    // PhysicsAsset Stats 설정
+    void SetPhysicsAssetStats(int32 Bodies, int32 Constraints, int32 Shapes, const char* Mode, bool bSimulating)
+    {
+        PhysicsAssetBodies = Bodies;
+        PhysicsAssetConstraints = Constraints;
+        PhysicsAssetShapes = Shapes;
+        PhysicsAssetMode = Mode ? Mode : "";
+        bPhysicsAssetSimulating = bSimulating;
+    }
 
 private:
     UStatsOverlayD2D() = default;
@@ -67,6 +80,14 @@ private:
     bool bShowGPU = false;
     bool bShowSkinning = false;
     bool bShowParticles = false;
+    bool bShowPhysicsAsset = false;
+
+    // PhysicsAsset Stats 데이터
+    int32 PhysicsAssetBodies = 0;
+    int32 PhysicsAssetConstraints = 0;
+    int32 PhysicsAssetShapes = 0;
+    std::string PhysicsAssetMode;
+    bool bPhysicsAssetSimulating = false;
 
     ID3D11Device* D3DDevice = nullptr;
     ID3D11DeviceContext* D3DContext = nullptr;

@@ -682,17 +682,16 @@ void USlateManager::Render()
             | ImGuiWindowFlags_NoScrollbar
             | ImGuiWindowFlags_NoScrollWithMouse;
 
-        // 처음 열렸을 때 콘솔에 포커스
-        if (bConsoleShouldFocus)
-        {
-            ImGui::SetNextWindowFocus();
-            bConsoleShouldFocus = false;
-        }
+        // 콘솔이 보이는 동안 항상 최상위 유지
+        ImGui::SetNextWindowFocus();
 
         // 콘솔 렌더링
         bool isWindowOpen = true;
         if (ImGui::Begin("ConsoleOverlay", &isWindowOpen, flags))
         {
+            // 콘솔을 최상위로 강제 이동 (z-order 직접 처리)
+            ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+
             // 둥근 모서리가 있는 반투명 배경 추가
             ImDrawList* DrawList = ImGui::GetWindowDrawList();
             ImVec2 WindowPos = ImGui::GetWindowPos();

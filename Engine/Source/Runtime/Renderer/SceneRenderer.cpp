@@ -300,6 +300,12 @@ void FSceneRenderer::RenderWireframePath()
     RHIDevice->ClearDepthBuffer(1.0f, 0);
     RHIDevice->RSSetState(ERasterizerMode::Wireframe);
     RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTarget);
+
+    // 배경 클리어 (뒷면이 뚫려서 에디터 월드가 보이는 것 방지)
+    const float* BackgroundColorPtr = View->RenderSettings->GetBackgroundColor();
+    const float ClearColor[4] = { BackgroundColorPtr[0], BackgroundColorPtr[1], BackgroundColorPtr[2], 1.0f };
+    RHIDevice->GetDeviceContext()->ClearRenderTargetView(RHIDevice->GetCurrentTargetRTV(), ClearColor);
+
     RenderOpaquePass(EViewMode::VMI_Unlit);
 
 	// 상태 복구

@@ -139,6 +139,12 @@ void SViewportWindow::OnRender()
 	// 카메라 포커싱 애니메이션 업데이트
 	UpdateCameraAnimation(ImGui::GetIO().DeltaTime);
 
+	// 호버링 상태 업데이트 (휠 입력 격리용)
+	if (ViewportClient)
+	{
+		ViewportClient->SetHovered(ImGui::IsWindowHovered());
+	}
+
 	// 드래그 앤 드롭 타겟 영역 (뷰포트 전체)
 	HandleDropTarget();
 

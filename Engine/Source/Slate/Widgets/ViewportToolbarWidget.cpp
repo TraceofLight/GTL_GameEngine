@@ -578,10 +578,10 @@ void SViewportToolbarWidget::RenderCameraSpeedButton(FViewportClient* ViewportCl
 	ImGui::PopStyleVar(1);
 
 	// 팝업
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 10));
 	if (ImGui::BeginPopup("CameraSpeedPopup_VTW", ImGuiWindowFlags_NoMove))
 	{
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 10));
 
 		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Camera Speed");
 
@@ -617,17 +617,8 @@ void SViewportToolbarWidget::RenderCameraSpeedButton(FViewportClient* ViewportCl
 
 		float CurrentScalar = ViewportClient ? ViewportClient->GetCameraSpeedScalar() : 1.0f;
 
-		// Min 레이블
-		ImGui::Text("0.25");
-		ImGui::SameLine();
-
-		// 슬라이더 바 숨기기 (투명하게)
-		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0, 0));
-		ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0, 0, 0, 0));
-		ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0, 0, 0, 0));
-
-		ImGui::SetNextItemWidth(140);
-		if (ImGui::SliderFloat("##SpeedScalar", &CurrentScalar, 0.25f, 128.0f, "%.2f", ImGuiSliderFlags_Logarithmic))
+		ImGui::SetNextItemWidth(200);
+		if (ImGui::DragFloat("##SpeedScalar", &CurrentScalar, 0.01f, 0.25f, 128.0f, "%.2f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoInput))
 		{
 			CurrentScalar = std::max(0.25f, std::min(128.0f, CurrentScalar));
 			if (ViewportClient)
@@ -641,12 +632,6 @@ void SViewportToolbarWidget::RenderCameraSpeedButton(FViewportClient* ViewportCl
 			}
 		}
 
-		ImGui::PopStyleColor(3);
-
-		// Max 레이블
-		ImGui::SameLine();
-		ImGui::Text("128");
-
 		ImGui::Spacing();
 		ImGui::Separator();
 		ImGui::Spacing();
@@ -655,9 +640,9 @@ void SViewportToolbarWidget::RenderCameraSpeedButton(FViewportClient* ViewportCl
 		float FinalSpeedValue = CalculateCameraSpeed(ViewportClient);
 		ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Final Speed: %.2f", FinalSpeedValue);
 
-		ImGui::PopStyleVar(2);
 		ImGui::EndPopup();
 	}
+	ImGui::PopStyleVar(2);
 }
 
 void SViewportToolbarWidget::RenderViewModeDropdownMenu(FViewportClient* ViewportClient) const
@@ -745,10 +730,10 @@ void SViewportToolbarWidget::RenderViewModeDropdownMenu(FViewportClient* Viewpor
 	ImGui::PopStyleVar(1);
 
 	// 팝업
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
 	if (ImGui::BeginPopup("ViewModePopup_VTW", ImGuiWindowFlags_NoMove))
 	{
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
 
 		constexpr ImVec2 IconSize16(16, 16);
 		const float IconTextOffsetY = (ImGui::GetTextLineHeight() - IconSize16.y) * 0.5f;
@@ -876,9 +861,9 @@ void SViewportToolbarWidget::RenderViewModeDropdownMenu(FViewportClient* Viewpor
 			ViewportClient->SetViewMode(EViewMode::VMI_SceneDepth);
 		}
 
-		ImGui::PopStyleVar(2);
 		ImGui::EndPopup();
 	}
+	ImGui::PopStyleVar(2);
 }
 
 void SViewportToolbarWidget::RenderShowFlagDropdownMenu(const FViewportClient* ViewportClient) const
@@ -936,10 +921,10 @@ void SViewportToolbarWidget::RenderShowFlagDropdownMenu(const FViewportClient* V
 	ImGui::PopStyleVar(1);
 
 	// 팝업
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
 	if (ImGui::BeginPopup("ShowFlagPopup_VTW", ImGuiWindowFlags_NoMove))
 	{
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 4));
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
 
 		URenderSettings& RenderSettings = ViewportClient->GetWorld()->GetRenderSettings();
 		UStatsOverlayD2D& StatsOverlay = UStatsOverlayD2D::Get();
@@ -995,6 +980,7 @@ void SViewportToolbarWidget::RenderShowFlagDropdownMenu(const FViewportClient* V
 				StatsOverlay.SetShowGPU(false);
 				StatsOverlay.SetShowSkinning(false);
 				StatsOverlay.SetShowParticles(false);
+				StatsOverlay.SetShowPhysicsAsset(false);
 			}
 
 			ImGui::Separator();
@@ -1052,6 +1038,12 @@ void SViewportToolbarWidget::RenderShowFlagDropdownMenu(const FViewportClient* V
 			if (ImGui::Checkbox("PARTICLE", &bShowParticles))
 			{
 				StatsOverlay.ToggleParticles();
+			}
+
+			bool bShowPhysicsAsset = StatsOverlay.IsPhysicsAssetVisible();
+			if (ImGui::Checkbox("PHYSICS ASSET", &bShowPhysicsAsset))
+			{
+				StatsOverlay.TogglePhysicsAsset();
 			}
 
 			ImGui::EndMenu();
@@ -1498,7 +1490,7 @@ void SViewportToolbarWidget::RenderShowFlagDropdownMenu(const FViewportClient* V
 			ImGui::EndMenu();
 		}
 
-		// 기즈모 안티 앨리어싱 (Shadow AA) 서브메뉴
+		// 그림자 안티 앨리어싱 (Shadow AA) 서브메뉴
 		if (IconShadowAA && IconShadowAA->GetShaderResourceView())
 		{
 			ImVec2 CursorPos = ImGui::GetCursorPos();
@@ -1507,7 +1499,7 @@ void SViewportToolbarWidget::RenderShowFlagDropdownMenu(const FViewportClient* V
 			ImGui::SetCursorPosY(CursorPos.y);
 			ImGui::SameLine();
 		}
-		if (ImGui::BeginMenu("기즈모 안티 앨리어싱"))
+		if (ImGui::BeginMenu("그림자 안티 앨리어싱"))
 		{
 			EShadowAATechnique CurrentShadowAA = RenderSettings.GetShadowAATechnique();
 
@@ -1544,9 +1536,9 @@ void SViewportToolbarWidget::RenderShowFlagDropdownMenu(const FViewportClient* V
 			RenderSettings.SetSkinningMode(bGPUSkinning ? ESkinningMode::GPU : ESkinningMode::CPU);
 		}
 
-		ImGui::PopStyleVar(2);
 		ImGui::EndPopup();
 	}
+	ImGui::PopStyleVar(2);
 }
 
 void SViewportToolbarWidget::RenderCameraOptionDropdownMenu(const FViewportClient* ViewportClient, EViewportType ViewportType, const char* ViewportName, SViewportWindow* OwnerViewport)

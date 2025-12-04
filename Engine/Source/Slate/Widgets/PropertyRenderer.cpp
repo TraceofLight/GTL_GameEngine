@@ -1978,12 +1978,26 @@ bool UPropertyRenderer::RenderSingleMaterialSlot(const char* Label, UMaterialInt
 			EMaterialTextureSlot Slot = static_cast<EMaterialTextureSlot>(TexSlotIndex);
 			UTexture* CurrentTexture = CurrentMaterial->GetTexture(Slot);
 
-			const char* SlotName = "Unknown Slot";
+			const char* SlotName = nullptr;
 			switch (Slot)
 			{
 			case EMaterialTextureSlot::Diffuse: SlotName = "Diffuse Texture"; break;
 			case EMaterialTextureSlot::Normal: SlotName = "Normal Texture"; break;
+			case EMaterialTextureSlot::Specular: SlotName = "Specular Texture"; break;
+			case EMaterialTextureSlot::Emissive: SlotName = "Emissive Texture"; break;
 			}
+
+			// 텍스처가 없고 슬롯 이름도 없으면 스킵 (사용하지 않는 슬롯)
+			if (!CurrentTexture && !SlotName)
+			{
+				continue;
+			}
+
+			if (!SlotName)
+			{
+				SlotName = "Unknown Slot";
+			}
+
 			FString TextureLabel = FString(SlotName) + "##" + Label;
 
 			UTexture* NewTexture = nullptr;

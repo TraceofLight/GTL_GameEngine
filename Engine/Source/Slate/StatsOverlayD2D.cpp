@@ -170,7 +170,7 @@ static void DrawTextBlock(
 
 void UStatsOverlayD2D::Draw()
 {
-	if (!bInitialized || (!bShowFPS && !bShowMemory && !bShowPicking && !bShowDecal && !bShowTileCulling && !bShowLights && !bShowShadow && !bShowGPU && !bShowSkinning && !bShowParticles) || !SwapChain)
+	if (!bInitialized || (!bShowFPS && !bShowMemory && !bShowPicking && !bShowDecal && !bShowTileCulling && !bShowLights && !bShowShadow && !bShowGPU && !bShowSkinning && !bShowParticles && !bShowPhysicsAsset) || !SwapChain)
 	{
 		return;
 	}
@@ -491,6 +491,33 @@ void UStatsOverlayD2D::Draw()
 		SafeRelease(BrushLimeGreen);
 
 		NextY += ParticlePanelHeight + Space;
+	}
+
+	if (bShowPhysicsAsset)
+	{
+		wchar_t Buf[256];
+		if (bPhysicsAssetSimulating)
+		{
+			swprintf_s(Buf, L"[Physics Asset]\nBodies: %d | Constraints: %d\nShapes: %d | Mode: %S\nSIMULATING",
+				PhysicsAssetBodies, PhysicsAssetConstraints, PhysicsAssetShapes, PhysicsAssetMode.c_str());
+		}
+		else
+		{
+			swprintf_s(Buf, L"[Physics Asset]\nBodies: %d | Constraints: %d\nShapes: %d | Mode: %S",
+				PhysicsAssetBodies, PhysicsAssetConstraints, PhysicsAssetShapes, PhysicsAssetMode.c_str());
+		}
+
+		const float PhysicsAssetPanelHeight = 96.0f;
+		D2D1_RECT_F rc = D2D1::RectF(Margin, NextY, Margin + PanelWidth, NextY + PhysicsAssetPanelHeight);
+
+		ID2D1SolidColorBrush* BrushGold = nullptr;
+		D2DContext->CreateSolidColorBrush(D2D1::ColorF(1.0f, 0.843f, 0.0f, 1.0f), &BrushGold);
+
+		DrawTextBlock(D2DContext, TextFormat, Buf, rc, BrushBlack, BrushGold);
+
+		SafeRelease(BrushGold);
+
+		NextY += PhysicsAssetPanelHeight + Space;
 	}
 
 	D2DContext->EndDraw();

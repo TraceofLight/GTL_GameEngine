@@ -334,7 +334,7 @@ void SDynamicEditorWindow::SetEditorMode(EEditorMode NewMode)
 	// 탭이 없으면 해당 모드로 새 탭 생성
 	if (!ActiveState)
 	{
-		const char* TabName = "New Tab";
+		FString TabName = "New Tab";
 		switch (NewMode)
 		{
 		case EEditorMode::Skeletal: TabName = "Skeletal"; break;
@@ -343,7 +343,7 @@ void SDynamicEditorWindow::SetEditorMode(EEditorMode NewMode)
 		case EEditorMode::BlendSpace2D: TabName = "BlendSpace2D"; break;
 		case EEditorMode::PhysicsAsset: TabName = "PhysicsAsset"; break;
 		}
-		ActiveState = CreateNewTab(TabName, NewMode);
+		ActiveState = CreateNewTab(TabName.c_str(), NewMode);
 		if (ActiveState)
 		{
 			ActiveTabIndex = (int32)Tabs.Num() - 1;
@@ -698,7 +698,27 @@ void SDynamicEditorWindow::OnRender()
 					{
 						// 새 탭 생성
 						FString TabName = ModeNames[i];
-						if (!CurrentMeshPath.empty())
+						// PhysicsAsset은 Mesh와 별개의 에셋이므로 독립적인 이름 사용
+						if (TargetMode == EEditorMode::PhysicsAsset)
+						{
+							// PhysicsAsset 파일이 있으면 그 이름 사용, 없으면 기본값
+							if (ActiveState && !ActiveState->PhysicsAssetFilePath.empty())
+							{
+								FWideString& PAPath = ActiveState->PhysicsAssetFilePath;
+								size_t LastSlash = PAPath.find_last_of(L"/\\");
+								FWideString FileName = (LastSlash != FWideString::npos) ? PAPath.substr(LastSlash + 1) : PAPath;
+								TabName.clear();
+								for (wchar_t c : FileName)
+								{
+									TabName.push_back(static_cast<char>(c));
+								}
+							}
+							else
+							{
+								TabName = "New PhysicsAsset";
+							}
+						}
+						else if (!CurrentMeshPath.empty())
 						{
 							size_t LastSlash = CurrentMeshPath.find_last_of("/\\");
 							TabName = (LastSlash != FString::npos) ? CurrentMeshPath.substr(LastSlash + 1) : CurrentMeshPath;
@@ -714,6 +734,32 @@ void SDynamicEditorWindow::OnRender()
 							Tabs.Add(NewState);
 							ActiveTabIndex = (int32)Tabs.Num() - 1;
 							ActiveState = NewState;
+
+							// 이전 탭에 로드된 Mesh가 있으면 새 탭에서도 자동 로드 (모드별 처리)
+							if (CurrentMesh && !CurrentMeshPath.empty())
+							{
+								switch (TargetMode)
+								{
+								case EEditorMode::Skeletal:
+									LoadSkeletalMesh(CurrentMeshPath);
+									break;
+								case EEditorMode::Animation:
+								case EEditorMode::BlendSpace2D:
+									// Animation 계열 모드는 Mesh 직접 설정
+									if (NewState->PreviewActor)
+									{
+										NewState->PreviewActor->SetSkeletalMesh(CurrentMeshPath);
+									}
+									break;
+								case EEditorMode::PhysicsAsset:
+									// PhysicsAsset 모드는 EmbeddedPhysicsAssetEditor에 전달
+									if (EmbeddedPhysicsAssetEditor)
+									{
+										EmbeddedPhysicsAssetEditor->LoadSkeletalMesh(CurrentMeshPath);
+									}
+									break;
+								}
+							}
 						}
 					}
 				}
@@ -1077,6 +1123,12 @@ void SDynamicEditorWindow::OnRender()
 									ContentRect.GetWidth(), ContentRect.GetHeight(), World, Device, true);
 								EmbeddedPhysicsAssetEditor->SetEmbeddedMode(true);
 
+								// 저장된 Mesh 경로가 있으면 로드 (다른 모드에서 전환 시)
+								if (ActiveState && !ActiveState->LoadedMeshPath.empty())
+								{
+									EmbeddedPhysicsAssetEditor->LoadSkeletalMesh(ActiveState->LoadedMeshPath);
+								}
+
 								// 저장된 PhysicsAsset 파일 경로가 있으면 로드
 								if (ActiveState && !ActiveState->PhysicsAssetFilePath.empty())
 								{
@@ -1102,6 +1154,16 @@ void SDynamicEditorWindow::OnRender()
 			}  // else (non-BlendSpace2D mode)
 		}  // else (non-Animation mode)
 	}
+
+	// 호버링 상태 업데이트 (휠 입력 격리용 - Viewport 영역만)
+	if (ActiveState && ActiveState->Client)
+	{
+		ImVec2 MousePos = ImGui::GetMousePos();
+		bool bIsViewportHovered = (MousePos.x >= CenterRect.Left && MousePos.x <= CenterRect.Right &&
+		                            MousePos.y >= CenterRect.Top && MousePos.y <= CenterRect.Bottom);
+		ActiveState->Client->SetHovered(bIsViewportHovered);
+	}
+
 	ImGui::End();
 
 	// If collapsed or not visible

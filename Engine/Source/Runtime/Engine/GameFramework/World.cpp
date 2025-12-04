@@ -113,7 +113,7 @@ void UWorld::Initialize()
 	{
 		Partition = std::make_unique<UWorldPartitionManager>();
 	}
-	 
+
 
 	// 기본 씬을 생성합니다.
 	CreateLevel();
@@ -321,7 +321,7 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 
 	// PIE World용 Physics Scene 생성
 	PIEWorld->PhysicsSceneHandle = PHYSICS.CreateScene();
-	 
+
 	FWorldContext PIEWorldContext = FWorldContext(PIEWorld, EWorldType::Game);
 	GEngine.AddWorldContext(PIEWorldContext);
 
@@ -536,7 +536,9 @@ void UWorld::CreateLevel()
 		{
 			DirectionalLight->ObjectName = FName("DirectionalLight");
 			DirectionalLight->GetLightComponent()->SetCastShadows(false);  // Disable shadows - saves ALL shadow memory
-			DirectionalLight->SetActorRotation(FQuat::FromAxisAngle(FVector(1.f, -1.f, 1.f), 30.f));
+			// +X 방향에서 -X 방향으로, 지면과 30도 각도로 비춤
+			// Yaw=0 (+X에서 쏨), Pitch=+30 (위에서 아래로 30도)
+			DirectionalLight->SetActorRotation(FQuat::MakeFromEulerZYX(FVector(0.f, 30.f, 180.f)));
 			DirectionalLight->SetActorLocation(FVector(0.0f, 0.0f, 3.0f));
 		}
 

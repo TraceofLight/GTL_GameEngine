@@ -29,6 +29,8 @@
 #include <functional>
 #include <algorithm>
 
+#include "StatsOverlayD2D.h"
+
 // ============================================================================
 // SPhysicsAssetEditorWindow
 // ============================================================================
@@ -641,11 +643,19 @@ void SPhysicsAssetEditorWindow::LoadSkeletalMesh(const FString& Path)
     ActiveState->bNeedsFloorSetup = true;  // Floor/Camera 설정 필요 표시
 
     // 기존 Physics Asset이 있으면 유지, 없으면 새로 생성
+    bool bNewPhysicsAsset = false;
     if (!ActiveState->PhysicsAsset)
     {
         // 새 Physics Asset 생성
         ActiveState->PhysicsAsset = NewObject<UPhysicsAsset>();
         ActiveState->PhysicsAsset->SourceSkeletalPath = Path;
+        bNewPhysicsAsset = true;
+    }
+
+    // 새로 생성된 PhysicsAsset이면 자동으로 Bodies 생성
+    if (bNewPhysicsAsset && ActiveState->PhysicsAsset && Mesh)
+    {
+        FPhysicsAssetUtils::CreateFromSkeletalMesh(ActiveState->PhysicsAsset, Mesh);
     }
 
     // 선택 상태 초기화
@@ -911,6 +921,34 @@ void SPhysicsAssetEditorWindow::RenderViewportPanel()
         if (PreviewShaderResourceView)
         {
             ImGui::Image((void*)PreviewShaderResourceView, AvailSize);
+        }
+
+        // PhysicsAsset Stats를 StatsOverlayD2D로 전달 (독립 실행 모드)
+        if (ActiveState && ActiveState->PhysicsAsset)
+        {
+            UPhysicsAsset* PhysAsset = ActiveState->PhysicsAsset;
+            int32 NumBodies = static_cast<int32>(PhysAsset->BodySetups.size());
+            int32 NumConstraints = static_cast<int32>(PhysAsset->ConstraintSetups.size());
+
+            int32 NumShapes = 0;
+            for (UBodySetup* Body : PhysAsset->BodySetups)
+            {
+                if (Body)
+                {
+                    NumShapes += Body->GetElementCount();
+                }
+            }
+
+            const char* EditModeStr = "Body";
+            switch (ActiveState->EditMode)
+            {
+            case EPhysicsAssetEditMode::Body:      EditModeStr = "Body"; break;
+            case EPhysicsAssetEditMode::Constraint: EditModeStr = "Constraint"; break;
+            case EPhysicsAssetEditMode::Shape:     EditModeStr = "Shape"; break;
+            case EPhysicsAssetEditMode::ClothPaint: EditModeStr = "ClothPaint"; break;
+            }
+
+            UStatsOverlayD2D::Get().SetPhysicsAssetStats(NumBodies, NumConstraints, NumShapes, EditModeStr, ActiveState->bSimulating);
         }
     }
 }
@@ -1358,7 +1396,7 @@ void SPhysicsAssetViewportPanel::OnRender()
                 }
                 ImGui::EndDragDropTarget();
             }
-        }		
+        }
         else
         {
             // SkeletalMesh가 있으면 뷰포트 렌더링
@@ -1376,11 +1414,7 @@ void SPhysicsAssetViewportPanel::OnRender()
                     ImGui::Image((void*)SRV, AvailSize);
                 }
 
-                // --- 뷰포트 하단 Stats 오버레이 ---
-                ImDrawList* DrawList = ImGui::GetWindowDrawList();
-                ImVec2 WindowPos = ImGui::GetWindowPos();
-
-                // Stats 텍스트 구성
+                // --- PhysicsAsset Stats를 StatsOverlayD2D로 전달 ---
                 UPhysicsAsset* PhysAsset = State->PhysicsAsset;
                 int32 NumBodies = PhysAsset ? static_cast<int32>(PhysAsset->BodySetups.size()) : 0;
                 int32 NumConstraints = PhysAsset ? static_cast<int32>(PhysAsset->ConstraintSetups.size()) : 0;
@@ -1408,35 +1442,7 @@ void SPhysicsAssetViewportPanel::OnRender()
                 case EPhysicsAssetEditMode::ClothPaint: EditModeStr = "ClothPaint"; break;
                 }
 
-                // Stats 문자열 생성
-                char StatsText[256];
-                if (State->bSimulating)
-                {
-                    snprintf(StatsText, sizeof(StatsText),
-                        "Bodies: %d | Constraints: %d | Shapes: %d | Mode: %s | SIMULATING",
-                        NumBodies, NumConstraints, NumShapes, EditModeStr);
-                }
-                else
-                {
-                    snprintf(StatsText, sizeof(StatsText),
-                        "Bodies: %d | Constraints: %d | Shapes: %d | Mode: %s",
-                        NumBodies, NumConstraints, NumShapes, EditModeStr);
-                }
-
-                // 텍스트 크기 계산
-                ImVec2 TextSize = ImGui::CalcTextSize(StatsText);
-                float Padding = 6.0f;
-                float BarHeight = TextSize.y + Padding * 2;
-
-                // 배경 바 (반투명 검정)
-                ImVec2 BarMin = ImVec2(WindowPos.x, WindowPos.y + AvailSize.y - BarHeight);
-                ImVec2 BarMax = ImVec2(WindowPos.x + AvailSize.x, WindowPos.y + AvailSize.y);
-                DrawList->AddRectFilled(BarMin, BarMax, IM_COL32(0, 0, 0, 180));
-
-                // 텍스트 (왼쪽 정렬, 약간의 여백)
-                ImVec2 TextPos = ImVec2(WindowPos.x + 8.0f, BarMin.y + Padding);
-                ImU32 TextColor = State->bSimulating ? IM_COL32(255, 200, 100, 255) : IM_COL32(200, 200, 200, 255);
-                DrawList->AddText(TextPos, TextColor, StatsText);
+                UStatsOverlayD2D::Get().SetPhysicsAssetStats(NumBodies, NumConstraints, NumShapes, EditModeStr, State->bSimulating);
             }
 
             // 드래그앤드롭으로 다른 Mesh 로드도 가능

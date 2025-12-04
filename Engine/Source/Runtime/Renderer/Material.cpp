@@ -203,7 +203,12 @@ void UMaterialInstanceDynamic::Serialize(const bool bInIsLoading, JSON& InOutHan
 				{
 					uint8 SlotIndex = static_cast<uint8>(std::stoi(SlotKey));
 					FString TexPath = PathJson.ToString();
-					UTexture* Tex = (TexPath == "None" || TexPath.empty()) ? nullptr : UResourceManager::GetInstance().Load<UTexture>(TexPath);
+					// 색상 텍스처(Diffuse, Specular, Emissive)는 sRGB, 데이터 텍스처(Normal 등)는 Linear로 로드
+					EMaterialTextureSlot Slot = static_cast<EMaterialTextureSlot>(SlotIndex);
+					bool bSRGB = (Slot == EMaterialTextureSlot::Diffuse ||
+					              Slot == EMaterialTextureSlot::Specular ||
+					              Slot == EMaterialTextureSlot::Emissive);
+					UTexture* Tex = (TexPath == "None" || TexPath.empty()) ? nullptr : UResourceManager::GetInstance().Load<UTexture>(TexPath, bSRGB);
 					LoadedTextures.Add(static_cast<EMaterialTextureSlot>(SlotIndex), Tex);
 				}
 				SetOverriddenTextureParameters(LoadedTextures);
