@@ -167,7 +167,16 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 
 		for (size_t i = 0; i < GroupInfos.size(); ++i)
 		{
-			SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
+			const FString& MatName = GroupInfos[i].InitialMaterialName;
+			if (!MatName.empty())
+			{
+				SetMaterialByName(static_cast<int32>(i), MatName);
+			}
+			else
+			{
+				// 머티리얼 이름이 비어있으면 기본 머티리얼 사용
+				SetMaterialInternal(static_cast<int32>(i), RM.GetDefaultMaterial(), true);
+			}
 		}
 		MarkWorldPartitionDirty();
 	}
@@ -200,7 +209,16 @@ void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 				bool bWasOverridden = (i < OldOverrides.size()) && OldOverrides[i];
 				if (!bWasOverridden)
 				{
-					this->SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
+					const FString& MatName = GroupInfos[i].InitialMaterialName;
+					if (!MatName.empty())
+					{
+						this->SetMaterialByName(static_cast<int32>(i), MatName);
+					}
+					else
+					{
+						// 머티리얼 이름이 비어있으면 기본 머티리얼 사용
+						this->SetMaterialInternal(static_cast<int32>(i), UResourceManager::GetInstance().GetDefaultMaterial(), true);
+					}
 				}
 				else
 				{

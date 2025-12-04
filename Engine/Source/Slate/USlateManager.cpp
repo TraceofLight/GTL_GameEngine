@@ -243,8 +243,8 @@ void USlateManager::OpenDynamicEditor()
 
     DynamicEditorWindow = new SDynamicEditorWindow();
 
-    // 패딩(4) + 메뉴바(22) + 레벨탭(28) + 툴바(40) = 94px
-    constexpr float TotalHeaderHeight = 94.0f;
+    // 패딩(4) + 메뉴바(22) + 레벨탭(28) + 툴바(32) = 86px
+    constexpr float TotalHeaderHeight = 86.0f;
     const float AvailableHeight = Rect.GetHeight() - TotalHeaderHeight;
     const float Width = Rect.GetWidth() * 0.85f;
     const float Height = AvailableHeight * 0.85f;
@@ -399,8 +399,8 @@ void USlateManager::OpenParticleEditorWindow()
 	ParticleEditorWindow = new SParticleEditorWindow();
 
 	// 중앙에 적당한 크기로 열기
-	// 패딩(4) + 메뉴바(22) + 레벨탭(28) + 툴바(40) = 94px
-	constexpr float TotalHeaderHeight = 94.0f;
+	// 패딩(4) + 메뉴바(22) + 레벨탭(28) + 툴바(32) = 86px
+	constexpr float TotalHeaderHeight = 86.0f;
 	const float AvailableHeight = Rect.GetHeight() - TotalHeaderHeight;
 	const float Width = Rect.GetWidth() * 0.92f;
 	const float Height = AvailableHeight * 0.92f;
@@ -941,8 +941,8 @@ void USlateManager::Update(float DeltaSeconds)
 
     if (TopPanel)
     {
-        // 패딩(4) + 메뉴바(22) + 레벨탭(28) + 툴바(40) 높이만큼 아래로 이동
-        constexpr float TotalHeaderHeight = 94.0f;
+        // 패딩(4) + 메뉴바(22) + 레벨탭(28) + 툴바(32) 높이만큼 아래로 이동
+        constexpr float TotalHeaderHeight = 86.0f;
         TopPanel->Rect = FRect(0, TotalHeaderHeight, CLIENTWIDTH, CLIENTHEIGHT);
         TopPanel->OnUpdate(DeltaSeconds);
     }

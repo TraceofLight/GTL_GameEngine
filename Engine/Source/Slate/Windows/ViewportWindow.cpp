@@ -281,7 +281,7 @@ void SViewportWindow::RenderToolbar()
 	if (!Viewport) return;
 
 	// 툴바 영역 크기
-	float ToolbarHeight = 35.0f;
+	float ToolbarHeight = 30.0f;  // 버튼 패딩 줄인 만큼 높이도 감소
 	ImVec2 ToolbarPosition(Rect.Left, Rect.Top);
 	ImVec2 ToolbarSize(Rect.Right - Rect.Left, ToolbarHeight);
 
@@ -301,8 +301,14 @@ void SViewportWindow::RenderToolbar()
 		// 기즈모 버튼 스타일 설정
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 0));      // 간격 좁히기
 		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);            // 모서리 둥글게
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3, 3));     // 패딩 줄이기 (버튼 세로 사이즈 감소)
 		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));        // 배경 투명
 		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.2f, 0.2f, 0.5f)); // 호버 배경
+
+		// 수직 중앙 정렬: 버튼 높이(17 + 3*2 = 23px) 기준으로 중앙 배치
+		const float ButtonHeight = 23.0f;  // IconSize(17) + FramePadding(3)*2
+		float verticalPadding = (ToolbarHeight - ButtonHeight) * 0.5f;
+		ImGui::SetCursorPosY(verticalPadding);
 
 		// PIE 모드에서는 좌측 컨트롤 위젯 숨김
 		if (!GEngine.IsPIEActive())
@@ -326,7 +332,7 @@ void SViewportWindow::RenderToolbar()
 
 		// 기즈모 버튼 스타일 복원
 		ImGui::PopStyleColor(2);
-		ImGui::PopStyleVar(2);
+		ImGui::PopStyleVar(3);  // ItemSpacing, FrameRounding, FramePadding
 
 		// === 오른쪽 정렬 버튼들 ===
 		// Switch, ShowFlag, ViewMode는 오른쪽 고정, Camera는 ViewMode 너비에 따라 왼쪽으로 밀림
@@ -374,6 +380,27 @@ void SViewportWindow::RenderToolbar()
 		ImVec2 cameraTextSize = ImGui::CalcTextSize(cameraText);
 		const float CameraButtonWidth = 17.0f + 4.0f + cameraTextSize.x + 16.0f;
 
+		// Speed 버튼 너비 계산 (아이콘 + 최종 속도값)
+		float finalSpeed = CalculateCameraSpeed();
+		char speedText[16];
+		if (finalSpeed >= 100.0f)
+		{
+			sprintf_s(speedText, "%.0f", finalSpeed);
+		}
+		else if (finalSpeed >= 10.0f)
+		{
+			sprintf_s(speedText, "%.1f", finalSpeed);
+		}
+		else
+		{
+			sprintf_s(speedText, "%.2f", finalSpeed);
+		}
+		ImVec2 speedTextSize = ImGui::CalcTextSize(speedText);
+		const float SpeedIconSize = 14.0f;
+		const float SpeedIconTextSpacing = 4.0f;
+		const float SpeedHorizontalPadding = 6.0f;
+		const float SpeedButtonWidth = SpeedHorizontalPadding + SpeedIconSize + SpeedIconTextSpacing + speedTextSize.x + SpeedHorizontalPadding;
+
 		// 사용 가능한 전체 너비와 현재 커서 위치
 		float AvailableWidth = ImGui::GetContentRegionAvail().x;
 		float CursorStartX = ImGui::GetCursorPosX();
@@ -389,12 +416,18 @@ void SViewportWindow::RenderToolbar()
 		// ViewMode는 ShowFlag 왼쪽 (실제 너비 사용)
 		float ViewModeX = ShowFlagX - ButtonSpacing - ViewModeButtonWidth;
 
-		// Camera는 ViewMode 왼쪽 (ViewMode 너비에 따라 위치 변동)
-		float CameraX = ViewModeX - ButtonSpacing - CameraButtonWidth;
+		// Speed는 ViewMode 왼쪽
+		float SpeedX = ViewModeX - ButtonSpacing - SpeedButtonWidth;
+
+		// Camera는 Speed 왼쪽 (ViewMode 너비에 따라 위치 변동)
+		float CameraX = SpeedX - ButtonSpacing - CameraButtonWidth;
 
 		// 버튼들을 순서대로 그리기 (Y 위치는 동일하게 유지)
 		ImGui::SetCursorPos(ImVec2(CameraX, CurrentCursor.y));
 		RenderCameraOptionDropdownMenu();
+
+		ImGui::SetCursorPos(ImVec2(SpeedX, CurrentCursor.y));
+		RenderCameraSpeedButton();
 
 		ImGui::SetCursorPos(ImVec2(ViewModeX, CurrentCursor.y));
 		RenderViewModeDropdownMenu();
@@ -458,7 +491,7 @@ void SViewportWindow::LoadToolbarIcons(ID3D11Device* Device)
 
 	// 뷰포트 설정 아이콘 텍스처 로드
 	IconSpeed = NewObject<UTexture>();
-	IconSpeed->Load(GDataDir + "/Default/Icon/Viewport_Mode_Camera.png", Device);
+	IconSpeed->Load(GDataDir + "/Default/Icon/CameraSpeed_16.dds", Device, false);
 
 	IconFOV = NewObject<UTexture>();
 	IconFOV->Load(GDataDir + "/Default/Icon/Viewport_Setting_FOV.png", Device);
@@ -549,9 +582,6 @@ void SViewportWindow::LoadToolbarIcons(ID3D11Device* Device)
 
 void SViewportWindow::RenderGizmoModeButtons()
 {
-	ImVec2 switchCursorPos = ImGui::GetCursorPos();
-	ImGui::SetCursorPosY(switchCursorPos.y - 2.0f);
-
 	const ImVec2 IconSize(17, 17);
 
 	// GizmoActor에서 직접 현재 모드 가져오기
@@ -959,33 +989,8 @@ void SViewportWindow::RenderCameraOptionDropdownMenu()
 			ImGui::Text("%s", mode.koreanName);
 		}
 
-		// --- 섹션 3: 이동 ---
-		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "이동");
-		ImGui::Separator();
-
+		// --- 섹션 3: 뷰 ---
 		ACameraActor* Camera = ViewportClient ? ViewportClient->GetCamera() : nullptr;
-		if (Camera)
-		{
-			if (IconSpeed && IconSpeed->GetShaderResourceView())
-			{
-				ImGui::Image((void*)IconSpeed->GetShaderResourceView(), IconSize);
-				ImGui::SameLine();
-			}
-			ImGui::Text("카메라 이동 속도");
-
-			float speed = Camera->GetCameraSpeed();
-			ImGui::SetNextItemWidth(180);
-			if (ImGui::SliderFloat("##CameraSpeed", &speed, 1.0f, 100.0f, "%.1f"))
-			{
-				Camera->SetCameraSpeed(speed);
-			}
-			if (ImGui::IsItemHovered())
-			{
-				ImGui::SetTooltip("WASD 키로 카메라를 이동할 때의 속도 (1-100)");
-			}
-		}
-
-		// --- 섹션 4: 뷰 ---
 		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "뷰");
 		ImGui::Separator();
 
@@ -1055,6 +1060,147 @@ void SViewportWindow::RenderCameraOptionDropdownMenu()
 		}
 
 		ImGui::PopStyleColor(3);
+		ImGui::PopStyleVar(2);
+		ImGui::EndPopup();
+	}
+}
+
+float SViewportWindow::CalculateCameraSpeed() const
+{
+	// 실제 속도 = 기본 속도 * 배율 * 스칼라
+	float Multiplier = SPEED_MULTIPLIERS[CameraSpeedSetting - 1];
+	float Scalar = ViewportClient ? ViewportClient->GetCameraSpeedScalar() : 1.0f;
+	return BASE_CAMERA_SPEED * Multiplier * Scalar;
+}
+
+void SViewportWindow::ApplyCameraSpeed()
+{
+	if (ViewportClient)
+	{
+		ACameraActor* Camera = ViewportClient->GetCamera();
+		if (Camera)
+		{
+			Camera->SetCameraSpeed(CalculateCameraSpeed());
+		}
+	}
+}
+
+void SViewportWindow::RenderCameraSpeedButton()
+{
+	ImVec2 cursorPos = ImGui::GetCursorPos();
+	ImGui::SetCursorPosY(cursorPos.y - 0.7f);
+
+	// 버튼에 표시할 텍스트 (최종 카메라 속도)
+	float FinalSpeed = CalculateCameraSpeed();
+	char ButtonText[16];
+	if (FinalSpeed >= 100.0f)
+	{
+		sprintf_s(ButtonText, "%.0f", FinalSpeed);
+	}
+	else if (FinalSpeed >= 10.0f)
+	{
+		sprintf_s(ButtonText, "%.1f", FinalSpeed);
+	}
+	else
+	{
+		sprintf_s(ButtonText, "%.2f", FinalSpeed);
+	}
+
+	// 아이콘 크기 및 버튼 너비 계산
+	const float IconSize = 14.0f;
+	const float IconTextSpacing = 4.0f;
+	ImVec2 TextSize = ImGui::CalcTextSize(ButtonText);
+	const float HorizontalPadding = 6.0f;
+	const float ButtonWidth = HorizontalPadding + IconSize + IconTextSpacing + TextSize.x + HorizontalPadding;
+
+	// 드롭다운 버튼 스타일 적용
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.14f, 0.16f, 0.16f, 1.00f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.18f, 0.22f, 0.21f, 1.00f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.22f, 0.28f, 0.26f, 1.00f));
+
+	ImVec2 ButtonSize(ButtonWidth, ImGui::GetFrameHeight());
+	ImVec2 ButtonCursorPos = ImGui::GetCursorPos();
+	ImVec2 ButtonScreenPos = ImGui::GetCursorScreenPos();
+
+	// 버튼 클릭 영역
+	if (ImGui::Button("##CameraSpeedBtn", ButtonSize))
+	{
+		ImGui::OpenPopup("CameraSpeedPopup");
+	}
+
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("카메라 속도: %.2f\n클릭하여 속도 조절", FinalSpeed);
+	}
+
+	// 버튼 위에 아이콘 렌더링
+	if (IconSpeed && IconSpeed->GetShaderResourceView())
+	{
+		float IconY = ButtonScreenPos.y + (ButtonSize.y - IconSize) * 0.5f;
+		float IconX = ButtonScreenPos.x + HorizontalPadding;
+		ImGui::GetWindowDrawList()->AddImage(
+			(ImTextureID)IconSpeed->GetShaderResourceView(),
+			ImVec2(IconX, IconY),
+			ImVec2(IconX + IconSize, IconY + IconSize)
+		);
+	}
+
+	// 버튼 위에 텍스트 렌더링 (아이콘 오른쪽)
+	float TextStartX = ButtonCursorPos.x + HorizontalPadding + IconSize + IconTextSpacing;
+	float TextStartY = ButtonCursorPos.y + (ButtonSize.y - TextSize.y) * 0.5f;
+	ImGui::SetCursorPos(ImVec2(TextStartX, TextStartY));
+	ImGui::Text("%s", ButtonText);
+
+	ImGui::PopStyleColor(3);
+	ImGui::PopStyleVar(1);
+
+	// ===== 카메라 속도 드롭다운 팝업 =====
+	if (ImGui::BeginPopup("CameraSpeedPopup", ImGuiWindowFlags_NoMove))
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 6));
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 10));
+
+		// --- 카메라 속도 배율 슬라이더 (배율 값 표시) ---
+		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Camera Speed");
+
+		// 현재 배율 값으로 포맷 문자열 생성
+		float CurrentMultiplier = SPEED_MULTIPLIERS[CameraSpeedSetting - 1];
+		char MultiplierFormat[16];
+		if (CurrentMultiplier >= 1.0f)
+		{
+			sprintf_s(MultiplierFormat, "%.1fx", CurrentMultiplier);
+		}
+		else
+		{
+			sprintf_s(MultiplierFormat, "%.4fx", CurrentMultiplier);
+		}
+
+		// 수평 슬라이더 (1-8, 배율 값 표시)
+		ImGui::SetNextItemWidth(200);
+		if (ImGui::SliderInt("##SpeedSetting", &CameraSpeedSetting, 1, 8, MultiplierFormat))
+		{
+			ApplyCameraSpeed();
+		}
+
+		ImGui::Spacing();
+		ImGui::Separator();
+		ImGui::Spacing();
+
+		// --- 속도 스칼라 슬라이더 (ViewportClient에서 관리, 휠로도 조절 가능) ---
+		ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Speed Scalar");
+
+		ImGui::SetNextItemWidth(200);
+		float CurrentScalar = ViewportClient ? ViewportClient->GetCameraSpeedScalar() : 1.0f;
+		if (ImGui::SliderFloat("##SpeedScalar", &CurrentScalar, 0.25f, 128.0f, "%.2f", ImGuiSliderFlags_Logarithmic))
+		{
+			if (ViewportClient)
+			{
+				ViewportClient->SetCameraSpeedScalar(CurrentScalar);
+			}
+			ApplyCameraSpeed();
+		}
+
 		ImGui::PopStyleVar(2);
 		ImGui::EndPopup();
 	}

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "PrimitiveComponent.h"
+#include "MeshComponent.h"
 #include "SceneComponent.h"
 #include "Actor.h"
 #include "WorldPartitionManager.h"
@@ -92,7 +93,15 @@ void UPrimitiveComponent::SetMaterialByName(uint32 InElementIndex, const FString
     UMaterial* CachedMaterial = UResourceManager::GetInstance().Get<UMaterial>(InMaterialName);
     if (CachedMaterial)
     {
-        SetMaterial(InElementIndex, CachedMaterial);
+        // 초기 머티리얼 설정이므로 SetMaterialInternal 사용 (override 플래그 설정 안 함)
+        if (UMeshComponent* MeshComp = Cast<UMeshComponent>(this))
+        {
+            MeshComp->SetMaterialInternal(InElementIndex, CachedMaterial, true);
+        }
+        else
+        {
+            SetMaterial(InElementIndex, CachedMaterial);
+        }
         return;
     }
 
@@ -109,7 +118,15 @@ void UPrimitiveComponent::SetMaterialByName(uint32 InElementIndex, const FString
 
             if (LoadedMaterial)
             {
-                this->SetMaterial(InElementIndex, LoadedMaterial);
+                // 초기 머티리얼 설정이므로 SetMaterialInternal 사용 (override 플래그 설정 안 함)
+                if (UMeshComponent* MeshComp = Cast<UMeshComponent>(this))
+                {
+                    MeshComp->SetMaterialInternal(InElementIndex, LoadedMaterial, true);
+                }
+                else
+                {
+                    this->SetMaterial(InElementIndex, LoadedMaterial);
+                }
             }
             else
             {

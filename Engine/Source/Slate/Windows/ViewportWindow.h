@@ -44,10 +44,15 @@ private:
     void RenderGizmoModeButtons();
     void RenderGizmoSpaceButton();
     void RenderCameraOptionDropdownMenu();
+    void RenderCameraSpeedButton();  // 카메라 속도 버튼
     void RenderViewModeDropdownMenu();
     void RenderShowFlagDropdownMenu();
     void RenderViewportLayoutSwitchButton();
     void LoadToolbarIcons(ID3D11Device* Device);
+
+    // 카메라 속도 계산 헬퍼
+    float CalculateCameraSpeed() const;
+    void ApplyCameraSpeed();
 
     // 드래그 앤 드롭 처리
     void HandleDropTarget();
@@ -132,4 +137,11 @@ private:
     FVector CameraStartLocation;
     FVector CameraTargetLocation;
     static constexpr float CAMERA_ANIMATION_DURATION = 0.35f;
+
+    // 카메라 속도 설정 (UE 스타일)
+    // SpeedSetting: 1-8 배율 (기본값 4)
+    // SpeedScalar: ViewportClient에서 관리 (0.25 ~ 4.0, 휠로 조절 가능)
+    int32 CameraSpeedSetting = 4;
+    static constexpr float SPEED_MULTIPLIERS[8] = { 0.0625f, 0.125f, 0.25f, 0.5f, 1.0f, 2.0f, 4.0f, 8.0f };
+    static constexpr float BASE_CAMERA_SPEED = 10.0f;  // 기본 카메라 속도
 };

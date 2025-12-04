@@ -278,10 +278,22 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
          this->UpdateSkinningMatrices(IdentityMatrices, IdentityMatrices);
 
          const TArray<FGroupInfo>& GroupInfos = LoadedMesh->GetMeshGroupInfo();
-         this->MaterialSlots.resize(GroupInfos.size());
-         for (size_t i = 0; i < GroupInfos.size(); ++i)
+         const size_t NumSlots = GroupInfos.size();
+         this->MaterialSlots.resize(NumSlots);
+         this->MaterialSlotOverrides.resize(NumSlots, false);
+
+         for (size_t i = 0; i < NumSlots; ++i)
          {
-            this->SetMaterialByName(static_cast<int32>(i), GroupInfos[i].InitialMaterialName);
+            const FString& MatName = GroupInfos[i].InitialMaterialName;
+            if (!MatName.empty())
+            {
+               this->SetMaterialByName(static_cast<int32>(i), MatName);
+            }
+            else
+            {
+               // 머티리얼 이름이 비어있으면 기본 머티리얼 사용
+               this->SetMaterialInternal(static_cast<int32>(i), UResourceManager::GetInstance().GetDefaultMaterial(), true);
+            }
          }
 
          this->MarkWorldPartitionDirty();
