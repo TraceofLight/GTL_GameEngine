@@ -38,8 +38,10 @@ USkeletalMeshComponent::~USkeletalMeshComponent()
         AnimInstance = nullptr;
     }
 
-    // InternalClothComponent 정리 (메모리 누수 방지)
-    DestroyInternalClothComponent();
+    // InternalClothComponent는 Actor의 owned component로 등록되어 있으므로
+    // Actor가 파괴될 때 알아서 정리됨. 여기서는 포인터만 null로 설정.
+    // RemoveOwnedComponent()를 호출하면 이미 파괴 중인 Actor에서 크래시 발생.
+    InternalClothComponent = nullptr;
 }
 
 void USkeletalMeshComponent::InitializeComponent()
@@ -74,6 +76,34 @@ void USkeletalMeshComponent::InitializeComponent()
 		if (UAnimSingleNodeInstance* SingleNodeInstance = Cast<UAnimSingleNodeInstance>(AnimInstance))
 		{
 			AnimationData.Initialize(SingleNodeInstance);
+		}
+	}
+
+	// InternalClothComponent 생성 (PIE 복제 후 DuplicateSubObjects에서 nullptr로 설정됨)
+	// 이 시점에서 Owner가 유효하므로 안전하게 생성 가능
+	if (!InternalClothComponent && HasClothSections())
+	{
+		// PIE 복제 시 Actor의 OwnedComponents에 이미 복제된 ClothComponent가 있을 수 있음
+		// 새로 생성하기 전에 기존 것을 먼저 찾아서 재사용
+		if (AActor* OwnerActor = GetOwner())
+		{
+			for (UActorComponent* Comp : OwnerActor->GetOwnedComponents())
+			{
+				if (UClothComponent* ExistingCloth = Cast<UClothComponent>(Comp))
+				{
+					// 이미 존재하는 ClothComponent 재사용
+					InternalClothComponent = ExistingCloth;
+					UE_LOG("[SkeletalMeshComponent::InitializeComponent] Reusing existing ClothComponent from OwnedComponents");
+					break;
+				}
+			}
+		}
+
+		// 기존 ClothComponent가 없으면 새로 생성
+		if (!InternalClothComponent)
+		{
+			CreateInternalClothComponent();
+			UE_LOG("[SkeletalMeshComponent::InitializeComponent] InternalClothComponent created");
 		}
 	}
 }
@@ -128,6 +158,14 @@ void USkeletalMeshComponent::BeginPlay()
 		AnimInstance->NativeBeginPlay();
 	}
 
+	// PhysicsAsset이 있지만 Bodies가 생성되지 않았으면 생성 시도
+	// (Serialize 시점에는 World가 없어서 실패했을 수 있음)
+	UPhysicsAsset* UsedPhysicsAsset = GetPhysicsAsset();
+	if (UsedPhysicsAsset && Bodies.IsEmpty())
+	{
+		OnCreatePhysicsState();
+	}
+
 	// Constraint 생성 (OnCreatePhysicsState에서 지연됨)
 	// PVD가 Body들을 완전히 등록한 후에 Joint를 생성해야 PVD Assert 방지
 	if (bPendingConstraintCreation)
@@ -140,6 +178,28 @@ void USkeletalMeshComponent::BeginPlay()
 	if (bSimulatePhysics && !Bodies.IsEmpty())
 	{
 		SetAllBodiesSimulatePhysics(true);
+	}
+
+	// PhysicsAsset에 ClothVertexWeights가 있으면 InternalClothComponent에 적용
+	UE_LOG("[SkeletalMeshComponent::BeginPlay] Checking cloth weights transfer:");
+	UE_LOG("  - UsedPhysicsAsset: %p", UsedPhysicsAsset);
+	UE_LOG("  - InternalClothComponent: %p", InternalClothComponent);
+	if (UsedPhysicsAsset)
+	{
+		UE_LOG("  - ClothVertexWeights count: %d", (int)UsedPhysicsAsset->ClothVertexWeights.size());
+	}
+
+	if (UsedPhysicsAsset && InternalClothComponent && !UsedPhysicsAsset->ClothVertexWeights.empty())
+	{
+		InternalClothComponent->LoadWeightsFromPhysicsAsset(UsedPhysicsAsset->ClothVertexWeights);
+		UE_LOG("[SkeletalMeshComponent::BeginPlay] SUCCESS: Applied ClothVertexWeights from PhysicsAsset");
+	}
+	else
+	{
+		UE_LOG("[SkeletalMeshComponent::BeginPlay] FAILED to apply cloth weights - conditions not met!");
+		if (!UsedPhysicsAsset) UE_LOG("  -> UsedPhysicsAsset is NULL");
+		if (!InternalClothComponent) UE_LOG("  -> InternalClothComponent is NULL");
+		if (UsedPhysicsAsset && UsedPhysicsAsset->ClothVertexWeights.empty()) UE_LOG("  -> ClothVertexWeights is EMPTY");
 	}
 }
 
@@ -367,17 +427,12 @@ void USkeletalMeshComponent::SetSkeletalMesh(const FString& PathFileName)
 
         ForceRecomputePose();
 
-        // Cloth Section 감지 및 자동 생성
+        // Cloth Section 감지 로그만 출력
+        // 실제 ClothComponent 생성은 InitializeComponent에서 처리
+        // (Serialize 시점에는 Owner가 완전히 초기화되지 않아 크래시 발생 가능)
         if (HasClothSections())
         {
-            CreateInternalClothComponent();
-
-            UE_LOG("SkeletalMeshComponent: Cloth sections detected. ClothComponent created automatically.\n");
-        }
-        else
-        {
-            // Cloth Section이 없으면 기존 ClothComponent 제거
-            DestroyInternalClothComponent();
+            UE_LOG("SkeletalMeshComponent: Cloth sections detected. ClothComponent will be created in InitializeComponent.\n");
         }
     }
     else
@@ -659,6 +714,12 @@ void USkeletalMeshComponent::DuplicateSubObjects()
 
     // AnimationMode에 따라 AnimInstance는 BeginPlay에서 재생성됨
     // AnimationData와 AnimBlueprint는 얕은 복사로 이미 복사되었음
+
+    // InternalClothComponent는 shallow copy로 에디터 월드의 포인터를 가지고 있으므로
+    // PIE 월드에서 새로 생성해야 함
+    // 주의: DuplicateSubObjects() 시점에는 Owner가 아직 제대로 설정되지 않아
+    // AddNewComponent()를 호출할 수 없음. InitializeComponent()에서 생성함.
+    InternalClothComponent = nullptr;
 }
 
 /**
@@ -757,6 +818,9 @@ void USkeletalMeshComponent::SetPhysicsAsset(const FString& PathFileName)
 {
     if (PathFileName.empty())
     {
+        // Clear existing physics state
+        OnDestroyPhysicsState();
+
         PhysicsAsset = nullptr;
         PhysicsAssetPath.clear();
         return;
@@ -766,9 +830,22 @@ void USkeletalMeshComponent::SetPhysicsAsset(const FString& PathFileName)
     UPhysicsAsset* LoadedAsset = NewObject<UPhysicsAsset>();
     if (LoadedAsset && LoadedAsset->LoadFromFile(PathFileName))
     {
+        // 기존 Physics 상태 정리
+        OnDestroyPhysicsState();
+
         PhysicsAsset = LoadedAsset;
         PhysicsAssetPath = PathFileName;
         UE_LOG("[SkeletalMeshComponent] Loaded PhysicsAsset: %s", PathFileName.c_str());
+
+        // 새 Physics 상태 생성
+        OnCreatePhysicsState();
+
+        // Cloth Weight 적용
+        if (InternalClothComponent && !LoadedAsset->ClothVertexWeights.empty())
+        {
+            InternalClothComponent->LoadWeightsFromPhysicsAsset(LoadedAsset->ClothVertexWeights);
+            UE_LOG("[SkeletalMeshComponent] Applied ClothVertexWeights from PhysicsAsset");
+        }
     }
     else
     {
@@ -1494,15 +1571,16 @@ void USkeletalMeshComponent::CreateInternalClothComponent()
 
 /**
  * @brief 내부 ClothComponent 정리
- * @note 소멸자에서는 직접 호출하지 않음 (Owner 파괴 중 Cast 크래시 방지)
+ * @note 소멸자에서는 이 함수를 호출하지 말 것! (Actor 파괴 중 크래시 발생)
+ *       소멸자에서는 InternalClothComponent = nullptr만 수행.
  */
 void USkeletalMeshComponent::DestroyInternalClothComponent()
 {
     if (InternalClothComponent)
 	{
-		if (AActor* Owner = GetOwner())
+		if (AActor* OwnerActor = GetOwner())
 		{
-			Owner->RemoveOwnedComponent(InternalClothComponent);
+			OwnerActor->RemoveOwnedComponent(InternalClothComponent);
 		}
 		InternalClothComponent = nullptr;
 	}

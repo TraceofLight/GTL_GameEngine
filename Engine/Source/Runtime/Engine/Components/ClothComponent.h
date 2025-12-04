@@ -57,7 +57,7 @@ struct FClothSimulationSettings
 	FVector GravityOverride = FVector(0, 0, -2.8f); // 중력 오버라이드 (cm/s^2) - 9.8 m/s^2
 
 	// Wind
-	FVector WindVelocity = FVector(5.0f, 10, 0);  // 바람 속도 (cm/s) - 기본값: 바람 없음
+	FVector WindVelocity = FVector(10.0f, 10, 0);  // 바람 속도 (cm/s) - 기본값: 바람 없음
 	float WindDrag = 0.5f;                      // 바람 저항 (0-1)
 	float WindLift = 0.3f;                      // 바람 양력 (0-1)
 
@@ -155,6 +155,7 @@ public:
 	void SetVertexWeightByMeshVertex(uint32 MeshVertexIndex, float Weight);
 	void InitializeVertexWeights();
 	void ApplyPaintedWeights();
+	void LoadWeightsFromPhysicsAsset(const TMap<uint32, float>& InClothVertexWeights);  // PhysicsAsset에서 weight 로드
 	const TArray<float>& GetVertexWeights() const { return ClothVertexWeights; }
 	const TArray<uint32>& GetClothVertexToMeshVertexMapping() const { return ClothVertexToMeshVertex; }
 	int32 FindClothVertexByMeshVertex(uint32 MeshVertexIndex) const;
@@ -170,7 +171,8 @@ protected:
 
 	// Cloth Paint - 정점별 weight (0 = 고정, 1 = 자유)
 	TArray<float> ClothVertexWeights;           // Paint된 weight 값
-	TArray<uint32> ClothVertexToMeshVertex;     // Cloth 정점 → 원본 메시 정점 매핑
+	TArray<uint32> ClothVertexToMeshVertex;     // Cloth 정점 → 원본 메시 정점 매핑 (대표 정점)
+	TArray<TArray<uint32>> ParticleToGlobalVertices;  // 각 particle에 대응하는 모든 global vertex들 (UV seam 처리)
 	bool bClothWeightsDirty = false;            // weight 변경 시 true
 
 	// Attachment data - 망토를 캐릭터에 고정
