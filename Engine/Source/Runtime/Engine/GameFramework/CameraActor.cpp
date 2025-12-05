@@ -15,8 +15,16 @@ static float MouseSensitivity = 0.05f;  // 적당한 값으로 조정
 //END_PROPERTIES()
 
 // 전역 카메라 스피드 변수 정의 (모든 카메라 인스턴스가 공유)
-float ACameraActor::BaseCameraSpeed = 10.0f;
+int32 ACameraActor::SpeedSetting = 4;  // 기본값 4 (1.0)
 float ACameraActor::SpeedScalar = 1.0f;
+
+// UE 방식 Speed 배열
+float ACameraActor::GetCameraSpeed(int32 Setting)
+{
+    const int32 ClampedSetting = std::max(1, std::min(8, Setting));
+    const float Speed[] = { 0.033f, 0.1f, 0.33f, 1.0f, 3.0f, 8.0f, 16.0f, 32.0f };
+    return Speed[ClampedSetting - 1];
+}
 
 ACameraActor::ACameraActor()
 {
@@ -25,28 +33,27 @@ ACameraActor::ACameraActor()
     CameraComponent = CreateDefaultSubobject<UCameraComponent>("CameraComponent");
     RootComponent = CameraComponent;
 
-    // 전역 베이스 스피드 로드 (static 변수이므로 첫 생성 시에만 로드)
-    // 모든 카메라 인스턴스가 공유하는 값
-    static bool bBaseCameraSpeedLoaded = false;
-    if (!bBaseCameraSpeedLoaded)
+    // 전역 스피드 설정 로드
+    static bool bSpeedSettingLoaded = false;
+    if (!bSpeedSettingLoaded)
     {
-        if (EditorINI.count("CameraSpeed"))
+        if (EditorINI.count("CameraSpeedSetting"))
         {
             try
             {
-                float temp = std::stof(EditorINI["CameraSpeed"]);
-                SetBaseCameraSpeed(temp);
+                int32 temp = std::stoi(EditorINI["CameraSpeedSetting"]);
+                SetSpeedSetting(temp);
             }
             catch (...)
             {
-                SetBaseCameraSpeed(10.f);
+                SetSpeedSetting(4);  // 기본값 4 (1.0)
             }
         }
         else
         {
-            SetBaseCameraSpeed(10.f);
+            SetSpeedSetting(4);
         }
-        bBaseCameraSpeedLoaded = true;
+        bSpeedSettingLoaded = true;
     }
 
     // 전역 스피드 스칼라 로드 (static 변수이므로 첫 생성 시에만 로드)
@@ -234,14 +241,6 @@ void ACameraActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
         FJsonSerializer::ReadFloat(InOutHandle, "CameraPitchDeg", CameraPitchDeg, 0.0f);
         FJsonSerializer::ReadBool(InOutHandle, "PerspectiveCameraInput", PerspectiveCameraInput, false);
 
-        // 레거시 호환: CameraMoveSpeed가 있으면 BaseCameraSpeed로 로드 (한 번만)
-        if (InOutHandle.hasKey("CameraMoveSpeed"))
-        {
-            float LegacySpeed = 10.0f;
-            FJsonSerializer::ReadFloat(InOutHandle, "CameraMoveSpeed", LegacySpeed, 10.0f);
-            SetBaseCameraSpeed(LegacySpeed);
-        }
-
         // CameraComponent 포인터는 DuplicateSubObjects()에서 복원됨
         for (UActorComponent* Component : OwnedComponents)
         {
@@ -283,9 +282,9 @@ void ACameraActor::ProcessCameraRotation(float DeltaSeconds)
 {
     UInputManager& InputManager = UInputManager::GetInstance();
     UUIManager& UIManager = UUIManager::GetInstance();
-    
+
     FVector2D MouseDelta = InputManager.GetMouseDelta();
-    
+
     if (MouseDelta.X == 0.0f && MouseDelta.Y == 0.0f) return;
 
     // 1) Pitch/Yaw만 누적 (Roll은 UIManager에서 관리하는 값으로 고정)
@@ -322,7 +321,7 @@ static inline FVector RotateByQuat(const FVector& Vector, const FQuat& Quat)
 void ACameraActor::ProcessCameraMovement(float DeltaSeconds)
 {
     UInputManager& InputManager = UInputManager::GetInstance();
-    
+
     FVector Move(0, 0, 0);
 
     // 1) 카메라 회전(쿼터니언)에서 로컬 기저 추출 (스케일 영향 제거)
@@ -339,13 +338,14 @@ void ACameraActor::ProcessCameraMovement(float DeltaSeconds)
     if (InputManager.IsKeyDown('D')) Move += Right;
     if (InputManager.IsKeyDown('A')) Move -= Right;
     if (InputManager.IsKeyDown('E')) Move += WorldUp;
-    if (InputManager.IsKeyDown('Q')) Move -= WorldUp; 
+    if (InputManager.IsKeyDown('Q')) Move -= WorldUp;
 
     // 3) 이동 적용
     if (Move.SizeSquared() > 0.0f)
     {
-        // 전역 베이스 스피드 * 인스턴스별 스칼라
-        const float speed = BaseCameraSpeed * SpeedScalar * DeltaSeconds * 2.5f;
+        // UE 방식: Speed[Setting] * Scalar * DeltaTime
+        const float SpeedValue = GetCameraSpeed(SpeedSetting);
+        const float speed = SpeedValue * SpeedScalar * DeltaSeconds;
         Move = Move.GetNormalized() * speed;
 
         const FVector P = GetActorLocation();

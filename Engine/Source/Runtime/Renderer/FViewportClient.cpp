@@ -465,8 +465,8 @@ void FViewportClient::MouseWheel(float DeltaSeconds)
 		float ScalarMultiplier = (WheelDelta > 0) ? 1.15f : (1.0f / 1.15f);
 		float NewScalar = Camera->GetSpeedScalar() * ScalarMultiplier;
 
-		// 스칼라 범위 제한 (0.25 ~ 128.0)
-		NewScalar = std::max(0.25f, std::min(128.0f, NewScalar));
+		// 스칼라 범위 제한 (0.1 ~ 128.0)
+		NewScalar = std::max(0.1f, std::min(128.0f, NewScalar));
 
 		// 카메라 인스턴스의 스칼라만 조정 (전역 베이스 스피드는 건드리지 않음)
 		Camera->SetSpeedScalar(NewScalar);
@@ -478,8 +478,7 @@ void FViewportClient::MouseWheel(float DeltaSeconds)
 	{
 		// Perspective 뷰포트: 호버링 중인 뷰포트만 줌 (카메라 앞뒤 이동)
 		FVector Forward = Camera->GetForward();
-		// 전역 베이스 스피드 * 인스턴스별 스칼라
-		float MoveSpeed = ACameraActor::GetBaseCameraSpeed() * Camera->GetSpeedScalar() * WheelDelta * 0.5f;
+		float MoveSpeed = Camera->GetCameraSpeed() * WheelDelta * 0.5f;
 		FVector NewLocation = Camera->GetActorLocation() + Forward * MoveSpeed;
 		Camera->SetActorLocation(NewLocation);
 	}

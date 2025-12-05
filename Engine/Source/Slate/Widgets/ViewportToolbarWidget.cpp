@@ -506,22 +506,11 @@ void SViewportToolbarWidget::RenderGizmoSpaceButton(AGizmoActor* GizmoActor) con
 
 float SViewportToolbarWidget::CalculateCameraSpeed(const FViewportClient* ViewportClient) const
 {
-	// 전역 베이스 스피드 (모든 카메라가 공유, EditorINI에 저장)
-	float BaseCameraSpeed = ACameraActor::GetBaseCameraSpeed();
-	float Multiplier = SPEED_MULTIPLIERS[CameraSpeedSetting - 1];
+	// UE 방식: Speed[Setting] * Scalar
+	float SpeedValue = ACameraActor::GetCameraSpeed(CameraSpeedSetting);
+	float Scalar = ACameraActor::GetSpeedScalar();
 
-	// 카메라에서 직접 Scalar 읽기 (신뢰할 수 있는 소스)
-	float Scalar = 1.0f;
-	if (ViewportClient)
-	{
-		ACameraActor* Camera = ViewportClient->GetCamera();
-		if (Camera)
-		{
-			Scalar = Camera->GetSpeedScalar();
-		}
-	}
-
-	return BaseCameraSpeed * Multiplier * Scalar;
+	return SpeedValue * Scalar;
 }
 
 void SViewportToolbarWidget::RenderCameraSpeedButton(FViewportClient* ViewportClient)
@@ -612,8 +601,8 @@ void SViewportToolbarWidget::RenderCameraSpeedButton(FViewportClient* ViewportCl
 		ImGui::SetNextItemWidth(200);
 		if (ImGui::SliderInt("##SpeedSetting", &CameraSpeedSetting, 1, 8, MultiplierFormat))
 		{
-			// CameraSpeedSetting 변경만으로 충분 (Multiplier 조정)
-			// BaseCameraSpeed와 Scalar는 변경하지 않음
+			// SpeedSetting을 전역 설정에 반영
+			ACameraActor::SetSpeedSetting(CameraSpeedSetting);
 		}
 
 		ImGui::Spacing();
@@ -634,9 +623,9 @@ void SViewportToolbarWidget::RenderCameraSpeedButton(FViewportClient* ViewportCl
 		}
 
 		ImGui::SetNextItemWidth(200);
-		if (ImGui::DragFloat("##SpeedScalar", &CurrentScalar, 0.01f, 0.25f, 128.0f, "%.2f", ImGuiSliderFlags_Logarithmic))
+		if (ImGui::DragFloat("##SpeedScalar", &CurrentScalar, 0.01f, 0.1f, 128.0f, "%.2f", ImGuiSliderFlags_Logarithmic))
 		{
-			CurrentScalar = std::max(0.25f, std::min(128.0f, CurrentScalar));
+			CurrentScalar = std::max(0.1f, std::min(128.0f, CurrentScalar));
 			if (ViewportClient)
 			{
 				ACameraActor* Camera = ViewportClient->GetCamera();

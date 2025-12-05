@@ -65,7 +65,7 @@ public:
 
     // 카메라 속도 스칼라 (휠로 조절, UI와 동기화)
     float GetCameraSpeedScalar() const { return CameraSpeedScalar; }
-    void SetCameraSpeedScalar(float Scalar) { CameraSpeedScalar = std::max(0.25f, std::min(128.0f, Scalar)); }
+    void SetCameraSpeedScalar(float Scalar) { CameraSpeedScalar = std::max(0.1f, std::min(128.0f, Scalar)); }
 
 protected:
     EViewportType ViewportType = EViewportType::Perspective;
@@ -76,7 +76,7 @@ protected:
     bool bIsMouseButtonDown = false;
     bool bIsMouseRightButtonDown = false;
     bool bIsHovered = false;
-    float CameraSpeedScalar = 1.0f;  // 카메라 속도 스칼라 (0.25 ~ 4.0)
+    float CameraSpeedScalar = 1.0f;
     static FVector CameraAddPosition;
     static float SharedOrthoZoom;
 

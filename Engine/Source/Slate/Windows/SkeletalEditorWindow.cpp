@@ -1124,7 +1124,7 @@ void SSkeletalViewportPanel::OnRender()
 							{
 								float ScalarMultiplier = (IO.MouseWheel > 0) ? 1.15f : (1.0f / 1.15f);
 								float NewScalar = Camera->GetSpeedScalar() * ScalarMultiplier;
-								NewScalar = std::max(0.25f, std::min(128.0f, NewScalar));
+								NewScalar = std::max(0.1f, std::min(128.0f, NewScalar));
 								Camera->SetSpeedScalar(NewScalar);
 							}
 						}
