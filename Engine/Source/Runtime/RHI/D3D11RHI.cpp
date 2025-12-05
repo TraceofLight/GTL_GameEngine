@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "StatsOverlayD2D.h"
+#include "Canvas.h"
 #include "Color.h"
 #include <DirectXTex.h>
 #include <filesystem>
@@ -18,10 +19,11 @@ void D3D11RHI::Initialize(HWND hWindow)
 
 	CreateDepthStencilState();
 	CreateSamplerState();
+	CreateD2DResources(); // Direct2D 초기화 (Canvas 렌더링용)
     UResourceManager::GetInstance().Initialize(Device,DeviceContext);
 
-    // Initialize Direct2D overlay after device/swapchain ready
-    UStatsOverlayD2D::Get().Initialize(Device, DeviceContext, SwapChain);
+    // Initialize Stats overlay
+    UStatsOverlayD2D::Get().Initialize();
 }
 
 void D3D11RHI::Release()
@@ -32,6 +34,7 @@ void D3D11RHI::Release()
 
     // Direct2D 오버레이를 먼저 정리하여 D3D 리소스에 대한 참조를 제거
     UStatsOverlayD2D::Get().Shutdown();
+    ReleaseD2DResources(); // Direct2D 리소스 해제
 
     if (DeviceContext)
     {
@@ -519,8 +522,23 @@ void D3D11RHI::DrawFullScreenQuad()
 
 void D3D11RHI::Present()
 {
-    // Draw any Direct2D overlays before present
-    UStatsOverlayD2D::Get().Draw();
+    // Canvas 시스템을 사용하여 Stats Overlay 렌더링
+    if (D2DRenderTarget && DWriteFactory)
+    {
+        // 현재 카메라 정보는 SceneRenderer에서 관리되므로 임시로 Identity 행렬 사용
+        FMatrix ViewMatrix = FMatrix::Identity();
+        FMatrix ProjectionMatrix = FMatrix::Identity();
+        FViewportRect ViewportRect;
+        ViewportRect.MinX = 0;
+        ViewportRect.MinY = 0;
+        ViewportRect.MaxX = GetViewportWidth();
+        ViewportRect.MaxY = GetViewportHeight();
+
+        FCanvas Canvas(D2DRenderTarget, DWriteFactory, ViewMatrix, ProjectionMatrix, ViewportRect);
+        UStatsOverlayD2D::Get().Draw(Canvas);
+        Canvas.Flush();
+    }
+
     SwapChain->Present(0, 0); // vsync on
 }
 
@@ -1685,4 +1703,73 @@ bool D3D11RHI::CaptureRenderTargetToMemory(ID3D11Texture2D* SourceTexture, std::
     memcpy(OutBuffer.data(), DDSBlob.GetBufferPointer(), DDSBlob.GetBufferSize());
 
     return true;
+}
+
+// ────────────────────────────────────────────────────────
+// Direct2D 초기화 (Canvas 렌더링용)
+// ────────────────────────────────────────────────────────
+
+void D3D11RHI::CreateD2DResources()
+{
+    // 1. D2D Factory 생성
+    HRESULT HR = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &D2DFactory);
+    if (FAILED(HR))
+    {
+        return;
+    }
+
+    // 2. SwapChain BackBuffer로부터 DXGI Surface 얻기
+    IDXGISurface* DXGISurface = nullptr;
+    HR = SwapChain->GetBuffer(0, __uuidof(IDXGISurface), (void**)&DXGISurface);
+    if (FAILED(HR))
+    {
+        return;
+    }
+
+    // 3. DXGI Surface로부터 D2D RenderTarget 생성
+    D2D1_RENDER_TARGET_PROPERTIES Props = D2D1::RenderTargetProperties(
+        D2D1_RENDER_TARGET_TYPE_DEFAULT,
+        D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, D2D1_ALPHA_MODE_PREMULTIPLIED)
+    );
+
+    HR = D2DFactory->CreateDxgiSurfaceRenderTarget(DXGISurface, &Props, &D2DRenderTarget);
+    DXGISurface->Release(); // 즉시 Release (RenderTarget이 참조 보유)
+
+    if (FAILED(HR))
+    {
+        return;
+    }
+
+    // 4. DWrite Factory 생성 (텍스트 렌더링용)
+    HR = DWriteCreateFactory(
+        DWRITE_FACTORY_TYPE_SHARED,
+        __uuidof(IDWriteFactory),
+        reinterpret_cast<IUnknown**>(&DWriteFactory)
+    );
+
+    if (FAILED(HR))
+    {
+        return;
+    }
+}
+
+void D3D11RHI::ReleaseD2DResources()
+{
+    if (DWriteFactory)
+    {
+        DWriteFactory->Release();
+        DWriteFactory = nullptr;
+    }
+
+    if (D2DRenderTarget)
+    {
+        D2DRenderTarget->Release();
+        D2DRenderTarget = nullptr;
+    }
+
+    if (D2DFactory)
+    {
+        D2DFactory->Release();
+        D2DFactory = nullptr;
+    }
 }

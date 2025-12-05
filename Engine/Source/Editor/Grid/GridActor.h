@@ -21,7 +21,11 @@ public:
     // Grid settings
     float GetLineSize() { return LineSize; }
     void SetLineSize(float NewLineSize) { LineSize = NewLineSize; SetActorScale({ NewLineSize, NewLineSize, NewLineSize }); }
-    
+
+    // Origin axis visibility
+    bool GetShowOriginAxis() const { return bShowOriginAxis; }
+    void SetShowOriginAxis(bool bShow) { bShowOriginAxis = bShow; RegenerateGrid(); }
+
     // Component access
     ULineComponent* GetLineComponent() const { return LineComponent; }
 
@@ -32,12 +36,13 @@ private:
     void RegenerateGrid();
     
     ULineComponent* LineComponent;
-    
+
     // Grid settings
     int32 GridSize = 100;
     float CellSize = 1.0f;
     float AxisLength = 100.0f;
 
     float LineSize = 1.0f;   // 기본값으로 사용됨
+    bool bShowOriginAxis = false;  // 원점 축 표시 (기본: 숨김)
 };
 

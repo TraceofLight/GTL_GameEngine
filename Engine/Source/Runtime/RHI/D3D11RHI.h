@@ -47,6 +47,9 @@ CreateConstantBuffer(&TYPE##Buffer, sizeof(TYPE));
 		ConstantBufferSetUpdate(TYPE##Buffer, pData, DataSize, TYPE##Slot, TYPE##IsVS, TYPE##IsPS); \
 	}
 
+struct ID2D1Factory;
+struct IDWriteFactory;
+struct ID2D1RenderTarget;
 struct FLinearColor;
 
 enum class EComparisonFunc
@@ -229,6 +232,16 @@ public:
 		return SwapChain;
 	}
 
+	// Direct2D Getters
+	inline ID2D1RenderTarget* GetD2DRenderTarget() const
+	{
+		return D2DRenderTarget;
+	}
+	inline IDWriteFactory* GetDWriteFactory() const
+	{
+		return DWriteFactory;
+	}
+
     // RTV Getters
     ID3D11RenderTargetView* GetBackBufferRTV() const { return BackBufferRTV; }
 
@@ -247,6 +260,7 @@ private:
 	void CreateConstantBuffer(ID3D11Buffer** ConstantBuffer, uint32 Size);
 	void CreateDepthStencilState();
 	void CreateSamplerState();
+	void CreateD2DResources(); // Direct2D Factory, RenderTarget, DWrite Factory 생성
 
 	// release
 	void ReleaseSamplerState();
@@ -255,6 +269,7 @@ private:
 	void ReleaseFrameBuffer(); // fb, rtv
 	void ReleaseIdBuffer();
 	void ReleaseDeviceAndSwapChain();
+	void ReleaseD2DResources(); // Direct2D 리소스 해제
 
 	// FSwapGuard 클래스가 D3D11RHI의 private 멤버에 접근할 수 있도록 허용
 	friend class FSwapGuard;
@@ -324,6 +339,13 @@ private:
 	UShader* PreShader = nullptr; // Shaders, Inputlayout
 
 	bool bReleased = false; // Prevent double Release() calls
+
+	// ────────────────────────────────────────────────────────
+	// Direct2D Resources (Canvas 렌더링용)
+	// ────────────────────────────────────────────────────────
+	ID2D1Factory* D2DFactory = nullptr;
+	ID2D1RenderTarget* D2DRenderTarget = nullptr;
+	IDWriteFactory* DWriteFactory = nullptr;
 };
 
 

@@ -22,6 +22,7 @@
 #include "FViewport.h"
 #include "FViewportClient.h"
 #include "Source/Editor/PlatformProcess.h"
+#include "Source/Editor/Grid/GridActor.h"
 
 // 파티클 모듈 헤더
 #include "Source/Runtime/Engine/Particle/Color/ParticleModuleColor.h"
@@ -853,9 +854,19 @@ void SParticleEditorWindow::RenderToolbar()
 	// ================================================================
 	// Origin Axis (토글)
 	// ================================================================
-	if (RenderIconButton("OriginAxis", IconOriginAxis, "Origin Axis", "원점 축 기즈모 표시 토글\nEmitter 원점에 X(빨강) Y(초록) Z(파랑) 축 표시", ActiveState->bShowOriginAxis))
+	if (RenderIconButton("OriginAxis", IconOriginAxis, "Origin Axis", "원점 축 기즈모 표시 토글\n그리드 원점에 X(빨강) Y(초록) Z(파랑) 축 표시", ActiveState->bShowOriginAxis))
 	{
 		ActiveState->bShowOriginAxis = !ActiveState->bShowOriginAxis;
+
+		// 파티클 에디터 뷰포트의 GridActor 원점 축 표시 상태 동기화
+		if (ActiveState->World)
+		{
+			AGridActor* GridActor = ActiveState->World->GetGridActor();
+			if (GridActor)
+			{
+				GridActor->SetShowOriginAxis(ActiveState->bShowOriginAxis);
+			}
+		}
 	}
 
 	DrawVerticalSeparator();

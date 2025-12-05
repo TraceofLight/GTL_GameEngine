@@ -59,6 +59,8 @@
 #include "VertexData.h"
 #include "SkySphereActor.h"
 #include "SkySphereComponent.h"
+#include "Canvas.h"
+#include "CanvasItem.h"
 
 FSceneRenderer::FSceneRenderer(UWorld* InWorld, FSceneView* InView, URenderer* InOwnerRenderer)
 	: World(InWorld)
@@ -201,6 +203,9 @@ void FSceneRenderer::Render()
 
 		// BackBuffer 위에 라인 오버레이(항상 위)를 그린다
 		RenderFinalOverlayLines();
+
+		// Canvas 2D 오버레이 렌더링 (Axis Widget 등)
+		RenderCanvasOverlays();
 
 		// 메인 에디터: 렌더 타겟과 뷰포트 복원
 		RHIDevice->GetDeviceContext()->OMSetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, BackupRTV, BackupDSV);
@@ -1784,6 +1789,38 @@ void FSceneRenderer::RenderFinalOverlayLines()
         LineComponent->CollectLineBatches(OwnerRenderer);
     }
     OwnerRenderer->EndLineBatchAlwaysOnTop(FMatrix::Identity());
+}
+
+void FSceneRenderer::RenderCanvasOverlays()
+{
+	// Canvas 2D 오버레이 렌더링 (Axis Widget, 기타 2D UI)
+	// Direct2D RenderTarget과 DWriteFactory가 있을 때만 실행
+	if (!RHIDevice->GetD2DRenderTarget() || !RHIDevice->GetDWriteFactory())
+	{
+		return;
+	}
+
+	// Canvas 생성 (뷰포트 기준)
+	FMatrix ViewMatrix = View->ViewMatrix;
+	FMatrix ProjectionMatrix = View->ProjectionMatrix;
+	FViewportRect ViewportRect = View->ViewRect;
+
+	FCanvas Canvas(RHIDevice->GetD2DRenderTarget(), RHIDevice->GetDWriteFactory(),
+	               ViewMatrix, ProjectionMatrix, ViewportRect);
+
+	// Axis Widget 렌더링 (뷰포트 좌하단, FutureEngine 패턴)
+	const float OffsetFromLeft = 70.0f;
+	const float OffsetFromBottom = 70.0f;
+	FVector2D AxisPosition(
+		static_cast<float>(ViewportRect.MinX) + OffsetFromLeft,
+		static_cast<float>(ViewportRect.MinY + ViewportRect.Height()) - OffsetFromBottom
+	);
+
+	FCanvasAxisWidget AxisWidget(AxisPosition, ViewMatrix);
+	AxisWidget.Draw(Canvas);
+
+	// Canvas Flush - 모든 2D 렌더링 명령 실행
+	Canvas.Flush();
 }
 
 // 수집한 Batch 그리기

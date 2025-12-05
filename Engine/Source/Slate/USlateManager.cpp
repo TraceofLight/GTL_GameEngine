@@ -1604,13 +1604,6 @@ void USlateManager::UpdateViewportAnimation(float DeltaSeconds)
         return;
     }
     ViewportAnimation.AnimationTime += DeltaSeconds;
-    static int32 LogCounter = 0;
-    if (++LogCounter % 30 == 0)
-        UE_LOG("SlateManager: UpdateViewportAnimation - Time=%.3f/%.3f, HRatio=%.2f, VTop=%.2f, VBottom=%.2f",
-            ViewportAnimation.AnimationTime, ViewportAnimation.AnimationDuration,
-            LeftPanel ? LeftPanel->SplitRatio : -1.0f,
-            LeftTop ? LeftTop->SplitRatio : -1.0f,
-            LeftBottom ? LeftBottom->SplitRatio : -1.0f);
 
     float t = ViewportAnimation.AnimationTime / ViewportAnimation.AnimationDuration;
     float k = EaseInOutCubic(std::clamp(t, 0.0f, 1.0f));

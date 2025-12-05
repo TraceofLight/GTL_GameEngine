@@ -113,9 +113,12 @@ void AGridActor::RegenerateGrid()
 {
     // Clear existing lines
     ClearLines();
-    
+
     // Generate new grid and axis lines with current settings
-    CreateAxisLines(AxisLength, FVector());
+    if (bShowOriginAxis)
+    {
+        CreateAxisLines(AxisLength, FVector());
+    }
     CreateGridLines(GridSize, CellSize, FVector());
 }
 
