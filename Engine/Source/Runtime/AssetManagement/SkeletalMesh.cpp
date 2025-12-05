@@ -31,19 +31,31 @@ void USkeletalMesh::Load(const FString& InFilePath, ID3D11Device* InDevice)
     // FBXLoader가 캐싱을 내부적으로 처리합니다
     Data = UFbxLoader::GetInstance().LoadFbxMeshAsset(InFilePath);
 
-    if (!Data || Data->Vertices.empty() || Data->Indices.empty())
+    if (!Data)
     {
-        UE_LOG("ERROR: Failed to load FBX mesh from '%s'", InFilePath.c_str());
+        UE_LOG("ERROR: Failed to load FBX from '%s'", InFilePath.c_str());
         return;
     }
 
-    // GPU 버퍼 생성
-    CreateVertexBuffer(Data, InDevice);
-    CreateIndexBuffer(Data, InDevice);
-    CreateLocalBound(Data);
-    VertexCount = static_cast<uint32>(Data->Vertices.size());
-    IndexCount = static_cast<uint32>(Data->Indices.size());
-    VertexStride = sizeof(FSkinnedVertexDynamic);
+    // 메쉬 geometry가 있으면 GPU 버퍼 생성
+    if (!Data->Vertices.empty() && !Data->Indices.empty())
+    {
+        // GPU 버퍼 생성
+        CreateVertexBuffer(Data, InDevice);
+        CreateIndexBuffer(Data, InDevice);
+        CreateLocalBound(Data);
+        VertexCount = static_cast<uint32>(Data->Vertices.size());
+        IndexCount = static_cast<uint32>(Data->Indices.size());
+        VertexStride = sizeof(FSkinnedVertexDynamic);
+    }
+    else
+    {
+        // 애니메이션 전용 FBX (메쉬 geometry 없음)
+        UE_LOG("SkeletalMesh: LoadFromFile: Animation-only FBX (no mesh geometry): %s", InFilePath.c_str());
+        VertexCount = 0;
+        IndexCount = 0;
+        VertexStride = 0;
+    }
 }
 
 void USkeletalMesh::ReleaseResources()

@@ -116,6 +116,7 @@ public:
 	void CreateBillboardMesh();
 	void CreateTextBillboardMesh();
 	void CreateTextBillboardTexture();
+	void PreLoadFbxAssets();
 	void PreLoadAnimStateMachines();
 	void PreLoadParticleSystems();
 	void PreLoadAnimSequences();

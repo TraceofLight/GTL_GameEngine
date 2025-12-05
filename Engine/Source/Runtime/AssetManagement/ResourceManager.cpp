@@ -59,6 +59,7 @@ void UResourceManager::Initialize(ID3D11Device* InDevice, ID3D11DeviceContext* I
     CreateDefaultShader();
     CreateDefaultMaterial();
     CreateDefaultStaticMesh();
+	PreLoadFbxAssets();
 	PreLoadAnimStateMachines();
 	PreLoadParticleSystems();
 	PreLoadAnimSequences();
@@ -761,6 +762,11 @@ void UResourceManager::PreLoadParticleSystems()
 			Load<UParticleSystem>(PathStr);
 		}
 	}
+}
+
+void UResourceManager::PreLoadFbxAssets()
+{
+	UFbxLoader::PreLoad();
 }
 
 void UResourceManager::PreLoadAnimSequences()
