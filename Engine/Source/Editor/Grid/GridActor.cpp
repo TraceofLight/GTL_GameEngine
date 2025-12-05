@@ -58,7 +58,9 @@ void AGridActor::CreateGridLines(int32 InGridSize, float InCellSize, const FVect
 
     for (int i = -InGridSize; i <= InGridSize; i++)
     {
-        if (i == 0) continue;
+        // Axis가 켜져있으면 원점(i==0) 건너뛰기 (컬러 축이 대체)
+        // Axis가 꺼져있으면 원점 그리드 라인도 그려서 빈 공간 채우기
+        if (i == 0 && bShowOriginAxis) continue;
 
         const float pos = i * InCellSize;
         const FVector4 color = GetGridLineColor(i);
@@ -68,10 +70,6 @@ void AGridActor::CreateGridLines(int32 InGridSize, float InCellSize, const FVect
         // Y축 방향 라인
         LineComponent->AddLine(FVector(-gridTotalSize, pos, 0.0f), FVector(gridTotalSize, pos, 0.0f), color);
     }
-
-    // 중앙 축 (X, Y)
-    LineComponent->AddLine(FVector(-gridTotalSize, 0.0f, 0.0f), FVector(0.0f, 0.0f, 0.0f), FVector4(1.0f, 1.0f, 1.0f, 1.0f));
-    LineComponent->AddLine(FVector(0.0f, -gridTotalSize, 0.0f), FVector(0.0f, 0.0f, 0.0f), FVector4(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
 void AGridActor::CreateAxisLines(float Length, const FVector& Origin)

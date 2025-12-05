@@ -330,24 +330,26 @@ EGizmoMode AGizmoActor::GetMode()
 
 void AGizmoActor::SetSpaceWorldMatrix(EGizmoSpace NewSpace, USceneComponent* SelectedComponent)
 {
-	// Scale 모드는 무조건 Local 공간만 사용
-	if (CurrentMode == EGizmoMode::Scale)
+	// Scale 모드가 아닐 때만 CurrentSpace 업데이트
+	// Scale 모드는 렌더링/로직에서만 Local 강제, CurrentSpace는 유지
+	if (CurrentMode != EGizmoMode::Scale)
 	{
-		NewSpace = EGizmoSpace::Local;
+		SetSpace(NewSpace);
 	}
 
-	SetSpace(NewSpace);
+	// Scale 모드는 무조건 Local 회전 사용 (렌더링/로직용)
+	EGizmoSpace EffectiveSpace = (CurrentMode == EGizmoMode::Scale) ? EGizmoSpace::Local : NewSpace;
 
 	// Bone 타겟인 경우
 	if (TargetType == EGizmoTargetType::Bone && TargetSkeletalMeshComponent && TargetBoneIndex >= 0)
 	{
 		FTransform BoneWorldTransform = TargetSkeletalMeshComponent->GetBoneWorldTransform(TargetBoneIndex);
 
-		if (NewSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
+		if (EffectiveSpace == EGizmoSpace::Local)
 		{
 			SetActorRotation(BoneWorldTransform.Rotation);
 		}
-		else if (NewSpace == EGizmoSpace::World)
+		else if (EffectiveSpace == EGizmoSpace::World)
 		{
 			SetActorRotation(FQuat::Identity());
 		}
@@ -363,11 +365,11 @@ void AGizmoActor::SetSpaceWorldMatrix(EGizmoSpace NewSpace, USceneComponent* Sel
 		FQuat ConstraintLocalRot = FQuat::MakeFromEulerZYX(TargetConstraintSetup->ConstraintRotationInBody1);
 		FQuat ConstraintWorldRot = Bone1Transform.Rotation * ConstraintLocalRot;
 
-		if (NewSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
+		if (EffectiveSpace == EGizmoSpace::Local)
 		{
 			SetActorRotation(ConstraintWorldRot);
 		}
-		else if (NewSpace == EGizmoSpace::World)
+		else if (EffectiveSpace == EGizmoSpace::World)
 		{
 			SetActorRotation(FQuat::Identity());
 		}
@@ -397,11 +399,11 @@ void AGizmoActor::SetSpaceWorldMatrix(EGizmoSpace NewSpace, USceneComponent* Sel
 		FQuat ShapeLocalQuat = FQuat::MakeFromEulerZYX(ShapeLocalRotation);
 		FQuat ShapeWorldRot = BoneWorldTransform.Rotation * ShapeLocalQuat;
 
-		if (NewSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
+		if (EffectiveSpace == EGizmoSpace::Local)
 		{
 			SetActorRotation(ShapeWorldRot);
 		}
-		else if (NewSpace == EGizmoSpace::World)
+		else if (EffectiveSpace == EGizmoSpace::World)
 		{
 			SetActorRotation(FQuat::Identity());
 		}
@@ -412,13 +414,13 @@ void AGizmoActor::SetSpaceWorldMatrix(EGizmoSpace NewSpace, USceneComponent* Sel
 	if (!SelectedComponent)
 		return;
 
-	if (NewSpace == EGizmoSpace::Local || CurrentMode == EGizmoMode::Scale)
+	if (EffectiveSpace == EGizmoSpace::Local)
 	{
 		// 기즈모 액터 자체를 타겟의 회전으로 설정합니다.
 		FQuat TargetRot = SelectedComponent->GetWorldRotation();
 		SetActorRotation(TargetRot);
 	}
-	else if (NewSpace == EGizmoSpace::World)
+	else if (EffectiveSpace == EGizmoSpace::World)
 	{
 		// 기즈모 액터를 월드 축에 정렬 (단위 회전으로 설정)
 		SetActorRotation(FQuat::Identity());
@@ -709,7 +711,7 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 			{
 			case 1: Axis = DragStartRotation.RotateVector(FVector(1, 0, 0)); break;
 			case 2: Axis = DragStartRotation.RotateVector(FVector(0, 1, 0)); break;
-			case 3: Axis = DragStartRotation.RotateVector(FVector(0, 0, 1)); break;
+			case 4: Axis = DragStartRotation.RotateVector(FVector(0, 0, 1)); break;  // Z축
 			}
 		}
 		else if (CurrentSpace == EGizmoSpace::World)
@@ -718,7 +720,7 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 			{
 			case 1: Axis = FVector(1, 0, 0); break;
 			case 2: Axis = FVector(0, 1, 0); break;
-			case 3: Axis = FVector(0, 0, 1); break;
+			case 4: Axis = FVector(0, 0, 1); break;  // Z축
 			}
 		}
 
@@ -810,7 +812,7 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 			{
 			case 1: NewScale.X += TotalMovement; break;
 			case 2: NewScale.Y += TotalMovement; break;
-			case 3: NewScale.Z += TotalMovement; break;
+			case 4: NewScale.Z += TotalMovement; break;  // Z축
 			}
 
 			if (bIsBoneMode)
@@ -851,7 +853,7 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 						{
 						case 1: Box.X = FMath::Max(0.01f, DragStartShapeX + TotalMovement); break;
 						case 2: Box.Y = FMath::Max(0.01f, DragStartShapeY + TotalMovement); break;
-						case 3: Box.Z = FMath::Max(0.01f, DragStartShapeZ + TotalMovement); break;
+						case 4: Box.Z = FMath::Max(0.01f, DragStartShapeZ + TotalMovement); break;  // Z축
 						}
 					}
 					break;
@@ -867,7 +869,7 @@ void AGizmoActor::OnDrag(USceneComponent* Target, uint32 GizmoAxis, float MouseD
 							Capsule.Length = FMath::Max(0.01f, DragStartShapeLength + TotalMovement);
 							break;
 						case 2:  // Y축 = Radius
-						case 3:  // Z축 = Radius
+						case 4:  // Z축 = Radius
 							Capsule.Radius = FMath::Max(0.01f, DragStartShapeRadius + TotalMovement);
 							break;
 						}
@@ -2430,21 +2432,21 @@ void AGizmoActor::RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camer
 	float RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportHeight * 0.5f);
 
 	// 기본 회전 (World/Local 공간)
-	FQuat BaseRot = FQuat::Identity();
-	if (CurrentSpace == EGizmoSpace::Local)
+	// SetSpaceWorldMatrix()에서 GizmoActor 자체의 회전을 이미 설정했으므로,
+	// 모든 타겟 타입(Actor/Component/Bone/Shape/Constraint)에 대해 일관되게 동작
+	FQuat BaseRot = GetActorRotation();
+
+	// Rotate 모드 드래그 중에는 시작 시점의 회전에 고정 (기즈모가 같이 회전하지 않도록)
+	// 단, World 모드일 때는 Identity 유지
+	if (bIsDragging && CurrentMode == EGizmoMode::Rotate)
 	{
-		if (bIsDragging)
+		if (CurrentSpace == EGizmoSpace::World)
 		{
-			// 드래그 중에는 시작 시점의 회전에 고정 (기즈모가 같이 회전하지 않도록)
-			BaseRot = DragStartRotation;
+			BaseRot = FQuat::Identity();  // World 모드: 월드 축 정렬 유지
 		}
-		else if (SelectionManager)
+		else
 		{
-			USceneComponent* SelectedComp = SelectionManager->GetSelectedComponent();
-			if (SelectedComp)
-			{
-				BaseRot = SelectedComp->GetWorldRotation();
-			}
+			BaseRot = DragStartRotation;  // Local 모드: 드래그 시작 회전 고정
 		}
 	}
 

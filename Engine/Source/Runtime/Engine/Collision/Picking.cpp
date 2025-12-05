@@ -492,7 +492,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 				if (HitDistance < ClosestDistance)
 				{
 					ClosestDistance = HitDistance;
-					ClosestAxis = 3;
+					ClosestAxis = 4;  // EGizmoDirection::Up (Z축)
 					OutImpactPoint = TempImpactPoint;
 				}
 			}
@@ -534,7 +534,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 				if (HitDistance < ClosestDistance)
 				{
 					ClosestDistance = HitDistance;
-					ClosestAxis = 3;
+					ClosestAxis = 4;  // EGizmoDirection::Up (Z축)
 					OutImpactPoint = TempImpactPoint;
 				}
 			}
@@ -560,19 +560,9 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			const float OuterRadius = 0.85f * RenderScale;
 
 			// Local/World 회전
-			FQuat BaseRot = FQuat::Identity();
-			if (GizmoTransActor->GetSpace() == EGizmoSpace::Local)
-			{
-				// SelectionManager에서 선택된 컴포넌트의 회전 가져오기
-				if (GWorld && GWorld->GetSelectionManager())
-				{
-					USceneComponent* SelectedComp = GWorld->GetSelectionManager()->GetSelectedComponent();
-					if (SelectedComp)
-					{
-						BaseRot = SelectedComp->GetWorldRotation();
-					}
-				}
-			}
+			// SetSpaceWorldMatrix()에서 GizmoActor 자체의 회전을 이미 설정했으므로,
+			// 모든 타겟 타입(Actor/Component/Bone/Shape/Constraint)에 대해 일관되게 동작
+			FQuat BaseRot = GizmoTransActor->GetActorRotation();
 
 			// 축 정의 (X=Forward, Y=Right, Z=Up)
 			FVector GizmoAxes[3] = {
@@ -673,19 +663,9 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 			float RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportSize.Y * 0.5f);
 
 			// Local/World 회전
-			FQuat BaseRot = FQuat::Identity();
-			if (GizmoTransActor->GetSpace() == EGizmoSpace::Local)
-			{
-				// SelectionManager에서 선택된 컴포넌트의 회전 가져오기
-				if (GWorld && GWorld->GetSelectionManager())
-				{
-					USceneComponent* SelectedComp = GWorld->GetSelectionManager()->GetSelectedComponent();
-					if (SelectedComp)
-					{
-						BaseRot = SelectedComp->GetWorldRotation();
-					}
-				}
-			}
+			// SetSpaceWorldMatrix()에서 GizmoActor 자체의 회전을 이미 설정했으므로,
+			// 모든 타겟 타입(Actor/Component/Bone/Shape/Constraint)에 대해 일관되게 동작
+			FQuat BaseRot = GizmoTransActor->GetActorRotation();
 
 			// ──────────────────────────────────────────────
 			// 평면 기즈모 피킹 (중심 구체보다 우선)
@@ -716,7 +696,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 						{
 							ClosestDistance = HitDistance;
 							ClosestAxis = 8; // XY_Plane
-							OutImpactPoint = HitPoint;
+							OutImpactPoint = HitPoint;  // 실제 클릭 지점 사용
 							bPlaneHit = true;
 						}
 					}
@@ -743,7 +723,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 						{
 							ClosestDistance = HitDistance;
 							ClosestAxis = 16; // XZ_Plane
-							OutImpactPoint = HitPoint;
+							OutImpactPoint = HitPoint;  // 실제 클릭 지점 사용
 							bPlaneHit = true;
 						}
 					}
@@ -770,7 +750,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 						{
 							ClosestDistance = HitDistance;
 							ClosestAxis = 32; // YZ_Plane
-							OutImpactPoint = HitPoint;
+							OutImpactPoint = HitPoint;  // 실제 클릭 지점 사용
 							bPlaneHit = true;
 						}
 					}
@@ -789,7 +769,7 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 					{
 						ClosestDistance = HitDistance;
 						ClosestAxis = 64; // Center
-						OutImpactPoint = Ray.Origin + Ray.Direction * HitDistance;
+						OutImpactPoint = Ray.Origin + Ray.Direction * HitDistance;  // 실제 클릭 지점 사용
 					}
 				}
 			}
