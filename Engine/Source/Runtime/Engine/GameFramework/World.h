@@ -210,6 +210,34 @@ private:
     bool bIsTearingDown = false;    // 월드가 파괴 중임을 알리는 플래그
 
     EWorldType WorldType = EWorldType::Editor;  // Default to editor world
+
+public:
+    // ───── GameMode 시스템 ─────────────────────────────────────────────────
+
+    /** GameMode 클래스 설정 (World Settings에서 오버라이드) */
+    void SetGameModeClass(UClass* InGameModeClass);
+    UClass* GetGameModeClass() const { return GameModeClass; }
+
+    /** DefaultPawn 클래스 설정 */
+    void SetDefaultPawnClass(UClass* InPawnClass);
+    UClass* GetDefaultPawnClass() const { return DefaultPawnClass; }
+
+    /** PlayerController 클래스 설정 */
+    void SetPlayerControllerClass(UClass* InControllerClass);
+    UClass* GetPlayerControllerClass() const { return PlayerControllerClass; }
+
+    /** 현재 활성화된 GameMode 인스턴스 */
+    class AGameModeBase* GetAuthorityGameMode() const { return AuthorityGameMode; }
+
+    /** GameMode 초기화 (World BeginPlay 시 자동 호출) */
+    void InitializeGameMode();
+
+private:
+    // GameMode 설정
+    UClass* GameModeClass = nullptr;              // 이 World에서 사용할 GameMode 클래스
+    UClass* DefaultPawnClass = nullptr;           // 기본 Pawn 클래스
+    UClass* PlayerControllerClass = nullptr;      // PlayerController 클래스
+    class AGameModeBase* AuthorityGameMode = nullptr;  // 생성된 GameMode 인스턴스
 };
 template<class T>
 inline T* UWorld::SpawnActor()

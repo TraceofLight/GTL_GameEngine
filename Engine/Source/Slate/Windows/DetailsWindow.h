@@ -14,6 +14,8 @@ public:
     virtual void OnUpdate(float deltaSecond) override;
 
 private:
+    void RenderWorldSettings();
+
     UPropertyWindow* DetailsWidget;
 };
 

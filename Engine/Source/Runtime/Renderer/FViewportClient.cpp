@@ -36,7 +36,11 @@ FViewportClient::~FViewportClient()
 
 void FViewportClient::Tick(float DeltaTime)
 {
-	if (PerspectiveCameraInput)
+	// PIE 모드에서는 Editor 카메라 입력을 비활성화
+	// (PlayerController가 Possess된 Pawn의 입력을 처리)
+	bool bIsPIEActive = World && World->bPie;
+
+	if (PerspectiveCameraInput && !bIsPIEActive)
 	{
 		Camera->ProcessEditorCameraInput(DeltaTime);
 	}

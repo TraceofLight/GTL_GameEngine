@@ -257,30 +257,27 @@ void AGameModeBase::InitPlayer()
 		return;
 	}
 
-	// 2. Level에 이미 배치된 VehicleActor를 찾아서 Possess
-	APawn* ExistingVehicle = FindExistingVehicleInLevel();
-
-	if (ExistingVehicle)
+	// 2. DefaultPawnClass가 설정되어 있으면 스폰
+	if (DefaultPawnClass)
 	{
-		UE_LOG("GameMode: InitPlayer: Found existing Vehicle, possessing");
-		PlayerController->Possess(ExistingVehicle);
+		UE_LOG("GameMode: InitPlayer: Spawning DefaultPawnClass");
+
+		FTransform SpawnTransform;
+		SpawnTransform.Translation = PlayerSpawnLocation;
+		SpawnTransform.Rotation = FQuat::Identity();
+		SpawnTransform.Scale3D = FVector(1.0f, 1.0f, 1.0f);
+
+		APawn* SpawnedPawn = SpawnDefaultPawnFor(PlayerController, SpawnTransform);
+
+		if (!SpawnedPawn)
+		{
+			UE_LOG("GameMode: InitPlayer: Failed to spawn DefaultPawn");
+		}
 		return;
 	}
 
-	// 3. Vehicle을 찾지 못했으면 기본 Pawn 스폰
-	UE_LOG("GameMode: InitPlayer: Spawning default Pawn");
-
-	FTransform SpawnTransform;
-	SpawnTransform.Translation = PlayerSpawnLocation;
-	SpawnTransform.Rotation = FQuat::Identity();
-	SpawnTransform.Scale3D = FVector(1.0f, 1.0f, 1.0f);
-
-	APawn* SpawnedPawn = SpawnDefaultPawnFor(PlayerController, SpawnTransform);
-
-	if (!SpawnedPawn)
-	{
-		UE_LOG("GameMode: InitPlayer: Failed to spawn Pawn");
-	}
+	// 3. DefaultPawnClass가 None이면 아무것도 하지 않음 (PlayerController만 존재)
+	UE_LOG("GameMode: InitPlayer: No DefaultPawnClass, PlayerController created without Pawn");
 }
 
 APlayerController* AGameModeBase::SpawnPlayerController()

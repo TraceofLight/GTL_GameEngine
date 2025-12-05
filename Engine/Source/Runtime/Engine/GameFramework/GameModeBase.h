@@ -61,6 +61,14 @@ public:
 	/** 플레이어를 위한 기본 Pawn 클래스 반환 */
 	virtual UClass* GetDefaultPawnClassForController(APlayerController* InController);
 
+	/** DefaultPawn 클래스 설정 */
+	void SetDefaultPawnClass(UClass* InPawnClass) { DefaultPawnClass = InPawnClass; }
+	UClass* GetDefaultPawnClass() const { return DefaultPawnClass; }
+
+	/** PlayerController 클래스 설정 */
+	void SetPlayerControllerClass(UClass* InControllerClass) { PlayerControllerClass = InControllerClass; }
+	UClass* GetPlayerControllerClass() const { return PlayerControllerClass; }
+
 	/** 플레이어 리스폰 */
 	virtual void RestartPlayer(APlayerController* Player);
 

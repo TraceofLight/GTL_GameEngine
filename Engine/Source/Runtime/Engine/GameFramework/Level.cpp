@@ -11,6 +11,9 @@
 #include "AmbientLightComponent.h"
 #include "World.h"
 #include "JsonSerializer.h"
+#include "GameModeBase.h"
+#include "Pawn.h"
+#include "PlayerController.h"
 
 static inline FString RemoveObjExtension(const FString& FileName)
 {
@@ -111,6 +114,60 @@ void ULevel::Serialize(const bool bInIsLoading, JSON& InOutHandle)
             }
         }
 
+        // GameMode 클래스 정보
+        FString GameModeClassName;
+        if (FJsonSerializer::ReadString(InOutHandle, "GameModeClass", GameModeClassName))
+        {
+            if (!GameModeClassName.empty() && GameModeClassName != "None")
+            {
+                UClass* GameModeClass = UClass::FindClass(GameModeClassName);
+                if (GameModeClass && GameModeClass->IsChildOf(AGameModeBase::StaticClass()))
+                {
+                    GWorld->SetGameModeClass(GameModeClass);
+                }
+            }
+            else
+            {
+                GWorld->SetGameModeClass(nullptr);
+            }
+        }
+
+        // DefaultPawn 클래스 정보
+        FString DefaultPawnClassName;
+        if (FJsonSerializer::ReadString(InOutHandle, "DefaultPawnClass", DefaultPawnClassName))
+        {
+            if (!DefaultPawnClassName.empty() && DefaultPawnClassName != "None")
+            {
+                UClass* PawnClass = UClass::FindClass(DefaultPawnClassName);
+                if (PawnClass && PawnClass->IsChildOf(APawn::StaticClass()))
+                {
+                    GWorld->SetDefaultPawnClass(PawnClass);
+                }
+            }
+            else
+            {
+                GWorld->SetDefaultPawnClass(nullptr);
+            }
+        }
+
+        // PlayerController 클래스 정보
+        FString PlayerControllerClassName;
+        if (FJsonSerializer::ReadString(InOutHandle, "PlayerControllerClass", PlayerControllerClassName))
+        {
+            if (!PlayerControllerClassName.empty() && PlayerControllerClassName != "None")
+            {
+                UClass* ControllerClass = UClass::FindClass(PlayerControllerClassName);
+                if (ControllerClass && ControllerClass->IsChildOf(APlayerController::StaticClass()))
+                {
+                    GWorld->SetPlayerControllerClass(ControllerClass);
+                }
+            }
+            else
+            {
+                GWorld->SetPlayerControllerClass(nullptr);
+            }
+        }
+
         // Actors 정보
         JSON ActorListJson;
         if (FJsonSerializer::ReadObject(InOutHandle, "Actors", ActorListJson))
@@ -183,6 +240,18 @@ void ULevel::Serialize(const bool bInIsLoading, JSON& InOutHandle)
         CamreaJson["FOV"] = FJsonSerializer::FloatToArrayJson(CamData.FOV);
 
         InOutHandle["PerspectiveCamera"] = CamreaJson;
+
+        // GameMode 클래스 정보
+        UClass* GameModeClass = GWorld->GetGameModeClass();
+        InOutHandle["GameModeClass"] = GameModeClass ? GameModeClass->Name : "None";
+
+        // DefaultPawn 클래스 정보
+        UClass* DefaultPawnClass = GWorld->GetDefaultPawnClass();
+        InOutHandle["DefaultPawnClass"] = DefaultPawnClass ? DefaultPawnClass->Name : "None";
+
+        // PlayerController 클래스 정보
+        UClass* PlayerControllerClass = GWorld->GetPlayerControllerClass();
+        InOutHandle["PlayerControllerClass"] = PlayerControllerClass ? PlayerControllerClass->Name : "None";
 
         // Actors 정보
         JSON ActorListJson = json::Object();

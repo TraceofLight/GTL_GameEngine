@@ -42,6 +42,7 @@
 #include "LuaBindHelpers.h"
 #include "SkySphereActor.h"
 #include "ClothManager.h"
+#include "GameModeBase.h"
 
 IMPLEMENT_CLASS(UWorld)
 
@@ -356,55 +357,13 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 
 	PIEWorld->RenderSettings = InEditorWorld->RenderSettings;
 
-	// PlayerController 자동 생성 (GameMode 없이)
-	APlayerController* NewPlayerController = PIEWorld->SpawnActor<APlayerController>();
-	if (NewPlayerController)
-	{
-		UE_LOG("World: DuplicateWorldForPIE: PlayerController created - %s", NewPlayerController->GetName().c_str());
+	// GameMode 설정 복사
+	PIEWorld->SetGameModeClass(InEditorWorld->GetGameModeClass());
+	PIEWorld->SetDefaultPawnClass(InEditorWorld->GetDefaultPawnClass());
+	PIEWorld->SetPlayerControllerClass(InEditorWorld->GetPlayerControllerClass());
 
-		// 1. 먼저 VehicleActor 찾기 (우선순위 1)
-		AVehicleActor* Vehicle = nullptr;
-		for (AActor* Actor : PIEWorld->GetActors())
-		{
-			if (Actor->IsA(AVehicleActor::StaticClass()))
-			{
-				Vehicle = Cast<AVehicleActor>(Actor);
-				UE_LOG("World: DuplicateWorldForPIE: Found VehicleActor - %s", Vehicle->GetName().c_str());
-				break;
-			}
-		}
-
-		if (Vehicle)
-		{
-			NewPlayerController->Possess(Vehicle);
-			UE_LOG("World: DuplicateWorldForPIE: Possessed VehicleActor - %s", Vehicle->GetName().c_str());
-		}
-		else
-		{
-			// 2. VehicleActor가 없으면 Character 찾기 (우선순위 2)
-			ACharacter* Character = nullptr;
-			for (AActor* Actor : PIEWorld->GetActors())
-			{
-				if (Actor->IsA(ACharacter::StaticClass()))
-				{
-					Character = Cast<ACharacter>(Actor);
-					break;
-				}
-			}
-
-			// 3. Character도 없으면 생성
-			if (!Character)
-			{
-				Character = PIEWorld->SpawnActor<ACharacter>();
-			}
-
-			if (Character)
-			{
-				NewPlayerController->Possess(Character);
-				UE_LOG("World: DuplicateWorldForPIE: Possessed Character - %s", Character->GetName().c_str());
-			}
-		}
-	}
+	// GameMode 초기화 (PlayerController + Pawn 생성 및 Possess 처리)
+	PIEWorld->InitializeGameMode();
 
 	// PIE 월드에 PCM이 없으면 새로 생성
 	if (!PIEWorld->PlayerCameraManager)
@@ -877,6 +836,83 @@ void UWorld::PlaySound3D(const FString& SoundPath, const FVector& Location, floa
 	else
 	{
 		UE_LOG("World: PlaySound3D: Failed to load - %s", SoundPath.c_str());
+	}
+}
+
+// ───── GameMode 시스템 ─────────────────────────────────────────────────
+
+void UWorld::SetGameModeClass(UClass* InGameModeClass)
+{
+	// 유효성 검사: GameModeBase를 상속했는지 확인
+	if (InGameModeClass && !InGameModeClass->IsChildOf(AGameModeBase::StaticClass()))
+	{
+		UE_LOG("World: SetGameModeClass: Invalid class - must inherit from AGameModeBase");
+		return;
+	}
+
+	GameModeClass = InGameModeClass;
+}
+
+void UWorld::SetDefaultPawnClass(UClass* InPawnClass)
+{
+	// 유효성 검사: APawn을 상속했는지 확인
+	if (InPawnClass && !InPawnClass->IsChildOf(APawn::StaticClass()))
+	{
+		UE_LOG("World: SetDefaultPawnClass: Invalid class - must inherit from APawn");
+		return;
+	}
+
+	DefaultPawnClass = InPawnClass;
+}
+
+void UWorld::SetPlayerControllerClass(UClass* InControllerClass)
+{
+	// 유효성 검사: APlayerController를 상속했는지 확인
+	if (InControllerClass && !InControllerClass->IsChildOf(APlayerController::StaticClass()))
+	{
+		UE_LOG("World: SetPlayerControllerClass: Invalid class - must inherit from APlayerController");
+		return;
+	}
+
+	PlayerControllerClass = InControllerClass;
+}
+
+void UWorld::InitializeGameMode()
+{
+	// Editor World에서는 GameMode를 생성하지 않음 (PIE/Game World에서만 생성)
+	if (!bPie)
+	{
+		return;
+	}
+
+	// GameModeClass가 설정되지 않았거나 이미 생성된 경우 스킵
+	if (!GameModeClass || AuthorityGameMode)
+	{
+		return;
+	}
+
+	// GameMode 인스턴스 생성
+	AuthorityGameMode = Cast<AGameModeBase>(SpawnActor(GameModeClass));
+	if (AuthorityGameMode)
+	{
+		// World Settings에서 설정한 클래스들을 GameMode에 전달
+		if (DefaultPawnClass)
+		{
+			AuthorityGameMode->SetDefaultPawnClass(DefaultPawnClass);
+			UE_LOG("World: GameMode DefaultPawnClass set: %s", DefaultPawnClass->Name);
+		}
+
+		if (PlayerControllerClass)
+		{
+			AuthorityGameMode->SetPlayerControllerClass(PlayerControllerClass);
+			UE_LOG("World: GameMode PlayerControllerClass set: %s", PlayerControllerClass->Name);
+		}
+
+		UE_LOG("World: GameMode initialized: %s", GameModeClass->Name);
+	}
+	else
+	{
+		UE_LOG("World: GameMode initialization failed");
 	}
 }
 
