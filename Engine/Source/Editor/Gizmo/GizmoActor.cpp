@@ -7,6 +7,7 @@
 #include "Gizmo/GizmoGeometry.h"
 #include "RenderSettings.h"
 #include "CameraActor.h"
+#include "CameraComponent.h"
 #include "SelectionManager.h"
 #include "InputManager.h"
 #include "UIManager.h"
@@ -14,6 +15,7 @@
 #include "FViewportClient.h"
 #include "Picking.h"
 #include "EditorEngine.h"
+#include "SceneView.h"
 #include "SkeletalMeshComponent.h"
 #include "SkeletalMeshActor.h"
 #include "Source/Runtime/Engine/PhysicsEngine/PhysicsConstraintSetup.h"
@@ -2400,9 +2402,9 @@ void AGizmoActor::RenderRotationCircles(const FVector& GizmoLocation, const FQua
 // ────────────────────────────────────────────────────────
 // 확장 기즈모 렌더링 (평면, 구체, Rotation 시각화)
 // ────────────────────────────────────────────────────────
-void AGizmoActor::RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camera)
+void AGizmoActor::RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camera, FSceneView* View)
 {
-	if (!Renderer || !Camera || !bRender)
+	if (!Renderer || !Camera || !View || !bRender)
 	{
 		return;
 	}
@@ -2410,26 +2412,41 @@ void AGizmoActor::RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camer
 	// 기즈모 위치 계산
 	FVector GizmoLocation = GetActorLocation();
 
-	// Screen-constant scale 계산 (ViewZ 기반)
-	const FMatrix& ViewMatrix = Camera->GetViewMatrix();
-	const FMatrix& ProjectionMatrix = Camera->GetProjectionMatrix();
-	const uint32 ViewportWidth = Renderer->GetCurrentViewportWidth();
-	const uint32 ViewportHeight = Renderer->GetCurrentViewportHeight();
+	// Screen-constant scale 계산 (View의 정보 사용)
+	const FMatrix& ViewMatrix = View->ViewMatrix;
+	const FMatrix& ProjectionMatrix = View->ProjectionMatrix;
+	const uint32 ViewportWidth = View->ViewRect.Width();
+	const uint32 ViewportHeight = View->ViewRect.Height();
 
-	FVector CameraPos = Camera->GetActorLocation();
-	FVector CameraForward = Camera->GetForward();
-	FVector ToGizmo = GizmoLocation - CameraPos;
-	float ViewZ = FVector::Dot(ToGizmo, CameraForward);
-
-	if (ViewZ <= 0.0f)
-	{
-		return; // 카메라 뒤에 있음
-	}
-
-	// FOV 보정 (ProjectionMatrix[1][1] = cot(FOV_Y/2))
-	float ProjYY = ProjectionMatrix.M[1][1];
+	float RenderScale = 0.0f;
 	constexpr float TargetPixels = 128.0f; // 기준 스크린 크기 (픽셀)
-	float RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportHeight * 0.5f);
+
+	if (View->ProjectionMode == ECameraProjectionMode::Perspective)
+	{
+		// Perspective: ViewZ 기반 계산
+		FVector CameraPos = Camera->GetActorLocation();
+		FVector CameraForward = Camera->GetForward();
+		FVector ToGizmo = GizmoLocation - CameraPos;
+		float ViewZ = FVector::Dot(ToGizmo, CameraForward);
+
+		if (ViewZ <= 0.0f)
+		{
+			return; // 카메라 뒤에 있음
+		}
+
+		// FOV 보정 (ProjectionMatrix[1][1] = cot(FOV_Y/2))
+		float ProjYY = ProjectionMatrix.M[1][1];
+		RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportHeight * 0.5f);
+	}
+	else // Orthographic
+	{
+		// Orthographic: 화면 절대 크기 고정 (TargetPixels 픽셀)
+		// orthoHeight = ViewportHeight * OrthoZoom
+		// 1픽셀 = OrthoZoom 월드 유닛
+		// 화면 TargetPixels 픽셀 = TargetPixels * OrthoZoom 월드 유닛
+		float OrthoZoom = View->OrthoZoom;
+		RenderScale = TargetPixels * OrthoZoom;  // 화면 128픽셀 고정
+	}
 
 	// 기본 회전 (World/Local 공간)
 	// SetSpaceWorldMatrix()에서 GizmoActor 자체의 회전을 이미 설정했으므로,
@@ -2472,9 +2489,13 @@ void AGizmoActor::RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camer
 	// ═══════════════════════════════════════════════════════
 	if (CurrentMode == EGizmoMode::Rotate)
 	{
-		// 유휴 상태: QuarterRing 렌더링 (카메라 플립 판정 포함)
+		// 유휴 상태: QuarterRing 또는 전체 원 렌더링
 		if (!bIsDragging)
 		{
+			// Orthographic + World Space면 전체 원, 아니면 QuarterRing
+			bool bUseFullCircle = (View->ProjectionMode == ECameraProjectionMode::Orthographic &&
+			                       CurrentSpace == EGizmoSpace::World);
+
 			// BaseAxis 정의
 			const FVector BaseAxis0[3] = {
 				FVector(0, 0, 1),  // X축: Z→Y
@@ -2487,17 +2508,54 @@ void AGizmoActor::RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camer
 				FVector(0, 1, 0)   // Z축: Y
 			};
 
-			// X축 QuarterRing (빨강)
-			RenderRotationQuarterRing(GizmoLocation, BaseRot, 1,
-			                           BaseAxis0[0], BaseAxis1[0], RenderScale, Renderer, Camera);
+			if (bUseFullCircle)
+			{
+				// Orthographic + World: 전체 원 렌더링
+				// 하이라이팅을 위한 색상 결정
+				FVector4 XColor = FVector4(1, 0, 0, 1);  // 빨강
+				FVector4 YColor = FVector4(0, 1, 0, 1);  // 초록
+				FVector4 ZColor = FVector4(0, 0, 1, 1);  // 파랑
 
-			// Y축 QuarterRing (초록)
-			RenderRotationQuarterRing(GizmoLocation, BaseRot, 2,
-			                           BaseAxis0[1], BaseAxis1[1], RenderScale, Renderer, Camera);
+				if (bIsDragging)
+				{
+					if (GizmoAxis == 1) XColor = FVector4(0.8f, 0.8f, 0.0f, 1.0f);  // 드래그 중: 짙은 노란색
+					if (GizmoAxis == 2) YColor = FVector4(0.8f, 0.8f, 0.0f, 1.0f);
+					if (GizmoAxis == 4) ZColor = FVector4(0.8f, 0.8f, 0.0f, 1.0f);
+				}
+				else if (bIsHovering)
+				{
+					if (GizmoAxis == 1) XColor = FVector4(1.0f, 1.0f, 0.0f, 1.0f);  // 호버 중: 밝은 노란색
+					if (GizmoAxis == 2) YColor = FVector4(1.0f, 1.0f, 0.0f, 1.0f);
+					if (GizmoAxis == 4) ZColor = FVector4(1.0f, 1.0f, 0.0f, 1.0f);
+				}
 
-			// Z축 QuarterRing (파랑)
-			RenderRotationQuarterRing(GizmoLocation, BaseRot, 4,
-			                           BaseAxis0[2], BaseAxis1[2], RenderScale, Renderer, Camera);
+				// X축 전체 원
+				RenderRotationCircles(GizmoLocation, BaseRot, XColor,
+				                      BaseAxis0[0], BaseAxis1[0], RenderScale, Renderer);
+
+				// Y축 전체 원
+				RenderRotationCircles(GizmoLocation, BaseRot, YColor,
+				                      BaseAxis0[1], BaseAxis1[1], RenderScale, Renderer);
+
+				// Z축 전체 원
+				RenderRotationCircles(GizmoLocation, BaseRot, ZColor,
+				                      BaseAxis0[2], BaseAxis1[2], RenderScale, Renderer);
+			}
+			else
+			{
+				// Perspective 또는 Local: QuarterRing
+				// X축 QuarterRing (빨강)
+				RenderRotationQuarterRing(GizmoLocation, BaseRot, 1,
+				                           BaseAxis0[0], BaseAxis1[0], RenderScale, Renderer, View);
+
+				// Y축 QuarterRing (초록)
+				RenderRotationQuarterRing(GizmoLocation, BaseRot, 2,
+				                           BaseAxis0[1], BaseAxis1[1], RenderScale, Renderer, View);
+
+				// Z축 QuarterRing (파랑)
+				RenderRotationQuarterRing(GizmoLocation, BaseRot, 4,
+				                           BaseAxis0[2], BaseAxis1[2], RenderScale, Renderer, View);
+			}
 		}
 	}
 
@@ -2564,9 +2622,9 @@ void AGizmoActor::RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camer
 // ────────────────────────────────────────────────────────
 void AGizmoActor::RenderRotationQuarterRing(const FVector& GizmoLocation, const FQuat& BaseRot, uint32 Direction,
                                              const FVector& BaseAxis0, const FVector& BaseAxis1, float RenderScale,
-                                             URenderer* Renderer, ACameraActor* Camera)
+                                             URenderer* Renderer, FSceneView* View)
 {
-	if (!Renderer || !Camera)
+	if (!Renderer || !View)
 	{
 		return;
 	}
@@ -2576,9 +2634,19 @@ void AGizmoActor::RenderRotationQuarterRing(const FVector& GizmoLocation, const 
 	const float OuterRadius = 0.85f * RenderScale;
 	const float Thickness = 0.05f * RenderScale;
 
-	// 카메라 정보
-	const FVector CameraPos = Camera->GetActorLocation();
-	const FVector DirectionToWidget = (GizmoLocation - CameraPos).GetNormalized();
+	// 뷰포트별 카메라 방향 (View 정보 사용)
+	FVector DirectionToWidget;
+	if (View->ProjectionMode == ECameraProjectionMode::Orthographic)
+	{
+		// Orthographic: View의 Forward 방향 사용 (평행 투영)
+		FVector ViewForward = View->ViewRotation.RotateVector(FVector(1, 0, 0));
+		DirectionToWidget = -ViewForward;
+	}
+	else
+	{
+		// Perspective: View 위치 기준 방향
+		DirectionToWidget = (GizmoLocation - View->ViewLocation).GetNormalized();
+	}
 
 	// 월드 공간 축 계산
 	FVector WorldAxis0 = BaseRot.RotateVector(BaseAxis0);

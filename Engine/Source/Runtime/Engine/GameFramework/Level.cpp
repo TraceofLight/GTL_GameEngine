@@ -9,6 +9,7 @@
 #include "DirectionalLightActor.h"
 #include "AmbientLightActor.h"
 #include "AmbientLightComponent.h"
+#include "SkySphereActor.h"
 #include "World.h"
 #include "JsonSerializer.h"
 #include "GameModeBase.h"
@@ -56,6 +57,12 @@ void ULevel::SpawnDefaultActors()
     AmbientLightActor->ObjectName = FName("AmbientLight");
     AmbientLightActor->GetLightComponent()->SetIntensity(0.1f);
     AmbientLightActor->SetActorLocation(FVector(0.0f, 0.0f, 6.0f));
+
+    // 스카이 스피어
+    ASkySphereActor* SkySphereActor = NewObject<ASkySphereActor>();
+    this->AddActor(SkySphereActor);
+    SkySphereActor->ObjectName = FName("SkySphere");
+    SkySphereActor->SetActorLocation(FVector(0.0f, 0.0f, 9.0f));
 
     // 바닥 메시 (10x10 크기의 평평한 큐브)
     AStaticMeshActor* FloorActor = NewObject<AStaticMeshActor>();

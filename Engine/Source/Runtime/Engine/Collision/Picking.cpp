@@ -6,12 +6,15 @@
 #include "StaticMeshComponent.h"
 #include "StaticMesh.h"
 #include "CameraActor.h"
+#include "CameraComponent.h"
 #include "MeshLoader.h"
 #include"Vector.h"
 #include "SelectionManager.h"
 #include <cmath>
 #include <algorithm>
 
+#include "FViewport.h"
+#include "FViewportClient.h"
 #include "Gizmo/GizmoActor.h"
 #include "Gizmo/GizmoScaleComponent.h"
 #include "Gizmo/GizmoRotateComponent.h"
@@ -19,7 +22,6 @@
 #include "GlobalConsole.h"
 #include "ObjManager.h"
 #include "ResourceManager.h"
-#include"stdio.h"
 #include "WorldPartitionManager.h"
 #include "PlatformTime.h"
 #include "World.h"
@@ -214,21 +216,21 @@ bool IntersectRayPlane(const FRay& InRay, const FVector& InPlanePoint, const FVe
 	return true;
 }
 
-// 삼각형을 이루는 3개의 점 
+// 삼각형을 이루는 3개의 점
 bool IntersectRayTriangleMT(const FRay& InRay, const FVector& InA, const FVector& InB, const FVector& InC, float& OutT)
 {
 	const float Epsilon = KINDA_SMALL_NUMBER;
 
-	// 삼각형 한점으로 시작하는 두 벡터 
+	// 삼각형 한점으로 시작하는 두 벡터
 	const FVector Edge1 = InB - InA;
 	const FVector Edge2 = InC - InA;
 
 	// 레이 방향과 , 삼각형 Edge와 수직한 벡터
 	const FVector Perpendicular = FVector::Cross(InRay.Direction, Edge2);
-	// 내적 했을때 0이라면, 세 벡터는 한 평면 안에 같이 있는 것이다. 
+	// 내적 했을때 0이라면, 세 벡터는 한 평면 안에 같이 있는 것이다.
 	const float Determinant = FVector::FVector::Dot(Edge1, Perpendicular);
 
-	// 거의 0이면 평행 상태에 있다고 판단 
+	// 거의 0이면 평행 상태에 있다고 판단
 	if (Determinant > -Epsilon && Determinant < Epsilon)
 		return false;
 
@@ -304,7 +306,7 @@ AActor* CPickingSystem::PerformPicking(const TArray<AActor*>& Actors, ACameraAct
 	}
 }
 
-// Ray-Actor 리턴 
+// Ray-Actor 리턴
 AActor* CPickingSystem::PerformViewportPicking(const TArray<AActor*>& Actors,
 	ACameraActor* Camera,
 	const FVector2D& ViewportMousePos,
@@ -432,17 +434,27 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 	if (!GizmoTransActor || !Camera)
 		return 0;
 
+	// 뷰포트의 실제 카메라 사용 (Orthographic view용)
+	const ACameraActor* ViewportCamera = Camera;
+	if (Viewport && Viewport->GetViewportClient())
+	{
+		if (ACameraActor* ViewportClientCamera = Viewport->GetViewportClient()->GetCamera())
+		{
+			ViewportCamera = ViewportClientCamera;
+		}
+	}
+
 	float ViewportAspectRatio = ViewportSize.X / ViewportSize.Y;
 	if (ViewportSize.Y == 0)
 		ViewportAspectRatio = 1.0f; // 0으로 나누기 방지
 
-	// 뷰포트별 레이 생성 - 전달받은 뷰포트 정보 사용
-	const FMatrix View = Camera->GetViewMatrix();
-	const FMatrix Proj = Camera->GetProjectionMatrix(ViewportAspectRatio, Viewport);
-	const FVector CameraWorldPos = Camera->GetActorLocation();
-	const FVector CameraRight = Camera->GetRight();
-	const FVector CameraUp = Camera->GetUp();
-	const FVector CameraForward = Camera->GetForward();
+	// 뷰포트별 레이 생성 - 뷰포트의 실제 카메라 사용
+	const FMatrix View = ViewportCamera->GetViewMatrix();
+	const FMatrix Proj = ViewportCamera->GetProjectionMatrix(ViewportAspectRatio, Viewport);
+	const FVector CameraWorldPos = ViewportCamera->GetActorLocation();
+	const FVector CameraRight = ViewportCamera->GetRight();
+	const FVector CameraUp = ViewportCamera->GetUp();
+	const FVector CameraForward = ViewportCamera->GetForward();
 
 	FRay Ray = MakeRayFromViewport(View, Proj, CameraWorldPos, CameraRight, CameraUp, CameraForward,
 		ViewportMousePos, ViewportSize, ViewportOffset);
@@ -545,15 +557,41 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 		// 기즈모 위치
 		FVector GizmoLocation = GizmoTransActor->GetActorLocation();
 
-		// Screen-constant scale 계산
-		FVector ToGizmo = GizmoLocation - CameraWorldPos;
-		float ViewZ = FVector::Dot(ToGizmo, CameraForward);
+		// Screen-constant scale 계산 (Perspective/Orthographic 대응)
+		constexpr float TargetPixels = 128.0f;
+		float RenderScale = 0.0f;
 
-		if (ViewZ > 0.0f)
+		// Orthographic 여부 확인 (M[3][3] == 1.0f)
+		bool bIsOrthographic = std::fabs(Proj.M[3][3] - 1.0f) < KINDA_SMALL_NUMBER;
+
+		if (bIsOrthographic)
 		{
+			// Orthographic: 화면 절대 크기 고정
+			if (UCameraComponent* CamComp = ViewportCamera->GetCameraComponent())
+			{
+				float OrthoZoom = CamComp->GetOrthoZoom();
+				RenderScale = TargetPixels * OrthoZoom;
+			}
+		}
+		else
+		{
+			// Perspective: ViewZ 기반 계산
+			FVector ToGizmo = GizmoLocation - CameraWorldPos;
+			float ViewZ = FVector::Dot(ToGizmo, CameraForward);
+
+			if (ViewZ <= 0.0f)
+			{
+				break;  // 카메라 뒤에 있음
+			}
+
 			float ProjYY = Proj.M[1][1];
-			constexpr float TargetPixels = 128.0f;
-			float RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportSize.Y * 0.5f);
+			RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportSize.Y * 0.5f);
+		}
+
+		if (RenderScale > 0.0f)
+		{
+			// Orthographic + World Space면 전체 원, 아니면 QuarterRing
+			bool bUseFullCircle = (bIsOrthographic && GizmoTransActor->GetSpace() == EGizmoSpace::World);
 
 			// Rotation 링 충돌 설정
 			const float InnerRadius = 0.75f * RenderScale;
@@ -606,24 +644,47 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 						{
 							Projected = Projected.GetNormalized();
 
-							// Local 모드면 회전 적용
-							FVector WorldBaseAxis0 = BaseRot.RotateVector(BaseAxis0[AxisIndex]);
-							FVector WorldBaseAxis1 = BaseRot.RotateVector(BaseAxis1[AxisIndex]);
+							bool bAngleCheckPassed = false;
 
-							// 카메라 방향에 따른 플립 판정
-							FVector DirectionToWidget = (GizmoLocation - CameraWorldPos).GetNormalized();
-							bool bMirrorAxis0 = (FVector::Dot(WorldBaseAxis0, DirectionToWidget) <= 0.0f);
-							bool bMirrorAxis1 = (FVector::Dot(WorldBaseAxis1, DirectionToWidget) <= 0.0f);
+							if (bUseFullCircle)
+							{
+								// Orthographic + World: 전체 원 피킹 (각도 범위 체크 생략)
+								bAngleCheckPassed = true;
+							}
+							else
+							{
+								// Perspective 또는 Local: QuarterRing 각도 범위 체크
+								// Local 모드면 회전 적용
+								FVector WorldBaseAxis0 = BaseRot.RotateVector(BaseAxis0[AxisIndex]);
+								FVector WorldBaseAxis1 = BaseRot.RotateVector(BaseAxis1[AxisIndex]);
 
-							FVector RenderAxis0 = bMirrorAxis0 ? WorldBaseAxis0 : -WorldBaseAxis0;
-							FVector RenderAxis1 = bMirrorAxis1 ? WorldBaseAxis1 : -WorldBaseAxis1;
+								// 카메라 방향에 따른 플립 판정
+								FVector DirectionToWidget;
+								if (bIsOrthographic)
+								{
+									// Orthographic: 카메라의 Forward 방향 사용 (평행 투영)
+									DirectionToWidget = -CameraForward;
+								}
+								else
+								{
+									// Perspective: 카메라 위치 기준 방향
+									DirectionToWidget = (GizmoLocation - CameraWorldPos).GetNormalized();
+								}
+								bool bMirrorAxis0 = (FVector::Dot(WorldBaseAxis0, DirectionToWidget) <= 0.0f);
+								bool bMirrorAxis1 = (FVector::Dot(WorldBaseAxis1, DirectionToWidget) <= 0.0f);
 
-							// QuarterRing 각도 범위: [0, 90도]
-							float Dot0 = FVector::Dot(Projected, RenderAxis0);
-							float Dot1 = FVector::Dot(Projected, RenderAxis1);
+								FVector RenderAxis0 = bMirrorAxis0 ? WorldBaseAxis0 : -WorldBaseAxis0;
+								FVector RenderAxis1 = bMirrorAxis1 ? WorldBaseAxis1 : -WorldBaseAxis1;
 
-							// 90도 범위 내에 있는지 확인 (둘 다 양수)
-							if (Dot0 >= -0.01f && Dot1 >= -0.01f)
+								// QuarterRing 각도 범위: [0, 90도]
+								float Dot0 = FVector::Dot(Projected, RenderAxis0);
+								float Dot1 = FVector::Dot(Projected, RenderAxis1);
+
+								// 90도 범위 내에 있는지 확인 (둘 다 양수)
+								bAngleCheckPassed = (Dot0 >= -0.01f && Dot1 >= -0.01f);
+							}
+
+							if (bAngleCheckPassed)
 							{
 								if (HitDistance < ClosestDistance)
 								{
@@ -651,16 +712,39 @@ uint32 CPickingSystem::IsHoveringGizmoForViewport(AGizmoActor* GizmoTransActor, 
 		// 기즈모 위치
 		FVector GizmoLocation = GizmoTransActor->GetActorLocation();
 
-		// Screen-constant scale 계산
-		FVector CameraPos = CameraWorldPos;
-		FVector ToGizmo = GizmoLocation - CameraPos;
-		float ViewZ = FVector::Dot(ToGizmo, CameraForward);
+		// Screen-constant scale 계산 (Perspective/Orthographic 대응)
+		constexpr float TargetPixels = 128.0f;
+		float RenderScale = 0.0f;
 
-		if (ViewZ > 0.0f)
+		// Orthographic 여부 확인 (M[3][3] == 1.0f)
+		bool bIsOrthographic = std::fabs(Proj.M[3][3] - 1.0f) < KINDA_SMALL_NUMBER;
+
+		if (bIsOrthographic)
 		{
+			// Orthographic: 화면 절대 크기 고정
+			if (UCameraComponent* CamComp = ViewportCamera->GetCameraComponent())
+			{
+				float OrthoZoom = CamComp->GetOrthoZoom();
+				RenderScale = TargetPixels * OrthoZoom;
+			}
+		}
+		else
+		{
+			// Perspective: ViewZ 기반 계산
+			FVector ToGizmo = GizmoLocation - CameraWorldPos;
+			float ViewZ = FVector::Dot(ToGizmo, CameraForward);
+
+			if (ViewZ <= 0.0f)
+			{
+				return ClosestAxis;  // 카메라 뒤에 있음
+			}
+
 			float ProjYY = Proj.M[1][1];
-			constexpr float TargetPixels = 128.0f;
-			float RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportSize.Y * 0.5f);
+			RenderScale = (TargetPixels * ViewZ) / (ProjYY * ViewportSize.Y * 0.5f);
+		}
+
+		if (RenderScale > 0.0f)
+		{
 
 			// Local/World 회전
 			// SetSpaceWorldMatrix()에서 GizmoActor 자체의 회전을 이미 설정했으므로,

@@ -1762,7 +1762,7 @@ void FSceneRenderer::RenderOverayEditorPrimitivesPass()
 	{
 		if (ACameraActor* Camera = World->GetEditorCameraActor())
 		{
-			GizmoActor->RenderGizmoExtensions(OwnerRenderer, Camera);
+			GizmoActor->RenderGizmoExtensions(OwnerRenderer, Camera, View);
 		}
 	}
 }

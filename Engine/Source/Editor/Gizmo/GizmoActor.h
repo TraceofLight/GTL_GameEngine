@@ -151,7 +151,7 @@ public:
     void EndDrag();
 
     // 확장 기즈모 렌더링 (평면, 구체, Rotation 시각화)
-    void RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camera);
+    void RenderGizmoExtensions(URenderer* Renderer, ACameraActor* Camera, class FSceneView* View);
 
     // 어차피 gizmo가 게임모드에서 안나오니까 할 필요 없을지도?
     // ───── 복사 관련 ────────────────────────────
@@ -224,7 +224,7 @@ private:
     void RenderRotationCircles(const FVector& GizmoLocation, const FQuat& BaseRot, const FVector4& AxisColor,
                                 const FVector& BaseAxis0, const FVector& BaseAxis1, float RenderScale, class URenderer* Renderer);
     void RenderRotationQuarterRing(const FVector& GizmoLocation, const FQuat& BaseRot, uint32 Direction,
-                                    const FVector& BaseAxis0, const FVector& BaseAxis1, float RenderScale, class URenderer* Renderer, ACameraActor* Camera);
+                                    const FVector& BaseAxis0, const FVector& BaseAxis1, float RenderScale, class URenderer* Renderer, class FSceneView* View);
 
     // 하이라이트 헬퍼 함수
     bool ShouldHighlightAxis(uint32 HighlightValue, uint32 AxisDirection) const;
