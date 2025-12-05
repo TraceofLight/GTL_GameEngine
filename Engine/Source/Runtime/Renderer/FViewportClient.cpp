@@ -429,14 +429,15 @@ void FViewportClient::MouseWheel(float DeltaSeconds)
 		return;
 	}
 
-	// ImGui가 마우스를 캡처하려는 경우 (콘솔, 컨텐츠 브라우저, 슬라이더, 버튼 등 UI 위) 무시
-	if (ImGui::GetIO().WantCaptureMouse)
+	// 호버링 중이 아니면 처리하지 않음
+	if (!bIsHovered)
 	{
 		return;
 	}
 
-	// 호버링 중이 아니면 처리하지 않음
-	if (!bIsHovered)
+	// ImGui가 마우스를 캡처하려는 경우 무시 (단, 우클릭 드래그 중일 때는 예외)
+	// 우클릭 드래그 중에는 카메라 속도 조절이 우선순위
+	if (ImGui::GetIO().WantCaptureMouse && !bIsMouseRightButtonDown && !PerspectiveCameraInput)
 	{
 		return;
 	}
@@ -458,24 +459,23 @@ void FViewportClient::MouseWheel(float DeltaSeconds)
 	{
 		// 속도 스칼라 조절 (휠 업: 증가, 휠 다운: 감소)
 		float ScalarMultiplier = (WheelDelta > 0) ? 1.15f : (1.0f / 1.15f);
-		float OldScalar = CameraSpeedScalar;
-		float NewScalar = OldScalar * ScalarMultiplier;
+		float NewScalar = Camera->GetSpeedScalar() * ScalarMultiplier;
 
 		// 스칼라 범위 제한 (0.25 ~ 128.0)
 		NewScalar = std::max(0.25f, std::min(128.0f, NewScalar));
-		CameraSpeedScalar = NewScalar;
 
-		// 현재 속도에 비례하여 새 속도 계산
-		float CurrentSpeed = Camera->GetCameraSpeed();
-		float NewSpeed = CurrentSpeed * (NewScalar / OldScalar);
-		NewSpeed = std::max(0.1f, std::min(100.0f, NewSpeed));
-		Camera->SetCameraSpeed(NewSpeed);
+		// 카메라 인스턴스의 스칼라만 조정 (전역 베이스 스피드는 건드리지 않음)
+		Camera->SetSpeedScalar(NewScalar);
+
+		// UI 표시용으로 FViewportClient의 CameraSpeedScalar도 동기화
+		CameraSpeedScalar = NewScalar;
 	}
 	else if (ViewportType == EViewportType::Perspective)
 	{
 		// Perspective 뷰포트: 호버링 중인 뷰포트만 줌 (카메라 앞뒤 이동)
 		FVector Forward = Camera->GetForward();
-		float MoveSpeed = Camera->GetCameraSpeed() * WheelDelta * 0.5f;
+		// 전역 베이스 스피드 * 인스턴스별 스칼라
+		float MoveSpeed = ACameraActor::GetBaseCameraSpeed() * Camera->GetSpeedScalar() * WheelDelta * 0.5f;
 		FVector NewLocation = Camera->GetActorLocation() + Forward * MoveSpeed;
 		Camera->SetActorLocation(NewLocation);
 	}

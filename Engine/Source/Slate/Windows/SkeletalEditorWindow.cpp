@@ -1109,6 +1109,28 @@ void SSkeletalViewportPanel::OnRender()
 					ImGui::Dummy(vpSize);
 				}
 
+				// 뷰포트 영역에서 마우스 휠 처리 (카메라 속도 조절)
+				if (ImGui::IsItemHovered() && State->Client)
+				{
+					ImGuiIO& IO = ImGui::GetIO();
+					if (IO.MouseWheel != 0.0f)
+					{
+						ACameraActor* Camera = State->Client->GetCamera();
+						if (Camera)
+						{
+							// 우클릭 드래그 중일 때만 카메라 속도 조절
+							bool bRightMouseDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+							if (bRightMouseDown)
+							{
+								float ScalarMultiplier = (IO.MouseWheel > 0) ? 1.15f : (1.0f / 1.15f);
+								float NewScalar = Camera->GetSpeedScalar() * ScalarMultiplier;
+								NewScalar = std::max(0.25f, std::min(128.0f, NewScalar));
+								Camera->SetSpeedScalar(NewScalar);
+							}
+						}
+					}
+				}
+
 				// 뷰포트 영역 저장 (마우스 입력 처리용)
 				ContentRect = FRect(vpMin.x, vpMin.y, vpMin.x + vpSize.x, vpMin.y + vpSize.y);
 			}

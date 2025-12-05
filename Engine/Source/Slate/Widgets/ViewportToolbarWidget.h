@@ -124,7 +124,7 @@ private:
 	// 카메라 속도 설정
 	int32 CameraSpeedSetting = 4;
 	static constexpr float SPEED_MULTIPLIERS[8] = { 0.0625f, 0.125f, 0.25f, 0.5f, 1.0f, 2.0f, 4.0f, 8.0f };
-	static constexpr float BASE_CAMERA_SPEED = 10.0f;
+	// BASE_CAMERA_SPEED는 ACameraActor::GetBaseCameraSpeed()로 대체 (동적으로 조회)
 
 	// ViewMode 서브모드 상태
 	int32 CurrentLitSubMode = 0;

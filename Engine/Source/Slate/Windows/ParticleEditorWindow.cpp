@@ -25,6 +25,7 @@
 #include "Source/Editor/Grid/GridActor.h"
 
 // 파티클 모듈 헤더
+#include "CameraActor.h"
 #include "Source/Runtime/Engine/Particle/Color/ParticleModuleColor.h"
 #include "Source/Runtime/Engine/Particle/Lifetime/ParticleModuleLifetime.h"
 #include "Source/Runtime/Engine/Particle/Location/ParticleModuleLocation.h"
@@ -1344,6 +1345,28 @@ void SParticleViewportPanel::OnRender()
 
 					ImTextureID TextureID = reinterpret_cast<ImTextureID>(PreviewSRV);
 					ImGui::Image(TextureID, ViewportSize);
+
+					// 뷰포트 영역에서 마우스 휠 처리 (카메라 속도 조절)
+					if (ImGui::IsItemHovered() && State && State->Client)
+					{
+						ImGuiIO& IO = ImGui::GetIO();
+						if (IO.MouseWheel != 0.0f)
+						{
+							ACameraActor* Camera = State->Client->GetCamera();
+							if (Camera)
+							{
+								// 우클릭 드래그 중일 때만 카메라 속도 조절
+								bool bRightMouseDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+								if (bRightMouseDown)
+								{
+									float ScalarMultiplier = (IO.MouseWheel > 0) ? 1.15f : (1.0f / 1.15f);
+									float NewScalar = ACameraActor::GetSpeedScalar() * ScalarMultiplier;
+									NewScalar = std::max(0.25f, std::min(128.0f, NewScalar));
+									ACameraActor::SetSpeedScalar(NewScalar);
+								}
+							}
+						}
+					}
 
 					// ContentRect 업데이트 (이미지 실제 렌더링 영역)
 					ContentRect.Left = ImagePos.x;

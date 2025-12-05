@@ -14,6 +14,10 @@ static float MouseSensitivity = 0.05f;  // 적당한 값으로 조정
 //	MARK_AS_SPAWNABLE("카메라", "씬을 렌더링하는 카메라 액터입니다.")
 //END_PROPERTIES()
 
+// 전역 카메라 스피드 변수 정의 (모든 카메라 인스턴스가 공유)
+float ACameraActor::BaseCameraSpeed = 10.0f;
+float ACameraActor::SpeedScalar = 1.0f;
+
 ACameraActor::ACameraActor()
 {
     ObjectName = "Camera Actor";
@@ -21,21 +25,51 @@ ACameraActor::ACameraActor()
     CameraComponent = CreateDefaultSubobject<UCameraComponent>("CameraComponent");
     RootComponent = CameraComponent;
 
-    if(EditorINI.count("CameraSpeed"))
+    // 전역 베이스 스피드 로드 (static 변수이므로 첫 생성 시에만 로드)
+    // 모든 카메라 인스턴스가 공유하는 값
+    static bool bBaseCameraSpeedLoaded = false;
+    if (!bBaseCameraSpeedLoaded)
     {
-        try
+        if (EditorINI.count("CameraSpeed"))
         {
-            float temp = std::stof(EditorINI["CameraSpeed"]);
-            SetCameraSpeed(temp);
+            try
+            {
+                float temp = std::stof(EditorINI["CameraSpeed"]);
+                SetBaseCameraSpeed(temp);
+            }
+            catch (...)
+            {
+                SetBaseCameraSpeed(10.f);
+            }
         }
-        catch (...)
+        else
         {
-            SetCameraSpeed(10.f);
+            SetBaseCameraSpeed(10.f);
         }
+        bBaseCameraSpeedLoaded = true;
     }
-    else
+
+    // 전역 스피드 스칼라 로드 (static 변수이므로 첫 생성 시에만 로드)
+    static bool bSpeedScalarLoaded = false;
+    if (!bSpeedScalarLoaded)
     {
-        SetCameraSpeed(10.f);
+        if (EditorINI.count("CameraSpeedScalar"))
+        {
+            try
+            {
+                float temp = std::stof(EditorINI["CameraSpeedScalar"]);
+                SetSpeedScalar(temp);
+            }
+            catch (...)
+            {
+                SetSpeedScalar(1.0f);
+            }
+        }
+        else
+        {
+            SetSpeedScalar(1.0f);
+        }
+        bSpeedScalarLoaded = true;
     }
 }
 void ACameraActor::SetPerspectiveCameraInput(bool InPerspectiveCameraInput) {
@@ -195,10 +229,18 @@ void ACameraActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
     if (bInIsLoading)
     {
         FJsonSerializer::ReadFloat(InOutHandle, "MouseSensitivity", MouseSensitivity, 0.1f);
-        FJsonSerializer::ReadFloat(InOutHandle, "CameraMoveSpeed", CameraMoveSpeed, 10.0f);
+        FJsonSerializer::ReadFloat(InOutHandle, "SpeedScalar", SpeedScalar, 1.0f);
         FJsonSerializer::ReadFloat(InOutHandle, "CameraYawDeg", CameraYawDeg, 0.0f);
         FJsonSerializer::ReadFloat(InOutHandle, "CameraPitchDeg", CameraPitchDeg, 0.0f);
         FJsonSerializer::ReadBool(InOutHandle, "PerspectiveCameraInput", PerspectiveCameraInput, false);
+
+        // 레거시 호환: CameraMoveSpeed가 있으면 BaseCameraSpeed로 로드 (한 번만)
+        if (InOutHandle.hasKey("CameraMoveSpeed"))
+        {
+            float LegacySpeed = 10.0f;
+            FJsonSerializer::ReadFloat(InOutHandle, "CameraMoveSpeed", LegacySpeed, 10.0f);
+            SetBaseCameraSpeed(LegacySpeed);
+        }
 
         // CameraComponent 포인터는 DuplicateSubObjects()에서 복원됨
         for (UActorComponent* Component : OwnedComponents)
@@ -213,10 +255,11 @@ void ACameraActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
     else
     {
         InOutHandle["MouseSensitivity"] = MouseSensitivity;
-        InOutHandle["CameraMoveSpeed"] = CameraMoveSpeed;
+        InOutHandle["SpeedScalar"] = SpeedScalar;
         InOutHandle["CameraYawDeg"] = CameraYawDeg;
         InOutHandle["CameraPitchDeg"] = CameraPitchDeg;
         InOutHandle["PerspectiveCameraInput"] = PerspectiveCameraInput;
+        // BaseCameraSpeed는 static이므로 저장하지 않음 (EditorINI로 관리)
     }
 }
 
@@ -301,7 +344,8 @@ void ACameraActor::ProcessCameraMovement(float DeltaSeconds)
     // 3) 이동 적용
     if (Move.SizeSquared() > 0.0f)
     {
-        const float speed = CameraMoveSpeed * DeltaSeconds * 2.5f;
+        // 전역 베이스 스피드 * 인스턴스별 스칼라
+        const float speed = BaseCameraSpeed * SpeedScalar * DeltaSeconds * 2.5f;
         Move = Move.GetNormalized() * speed;
 
         const FVector P = GetActorLocation();

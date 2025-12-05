@@ -48,16 +48,29 @@ public:
 
     // Camera control methods
     void SetMouseSensitivity(float Sensitivity) { MouseSensitivity = Sensitivity; }
-    void SetMoveSpeed(float Speed) { CameraMoveSpeed = Speed; }
-    
+    void SetMoveSpeed(float Speed) { BaseCameraSpeed = Speed; }
+
     // Camera state getters
     float GetCameraYaw() const { return CameraYawDeg; }
     float GetCameraPitch() const { return CameraPitchDeg; }
     void SetCameraYaw(float Yaw) { CameraYawDeg = Yaw; }
     void SetCameraPitch(float Pitch) { CameraPitchDeg = Pitch; }
 
-    float GetCameraSpeed() { return CameraMoveSpeed; }
-    void SetCameraSpeed(float InSpeed) { CameraMoveSpeed = InSpeed; EditorINI["CameraSpeed"] = std::to_string(CameraMoveSpeed); }
+    // 전역 베이스 스피드 (모든 카메라가 공유, EditorINI에 저장)
+    static float GetBaseCameraSpeed() { return BaseCameraSpeed; }
+    static void SetBaseCameraSpeed(float InSpeed) { BaseCameraSpeed = InSpeed; EditorINI["CameraSpeed"] = std::to_string(BaseCameraSpeed); }
+
+    // 전역 스피드 스칼라 (모든 카메라가 공유, 실시간 동기화)
+    static float GetSpeedScalar() { return SpeedScalar; }
+    static void SetSpeedScalar(float InScalar)
+    {
+        SpeedScalar = std::max(0.25f, std::min(128.0f, InScalar));
+        EditorINI["CameraSpeedScalar"] = std::to_string(SpeedScalar);  // 마지막 값 저장
+    }
+
+    // 레거시 호환성 (기존 코드와의 호환)
+    float GetCameraSpeed() { return BaseCameraSpeed * SpeedScalar; }
+    void SetCameraSpeed(float InSpeed) { SetBaseCameraSpeed(InSpeed); }
 
     void ProcessEditorCameraInput(float DeltaSeconds);
 
@@ -69,11 +82,12 @@ public:
 
 private:
     UCameraComponent* CameraComponent = nullptr;
-    
+
     // Camera control parameters
     float MouseSensitivity = 0.1f;  // 기존 World에서 사용하던 값으로 조정
-    float CameraMoveSpeed = 10.0f;
-    
+    static float BaseCameraSpeed;   // 전역 베이스 스피드 (모든 카메라 공유, EditorINI에 저장)
+    static float SpeedScalar;       // 전역 스피드 스칼라 (모든 카메라 공유, 0.25 ~ 128.0)
+
     // Camera rotation state (cumulative)
     float CameraYawDeg = 0.0f;   // World Up(Y) based Yaw (unlimited accumulation)
     float CameraPitchDeg = 0.0f; // Local Right based Pitch (limited)
