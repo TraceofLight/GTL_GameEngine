@@ -206,6 +206,7 @@ void UMainMenuBarWindow::RenderMenuBar()
 
     // 현재 레벨 이름 가져오기
     FString LevelName = "New Level";
+#ifdef _EDITOR
     if (GEngine.IsPIEActive())
     {
         // PIE 모드일 때도 에디터 월드의 레벨 이름 사용
@@ -215,7 +216,9 @@ void UMainMenuBarWindow::RenderMenuBar()
             LevelName = WorldContexts[0].World->GetLevelName();
         }
     }
-    else if (GWorld)
+    else
+#endif
+    if (GWorld)
     {
         LevelName = GWorld->GetLevelName();
     }

@@ -19,6 +19,16 @@ bool FTextureConverter::ConvertToDDS(
 	std::wstring WSourcePath = UTF8ToWide(SourcePath);
 	std::filesystem::path SourceFile(WSourcePath);
 
+	// 디버그: 현재 작업 디렉토리 및 절대 경로 출력
+	{
+		fs::path CurrentDir = fs::current_path();
+		fs::path AbsPath = fs::absolute(SourceFile);
+		UE_LOG("TextureConverter: Convert: CWD: %s", WideToUTF8(CurrentDir.wstring()).c_str());
+		UE_LOG("TextureConverter: Convert: Relative: %s", SourcePath.c_str());
+		UE_LOG("TextureConverter: Convert: Absolute: %s", WideToUTF8(AbsPath.wstring()).c_str());
+		UE_LOG("TextureConverter: Convert: Exists: %d", fs::exists(SourceFile) ? 1 : 0);
+	}
+
 	if (!std::filesystem::exists(SourceFile))
 	{
 		UE_LOG("TextureConverter: Convert: Source not found %s", SourcePath.c_str());

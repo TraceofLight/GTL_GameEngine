@@ -282,16 +282,31 @@ void USkinnedMeshComponent::SetSkeletalMesh(const FString& PathFileName)
          this->MaterialSlots.resize(NumSlots);
          this->MaterialSlotOverrides.resize(NumSlots, false);
 
+         UE_LOG("SkinnedMeshComponent: Setting up %d material slots for '%s'", NumSlots, PathFileName.c_str());
+
          for (size_t i = 0; i < NumSlots; ++i)
          {
             const FString& MatName = GroupInfos[i].InitialMaterialName;
             if (!MatName.empty())
             {
-               this->SetMaterialByName(static_cast<int32>(i), MatName);
+               // 먼저 캐시에서 동기적으로 확인 (이미 로드된 경우 즉시 설정)
+               UMaterial* CachedMaterial = UResourceManager::GetInstance().Get<UMaterial>(MatName);
+               if (CachedMaterial)
+               {
+                  UE_LOG("SkinnedMeshComponent: Material slot %d: Found '%s' in cache, setting immediately", i, MatName.c_str());
+                  this->SetMaterialInternal(static_cast<int32>(i), CachedMaterial, true);
+               }
+               else
+               {
+                  // 캐시에 없으면 비동기 로드
+                  UE_LOG("SkinnedMeshComponent: Material slot %d: '%s' not in cache, starting async load", i, MatName.c_str());
+                  this->SetMaterialByName(static_cast<int32>(i), MatName);
+               }
             }
             else
             {
                // 머티리얼 이름이 비어있으면 기본 머티리얼 사용
+               UE_LOG("SkinnedMeshComponent: Material slot %d: Empty name, using default material", i);
                this->SetMaterialInternal(static_cast<int32>(i), UResourceManager::GetInstance().GetDefaultMaterial(), true);
             }
          }

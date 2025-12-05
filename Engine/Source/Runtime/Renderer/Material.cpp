@@ -132,14 +132,44 @@ void UMaterial::ResolveTextures()
 
 	// 각 슬롯에 해당하는 텍스처 경로로 UTexture* 찾아서 배열에 저장
 	if (!MaterialInfo.DiffuseTextureFileName.empty())
-		ResolvedTextures[static_cast<int32>(EMaterialTextureSlot::Diffuse)] = RM.Load<UTexture>(MaterialInfo.DiffuseTextureFileName, true);
+	{
+		UTexture* DiffuseTex = RM.Load<UTexture>(MaterialInfo.DiffuseTextureFileName, true);
+
+		// 텍스처 객체가 생성되었어도 내부적으로 로딩이 실패했을 수 있으므로 IsValid() 확인
+		if (DiffuseTex && DiffuseTex->IsValid())
+		{
+			ResolvedTextures[static_cast<int32>(EMaterialTextureSlot::Diffuse)] = DiffuseTex;
+		}
+		else
+		{
+			ResolvedTextures[static_cast<int32>(EMaterialTextureSlot::Diffuse)] = nullptr;
+			UE_LOG("Material: ResolveTextures: Failed to load Diffuse texture '%s'", MaterialInfo.DiffuseTextureFileName.c_str());
+		}
+	}
 	else
-		ResolvedTextures[static_cast<int32>(EMaterialTextureSlot::Diffuse)] = nullptr; // 또는 기본 텍스처
+	{
+		ResolvedTextures[static_cast<int32>(EMaterialTextureSlot::Diffuse)] = nullptr;
+	}
 
 	if (!MaterialInfo.NormalTextureFileName.empty())
-		ResolvedTextures[static_cast<int32>(EMaterialTextureSlot::Normal)] = RM.Load<UTexture>(MaterialInfo.NormalTextureFileName, false);
+	{
+		UTexture* NormalTex = RM.Load<UTexture>(MaterialInfo.NormalTextureFileName, false);
+
+		// 텍스처 객체가 생성되었어도 내부적으로 로딩이 실패했을 수 있으므로 IsValid() 확인
+		if (NormalTex && NormalTex->IsValid())
+		{
+			ResolvedTextures[static_cast<int32>(EMaterialTextureSlot::Normal)] = NormalTex;
+		}
+		else
+		{
+			ResolvedTextures[static_cast<int32>(EMaterialTextureSlot::Normal)] = nullptr;
+			UE_LOG("Material: ResolveTextures: Failed to load Normal texture '%s'", MaterialInfo.NormalTextureFileName.c_str());
+		}
+	}
 	else
-		ResolvedTextures[static_cast<int32>(EMaterialTextureSlot::Normal)] = nullptr; // 또는 기본 노멀 텍스처
+	{
+		ResolvedTextures[static_cast<int32>(EMaterialTextureSlot::Normal)] = nullptr;
+	}
 }
 
 void UMaterial::SetMaterialInfo(const FMaterialInfo& InMaterialInfo)

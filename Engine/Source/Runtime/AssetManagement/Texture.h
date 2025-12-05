@@ -21,6 +21,9 @@ public:
 	uint32 GetHeight() const { return Height; }
 	DXGI_FORMAT GetFormat() const { return Format; }
 
+	// 텍스처가 성공적으로 로드되었는지 유효성 검사
+	bool IsValid() const { return ShaderResourceView != nullptr; }
+
 	// DDS 캐시 파일 경로
 	const FString& GetCacheFilePath() const { return CacheFilePath; }
 

@@ -300,12 +300,17 @@ void SViewportWindow::RenderToolbar()
 	{
 		// GizmoActor 가져오기
 		AGizmoActor* GizmoActor = nullptr;
+#ifdef _EDITOR
 		if (ViewportClient && ViewportClient->GetWorld() && !GEngine.IsPIEActive())
+#else
+		if (ViewportClient && ViewportClient->GetWorld())
+#endif
 		{
 			GizmoActor = ViewportClient->GetWorld()->GetGizmoActor();
 		}
 
 		// PIE 힌트 표시
+#ifdef _EDITOR
 		if (GEngine.IsPIEActive() && GEngine.IsPIEInputCaptured())
 		{
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(3, 3));
@@ -318,6 +323,7 @@ void SViewportWindow::RenderToolbar()
 
 			ImGui::PopStyleVar();
 		}
+#endif
 
 		// ViewportToolbar 렌더링 (기즈모 + 카메라 + 속도 + 뷰모드 + ShowFlag + 레이아웃)
 		ViewportToolbar->Render(ViewportClient, GizmoActor, true, true, ViewportType, ViewportName.ToString().c_str(), this);

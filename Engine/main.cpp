@@ -27,6 +27,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     _CrtSetBreakAlloc(0);
 #endif
 
+	// COM 초기화
+	HRESULT hrCom = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+	if (FAILED(hrCom))
+	{
+		UE_LOG("main: CoInitializeEx failed (0x%08X)", hrCom);
+	}
+
 	InitializeMiniDump();
 
 	PHYSICS.Initialize();
@@ -40,6 +47,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     GEngine.MainLoop();
     GEngine.Shutdown();
+
+	// COM 정리
+	if (SUCCEEDED(hrCom))
+	{
+		CoUninitialize();
+	}
 
     return 0;
 }

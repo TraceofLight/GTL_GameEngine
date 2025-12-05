@@ -141,7 +141,5 @@ private:
 	// bin파일 저장용
 	TArray<FMaterialInfo> MaterialInfos;
 	FbxManager* SdkManager = nullptr;
-	/** 현재 로드 중인 FBX 파일의 상위 디렉토리 (UTF-8) */
-	FString CurrentFbxBaseDir;
 	bool m_bNeedsScaleCorrection = false;
 };

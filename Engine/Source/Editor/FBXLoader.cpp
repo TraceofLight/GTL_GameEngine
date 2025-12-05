@@ -23,6 +23,9 @@ IMPLEMENT_CLASS(UFbxLoader)
 // FBX SDK는 스레드 안전하지 않으므로 mutex로 보호
 static std::mutex GFbxSdkMutex;
 
+// 현재 로드 중인 FBX 파일의 상위 디렉토리 (UTF-8, 스레드별 독립)
+thread_local static FString CurrentFbxBaseDir;
+
 UFbxLoader::UFbxLoader()
 {
 	// 메인 스레드에서 FBX SDK 초기화
@@ -225,17 +228,24 @@ FSkeletalMeshData* UFbxLoader::LoadFbxMeshAsset(const FString& FilePath)
             Reader.Close();
 
             // GroupInfos에 들어있는 InitialMaterialName 기준으로 각 머티리얼을 개별 bin에서 로드
+            UE_LOG("FBXLoader: Loading %d materials from cache for '%s'", MeshData->GroupInfos.Num(), NormalizedPath.c_str());
             for (int Index = 0; Index < MeshData->GroupInfos.Num(); Index++)
             {
                 if (MeshData->GroupInfos[Index].InitialMaterialName.empty())
+                {
+                    UE_LOG("FBXLoader: Material slot %d has no material name, skipping", Index);
                     continue;
+                }
 
                 const FString& MaterialName = MeshData->GroupInfos[Index].InitialMaterialName;
                 const FString MaterialFilePath = ConvertDataPathToCachePath(MaterialName + ".mat.bin");
 
+                UE_LOG("FBXLoader: Loading material '%s' from '%s'", MaterialName.c_str(), MaterialFilePath.c_str());
+
                 FWindowsBinReader MatReader(MaterialFilePath);
                 if (!MatReader.IsOpen())
                 {
+                    UE_LOG("ERROR: Failed to open material bin file: %s", MaterialFilePath.c_str());
                     throw std::runtime_error("Failed to open material bin file for reading.");
                 }
 
@@ -253,6 +263,7 @@ FSkeletalMeshData* UFbxLoader::LoadFbxMeshAsset(const FString& FilePath)
                 NewMaterial->ResolveTextures();
 
                 UResourceManager::GetInstance().Add<UMaterial>(MaterialInfo.MaterialName, NewMaterial);
+                UE_LOG("FBXLoader: Successfully loaded and registered material '%s'", MaterialInfo.MaterialName.c_str());
             }
 
             MeshData->CacheFilePath = BinPathFileName;
@@ -1119,6 +1130,14 @@ void UFbxLoader::ParseMaterial(FbxSurfaceMaterial* Material, FMaterialInfo& Mate
 	FbxPropertyT<FbxDouble> DoubleProp;
 
 	MaterialInfo.MaterialName = Material->GetName();
+
+	// FBX 파일에 이름 없는 Material이 있는 경우 기본 이름 할당 (예: Blender 기본 Material)
+	if (MaterialInfo.MaterialName.empty())
+	{
+		static int UnnamedMaterialCounter = 0;
+		MaterialInfo.MaterialName = "Material_" + std::to_string(UnnamedMaterialCounter++);
+	}
+
 	// PBR 제외하고 Phong, Lambert 머티리얼만 처리함.
 	if (Material->GetClassId().Is(FbxSurfacePhong::ClassId))
 	{
@@ -1217,7 +1236,10 @@ FString UFbxLoader::ParseTexturePath(FbxProperty& Property)
 				}
 
 				FString TexturePath = ACPToUTF8(AcpPath);
-				return ResolveAssetRelativePath(TexturePath, this->CurrentFbxBaseDir);
+				UE_LOG("FBXLoader: ParseTexturePath - FBX internal path: '%s', BaseDir: '%s'", TexturePath.c_str(), CurrentFbxBaseDir.c_str());
+				FString ResolvedPath = ResolveAssetRelativePath(TexturePath, CurrentFbxBaseDir);
+				UE_LOG("FBXLoader: ParseTexturePath - Resolved path: '%s'", ResolvedPath.c_str());
+				return ResolvedPath;
 			}
 		}
 	}
@@ -2704,38 +2726,16 @@ void UFbxLoader::SaveAllAnimSequencesToAnimFiles()
 				continue;
 			}
 
-			// .anim 파일 저장
-			// 디렉토리 생성
-			if (AnimFilePathObj.has_parent_path())
+			// .anim 파일 저장 (SaveToFile 사용하여 올바른 포맷으로 저장)
+			if (AnimSeq->SaveToFile(AnimFilePath))
 			{
-				std::filesystem::create_directories(AnimFilePathObj.parent_path());
+				UE_LOG("FbxLoader: SaveAllAnimSequencesToAnimFiles: Saved %s", AnimFilePath.c_str());
+				++SavedCount;
 			}
-
-			FWindowsBinWriter AnimWriter(AnimFilePath);
-
-			// Name 저장
-			FString AnimName = AnimSeq->GetName();
-			Serialization::WriteString(AnimWriter, AnimName);
-
-			// Notifies 저장
-			uint32 NotifyCount = static_cast<uint32>(AnimSeq->Notifies.Num());
-			AnimWriter << NotifyCount;
-			for (int32 j = 0; j < AnimSeq->Notifies.Num(); ++j)
+			else
 			{
-				AnimWriter << AnimSeq->Notifies[j];
+				UE_LOG("FbxLoader: SaveAllAnimSequencesToAnimFiles: Failed to save %s", AnimFilePath.c_str());
 			}
-
-			// DataModel 저장
-			UAnimDataModel* DataModel = AnimSeq->GetDataModel();
-			if (DataModel)
-			{
-				AnimWriter << *DataModel;
-			}
-
-			AnimWriter.Close();
-
-			UE_LOG("FbxLoader: SaveAllAnimSequencesToAnimFiles: Saved %s", AnimFilePath.c_str());
-			++SavedCount;
 		}
 		catch (const std::exception& e)
 		{
