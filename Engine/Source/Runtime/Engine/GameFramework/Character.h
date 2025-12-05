@@ -15,6 +15,7 @@ class UCharacterMovementComponent;
 class USceneComponent;
 class USkeletalMeshComponent;
 class UCameraComponent;
+class USpringArmComponent;
 
 /**
  * ACharacter
@@ -53,6 +54,10 @@ public:
 	/** AnimationStateMachine을 반환합니다 */
 	UFUNCTION(LuaBind, DisplayName = "GetAnimationStateMachine")
 	UAnimStateMachine* GetAnimationStateMachine() const { return AnimStateMachine; }
+
+	/** SpringArm 컴포넌트를 반환합니다 */
+	UFUNCTION(LuaBind, DisplayName = "GetSpringArm")
+	USpringArmComponent* GetSpringArm() const { return SpringArmComponent; }
 
 	// ────────────────────────────────────────────────
 	// 이동 입력 처리 (APawn 오버라이드)
@@ -177,6 +182,9 @@ public:
 	/** Animation State Machine */
 	//UPROPERTY(EditAnywhere, Category = "[캐릭터]", Tooltip = "캐릭터의 AnimStateMachine.")
 	UAnimStateMachine* AnimStateMachine;
+
+	/** SpringArm 컴포넌트 (3인칭 카메라 지지대) */
+	USpringArmComponent* SpringArmComponent;
 
 	/** 카메라 컴포넌트 (3인칭 뷰) */
 	UCameraComponent* CameraComponent;

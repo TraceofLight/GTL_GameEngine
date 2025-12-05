@@ -257,10 +257,40 @@ void AGameModeBase::InitPlayer()
 		return;
 	}
 
-	// 2. DefaultPawnClass가 설정되어 있으면 스폰
+	// 2. 레벨에 배치된 DefaultPawnClass 타입 찾기 (우선순위 높음)
 	if (DefaultPawnClass)
 	{
-		UE_LOG("GameMode: InitPlayer: Spawning DefaultPawnClass");
+		// 레벨에서 DefaultPawnClass 타입의 Pawn 찾기
+		APawn* ExistingPawn = nullptr;
+		const TArray<AActor*>& AllActors = World->GetActors();
+
+		for (AActor* Actor : AllActors)
+		{
+			if (!Actor)
+				continue;
+
+			// DefaultPawnClass 타입인지 확인 (정확히 일치하거나 자식 클래스)
+			if (Actor->GetClass() == DefaultPawnClass || Actor->GetClass()->IsChildOf(DefaultPawnClass))
+			{
+				ExistingPawn = Cast<APawn>(Actor);
+				if (ExistingPawn)
+				{
+					UE_LOG("GameMode: InitPlayer: Found existing Pawn in level: %s", ExistingPawn->GetName().c_str());
+					break;
+				}
+			}
+		}
+
+		// 레벨에 배치된 Pawn이 있으면 그것 사용
+		if (ExistingPawn)
+		{
+			PlayerController->Possess(ExistingPawn);
+			UE_LOG("GameMode: InitPlayer: Possessed existing Pawn");
+			return;
+		}
+
+		// 레벨에 없으면 새로 스폰 (기존 동작)
+		UE_LOG("GameMode: InitPlayer: No existing Pawn found, spawning DefaultPawnClass");
 
 		FTransform SpawnTransform;
 		SpawnTransform.Translation = PlayerSpawnLocation;

@@ -14,7 +14,7 @@ class UBillboardComponent;
  *
  * @param SkySphereComponent Sky Sphere 컴포넌트 (Root)
  */
-UCLASS(DisplayName="스카이 스피어 액터", Description="절차적 스카이 렌더링 액터")
+UCLASS(DisplayName="스카이 스피어", Description="절차적 스카이 렌더링 액터")
 class ASkySphereActor : public AActor
 {
     GENERATED_REFLECTION_BODY()

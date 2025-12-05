@@ -8,6 +8,7 @@
 #include "SceneComponent.h"
 #include "Source/Runtime/Engine/Components/SkeletalMeshComponent.h"
 #include "Source/Runtime/Engine/Components/CameraComponent.h"
+#include "Source/Runtime/Engine/Components/SpringArmComponent.h"
 #include "Source/Runtime/Engine/Animation/AnimStateMachine.h"
 #include "Source/Runtime/Engine/Animation/AnimSequence.h"
 #include "Source/Runtime/Engine/Animation/AnimInstance.h"
@@ -32,6 +33,7 @@ ACharacter::ACharacter()
 	: CharacterMovement(nullptr)
 	, SkeletalMeshComponent(nullptr)
 	, AnimStateMachine(nullptr)
+	, SpringArmComponent(nullptr)
 	, CameraComponent(nullptr)
 	, bIsCrouched(false)
 	, CrouchedHeightRatio(0.5f)
@@ -56,18 +58,36 @@ ACharacter::ACharacter()
 		UE_LOG("Character: Constructor: SkeletalMeshComponent created");
 	}
 
-	// 카메라 컴포넌트 생성 (3인칭 뷰)
-	CameraComponent = CreateDefaultSubobject<UCameraComponent>("Camera");
-	if (CameraComponent && SkeletalMeshComponent)
+	// SpringArm 컴포넌트 생성 (3인칭 카메라 지지대)
+	SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>("SpringArm");
+	if (SpringArmComponent && SkeletalMeshComponent)
 	{
 		// SkeletalMesh에 Attach
-		CameraComponent->SetupAttachment(SkeletalMeshComponent);
+		SpringArmComponent->SetupAttachment(SkeletalMeshComponent);
 
-		// 3인칭 카메라 위치: 캐릭터 뒤 위
-		CameraComponent->SetRelativeLocation(FVector(-0.0f, 0.0f, 5.0f));
+		// SpringArm 설정 (Unreal Engine 기본값)
+		SpringArmComponent->TargetArmLength = 10.0f;  // 3m 거리
+		SpringArmComponent->SocketOffset = FVector(0.0f, 0.0f, 3.0f);  // 캐릭터 어깨 높이
+		SpringArmComponent->bUsePawnControlRotation = true;  // Controller 회전 사용
+		SpringArmComponent->bEnableCameraLag = true;  // 부드러운 카메라 따라가기
+		SpringArmComponent->CameraLagSpeed = 3.0f;
+		SpringArmComponent->bDoCollisionTest = true;  // 충돌 감지 활성화
 
-		UE_LOG("Character: Constructor: CameraComponent created, parent=%p (SkeletalMesh=%p)",
-			CameraComponent->GetAttachParent(), SkeletalMeshComponent);
+		UE_LOG("Character: Constructor: SpringArmComponent created");
+	}
+
+	// 카메라 컴포넌트 생성 (3인칭 뷰)
+	CameraComponent = CreateDefaultSubobject<UCameraComponent>("Camera");
+	if (CameraComponent && SpringArmComponent)
+	{
+		// SpringArm에 Attach
+		CameraComponent->SetupAttachment(SpringArmComponent);
+
+		// SpringArm 끝에 카메라 배치 (로컬 위치는 0,0,0 - SpringArm이 위치 관리)
+		CameraComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 0.0f));
+
+		UE_LOG("Character: Constructor: CameraComponent created, parent=%p (SpringArm=%p)",
+			CameraComponent->GetAttachParent(), SpringArmComponent);
 	}
 }
 
@@ -165,19 +185,7 @@ void ACharacter::Tick(float DeltaSeconds)
 	// 게임 시작됨 - 정상 Tick (Lua Tick 포함)
 	Super::Tick(DeltaSeconds);
 
-	// 카메라가 캐릭터를 따라가고 바라보도록 업데이트
-	if (CameraComponent)
-	{
-		FVector CharacterLocation = GetActorLocation();
-		FVector CameraOffset = FVector(-5.0f, 0.0f, 2.0f); // 뒤쪽 + 위쪽
-		FVector CameraLocation = CharacterLocation + CameraOffset;
-
-		CameraComponent->SetWorldLocation(CameraLocation);
-
-		// 카메라가 캐릭터를 바라보도록 회전 설정
-		FVector LookDirection = (CharacterLocation - CameraLocation).GetNormalized();
-		CameraComponent->SetForward(LookDirection);
-	}
+	// SpringArm이 자동으로 카메라 위치/회전 관리 (수동 업데이트 불필요)
 }
 
 void ACharacter::DuplicateSubObjects()
@@ -197,6 +205,11 @@ void ACharacter::DuplicateSubObjects()
 		else if (USkeletalMeshComponent* Skeletal = Cast<USkeletalMeshComponent>(Component))
 		{
 			SkeletalMeshComponent = Skeletal;
+		}
+		// SpringArmComponent 업데이트
+		else if (USpringArmComponent* SpringArm = Cast<USpringArmComponent>(Component))
+		{
+			SpringArmComponent = SpringArm;
 		}
 		// CameraComponent 업데이트
 		else if (UCameraComponent* Camera = Cast<UCameraComponent>(Component))
