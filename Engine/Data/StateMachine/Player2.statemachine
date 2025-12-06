@@ -1,0 +1,93 @@
+{
+  "EntryState" : "Idle",
+  "Nodes" : [{
+      "AnimAsset" : "Data/Animation/Parkour/P_Jump_mixamo.com.anim",
+      "AnimAssetType" : 1,
+      "BlendSpaceAsset" : "",
+      "EditorPosX" : 606.000000,
+      "EditorPosY" : 15.000000,
+      "Loop" : false,
+      "Name" : "Jump",
+      "StateEntryNotifies" : [],
+      "StateExitNotifies" : [],
+      "StateFullyBlendedNotifies" : []
+    }, {
+      "AnimAsset" : "Data/Animation/Parkour/P_Idle_mixamo.com.anim",
+      "AnimAssetType" : 1,
+      "BlendSpaceAsset" : "",
+      "EditorPosX" : 222.000000,
+      "EditorPosY" : -145.000000,
+      "Loop" : true,
+      "Name" : "Idle",
+      "StateEntryNotifies" : [],
+      "StateExitNotifies" : [],
+      "StateFullyBlendedNotifies" : []
+    }, {
+      "AnimAsset" : "Data/Animation/Parkour/P_Fast Run_mixamo.com.anim",
+      "AnimAssetType" : 1,
+      "BlendSpaceAsset" : "",
+      "EditorPosX" : 222.000000,
+      "EditorPosY" : 239.000000,
+      "Loop" : true,
+      "Name" : "run",
+      "StateEntryNotifies" : [],
+      "StateExitNotifies" : [],
+      "StateFullyBlendedNotifies" : []
+    }],
+  "Transitions" : [{
+      "BlendTime" : 0.200000,
+      "Conditions" : [{
+          "Op" : 0,
+          "Param" : "bIsJumping",
+          "Type" : 0,
+          "Val" : 0.000000
+        }],
+      "From" : "Jump",
+      "To" : "Idle",
+      "TransitionNotifies" : []
+    }, {
+      "BlendTime" : 0.100000,
+      "Conditions" : [{
+          "Op" : 0,
+          "Param" : "bIsJumping",
+          "Type" : 0,
+          "Val" : 1.000000
+        }],
+      "From" : "Idle",
+      "To" : "Jump",
+      "TransitionNotifies" : []
+    }, {
+      "BlendTime" : 0.200000,
+      "Conditions" : [{
+          "Op" : 2,
+          "Param" : "Speed",
+          "Type" : 0,
+          "Val" : 0.100000
+        }],
+      "From" : "Idle",
+      "To" : "run",
+      "TransitionNotifies" : []
+    }, {
+      "BlendTime" : 0.200000,
+      "Conditions" : [{
+          "Op" : 5,
+          "Param" : "Speed",
+          "Type" : 0,
+          "Val" : 0.100000
+        }],
+      "From" : "run",
+      "To" : "Idle",
+      "TransitionNotifies" : []
+    }, {
+      "BlendTime" : 0.200000,
+      "Conditions" : [{
+          "Op" : 0,
+          "Param" : "bIsJumping",
+          "Type" : 0,
+          "Val" : 1.000000
+        }],
+      "From" : "run",
+      "To" : "Jump",
+      "TransitionNotifies" : []
+    }]
+}

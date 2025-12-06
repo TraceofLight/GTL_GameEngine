@@ -511,7 +511,6 @@ void FAnimNode_StateMachine::CheckTransitions()
 		if (bAllConditionsMet)
 		{
 			TransitionTo(Transition.TargetStateName, Transition.BlendTime);
-			return;
 		}
 	}
 }

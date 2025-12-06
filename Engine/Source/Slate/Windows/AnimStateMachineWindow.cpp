@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "AnimStateMachineWindow.h"
 #include "AnimStateMachine.h"
 #include "AnimSequence.h"

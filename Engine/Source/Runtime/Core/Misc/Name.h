@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -30,6 +30,10 @@ struct FName
     uint32 DisplayIndex = InvalidIndex;
     uint32 ComparisonIndex = InvalidIndex;
 
+#if defined(DEBUG) || defined(_DEBUG)
+	FString DebugString; // 디버거에서 해당 FName의 실제 문자열을 쉽게 확인하기 위한 멤버
+#endif
+
     FName() = default;
     FName(const char* InStr) { Init(FString(InStr)); }
     FName(const FString& InStr) { Init(InStr); }
@@ -39,6 +43,10 @@ struct FName
         int32_t Index = FNamePool::Add(InStr);
         DisplayIndex = Index;
         ComparisonIndex = Index; // 필요시 다른 규칙 적용 가능
+
+#if defined(DEBUG) || defined(_DEBUG)
+		DebugString = InStr;
+#endif
     }
 
 	// 초기화 여부 확인 함수
