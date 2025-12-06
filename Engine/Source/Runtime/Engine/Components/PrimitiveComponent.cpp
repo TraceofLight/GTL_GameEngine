@@ -73,14 +73,9 @@ void UPrimitiveComponent::OnUnregister()
 {
     if (UWorld* World = GetWorld())
     {
-        // Shutdown 시 World가 파괴 중이면 Unregister 스킵
-        // PartitionManager가 이미 파괴되었을 수 있음
-        if (!World->IsTearingDown())
+        if (UWorldPartitionManager* Partition = World->GetPartitionManager())
         {
-            if (UWorldPartitionManager* Partition = World->GetPartitionManager())
-            {
-                Partition->Unregister(this);
-            }
+            Partition->Unregister(this);
         }
     }
 

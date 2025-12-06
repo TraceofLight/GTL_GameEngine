@@ -56,7 +56,6 @@ public:
     void SetWorldType(EWorldType InWorldType) { WorldType = InWorldType; }
     EWorldType GetWorldType() const { return WorldType; }
     bool IsPreviewWorld() const { return WorldType == EWorldType::PreviewMinimal; }
-    bool IsTearingDown() const { return bIsTearingDown; }
 public:
     /** 초기화 */
     void Initialize();

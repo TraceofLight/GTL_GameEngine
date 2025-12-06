@@ -109,13 +109,9 @@ void UPointLightComponent::OnUnregister()
 {
     if (UWorld* World = GetWorld())
     {
-        // Shutdown 시 World가 파괴 중이면 DeRegister 스킵
-        if (!World->IsTearingDown())
+        if (World->GetLightManager())
         {
-            if (World->GetLightManager())
-            {
-                World->GetLightManager()->DeRegisterLight(this);
-            }
+            World->GetLightManager()->DeRegisterLight(this);
         }
     }
 
