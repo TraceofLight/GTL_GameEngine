@@ -24,3 +24,8 @@ function GlobalConfig.Normalize(V)
     return Vector(0,0,0)
 end
 
+function GlobalConfig.NormalizeCopy(V)
+    local Out = Vector(V.X, V.Y, V.Z)
+    Out:Normalize()
+    return Out
+end

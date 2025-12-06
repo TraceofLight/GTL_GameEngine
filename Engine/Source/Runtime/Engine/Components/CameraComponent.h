@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "SceneComponent.h"
 #include "UCameraComponent.generated.h"
@@ -37,6 +37,11 @@ public:
     UPROPERTY(EditAnywhere, Category="Camera", Range="0.1, 100.0")
     float OrthoZoom;  // Orthographic 줌 레벨 (픽셀당 월드 유닛, 값이 클수록 줌아웃)
 
+	UFUNCTION(LuaBind, DisplayName = "TestFunction")
+	void TestFunction()
+	{
+		UE_LOG("TEST");
+	}
     void OnRegister(UWorld* InWorld) override;
     void OnUnregister() override;
 

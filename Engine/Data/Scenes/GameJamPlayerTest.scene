@@ -1,18 +1,12 @@
 {
   "Actors" : {
-    "1476" : {
+    "1522" : {
       "ObjectName" : "캐릭터_0",
       "OwnedComponents" : [{
-          "ObjectName" : "UInputComponent_1",
-          "Type" : "UInputComponent",
-          "bHiddenInGame" : false,
-          "bIsActive" : true,
-          "bTickEnabled" : true
-        }, {
           "AnimBlueprintPath" : "Data/StateMachine/Player.statemachine",
           "AnimToPlayPath" : "",
           "AnimationMode" : 0,
-          "Id" : 1479,
+          "Id" : 1528,
           "MaterialSlots" : [{
               "AssetPath" : "Shaders/Materials/UberLit.hlsl",
               "Type" : "UMaterial"
@@ -48,6 +42,19 @@
           "bSimulatePhysics" : false,
           "bTickEnabled" : true
         }, {
+          "ObjectName" : "ULuaScriptComponent_1",
+          "ScriptFilePath" : "Data/Scripts/Player.lua",
+          "Type" : "ULuaScriptComponent",
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bTickEnabled" : true
+        }, {
+          "ObjectName" : "UInputComponent_1",
+          "Type" : "UInputComponent",
+          "bHiddenInGame" : false,
+          "bIsActive" : true,
+          "bTickEnabled" : true
+        }, {
           "AirControl" : 0.050000,
           "BreakingDeceleration" : 2048.000000,
           "CapsuleHalfHeight" : 0.030000,
@@ -75,11 +82,11 @@
           "bUseSweepForGroundCheck" : false
         }, {
           "CameraLagMaxDistance" : 0.000000,
-          "CameraLagSpeed" : 3.000000,
-          "CameraRotationLagSpeed" : 1.000000,
-          "Id" : 1481,
+          "CameraLagSpeed" : 45.000000,
+          "CameraRotationLagSpeed" : 33.000000,
+          "Id" : 1531,
           "ObjectName" : "USpringArmComponent_1",
-          "ParentId" : 1479,
+          "ParentId" : 1528,
           "ProbeSize" : 0.120000,
           "RelativeLocation" : [0.000000, 0.000000, 0.000000],
           "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
@@ -91,21 +98,21 @@
           "bDoCollisionTest" : true,
           "bDrawDebugCollision" : false,
           "bEnableCameraLag" : true,
-          "bEnableCameraRotationLag" : false,
+          "bEnableCameraRotationLag" : true,
           "bHiddenInGame" : false,
           "bIsActive" : true,
           "bIsVisible" : true,
           "bTickEnabled" : true,
-          "bUsePawnControlRotation" : true
+          "bUsePawnControlRotation" : false
         }, {
           "AspectRatio" : 1.000000,
           "FarClip" : 50000.000000,
           "FieldOfView" : 90.000000,
-          "Id" : 1482,
+          "Id" : 1533,
           "NearClip" : 0.100000,
           "ObjectName" : "UCameraComponent_5",
           "OrthoZoom" : 0.100000,
-          "ParentId" : 1481,
+          "ParentId" : 1531,
           "ProjectionMode" : 0,
           "RelativeLocation" : [0.000000, 0.000000, 0.000000],
           "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
@@ -117,14 +124,14 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 1479,
+      "RootComponentId" : 1528,
       "Tag" : "",
       "Type" : "ACharacter",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "664" : {
+    "1534" : {
       "ObjectName" : "DirectionalLight",
       "OwnedComponents" : [{
           "CascadedAreaColorDebugValue" : 0.000000,
@@ -132,7 +139,7 @@
           "CascadedCount" : 4,
           "CascadedLinearBlendingValue" : 0.500000,
           "CascadedOverlapValue" : 0.200000,
-          "Id" : 665,
+          "Id" : 1536,
           "Intensity" : 1.000000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UDirectionalLightComponent_1",
@@ -153,17 +160,17 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 665,
+      "RootComponentId" : 1536,
       "Tag" : "",
       "Type" : "ADirectionalLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "666" : {
+    "1537" : {
       "ObjectName" : "AmbientLight",
       "OwnedComponents" : [{
-          "Id" : 667,
+          "Id" : 1539,
           "Intensity" : 0.100000,
           "LightColor" : [1.000000, 1.000000, 1.000000, 1.000000],
           "ObjectName" : "UAmbientLightComponent_1",
@@ -183,14 +190,14 @@
           "bIsVisible" : true,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 667,
+      "RootComponentId" : 1539,
       "Tag" : "",
       "Type" : "AAmbientLightActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "668" : {
+    "1540" : {
       "GroundColor" : [0.300000, 0.250000, 0.200000, 1.000000],
       "HorizonColor" : [0.647100, 0.823500, 0.945100, 1.000000],
       "HorizonFalloff" : 3.000000,
@@ -201,7 +208,7 @@
           "GroundColor" : [0.300000, 0.250000, 0.200000, 1.000000],
           "HorizonColor" : [0.647100, 0.823500, 0.945100, 1.000000],
           "HorizonFalloff" : 3.000000,
-          "Id" : 669,
+          "Id" : 1543,
           "ObjectName" : "USkySphereComponent_1",
           "OverallBrightness" : 1.000000,
           "ParentId" : 0,
@@ -209,7 +216,7 @@
           "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "SunColor" : [1.000000, 0.950000, 0.800000, 5.000000],
-          "SunDirection" : [-0.436168, 0.852357, 0.288524],
+          "SunDirection" : [-0.436168, 0.852356, 0.288524],
           "SunDiskSize" : 0.001000,
           "Type" : "USkySphereComponent",
           "ZenithColor" : [0.034300, 0.123600, 0.400000, 1.000000],
@@ -222,7 +229,7 @@
           "bSimulatePhysics" : false,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 669,
+      "RootComponentId" : 1543,
       "SunColor" : [1.000000, 0.950000, 0.800000, 5.000000],
       "SunDiskSize" : 0.001000,
       "Tag" : "",
@@ -233,10 +240,10 @@
       "bAutoUpdateSunDirection" : true,
       "bTickInEditor" : true
     },
-    "676" : {
+    "1544" : {
       "ObjectName" : "Floor",
       "OwnedComponents" : [{
-          "Id" : 677,
+          "Id" : 1546,
           "MaterialSlots" : [{
               "AssetPath" : "texture",
               "Type" : "UMaterial"
@@ -257,14 +264,14 @@
           "bSimulatePhysics" : false,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 677,
+      "RootComponentId" : 1546,
       "Tag" : "",
       "Type" : "AStaticMeshActor",
       "bActorHiddenInGame" : false,
       "bActorIsActive" : true,
       "bTickInEditor" : false
     },
-    "686" : {
+    "1547" : {
       "GroundColor" : [0.300000, 0.250000, 0.200000, 1.000000],
       "HorizonColor" : [0.647100, 0.823500, 0.945100, 1.000000],
       "HorizonFalloff" : 3.000000,
@@ -275,7 +282,7 @@
           "GroundColor" : [0.300000, 0.250000, 0.200000, 1.000000],
           "HorizonColor" : [0.647100, 0.823500, 0.945100, 1.000000],
           "HorizonFalloff" : 3.000000,
-          "Id" : 687,
+          "Id" : 1550,
           "ObjectName" : "USkySphereComponent_2",
           "OverallBrightness" : 1.000000,
           "ParentId" : 0,
@@ -283,7 +290,7 @@
           "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
           "RelativeScale" : [1.000000, 1.000000, 1.000000],
           "SunColor" : [1.000000, 0.950000, 0.800000, 5.000000],
-          "SunDirection" : [-0.436168, 0.852357, 0.288524],
+          "SunDirection" : [-0.436168, 0.852356, 0.288524],
           "SunDiskSize" : 0.001000,
           "Type" : "USkySphereComponent",
           "ZenithColor" : [0.034300, 0.123600, 0.400000, 1.000000],
@@ -296,7 +303,7 @@
           "bSimulatePhysics" : false,
           "bTickEnabled" : true
         }],
-      "RootComponentId" : 687,
+      "RootComponentId" : 1550,
       "SunColor" : [1.000000, 0.950000, 0.800000, 5.000000],
       "SunDiskSize" : 0.001000,
       "Tag" : "",
@@ -310,7 +317,7 @@
   },
   "DefaultPawnClass" : "ACharacter",
   "GameModeClass" : "AGameModeBase",
-  "NextUUID" : 1749,
+  "NextUUID" : 1717,
   "PerspectiveCamera" : {
     "FOV" : [90.000000],
     "FarClip" : [50000.000000],

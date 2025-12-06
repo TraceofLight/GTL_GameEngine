@@ -336,6 +336,7 @@ FLuaManager::FLuaManager()
         // Methods
         "Length", &FVector::Distance,
         "Normalize", &FVector::Normalize,
+        "GetNormalized", &FVector::GetNormalized,
         "Dot", [](const FVector& a, const FVector& b) { return FVector::Dot(a, b); },
         "Cross", [](const FVector& a, const FVector& b) { return FVector::Cross(a, b); }
     );
