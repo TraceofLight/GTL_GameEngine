@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "PhysicsManager.h"
+#include "ClothManager.h"
 
 // 필터 셰이더
 // filterData.word0 = 자신의 충돌 그룹 (CHASSIS, WHEEL, GROUND 등)
@@ -75,6 +76,9 @@ void FPhysicsManager::Initialize()
 
 	// 8. Vehicle SDK 초기화
 	InitVehicleSDK();
+
+	// 9. Cloth Manager 초기화 (NvCloth 기반, PhysX와 통합)
+	FClothManager::GetInstance().Initialize();
 }
 
 void FPhysicsManager::Shutdown()

@@ -1,5 +1,6 @@
 ﻿#include "pch.h"
 #include "ObjectFactory.h"
+#include "Actor.h"
 
 TArray<UObject*> GUObjectArray;
 
@@ -115,7 +116,26 @@ namespace ObjectFactory
 
     void DeleteAll(bool bCallBeginDestroy)
     {
-        // 역순으로 삭제 (DeleteObject가 배열에서 nullptr 처리)
+        // 2단계 삭제: 참조 해제 → 실제 삭제 (댕글링 포인터 방지)
+        if (bCallBeginDestroy)
+        {
+            // Phase 1: Actor::Destroy() 호출로 컴포넌트 참조 해제
+            for (int32 i = GUObjectArray.Num() - 1; i >= 0; --i)
+            {
+                UObject* Obj = GUObjectArray[i];
+                if (!Obj) continue;  // nullptr 스킵 (이미 삭제된 객체)
+
+                if (AActor* Actor = Cast<AActor>(Obj))
+                {
+                    if (!Actor->IsPendingDestroy())
+                    {
+                        Actor->Destroy();  // 컴포넌트 정리, 참조 해제
+                    }
+                }
+            }
+        }
+
+        // Phase 2: 실제 메모리 삭제 (역순)
         for (int32 i = GUObjectArray.Num() - 1; i >= 0; --i)
         {
             if (UObject* Obj = GUObjectArray[i])

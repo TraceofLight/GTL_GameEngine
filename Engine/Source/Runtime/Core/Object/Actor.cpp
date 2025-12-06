@@ -102,7 +102,12 @@ void AActor::Destroy()
 
 	MarkPendingDestroy();
 
-	World->AddPendingKillActor(this);
+	// World가 유효한 경우에만 AddPendingKillActor 호출
+	// Shutdown 시 World가 먼저 파괴될 수 있으므로 nullptr 체크 필수
+	if (World)
+	{
+		World->AddPendingKillActor(this);
+	}
 }
 
 void AActor::SetRootComponent(USceneComponent* InRoot)

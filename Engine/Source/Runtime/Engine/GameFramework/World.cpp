@@ -84,7 +84,12 @@ UWorld::~UWorld()
 		TArray<AActor*> TempActors =  Level->GetActors();
 		for (AActor* Actor : TempActors)
 		{
-			DestroyActor(Actor);
+			// DestroyActor 대신 MarkPendingDestroy만 호출
+			// ObjectFactory::DeleteAll이 나중에 일괄 정리
+			if (Actor && !Actor->IsPendingDestroy())
+			{
+				Actor->MarkPendingDestroy();
+			}
 		}
 		Level->Clear();
 	}
@@ -92,7 +97,12 @@ UWorld::~UWorld()
 	TArray<AActor*> TempEditorActors = EditorActors;
 	for (AActor* Actor : TempEditorActors)
 	{
-		DestroyActor(Actor);
+		// DestroyActor 대신 MarkPendingDestroy만 호출
+		// ObjectFactory::DeleteAll이 나중에 일괄 정리
+		if (Actor && !Actor->IsPendingDestroy())
+		{
+			Actor->MarkPendingDestroy();
+		}
 	}
 	EditorActors.clear();
 

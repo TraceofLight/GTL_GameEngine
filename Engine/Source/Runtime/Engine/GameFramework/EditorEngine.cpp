@@ -459,7 +459,9 @@ void UEditorEngine::Shutdown()
     USlateManager::GetInstance().Shutdown();
     // Delete all UObjects (Components, Actors, Resources)
     // Resource destructors will properly release D3D resources
-    ObjectFactory::DeleteAll(true);
+
+    // Shutdown 시에는 Phase 1을 스킵 (World가 이미 파괴될 수 있음)
+    ObjectFactory::DeleteAll(false);
 
     // Clear FObjManager's static map BEFORE static destruction
     // This must be done in Shutdown() (before main() exits) rather than ~UEditorEngine()

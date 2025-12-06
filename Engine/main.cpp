@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "EditorEngine.h"
 #include "MiniDump.h"
-#include "ClothManager.h"
 
 #if defined(_MSC_VER) && defined(_DEBUG)
 #   define _CRTDBG_MAP_ALLOC
@@ -38,12 +37,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	PHYSICS.Initialize();
 
-	// Cloth Manager 초기화 (싱글톤)
-	// 미안 일단 여기다가 둘게 나도알아 쓰레긴거 하지만 체출 7시간 전인걸...
-	FClothManager::GetInstance().Initialize();
-
 	if (!GEngine.Startup(hInstance))
-        return -1;
+	{
+		return -1;
+	}
 
     GEngine.MainLoop();
     GEngine.Shutdown();

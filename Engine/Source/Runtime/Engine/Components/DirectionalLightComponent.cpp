@@ -212,9 +212,13 @@ void UDirectionalLightComponent::OnUnregister()
 {
     if (UWorld* World = GetWorld())
     {
-        if (World->GetLightManager())
+        // Shutdown 시 World가 파괴 중이면 DeRegister 스킵
+        if (!World->IsTearingDown())
         {
-            World->GetLightManager()->DeRegisterLight(this);
+            if (World->GetLightManager())
+            {
+                World->GetLightManager()->DeRegisterLight(this);
+            }
         }
     }
 }

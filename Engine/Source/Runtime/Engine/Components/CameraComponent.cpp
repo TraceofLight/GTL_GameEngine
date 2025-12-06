@@ -61,10 +61,14 @@ void UCameraComponent::OnUnregister()
 {
     if (UWorld* World = GetWorld())
     {
-        if (APlayerCameraManager* PlayerCameraManager = World->GetPlayerCameraManager())
+        // Shutdown 시 World가 파괴 중이면 Unregister 스킵
+        if (!World->IsTearingDown())
         {
-            // 만약 이 카메라를 뷰로 사용 중이었다면 해제
-            PlayerCameraManager->UnregisterView(this);
+            if (APlayerCameraManager* PlayerCameraManager = World->GetPlayerCameraManager())
+            {
+                // 만약 이 카메라를 뷰로 사용 중이었다면 해제
+                PlayerCameraManager->UnregisterView(this);
+            }
         }
     }
 
